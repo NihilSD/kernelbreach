@@ -1,0 +1,825 @@
+{
+ "key": "AI",
+ "capstone": {
+  "title": "Assess a RAG Support Agent End to End",
+  "desc": "Threat model a RAG assistant, probe injection and leakage, inspect the pipeline and agent permissions, map findings to OWASP LLM, and brief a fix plan."
+ },
+ "cert_note": "Supports OWASP LLM Top 10, MITRE ATLAS and NIST AI RMF knowledge; useful context for CompTIA SecAI+ and ISO 42001 study. Guide only.",
+ "modules": [
+  {
+   "code": "AI-01",
+   "can_do": [
+    "Distinguish supervised, unsupervised and reinforcement learning",
+    "Trace data through an ML pipeline from ingestion to deployment",
+    "Interpret precision, recall and confusion matrices for a model"
+   ],
+   "lessons": [
+    {
+     "title": "Machine learning concepts and paradigms",
+     "goal": "Explain supervised, unsupervised, self-supervised and reinforcement learning with security-relevant examples."
+    },
+    {
+     "title": "Training versus inference",
+     "goal": "Describe training and inference and where each phase exposes data, weights and compute to attack."
+    },
+    {
+     "title": "Neural networks: layers, weights, gradients",
+     "goal": "Explain neurons, activations, loss functions and backpropagation at a conceptual level."
+    },
+    {
+     "title": "Data pipelines and feature engineering",
+     "goal": "Map ingestion, labeling, cleaning, splitting and feature stores, and name the trust boundaries in each stage."
+    },
+    {
+     "title": "Evaluating models: metrics and overfitting",
+     "goal": "Compute accuracy, precision, recall and F1 from a confusion matrix and spot overfitting from train/test gaps."
+    },
+    {
+     "title": "Common model types and where they are used",
+     "goal": "Match classifiers, regressors, CNNs, RNNs, tree ensembles, GANs and diffusion models to security use cases."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Read a confusion matrix",
+     "sim": "scenario",
+     "task": "Given a malware classifier's results, compute precision, recall and F1 and decide if it is fit for blocking."
+    },
+    {
+     "title": "Draw the ML pipeline trust boundaries",
+     "sim": "diagram-builder",
+     "task": "Place data source, labeling, training, registry and serving nodes and mark where untrusted input enters."
+    },
+    {
+     "title": "Spot overfitting in training logs",
+     "sim": "log-viewer",
+     "task": "Read epoch logs of train versus validation loss and identify the epoch where the model begins to overfit."
+    },
+    {
+     "title": "Run a toy classifier",
+     "sim": "terminal",
+     "task": "Use scikit-learn commands to train, split and score a spam classifier, then compare two feature sets."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Training vs inference, pipeline stages, confusion-matrix metrics, overfitting and model type selection"
+   }
+  },
+  {
+   "code": "AI-02",
+   "can_do": [
+    "Explain tokenization, embeddings and attention in plain terms",
+    "Describe how RAG, fine-tuning and agents extend a base model",
+    "Predict how context window limits and prompt structure affect output"
+   ],
+   "lessons": [
+    {
+     "title": "Tokens and tokenization",
+     "goal": "Explain how BPE tokenizers split text, why token counts drive cost and limits, and cause quirks."
+    },
+    {
+     "title": "Embeddings and vector similarity",
+     "goal": "Explain embeddings, cosine similarity and vector databases, and why nearest-neighbor search powers retrieval."
+    },
+    {
+     "title": "Transformers and attention, intuitively",
+     "goal": "Describe self-attention, next-token prediction and sampling parameters (temperature, top-p) without the math."
+    },
+    {
+     "title": "Context windows and prompt structure",
+     "goal": "Explain system, user and assistant roles, context limits, and how instruction priority is (not) enforced."
+    },
+    {
+     "title": "RAG and fine-tuning",
+     "goal": "Compare retrieval-augmented generation, fine-tuning and LoRA, and list the data-exposure risks of each."
+    },
+    {
+     "title": "Agents, tools and function calling",
+     "goal": "Describe the agent loop, function-calling schemas and MCP, and where untrusted text enters the loop."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Count tokens and estimate cost",
+     "sim": "terminal",
+     "task": "Run a tokenizer on sample prompts, compare token counts across strings and compute a request cost."
+    },
+    {
+     "title": "Tune sampling parameters",
+     "sim": "chat-sim",
+     "task": "Adjust temperature and top-p on a sandbox model and record how determinism and risk of odd output change."
+    },
+    {
+     "title": "Trace a RAG request",
+     "sim": "diagram-builder",
+     "task": "Order the query, embedding, vector search, prompt assembly and generation steps and tag untrusted data paths."
+    },
+    {
+     "title": "Review an agent tool schema",
+     "sim": "config-editor",
+     "task": "Read a function-calling JSON schema and identify which parameters accept free text from the model."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Tokens, embeddings, attention intuition, context limits, RAG versus fine-tuning, agent loop"
+   }
+  },
+  {
+   "code": "AI-03",
+   "can_do": [
+    "Enumerate the attack surface of an AI system end to end",
+    "Build a threat model for an ML-backed application",
+    "Map observed attacks to MITRE ATLAS and NIST AI 100-2 categories"
+   ],
+   "lessons": [
+    {
+     "title": "The AI attack surface",
+     "goal": "List attack points across data, training, model artifacts, serving APIs, plugins and users."
+    },
+    {
+     "title": "Threat modeling AI systems",
+     "goal": "Apply STRIDE and data flow diagrams to an ML app, adding model and data-specific threats."
+    },
+    {
+     "title": "MITRE ATLAS tactics and techniques",
+     "goal": "Navigate ATLAS tactics from reconnaissance to impact and map case studies to technique IDs such as AML.T0051."
+    },
+    {
+     "title": "NIST adversarial ML taxonomy",
+     "goal": "Use NIST AI 100-2 to classify evasion, poisoning, privacy and abuse attacks by attacker goal and knowledge."
+    },
+    {
+     "title": "Attacker capabilities and risk rating",
+     "goal": "Rate threats by access level (white, gray, black box), impact and likelihood, and choose mitigations."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Threat model a chatbot",
+     "sim": "diagram-builder",
+     "task": "Draw a data flow diagram for a support chatbot and annotate trust boundaries and AI-specific threats."
+    },
+    {
+     "title": "Map an incident to ATLAS",
+     "sim": "scenario",
+     "task": "Read a short incident description and select the matching ATLAS tactics and technique IDs in order."
+    },
+    {
+     "title": "Classify attacks by NIST taxonomy",
+     "sim": "scenario",
+     "task": "Sort ten attack summaries into evasion, poisoning, privacy or abuse and name attacker knowledge level."
+    },
+    {
+     "title": "Triage AI findings by risk",
+     "sim": "siem",
+     "task": "Review alerts from an inference gateway and rank them by likelihood and impact using the threat model."
+    }
+   ],
+   "checkpoint": {
+    "focus": "AI attack surface, STRIDE for ML, ATLAS technique mapping, NIST AI 100-2 classes"
+   }
+  },
+  {
+   "code": "AI-04",
+   "can_do": [
+    "Recognize direct and indirect prompt injection payloads",
+    "Apply layered guardrails and test them with an evaluation set",
+    "Measure defense effectiveness with attack success rate"
+   ],
+   "lessons": [
+    {
+     "title": "Direct prompt injection",
+     "goal": "Explain how user text overrides instructions and craft benign test payloads for instruction hijacking."
+    },
+    {
+     "title": "Indirect prompt injection",
+     "goal": "Describe how poisoned web pages, emails and documents inject instructions through retrieved content."
+    },
+    {
+     "title": "Jailbreak patterns",
+     "goal": "Recognize role-play, encoding, multi-turn escalation and many-shot jailbreaks and why they work."
+    },
+    {
+     "title": "Input and output guardrails",
+     "goal": "Configure classifiers, allow-lists, delimiters and output filters, and state their known bypass limits."
+    },
+    {
+     "title": "Architectural defenses",
+     "goal": "Apply privilege separation, dual-LLM patterns, structured outputs and context isolation to limit impact."
+    },
+    {
+     "title": "Evaluating defenses",
+     "goal": "Build a test set, compute attack success rate and false positive rate, and compare guardrail configurations."
+    },
+    {
+     "title": "Tooling: Garak, PyRIT and Promptfoo",
+     "goal": "Run automated probes and read their reports to find regressions after prompt or model changes."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Classify injection attempts",
+     "sim": "scenario",
+     "task": "Label fifteen prompts as benign, direct injection, indirect injection or jailbreak and justify each."
+    },
+    {
+     "title": "Hijack a sandbox assistant",
+     "sim": "chat-sim",
+     "task": "Use a harmless canary instruction to override a sandbox system prompt, then document the transcript."
+    },
+    {
+     "title": "Find the poisoned document",
+     "sim": "file-explorer",
+     "task": "Browse a RAG corpus of files and locate the document carrying a hidden instruction payload."
+    },
+    {
+     "title": "Harden a system prompt and filter",
+     "sim": "config-editor",
+     "task": "Edit delimiters and output filter rules, then rerun the test set to lower attack success rate."
+    },
+    {
+     "title": "Run a Garak probe",
+     "sim": "terminal",
+     "task": "Run a garak probe against a mock endpoint and interpret the pass/fail summary per probe."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Direct vs indirect injection, jailbreak families, layered defenses, ASR and false positive metrics"
+   }
+  },
+  {
+   "code": "AI-05",
+   "can_do": [
+    "Name and explain each OWASP LLM Top 10 risk",
+    "Identify vulnerable patterns in LLM application code and config",
+    "Recommend a control for each risk category"
+   ],
+   "lessons": [
+    {
+     "title": "OWASP LLM Top 10 overview",
+     "goal": "Walk through the current list, its risk ranking logic and how it relates to ATLAS and NIST AI RMF."
+    },
+    {
+     "title": "LLM01 Prompt injection and LLM05 output handling",
+     "goal": "Explain how unvalidated model output reaches shells, SQL, HTML and templates, causing XSS or RCE."
+    },
+    {
+     "title": "Sensitive information disclosure",
+     "goal": "Describe leakage of secrets, PII and system prompts through training data, context and logs, and mitigations."
+    },
+    {
+     "title": "Supply chain risks",
+     "goal": "Identify risks in third-party models, datasets and plugins, and verify with hashes and SBOM/AIBOM."
+    },
+    {
+     "title": "Data and model poisoning",
+     "goal": "Explain how tampered training or fine-tuning data creates integrity failures and how to detect it."
+    },
+    {
+     "title": "Excessive agency",
+     "goal": "Recognize excessive functionality, permissions and autonomy in agents and apply least privilege and approval."
+    },
+    {
+     "title": "System prompt leakage and vector weaknesses",
+     "goal": "Assess exposed system prompts and RAG access-control gaps such as cross-tenant retrieval."
+    },
+    {
+     "title": "Misinformation and unbounded consumption",
+     "goal": "Handle hallucinated output, overreliance and denial-of-wallet with grounding, rate limits and quotas."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Exploit an output handling flaw",
+     "sim": "web-proxy",
+     "task": "In a sandbox chat app, intercept a response containing script markup and show it executing in the page."
+    },
+    {
+     "title": "Fix unsafe output code",
+     "sim": "code-editor",
+     "task": "Patch an app that passes model output to eval or a SQL string with encoding and parameterized queries."
+    },
+    {
+     "title": "Find leaked secrets in logs",
+     "sim": "log-viewer",
+     "task": "Search LLM request logs for API keys, PII and system prompt text and list the exposure paths."
+    },
+    {
+     "title": "Audit agent permissions",
+     "sim": "config-editor",
+     "task": "Reduce a tool manifest from admin scope to least privilege and add approval for destructive actions."
+    },
+    {
+     "title": "Check cross-tenant retrieval",
+     "sim": "terminal",
+     "task": "Query a sandbox vector store with two tenant tokens and prove which one can read the other's documents."
+    },
+    {
+     "title": "Match risks to controls",
+     "sim": "scenario",
+     "task": "Match eight application scenarios to the correct OWASP LLM risk and its primary mitigation."
+    }
+   ],
+   "checkpoint": {
+    "focus": "OWASP LLM Top 10 risks, vulnerable patterns, excessive agency, disclosure, supply chain controls"
+   }
+  },
+  {
+   "code": "AI-06",
+   "can_do": [
+    "Describe how poisoning, backdoor and evasion attacks work",
+    "Explain extraction and privacy attacks and their prerequisites",
+    "Select defenses suited to each attack class"
+   ],
+   "lessons": [
+    {
+     "title": "Data poisoning",
+     "goal": "Explain label flipping and clean-label poisoning, how little data is needed and how to sanitize datasets."
+    },
+    {
+     "title": "Backdoors and trojaned models",
+     "goal": "Describe trigger-based backdoors, BadNets and sleeper behavior, and detection with Neural Cleanse style tests."
+    },
+    {
+     "title": "Adversarial examples and evasion",
+     "goal": "Explain FGSM and PGD perturbations, transferability and robustness measures like adversarial training."
+    },
+    {
+     "title": "Model extraction and stealing",
+     "goal": "Describe query-based cloning, API rate limits, output perturbation and watermarking as countermeasures."
+    },
+    {
+     "title": "Membership inference",
+     "goal": "Explain how confidence gaps reveal training membership and how regularization and DP reduce it."
+    },
+    {
+     "title": "Model inversion and training data extraction",
+     "goal": "Describe reconstruction of training samples and LLM memorization extraction attacks."
+    },
+    {
+     "title": "Defense selection and trade-offs",
+     "goal": "Compare robustness, privacy and accuracy trade-offs and pick controls per threat and attacker access."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Spot poisoned training samples",
+     "sim": "file-explorer",
+     "task": "Inspect a labeled image dataset and flag samples with flipped labels and a repeated trigger patch."
+    },
+    {
+     "title": "Run FGSM in a sandbox",
+     "sim": "terminal",
+     "task": "Execute a provided FGSM script on a toy classifier and report the epsilon at which prediction flips."
+    },
+    {
+     "title": "Detect extraction in API logs",
+     "sim": "siem",
+     "task": "Query inference logs for high-volume systematic queries from one key and write a detection rule."
+    },
+    {
+     "title": "Score membership inference risk",
+     "sim": "code-editor",
+     "task": "Complete a short script comparing confidence on train versus test samples and compute the attack AUC."
+    },
+    {
+     "title": "Choose defenses per attack",
+     "sim": "scenario",
+     "task": "Pick rate limiting, DP, adversarial training or data vetting for five described attacks and justify."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Poisoning, backdoors, adversarial examples, extraction, membership inference and matching defenses"
+   }
+  },
+  {
+   "code": "AI-07",
+   "can_do": [
+    "Verify provenance and integrity of datasets and models",
+    "Identify unsafe serialization and scan model files",
+    "Design access control and drift monitoring for ML pipelines"
+   ],
+   "lessons": [
+    {
+     "title": "Data provenance and lineage",
+     "goal": "Track dataset origin, versions and transformations with DVC or hashes and verify trust before training."
+    },
+    {
+     "title": "Model registries and access control",
+     "goal": "Configure registry roles, stage promotion and separation of duties for training, approval and deployment."
+    },
+    {
+     "title": "Model signing and integrity",
+     "goal": "Sign and verify model artifacts with Sigstore or cosign and hash-pin dependencies."
+    },
+    {
+     "title": "Unsafe serialization: pickle and friends",
+     "goal": "Explain how pickle deserialization gives code execution and why safetensors and ONNX reduce the risk."
+    },
+    {
+     "title": "Scanning and securing ML supply chain",
+     "goal": "Use tools such as picklescan and ModelScan, SBOM and AIBOM, and vet hub downloads."
+    },
+    {
+     "title": "Drift monitoring and pipeline observability",
+     "goal": "Detect data and concept drift with PSI or KS tests and alert on pipeline tampering and anomalies."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Inspect a pickle for payloads",
+     "sim": "code-editor",
+     "task": "Disassemble a sandbox pickle file with pickletools and identify the malicious reduce call."
+    },
+    {
+     "title": "Scan a model hub download",
+     "sim": "terminal",
+     "task": "Run a model scanner on three artifacts and decide which to quarantine based on the findings."
+    },
+    {
+     "title": "Verify a signed model",
+     "sim": "terminal",
+     "task": "Run signature and hash verification commands and explain why one artifact fails verification."
+    },
+    {
+     "title": "Tighten registry permissions",
+     "sim": "config-editor",
+     "task": "Edit role bindings so training jobs cannot promote models to production without approval."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Provenance, signing, pickle risks, scanning tools, registry access control, drift detection"
+   }
+  },
+  {
+   "code": "AI-08",
+   "can_do": [
+    "Apply least privilege and sandboxing to AI agents",
+    "Assess MCP servers and connectors for risk",
+    "Design human-in-the-loop approval and secret handling"
+   ],
+   "lessons": [
+    {
+     "title": "Agent architecture and risk model",
+     "goal": "Describe planner, memory and tool components and the confused deputy problem in agent systems."
+    },
+    {
+     "title": "Least privilege and tool permissions",
+     "goal": "Scope tool access with per-tool allow-lists, read-only defaults and short-lived scoped credentials."
+    },
+    {
+     "title": "Sandboxing agent execution",
+     "goal": "Isolate code execution using containers, seccomp, network egress rules and filesystem limits."
+    },
+    {
+     "title": "Connectors and MCP security",
+     "goal": "Review MCP servers for tool poisoning, over-broad scopes, rug pulls and unvetted third-party code."
+    },
+    {
+     "title": "Human in the loop",
+     "goal": "Design approval gates by action risk, avoid approval fatigue and log decisions for audit."
+    },
+    {
+     "title": "Secrets and audit logging",
+     "goal": "Keep secrets out of prompts and context, use vault references and trace tool calls for forensics."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Review an MCP tool manifest",
+     "sim": "config-editor",
+     "task": "Find poisoned tool descriptions and excess scopes in an MCP config and remove or restrict them."
+    },
+    {
+     "title": "Trace an agent incident",
+     "sim": "log-viewer",
+     "task": "Follow an agent's tool call log to find the step where injected text triggered an unauthorized action."
+    },
+    {
+     "title": "Sandbox an agent runtime",
+     "sim": "config-editor",
+     "task": "Set container egress rules, read-only mounts and resource limits for an agent code tool."
+    },
+    {
+     "title": "Design approval policy",
+     "sim": "scenario",
+     "task": "Classify twelve agent actions as auto-approve, require approval or deny and set the policy."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Least privilege, sandboxing, MCP and connector risks, approval gates, secret handling"
+   }
+  },
+  {
+   "code": "AI-09",
+   "can_do": [
+    "Scope an AI red team engagement with clear rules",
+    "Run structured and automated probes against a model application",
+    "Report findings with severity, evidence and remediation"
+   ],
+   "lessons": [
+    {
+     "title": "Scoping and rules of engagement",
+     "goal": "Define targets, harm categories, authorization, data handling and stop conditions for an AI red team."
+    },
+    {
+     "title": "Test planning and harm taxonomies",
+     "goal": "Build a test plan mapped to OWASP LLM, ATLAS and harm categories such as bias, toxicity and misuse."
+    },
+    {
+     "title": "Manual adversarial testing",
+     "goal": "Apply creative prompts, multi-turn strategies and tool abuse to find failures, and log reproducible steps."
+    },
+    {
+     "title": "Automated probing tools",
+     "goal": "Use Garak, PyRIT and Promptfoo to generate attacks at scale and tune scoring."
+    },
+    {
+     "title": "Safety and robustness evaluations",
+     "goal": "Run benchmark-style evaluations, measure refusal and over-refusal rates and interpret metrics."
+    },
+    {
+     "title": "Reporting and retesting",
+     "goal": "Write findings with severity, reproduction, impact, remediation and verify fixes with regression tests."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Write a rules of engagement",
+     "sim": "config-editor",
+     "task": "Complete a scope template listing in-scope models, forbidden actions and escalation contacts."
+    },
+    {
+     "title": "Probe a sandbox chatbot",
+     "sim": "chat-sim",
+     "task": "Execute a planned set of misuse and injection tests and record which succeeded."
+    },
+    {
+     "title": "Run PyRIT-style automation",
+     "sim": "terminal",
+     "task": "Launch an automated attack run, then read the scored results and pick top findings to verify manually."
+    },
+    {
+     "title": "Draft a finding",
+     "sim": "scenario",
+     "task": "Rate severity and write reproduction steps, impact and fix for a discovered data leak."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Scoping, test plan design, automated probing, safety metrics and report quality"
+   }
+  },
+  {
+   "code": "AI-10",
+   "can_do": [
+    "Identify privacy risks across the AI data lifecycle",
+    "Explain differential privacy and federated learning",
+    "Map AI data handling to GDPR and similar regulations"
+   ],
+   "lessons": [
+    {
+     "title": "Training data privacy and PII leakage",
+     "goal": "Describe memorization, PII in datasets and prompts, and controls such as redaction and data minimization."
+    },
+    {
+     "title": "Differential privacy and federated learning",
+     "goal": "Explain epsilon, noise addition, DP-SGD and federated averaging with their limits and trade-offs."
+    },
+    {
+     "title": "Regulations: GDPR, CCPA and consent",
+     "goal": "Apply lawful basis, purpose limitation, data subject rights and DPIAs to AI systems."
+    },
+    {
+     "title": "Privacy engineering for LLM apps",
+     "goal": "Implement PII detection, retention limits, log scrubbing and vendor data processing terms."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Redact PII before logging",
+     "sim": "code-editor",
+     "task": "Write regex and NER-style rules that mask emails, phone numbers and IDs in prompts, then test on samples."
+    },
+    {
+     "title": "Find PII in a dataset",
+     "sim": "file-explorer",
+     "task": "Browse training files, tag records containing personal data and decide remove, mask or retain."
+    },
+    {
+     "title": "Run a mini DPIA",
+     "sim": "scenario",
+     "task": "Answer assessment questions for a customer-chat feature and choose controls for each identified privacy risk."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Memorization, PII controls, differential privacy and federated learning basics, GDPR duties"
+   }
+  },
+  {
+   "code": "AI-11",
+   "can_do": [
+    "Apply NIST AI RMF functions to an AI system",
+    "Classify a system under the EU AI Act risk tiers",
+    "Respond to and document an AI incident"
+   ],
+   "lessons": [
+    {
+     "title": "NIST AI RMF: Govern, Map, Measure, Manage",
+     "goal": "Apply the four functions and the trustworthiness characteristics to a use case."
+    },
+    {
+     "title": "ISO/IEC 42001 AI management system",
+     "goal": "Describe the AIMS clauses, Annex A controls and how they fit with ISO 27001."
+    },
+    {
+     "title": "EU AI Act risk tiers and obligations",
+     "goal": "Classify prohibited, high-risk, limited-risk and minimal-risk systems and list provider duties."
+    },
+    {
+     "title": "Model cards, documentation and responsible AI",
+     "goal": "Write model cards and datasheets covering intended use, limits, bias results and monitoring."
+    },
+    {
+     "title": "AI incident handling",
+     "goal": "Adapt incident response to model failures, harmful outputs and data leaks, with reporting and lessons learned."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Classify under the EU AI Act",
+     "sim": "scenario",
+     "task": "Sort six described systems into EU AI Act risk tiers and list the obligations that apply."
+    },
+    {
+     "title": "Complete a model card",
+     "sim": "config-editor",
+     "task": "Fill in intended use, training data, evaluation results and limitations fields for a sample model."
+    },
+    {
+     "title": "Map controls to NIST AI RMF",
+     "sim": "diagram-builder",
+     "task": "Place risk controls under Govern, Map, Measure and Manage for a hiring-screen model."
+    },
+    {
+     "title": "Triage an AI incident",
+     "sim": "chat-sim",
+     "task": "Work through a harmful-output report by choosing containment, evidence collection and notification steps."
+    }
+   ],
+   "checkpoint": {
+    "focus": "AI RMF functions, ISO 42001 structure, EU AI Act tiers, documentation and incident response"
+   }
+  },
+  {
+   "code": "AI-12",
+   "can_do": [
+    "Use AI to speed up SOC triage and summaries safely",
+    "Evaluate AI detection and anomaly tools with real metrics",
+    "Spot and handle hallucinated security output"
+   ],
+   "lessons": [
+    {
+     "title": "AI in the SOC: triage and summarization",
+     "goal": "Apply LLMs to alert enrichment, case summaries and query drafting with human validation."
+    },
+    {
+     "title": "AI-assisted detection engineering",
+     "goal": "Generate and validate Sigma or KQL rules with AI, testing against sample logs before deployment."
+    },
+    {
+     "title": "Phishing detection with ML",
+     "goal": "Describe feature-based and language-model phishing classifiers and their evasion weaknesses."
+    },
+    {
+     "title": "Anomaly detection basics",
+     "goal": "Explain baselines, isolation forests and UEBA scoring, and manage false positives."
+    },
+    {
+     "title": "Hallucination risks in security work",
+     "goal": "Identify fabricated CVEs, commands and indicators and apply verification habits."
+    },
+    {
+     "title": "Judging AI security tools",
+     "goal": "Evaluate vendor claims using precision, recall, data handling, explainability and pilot results."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Triage alerts with AI summaries",
+     "sim": "siem",
+     "task": "Review AI-generated summaries of five alerts, verify them against raw events and mark which are wrong."
+    },
+    {
+     "title": "Validate an AI-written detection",
+     "sim": "code-editor",
+     "task": "Test a generated Sigma rule against sample logs, fix a logic error and reduce false positives."
+    },
+    {
+     "title": "Catch a hallucinated IOC",
+     "sim": "chat-sim",
+     "task": "Question an AI assistant's report and verify each CVE and hash, flagging the fabricated ones."
+    },
+    {
+     "title": "Score a vendor tool",
+     "sim": "scenario",
+     "task": "Compare two AI detection products on supplied metrics and choose one with written justification."
+    }
+   ],
+   "checkpoint": {
+    "focus": "AI in SOC workflows, detection validation, anomaly basics, hallucination checks, tool evaluation"
+   }
+  },
+  {
+   "code": "AI-13",
+   "can_do": [
+    "Recognize deepfake and voice-clone fraud techniques",
+    "Identify AI-written phishing and automated attack traits",
+    "Apply layered detection and organizational defenses"
+   ],
+   "lessons": [
+    {
+     "title": "Deepfakes and synthetic media",
+     "goal": "Explain how face and video synthesis works and list visual and metadata cues of manipulation."
+    },
+    {
+     "title": "Voice cloning and vishing",
+     "goal": "Describe cloning from short samples, CEO-fraud scenarios and callback or code-word verification."
+    },
+    {
+     "title": "AI-written phishing and social engineering",
+     "goal": "Compare LLM-generated lures with traditional ones and adjust email controls and training."
+    },
+    {
+     "title": "Automated attacks and AI-assisted malware",
+     "goal": "Describe automated recon, exploit generation and polymorphism, and what defenders should expect."
+    },
+    {
+     "title": "Detection and organizational defenses",
+     "goal": "Apply C2PA provenance, liveness checks, out-of-band verification and payment approval controls."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Verify a suspicious voice request",
+     "sim": "scenario",
+     "task": "Handle a cloned-voice payment request by choosing verification steps and escalation."
+    },
+    {
+     "title": "Analyze a phishing email set",
+     "sim": "packet-viewer",
+     "task": "Inspect headers and body of eight emails and decide which look AI-generated and which authentication checks fail."
+    },
+    {
+     "title": "Inspect media metadata",
+     "sim": "terminal",
+     "task": "Run exiftool and C2PA verification on sample files and judge authenticity from the output."
+    },
+    {
+     "title": "Hunt automated login abuse",
+     "sim": "siem",
+     "task": "Query authentication logs for high-speed credential attempts and write a rate-based detection."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Deepfakes, voice cloning, AI phishing traits, automated attacks and verification controls"
+   }
+  },
+  {
+   "code": "AI-14",
+   "can_do": [
+    "Perform a structured security review of an LLM application",
+    "Prioritize findings and map them to standard frameworks",
+    "Present remediation guidance to stakeholders"
+   ],
+   "lessons": [
+    {
+     "title": "Scope and threat model the target app",
+     "goal": "Document architecture, data flows, models and tools of the fictional app and identify the top threats."
+    },
+    {
+     "title": "Test and evidence the findings",
+     "goal": "Probe for injection, leakage, excessive agency and supply chain flaws and collect reproducible evidence."
+    },
+    {
+     "title": "Report, prioritize and remediate",
+     "goal": "Map findings to OWASP LLM and NIST AI RMF, rate severity and write a prioritized fix plan."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Threat model the target app",
+     "sim": "diagram-builder",
+     "task": "Diagram the app's components and annotate five prioritized AI-specific threats."
+    },
+    {
+     "title": "Assess and report the app",
+     "sim": "scenario",
+     "task": "Review config, logs and chat transcripts, record findings with evidence and rank them by severity."
+    }
+   ],
+   "checkpoint": {
+    "focus": "End-to-end AI app review: threat model, evidence quality, severity ranking and remediation plan"
+   }
+  }
+ ]
+}

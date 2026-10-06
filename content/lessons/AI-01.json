@@ -1,0 +1,900 @@
+{
+ "code": "AI-01",
+ "intro": "This module gives you the machine learning vocabulary that every later AI security topic depends on. You will learn the main learning paradigms, the difference between training and inference, how neural networks learn, how data moves through a pipeline, how to judge a model with precision and recall, and which model families fit which security jobs. Knowing where data, weights and compute live is what lets you later spot where attackers can tamper with them.",
+ "lessons": [
+  {
+   "title": "Machine learning concepts and paradigms",
+   "why": "Every AI attack targets some part of how a model learns, so you need the paradigms before you can reason about threats.",
+   "sections": [
+    {
+     "h": "Learning from examples instead of rules",
+     "p": [
+      "Traditional software follows rules a programmer wrote. Machine learning (ML) instead finds a function from examples. A spam filter is not given a list of banned words; it is shown thousands of labeled messages and adjusts internal numbers until its guesses match the labels. The result is a model: a mathematical function whose behavior is stored in parameters called weights. Because behavior comes from data, whoever influences the data influences the model, which is the root of most AI security problems.",
+      "The three classic ingredients are data, a model architecture and an objective that measures how wrong the model is. Training minimizes that objective. Everything else in ML engineering is a variation on this loop."
+     ]
+    },
+    {
+     "h": "Supervised and unsupervised learning",
+     "p": [
+      "In supervised learning every training example carries a label: this file is malware, this login is benign. The model learns to predict labels for new inputs. Classification predicts a category and regression predicts a number such as a risk score. Supervised models are common in security for malware detection, phishing filters and fraud scoring, and their weak point is label quality: wrong or attacker-chosen labels teach wrong behavior.",
+      "Unsupervised learning has no labels. The model finds structure on its own, for example clustering similar network flows or flagging points far from the norm. This suits anomaly detection, where attacks are rare and unlabeled, but it cannot say whether an outlier is malicious, only that it is unusual."
+     ]
+    },
+    {
+     "h": "Self-supervised and reinforcement learning",
+     "p": [
+      "Self-supervised learning creates labels from the data itself. A large language model hides the next word in a sentence and learns to predict it, so a vast pile of raw text becomes training data without human labeling. This is how modern LLMs are pretrained, and it is why scraped web text, with all its hidden junk, flows straight into model behavior.",
+      "Reinforcement learning (RL) trains an agent by trial and reward. The agent acts, receives a reward signal and adapts its policy to earn more. RL is used in game playing, robotics and in tuning LLMs from human feedback (RLHF). The security lesson is that a model optimizes exactly the reward it is given, so a badly designed reward can produce unwanted shortcuts.",
+      "In practice these paradigms are combined. A security vendor might pretrain a model with self-supervised learning on unlabeled telemetry, fine-tune it with supervised labels from analyst verdicts, and then adjust it with feedback. Each hand-off is a place where data or labels can be influenced. When you read a vendor claim about an AI product, ask which paradigm was used, where the labels came from, and who could have shaped them. Those answers tell you what kinds of manipulation the product is exposed to and how much to trust its verdicts."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Concept map",
+    "text": "supervised      : labeled data    -> predict label/number\nunsupervised    : unlabeled data  -> find structure/outliers\nself-supervised : raw data        -> labels made from data\nreinforcement   : environment     -> maximize reward\nsecurity risk   : data and labels or reward can be manipulated"
+   },
+   "example": "A security team wants to catch phishing mail. With 50,000 mails labeled phish or legitimate by analysts, they train a supervised classifier. For finding unusual admin logins where no labels exist they use unsupervised clustering of login features such as hour, source ASN and host count. Neither is a replacement for the other: the first catches known patterns well, the second surfaces novel oddities that an analyst must still judge.",
+   "terms": [
+    {
+     "term": "Supervised learning",
+     "def": "Learning a mapping from inputs to known labels."
+    },
+    {
+     "term": "Unsupervised learning",
+     "def": "Finding structure in data without labels."
+    },
+    {
+     "term": "Self-supervised learning",
+     "def": "Generating training signals from the data itself, as in next-word prediction."
+    },
+    {
+     "term": "Reinforcement learning",
+     "def": "Training an agent to maximize a reward through trial and error."
+    },
+    {
+     "term": "Weights",
+     "def": "Numeric parameters that store what a model has learned."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which paradigm needs labeled examples?",
+     "options": [
+      "Supervised learning",
+      "Unsupervised clustering",
+      "Anomaly scoring without labels",
+      "Self-organizing maps"
+     ],
+     "a": 0,
+     "why": "Supervised learning maps inputs to known labels."
+    },
+    {
+     "q": "How does an LLM get its pretraining labels?",
+     "options": [
+      "Analysts label each sentence",
+      "From the text itself, by predicting the next token",
+      "From user clicks only",
+      "From a firewall"
+     ],
+     "a": 1,
+     "why": "Self-supervised learning derives the target from the data."
+    },
+    {
+     "q": "Why is unsupervised anomaly detection limited?",
+     "options": [
+      "It needs more labels",
+      "It cannot tell unusual from malicious",
+      "It cannot run on logs",
+      "It is always slower"
+     ],
+     "a": 1,
+     "why": "It flags outliers but not intent."
+    },
+    {
+     "q": "In reinforcement learning, what drives behavior?",
+     "options": [
+      "Labeled rows",
+      "A reward signal",
+      "A schema",
+      "A firewall rule"
+     ],
+     "a": 1,
+     "why": "The agent optimizes the reward it receives."
+    }
+   ],
+   "recap": [
+    "ML finds behavior from data, so data is part of the attack surface.",
+    "Supervised needs labels, unsupervised finds structure, self-supervised makes its own labels, RL follows rewards.",
+    "Label quality and reward design are security-relevant choices."
+   ]
+  },
+  {
+   "title": "Training versus inference",
+   "why": "Training and inference expose different assets to different attackers, so threat models treat them separately.",
+   "sections": [
+    {
+     "h": "Two phases, two risk profiles",
+     "p": [
+      "Training is the phase where a model learns. It is compute heavy, runs on GPUs or accelerators for hours to months, reads large datasets and writes weights to storage. Inference is the phase where the trained model is used: an input goes in, a prediction comes out, usually behind an API and at low latency. Training happens occasionally and is run by a small team; inference happens constantly and may be reachable by anyone who can call the service.",
+      "This split decides who the attacker is. Against training the threat is mainly insiders, compromised data sources and supply chain inputs. Against inference the threat is external users sending crafted queries."
+     ]
+    },
+    {
+     "h": "What each phase exposes",
+     "p": [
+      "During training the exposed assets are the raw dataset (which may hold personal data), the labels, the training code and dependencies, the checkpoints and the final weights. Poisoned data inserted here changes the model permanently. Stolen checkpoints reveal intellectual property worth millions in compute.",
+      "During inference the exposed assets are the endpoint, the prompts and outputs, logs of user queries, and the model itself through its answers. Attackers can send adversarial inputs to cause misclassification, issue many queries to clone the model, or probe confidence scores to learn whether a record was in the training set."
+     ]
+    },
+    {
+     "h": "Defensive implications",
+     "p": [
+      "Harden training with controlled data ingestion, hash-pinned datasets, isolated compute, least-privilege access to the registry and logging of every job. Harden inference with authentication, rate limits, input validation, output filtering, monitoring for abnormal query patterns and no unnecessary disclosure of confidence scores or internals.",
+      "A third phase, fine-tuning, sits between them: it updates an existing model with new data and inherits training risks on a smaller, often less controlled, dataset. Treat it as training for security purposes.",
+      "A useful habit is to draw two separate diagrams for any ML system, one for the training environment and one for the serving environment, and list the identities that can touch each. Training usually involves data engineers, researchers and automated jobs with broad storage access. Serving involves application services and end users. The point where a model artifact moves from one to the other, the registry and deployment step, is a high-value control point because anything promoted there is trusted by everything downstream, including customers."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Log excerpt",
+    "text": "2025-03-02T10:14:07Z job=train-fraud-v7 gpu=8 dataset=sha256:9f2c...a1 status=started\n2025-03-02T16:40:51Z job=train-fraud-v7 artifact=weights-v7.safetensors sha256=41be...77\n2025-03-02T17:02:13Z deploy=fraud-api model=v7 stage=production approver=analyst01\n2025-03-02T17:05:44Z POST /v1/score client=key-203 status=200 latency_ms=38"
+   },
+   "example": "A bank trains a fraud model weekly on transaction exports. Their threat model for training lists a malicious data engineer and a tampered export; controls are signed exports and job logging. For inference it lists a fraudster probing the scoring API to learn what passes; controls are per-key rate limits, returning only a decision and not the raw score, and alerts on many near-identical queries from one key.",
+   "terms": [
+    {
+     "term": "Training",
+     "def": "The phase where weights are learned from data."
+    },
+    {
+     "term": "Inference",
+     "def": "Using a trained model to make predictions on new inputs."
+    },
+    {
+     "term": "Checkpoint",
+     "def": "A saved snapshot of weights during or after training."
+    },
+    {
+     "term": "Fine-tuning",
+     "def": "Further training of an existing model on new data."
+    },
+    {
+     "term": "Endpoint",
+     "def": "The network interface through which inference is served."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which phase is typically exposed to many external users?",
+     "options": [
+      "Training",
+      "Inference",
+      "Data labeling only",
+      "Compilation"
+     ],
+     "a": 1,
+     "why": "Inference APIs serve end users."
+    },
+    {
+     "q": "Poisoned data is most relevant to which phase?",
+     "options": [
+      "Training",
+      "Inference only",
+      "Logging",
+      "DNS lookup"
+     ],
+     "a": 0,
+     "why": "Poisoning corrupts what the model learns."
+    },
+    {
+     "q": "Why return only a decision rather than raw scores from an API?",
+     "options": [
+      "It lowers disk use",
+      "It reduces information for extraction and inference attacks",
+      "It speeds training",
+      "It encrypts weights"
+     ],
+     "a": 1,
+     "why": "Rich outputs help attackers probe the model."
+    },
+    {
+     "q": "For threat modeling, fine-tuning is best treated like",
+     "options": [
+      "Inference",
+      "Training",
+      "Monitoring",
+      "Caching"
+     ],
+     "a": 1,
+     "why": "It updates weights from data, so it inherits training risks."
+    }
+   ],
+   "recap": [
+    "Training learns weights; inference uses them.",
+    "Training risks center on data, code and artifacts; inference risks on the API and outputs.",
+    "Fine-tuning counts as training for risk purposes."
+   ]
+  },
+  {
+   "title": "Neural networks: layers, weights, gradients",
+   "why": "Neural networks power modern AI, and their gradient-based learning is exactly what adversarial attacks exploit.",
+   "sections": [
+    {
+     "h": "Neurons, layers and activations",
+     "p": [
+      "A neural network is built from simple units called neurons. Each neuron multiplies its inputs by weights, adds them up with a bias and passes the result through an activation function such as ReLU, which outputs zero for negative values and the value itself otherwise. Neurons are arranged in layers: an input layer takes the features, hidden layers transform them, and an output layer gives the prediction, for example probabilities for benign and malicious.",
+      "Stacking many layers lets the network build complex features from simple ones. Deep networks can hold millions to trillions of weights, and no single weight has a human-readable meaning, which is why these models are hard to audit."
+     ]
+    },
+    {
+     "h": "Loss and backpropagation",
+     "p": [
+      "Learning starts with a loss function that scores how wrong a prediction is. Cross-entropy is common for classification, mean squared error for regression. After a forward pass computes predictions, backpropagation works backward through the layers to compute the gradient: how much the loss would change for a small change in each weight.",
+      "An optimizer such as stochastic gradient descent then nudges every weight a small step, set by the learning rate, in the direction that reduces loss. Repeating this over many batches and epochs gradually fits the data. An epoch is one full pass through the training set."
+     ]
+    },
+    {
+     "h": "Why gradients matter for security",
+     "p": [
+      "The same gradient math can be turned around. Instead of changing weights to reduce loss on fixed inputs, an attacker with model access can compute the gradient with respect to the input and change the input slightly to increase loss. This is the basis of adversarial examples, covered later in the path.",
+      "Gradients also leak information. In federated or shared training, gradients sent between parties can reveal details of the underlying data. Knowing that learning is just gradient updates over data helps you reason about both attacks and defenses such as noise, clipping and regularization.",
+      "Two more terms appear constantly in later modules. Overparameterized networks have far more weights than training examples, which gives them capacity to memorize records; that capacity is why privacy attacks such as membership inference work. Regularization techniques such as weight decay and dropout limit this capacity and also tend to improve generalization. You do not need the calculus to work in AI security, but you do need the picture: data shapes weights, weights define behavior, and anything that touches either one changes what the system does."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Training log",
+    "text": "epoch=1 loss=0.912 acc=0.61\nepoch=2 loss=0.640 acc=0.72\nepoch=3 loss=0.455 acc=0.81\nepoch=4 loss=0.331 acc=0.87\n# loss falls as gradient steps update the weights"
+   },
+   "example": "Picture a tiny network deciding if a URL is malicious from three features: length, number of dots and presence of an IP address. The first pass guesses 0.5 for a known bad URL, so the loss is high. Backpropagation shows that raising the weight on the IP-address feature reduces the loss most, and the optimizer increases it a little. After thousands of such steps the network scores such URLs near 1.0.",
+   "terms": [
+    {
+     "term": "Activation function",
+     "def": "A nonlinear function applied to a neuron output so networks can model complex patterns."
+    },
+    {
+     "term": "Loss function",
+     "def": "A score of how far predictions are from the targets."
+    },
+    {
+     "term": "Backpropagation",
+     "def": "Algorithm that computes gradients of the loss for every weight."
+    },
+    {
+     "term": "Gradient",
+     "def": "The direction and size of change in loss for a change in a parameter."
+    },
+    {
+     "term": "Epoch",
+     "def": "One complete pass through the training data."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does backpropagation compute?",
+     "options": [
+      "Gradients of the loss for each weight",
+      "The dataset size",
+      "Network latency",
+      "Encryption keys"
+     ],
+     "a": 0,
+     "why": "It propagates error backward to get gradients."
+    },
+    {
+     "q": "What does the learning rate control?",
+     "options": [
+      "Number of layers",
+      "Size of each weight update step",
+      "Dataset license",
+      "Output format"
+     ],
+     "a": 1,
+     "why": "It scales gradient steps."
+    },
+    {
+     "q": "Which statement about loss is correct?",
+     "options": [
+      "Lower loss means predictions fit targets better",
+      "Higher loss is always better",
+      "Loss is only used at inference",
+      "Loss is the same as accuracy"
+     ],
+     "a": 0,
+     "why": "Training minimizes loss."
+    },
+    {
+     "q": "Why do gradients matter to attackers?",
+     "options": [
+      "They are encrypted",
+      "They show how to alter inputs to raise loss",
+      "They list users",
+      "They set ports"
+     ],
+     "a": 1,
+     "why": "Input gradients guide adversarial perturbations."
+    }
+   ],
+   "recap": [
+    "Neurons combine weighted inputs and an activation.",
+    "Loss measures error; backpropagation gives gradients; optimizers update weights.",
+    "Gradient access enables adversarial examples and can leak data."
+   ]
+  },
+  {
+   "title": "Data pipelines and feature engineering",
+   "why": "Most real AI incidents start in the data pipeline, so you must know every stage and where untrusted input enters.",
+   "sections": [
+    {
+     "h": "The pipeline stages",
+     "p": [
+      "An ML pipeline moves data from source to deployed model. Ingestion collects data from databases, logs, web scrapes, partners or user uploads. Labeling assigns ground truth, by analysts, crowd workers, heuristics or other models. Cleaning removes duplicates, errors and sensitive fields. Splitting divides data into training, validation and test sets. Feature engineering turns raw fields into numeric inputs such as counts, ratios, or embeddings. Training produces a model that is stored in a registry and then deployed to serving.",
+      "A feature store keeps computed features so training and serving use the same definitions, avoiding mismatches between the two."
+     ]
+    },
+    {
+     "h": "Trust boundaries in each stage",
+     "p": [
+      "A trust boundary is a point where data or control crosses from a less trusted to a more trusted zone. At ingestion, external scrapes, user submissions and third-party feeds are untrusted and can carry poisoned records. At labeling, annotators or auto-labelers can mislabel by error or intent. In cleaning and feature code, a compromised script can alter data silently. In the registry, who may publish a model is a critical control. At serving, user input is untrusted again.",
+      "Mark each boundary and ask who can write there, how writes are authenticated and whether integrity is verified, for example by hashing datasets."
+     ]
+    },
+    {
+     "h": "Splits, leakage and controls",
+     "p": [
+      "Splitting is also a quality and security issue. If test data overlaps with training data, results are inflated; this is data leakage. Splits should be made before any feature fitting and, for time-based data like logs, by time so that the future is never used to predict the past.",
+      "Useful controls include dataset versioning, content hashes, access control on buckets, review of labeling guidelines, outlier and duplicate checks, and an audit trail from model back to the exact dataset version that trained it.",
+      "Feature engineering itself can be a weak point. Features computed from attacker-controllable fields, such as email subject length or a user-agent string, can be manipulated to push a score across a threshold. Features that depend on external lookups, like IP reputation, inherit the trust level of that service. Document each feature's origin, the code that computes it and whether an outside party can influence it. That documentation becomes the input to your threat model and helps you decide which features deserve extra validation or should be dropped entirely."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Pipeline sketch",
+    "text": "source -> ingest -> label -> clean -> split -> features -> train -> registry -> serving\n   ^untrusted   ^annotators             ^feature store    ^publish rights   ^user input"
+   },
+   "example": "A phishing detector ingests reported emails from an employee mailbox. An attacker who knows this can send many crafted benign-looking but malicious messages that analysts later label safe, shifting the model. The team marks the report mailbox as an untrusted ingestion boundary, samples labels for review, hashes each training snapshot and requires two approvals before a model is promoted.",
+   "terms": [
+    {
+     "term": "Ingestion",
+     "def": "Collecting raw data into the pipeline."
+    },
+    {
+     "term": "Feature engineering",
+     "def": "Turning raw data into model-ready numeric inputs."
+    },
+    {
+     "term": "Feature store",
+     "def": "A shared repository of computed features for training and serving."
+    },
+    {
+     "term": "Data leakage",
+     "def": "Information from test data or the future improperly reaching training."
+    },
+    {
+     "term": "Trust boundary",
+     "def": "A point where data crosses between zones of different trust."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which stage first receives data from untrusted sources?",
+     "options": [
+      "Ingestion",
+      "Registry promotion only",
+      "Weight updates",
+      "Unit testing"
+     ],
+     "a": 0,
+     "why": "Ingestion pulls from external sources."
+    },
+    {
+     "q": "Why split time-based log data by time?",
+     "options": [
+      "To avoid using future data to predict the past",
+      "To shrink the file",
+      "To anonymize IPs",
+      "To add labels"
+     ],
+     "a": 0,
+     "why": "Random splits would leak future information."
+    },
+    {
+     "q": "A good integrity control for datasets is",
+     "options": [
+      "Content hashing and versioning",
+      "Larger fonts",
+      "Longer epochs",
+      "More neurons"
+     ],
+     "a": 0,
+     "why": "Hashes detect tampering."
+    },
+    {
+     "q": "What is data leakage?",
+     "options": [
+      "Test information entering training",
+      "A breach of the registry",
+      "A slow query",
+      "An expired key"
+     ],
+     "a": 0,
+     "why": "It inflates evaluation results."
+    }
+   ],
+   "recap": [
+    "Pipelines run ingest, label, clean, split, features, train, register, serve.",
+    "Each stage has trust boundaries where tampering is possible.",
+    "Version, hash and audit data to link models to datasets."
+   ]
+  },
+  {
+   "title": "Evaluating models: metrics and overfitting",
+   "why": "A model that looks accurate can still be useless or dangerous; metrics tell you which errors matter.",
+   "sections": [
+    {
+     "h": "The confusion matrix",
+     "p": [
+      "For a binary detector, every prediction lands in one of four cells. True positive (TP): malicious and flagged. False positive (FP): benign but flagged. False negative (FN): malicious but missed. True negative (TN): benign and passed. The matrix counts each cell and is the source of nearly every metric.",
+      "Security data is usually imbalanced: attacks may be 0.1 percent of events. A model that always says benign scores 99.9 percent accuracy and catches nothing, so accuracy alone misleads."
+     ]
+    },
+    {
+     "h": "Precision, recall and F1",
+     "p": [
+      "Precision = TP / (TP + FP): of everything flagged, how much was truly bad. Low precision floods analysts with false alarms. Recall = TP / (TP + FN): of everything truly bad, how much was caught. Low recall means attacks slip through. Accuracy = (TP + TN) / total. F1 = 2 x precision x recall / (precision + recall) balances the first two.",
+      "The right balance depends on cost. Automatic blocking needs high precision because false positives disrupt users; threat hunting prefers high recall because analysts can triage."
+     ]
+    },
+    {
+     "h": "Overfitting and generalization",
+     "p": [
+      "Overfitting happens when a model memorizes the training set, noise included, and fails on new data. The signature is a gap: training loss keeps falling while validation loss flattens and then rises, or training accuracy is 99 percent while test accuracy is 80 percent. Underfitting is the opposite, with poor results on both.",
+      "Remedies include more diverse data, simpler models, regularization, dropout, early stopping and cross-validation. Always keep a final test set untouched until the end. Overfit models are also more vulnerable to privacy attacks, since memorized records can be extracted.",
+      "Thresholds matter as much as the model. Most classifiers output a score between 0 and 1, and the decision threshold converts it to a label. Raising the threshold increases precision and lowers recall; lowering it does the reverse. The ROC curve and the precision-recall curve show this trade-off across all thresholds, and the area under the ROC curve (AUC) summarizes ranking quality. For rare attacks, the precision-recall curve is the more honest view. Always evaluate on data that resembles production, including fresh attack samples, because models decay as attackers adapt."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "TP=90 FP=10 FN=30 TN=870\nprecision = 90/100  = 0.90\nrecall    = 90/120  = 0.75\nF1        = 0.818\naccuracy  = 960/1000 = 0.96"
+   },
+   "example": "A malware classifier reports 96 percent accuracy on 1,000 files, which sounds great. The matrix shows 120 malicious files, of which it caught 90 and missed 30, so recall is only 75 percent: one in four threats passes. Precision of 90 percent is decent. The team deploys it for alerting with analyst review rather than automatic deletion, and plans to improve recall.",
+   "terms": [
+    {
+     "term": "Precision",
+     "def": "Share of flagged items that are truly positive."
+    },
+    {
+     "term": "Recall",
+     "def": "Share of true positives that were caught."
+    },
+    {
+     "term": "F1 score",
+     "def": "Harmonic mean of precision and recall."
+    },
+    {
+     "term": "Overfitting",
+     "def": "Fitting training data too closely so new data performs poorly."
+    },
+    {
+     "term": "Validation set",
+     "def": "Held-out data used to tune the model during development."
+    }
+   ],
+   "check": [
+    {
+     "q": "TP=40, FP=10. What is precision?",
+     "options": [
+      "0.80",
+      "0.25",
+      "0.40",
+      "0.10"
+     ],
+     "a": 0,
+     "why": "40/(40+10)=0.8."
+    },
+    {
+     "q": "TP=40, FN=10. What is recall?",
+     "options": [
+      "0.80",
+      "0.25",
+      "0.50",
+      "0.10"
+     ],
+     "a": 0,
+     "why": "40/(40+10)=0.8."
+    },
+    {
+     "q": "Which pattern indicates overfitting?",
+     "options": [
+      "Train loss falls while validation loss rises",
+      "Both losses high",
+      "Both losses equal",
+      "Loss is zero at start"
+     ],
+     "a": 0,
+     "why": "A widening train/validation gap is the sign."
+    },
+    {
+     "q": "Why can 99.9 percent accuracy be meaningless?",
+     "options": [
+      "Classes are imbalanced",
+      "It is too precise",
+      "Recall is always 1",
+      "Accuracy cannot be computed"
+     ],
+     "a": 0,
+     "why": "Predicting the majority class scores high."
+    }
+   ],
+   "recap": [
+    "Read the four cells of the confusion matrix first.",
+    "Precision punishes false alarms, recall punishes misses; pick by cost.",
+    "Watch the train/validation gap to spot overfitting."
+   ]
+  },
+  {
+   "title": "Common model types and where they are used",
+   "why": "Choosing the wrong model family wastes effort and creates blind spots; each family also has its own attack profile.",
+   "sections": [
+    {
+     "h": "Classical models",
+     "p": [
+      "Classifiers predict categories and regressors predict numbers. Logistic regression and linear models are fast and easy to explain. Decision trees split data with simple questions. Tree ensembles such as random forests and gradient boosting (XGBoost, LightGBM) combine many trees and are often the best performers on tabular data such as logs, flow records and file metadata. In security they power fraud scoring, malware detection from file features and alert prioritization.",
+      "Their strengths are speed, modest data needs and some interpretability through feature importance."
+     ]
+    },
+    {
+     "h": "Deep learning families",
+     "p": [
+      "Convolutional neural networks (CNNs) excel at grid data such as images, and have been applied to malware visualized as images and to CAPTCHA or document analysis. Recurrent networks (RNNs, LSTMs) handle sequences like system call traces or login streams. Transformers now dominate language and increasingly sequence tasks, powering phishing language analysis and log summarization.",
+      "Autoencoders learn to reconstruct normal data; a high reconstruction error flags anomalies, a common unsupervised detector."
+     ]
+    },
+    {
+     "h": "Generative models",
+     "p": [
+      "Generative adversarial networks (GANs) pit a generator against a discriminator to produce realistic samples. Diffusion models create images, audio or video by gradually denoising random noise. Both underpin deepfakes, but defenders also use them to synthesize training data or simulate malware variants for testing.",
+      "Large language models generate text. From a defensive view, each family brings different risks: tabular models face evasion by feature tweaking, image models face pixel perturbations, generative models face misuse and leakage of training data.",
+      "Interpretability influences the choice too. Regulators, auditors and incident responders often need to know why a model flagged something. Linear models and trees can show contributing features; deep networks usually need post-hoc tools such as SHAP or saliency maps, which are approximations. Weigh accuracy against explainability and maintenance cost. A slightly less accurate model that analysts understand and can debug is often safer in production than a black box nobody can question, especially when its outputs trigger automated action."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Model selection cheat sheet",
+    "text": "tabular logs/flows   -> gradient boosted trees\nimages/screenshots   -> CNN\nsequences/traces     -> LSTM or transformer\nunlabeled anomalies  -> autoencoder, isolation forest\nsynthetic media      -> GAN, diffusion"
+   },
+   "example": "A SOC wants to rank thousands of daily alerts. Features are tabular: source reputation, asset criticality, count of prior alerts and rule severity. They choose gradient boosted trees: strong on tabular data, quick to retrain and explainable via feature importance. A deep network would need more data and be harder to justify to auditors.",
+   "terms": [
+    {
+     "term": "Random forest",
+     "def": "An ensemble of decision trees voting on the result."
+    },
+    {
+     "term": "CNN",
+     "def": "Neural network specialized for grid-like data such as images."
+    },
+    {
+     "term": "RNN/LSTM",
+     "def": "Network designed for sequences."
+    },
+    {
+     "term": "GAN",
+     "def": "Generator and discriminator networks trained against each other."
+    },
+    {
+     "term": "Diffusion model",
+     "def": "Generative model that denoises random noise into samples."
+    }
+   ],
+   "check": [
+    {
+     "q": "Best fit for tabular log features?",
+     "options": [
+      "Gradient boosted trees",
+      "Diffusion model",
+      "GAN",
+      "Pixel CNN only"
+     ],
+     "a": 0,
+     "why": "Tree ensembles are strong on tabular data."
+    },
+    {
+     "q": "Which model reconstructs normal data to find anomalies?",
+     "options": [
+      "Autoencoder",
+      "Linear regressor",
+      "Hash function",
+      "Decision stump"
+     ],
+     "a": 0,
+     "why": "High reconstruction error signals anomalies."
+    },
+    {
+     "q": "Which family is commonly behind deepfake image generation?",
+     "options": [
+      "GANs and diffusion models",
+      "Random forests",
+      "k-means",
+      "Naive Bayes"
+     ],
+     "a": 0,
+     "why": "They generate realistic synthetic media."
+    },
+    {
+     "q": "Which family suits sequences such as system call traces?",
+     "options": [
+      "RNN/LSTM or transformer",
+      "Plain CNN on tables",
+      "k-NN on hashes",
+      "Linear SVM only"
+     ],
+     "a": 0,
+     "why": "Sequence models capture order."
+    }
+   ],
+   "recap": [
+    "Trees dominate tabular data; CNNs images; RNNs and transformers sequences.",
+    "Autoencoders and isolation methods suit unlabeled anomaly work.",
+    "Generative models power both deepfakes and defensive simulation."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Read a confusion matrix",
+   "sim": "scenario",
+   "scenario": "A fictional vendor, Example Corp, tests a malware classifier on 1,000 files. You receive its results and must decide whether it may auto-quarantine files on endpoints.",
+   "objective": "Compute precision, recall and F1 and decide if the model is fit for blocking.",
+   "steps": [
+    {
+     "do": "Open the results sheet.",
+     "see": "Counts: TP=90, FP=10, FN=30, TN=870."
+    },
+    {
+     "do": "Compute precision = TP/(TP+FP).",
+     "see": "90/100 = 0.90."
+    },
+    {
+     "do": "Compute recall = TP/(TP+FN).",
+     "see": "90/120 = 0.75."
+    },
+    {
+     "do": "Compute F1.",
+     "see": "2*0.90*0.75/(0.90+0.75) = 0.818."
+    },
+    {
+     "do": "Compute accuracy.",
+     "see": "960/1000 = 0.96."
+    },
+    {
+     "do": "Check cost sheet: false positive deletes a business file; a miss risks infection.",
+     "see": "Both errors have real cost."
+    },
+    {
+     "do": "Choose a deployment mode.",
+     "see": "Options: auto-block, alert only, alert plus quarantine with review."
+    }
+   ],
+   "answer": "Precision 0.90, recall 0.75, F1 about 0.82, accuracy 0.96. Recall of 75 percent misses a quarter of malware, and 10 percent false positives would delete good files automatically. Use alert plus quarantine with analyst review, not silent auto-delete, until recall and precision improve.",
+   "hint": "Accuracy hides the missed malware; focus on recall and the cost of false positives."
+  },
+  {
+   "title": "Draw the ML pipeline trust boundaries",
+   "sim": "diagram-builder",
+   "scenario": "You are reviewing the pipeline of a fictional support-ticket classifier at example.com. Data arrives from a public form, is labeled by contractors, trained on a shared cluster and served to staff.",
+   "objective": "Place data source, labeling, training, registry and serving nodes and mark where untrusted input enters.",
+   "steps": [
+    {
+     "do": "Drag the nodes: Source, Labeling, Training, Registry, Serving.",
+     "see": "Nodes placed on canvas with no links."
+    },
+    {
+     "do": "Link them in order.",
+     "see": "Flow Source -> Labeling -> Training -> Registry -> Serving is drawn."
+    },
+    {
+     "do": "Tap the Source node and set trust level.",
+     "see": "Marked untrusted: public form submissions."
+    },
+    {
+     "do": "Tap Labeling.",
+     "see": "Marked semi-trusted: contractor accounts."
+    },
+    {
+     "do": "Add a trust boundary line before Registry.",
+     "see": "Boundary created. Prompt: who can publish?"
+    },
+    {
+     "do": "Mark the Serving input.",
+     "see": "Marked untrusted: user text at inference."
+    },
+    {
+     "do": "Press Check.",
+     "see": "Feedback: 3 untrusted entry points found; registry publish control missing."
+    }
+   ],
+   "answer": "Untrusted input enters at the public form source, at labeling by contractors, and at serving user input. A boundary with approval and access control must guard the registry so only reviewed models are promoted.",
+   "hint": "Count every place where outsiders can write or influence data."
+  },
+  {
+   "title": "Spot overfitting in training logs",
+   "sim": "log-viewer",
+   "scenario": "A fictional team trained a fraud model for 12 epochs and saved the log. They want to know when to stop training.",
+   "objective": "Identify the epoch where the model begins to overfit.",
+   "steps": [
+    {
+     "do": "Open train.log.",
+     "see": "12 lines of epoch metrics load."
+    },
+    {
+     "do": "Filter for epoch 1-4.",
+     "see": "train_loss 0.90,0.62,0.45,0.37; val_loss 0.93,0.66,0.50,0.43."
+    },
+    {
+     "do": "Filter epoch 5-7.",
+     "see": "train_loss 0.31,0.27,0.22; val_loss 0.40,0.38,0.41."
+    },
+    {
+     "do": "Filter epoch 8-12.",
+     "see": "train_loss falls to 0.05; val_loss rises 0.45,0.51,0.58,0.66,0.74."
+    },
+    {
+     "do": "Plot both curves.",
+     "see": "Curves diverge after epoch 6."
+    },
+    {
+     "do": "Mark the best checkpoint.",
+     "see": "Lowest val_loss 0.38 at epoch 6."
+    }
+   ],
+   "answer": "The model starts overfitting after epoch 6: validation loss is lowest (0.38) there and rises afterward while training loss keeps dropping. Use early stopping and keep the epoch 6 checkpoint.",
+   "hint": "Look for where validation loss stops improving."
+  },
+  {
+   "title": "Run a toy classifier",
+   "sim": "terminal",
+   "scenario": "A fictional lab machine has Python with scikit-learn and a small spam dataset in spam.csv (text, label). You will train and compare two feature sets.",
+   "objective": "Train, split and score a spam classifier, then compare two feature sets.",
+   "steps": [
+    {
+     "do": "Run: head -3 spam.csv",
+     "see": "Shows 3 rows: 'win free prize now',spam / 'meeting at 3pm',ham / 'invoice attached',ham."
+    },
+    {
+     "do": "Run: python split.py --test 0.2 --seed 1",
+     "see": "Train 800 rows, test 200 rows written."
+    },
+    {
+     "do": "Run: python train.py --features words",
+     "see": "Model trained. test accuracy 0.93 precision 0.88 recall 0.86."
+    },
+    {
+     "do": "Run: python train.py --features words,char3",
+     "see": "Model trained. test accuracy 0.96 precision 0.94 recall 0.92."
+    },
+    {
+     "do": "Run: python report.py --compare",
+     "see": "Table: char3 feature set better on all three metrics."
+    },
+    {
+     "do": "Run: python train.py --features words --eval train",
+     "see": "train accuracy 0.99."
+    }
+   ],
+   "answer": "Words plus character 3-grams scored higher on the held-out test set (precision 0.94, recall 0.92 versus 0.88 and 0.86). The 0.99 train accuracy of the words-only model against 0.93 test suggests mild overfitting; choose the richer feature set.",
+   "hint": "Compare metrics on the test split, not on training data."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which paradigm uses a reward signal?",
+   "options": [
+    "Supervised",
+    "Unsupervised",
+    "Reinforcement",
+    "Self-supervised"
+   ],
+   "a": 2,
+   "why": "RL agents maximize reward."
+  },
+  {
+   "q": "Where do external attackers mostly act against a deployed model?",
+   "options": [
+    "Inference API",
+    "Dataset curation",
+    "Weight initialization",
+    "Compiler"
+   ],
+   "a": 0,
+   "why": "The serving endpoint is reachable by users."
+  },
+  {
+   "q": "Which phase writes the weights file?",
+   "options": [
+    "Training",
+    "Inference",
+    "Ingestion only",
+    "Logging"
+   ],
+   "a": 0,
+   "why": "Weights are learned and saved in training."
+  },
+  {
+   "q": "What does a gradient indicate?",
+   "options": [
+    "Change in loss per parameter change",
+    "Dataset size",
+    "API version",
+    "Label count"
+   ],
+   "a": 0,
+   "why": "Gradients drive both learning and adversarial attacks."
+  },
+  {
+   "q": "Why use a hash on a training dataset snapshot?",
+   "options": [
+    "Detect tampering and tie model to data",
+    "Speed training",
+    "Add labels",
+    "Compress files"
+   ],
+   "a": 0,
+   "why": "Hashes provide integrity and lineage."
+  },
+  {
+   "q": "TP=45, FP=5, FN=15, TN=935. Precision is",
+   "options": [
+    "0.90",
+    "0.75",
+    "0.98",
+    "0.60"
+   ],
+   "a": 0,
+   "why": "45/50=0.9."
+  },
+  {
+   "q": "Using the same counts, recall is",
+   "options": [
+    "0.75",
+    "0.90",
+    "0.95",
+    "0.50"
+   ],
+   "a": 0,
+   "why": "45/60=0.75."
+  },
+  {
+   "q": "Training loss falls to 0.02 while validation loss climbs. This means",
+   "options": [
+    "Overfitting",
+    "Underfitting",
+    "Data leakage in serving",
+    "A faster GPU"
+   ],
+   "a": 0,
+   "why": "Divergence signals memorization."
+  },
+  {
+   "q": "Which model family is usually strongest on tabular security logs?",
+   "options": [
+    "Gradient boosted trees",
+    "Diffusion models",
+    "GANs",
+    "Image CNNs"
+   ],
+   "a": 0,
+   "why": "Tree ensembles excel on tabular data."
+  },
+  {
+   "q": "Which stage should control who may publish a model to production?",
+   "options": [
+    "Registry",
+    "Tokenizer",
+    "Ingestion script",
+    "Notebook title"
+   ],
+   "a": 0,
+   "why": "Registry permissions gate promotion."
+  }
+ ]
+}

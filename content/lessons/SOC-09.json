@@ -1,0 +1,908 @@
+{
+ "code": "SOC-09",
+ "intro": "Threat Intelligence teaches you to turn raw indicators into decisions. You will separate strategic, operational, tactical and technical intelligence and follow the intelligence cycle, use the Pyramid of Pain to value behaviors over hashes, read STIX 2.1 and TAXII, work in MISP with tags, galaxies and TLP, apply the Diamond Model to scope intrusions, and enrich indicators with OSINT safely. Good intelligence focuses defenders on what matters and shortens the time from report to protection.",
+ "lessons": [
+  {
+   "title": "Intelligence types and the intel cycle",
+   "why": "Threat intelligence is analyzed information that supports decisions. Knowing the types and the cycle keeps you from collecting data nobody can use.",
+   "sections": [
+    {
+     "h": "Four levels of intelligence",
+     "p": [
+      "Strategic intelligence is high-level and non-technical, aimed at executives: which adversaries target the sector, trends, risks and costs, and it informs budget and policy. Operational intelligence describes campaigns and adversary intent, timing and methods, and helps defenders and incident leaders anticipate attacks. Tactical intelligence covers tactics, techniques and procedures (TTPs) and tools, which guide detection engineering and hunting. Technical intelligence consists of concrete indicators such as IP addresses, domains, file hashes and URLs, consumed by machines and analysts, and it expires quickly. Each audience needs a different format and level of detail."
+     ]
+    },
+    {
+     "h": "The intelligence cycle",
+     "p": [
+      "The classic cycle has six phases. Direction sets the requirements: the questions stakeholders need answered, called priority intelligence requirements (PIRs). Collection gathers raw data from internal logs, open sources, vendors, sharing communities and incident reports. Processing normalizes and filters it, for example parsing feeds and deduplicating. Analysis turns it into judgments, applying structured methods and stating confidence. Dissemination delivers products to the right audience in a usable form. Feedback checks whether the product helped and refines the next round of requirements."
+     ]
+    },
+    {
+     "h": "Quality of intelligence",
+     "p": [
+      "Good intelligence is relevant, timely, accurate, actionable and clearly attributed to a source. Sources are rated for reliability and information for credibility, often with an Admiralty-style scale (A to F for source, 1 to 6 for information). Analysts express confidence as low, moderate or high and separate facts from assessments with estimative language such as likely or almost certain. Bias matters: confirmation bias leads you to favor evidence that fits your theory, so consider alternative hypotheses. Intelligence that is not tied to the organization's assets and risks is just noise."
+     ]
+    },
+    {
+     "h": "Putting intelligence to work",
+     "p": [
+      "Link each type to a decision. A strategic brief supports a decision to invest in email security. An operational report on a ransomware crew targeting the sector leads to a patching sprint before the expected window. Tactical details lead to new detection rules for specific ATT&CK techniques. Technical indicators feed blocklists and SIEM searches. Remember that indicators age: an IP may be reused by innocent tenants within days, so record when it was observed and set an expiry. Measure value by outcomes such as detections created, incidents prevented or time saved."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Intel requirement and product",
+    "text": "PIR-3: Which groups target regional retail with POS malware, and how?\nProduct type: Operational report  Audience: CISO, IR lead\nConfidence: moderate  Source reliability: B2 (usually reliable, probably true)\nActions: add 6 detections (T1059, T1021), patch POS service by 2026-04-01"
+   },
+   "example": "A retail SOC receives a vendor report about a crew using point-of-sale malware. The intel team maps it to a requirement from the CISO, rates the source B2, and writes a one-page operational summary with moderate confidence. Tactical details go to detection engineers, and the hashes and IPs go to the SIEM with a 30-day expiry. After two weeks the team asks the engineers whether the new rules fired, which is the feedback phase.",
+   "terms": [
+    {
+     "term": "PIR",
+     "def": "A priority intelligence requirement, a key question the intel effort must answer."
+    },
+    {
+     "term": "Strategic intelligence",
+     "def": "High-level analysis for executives about risks and trends."
+    },
+    {
+     "term": "Tactical intelligence",
+     "def": "Details on adversary TTPs used by defenders to build detections."
+    },
+    {
+     "term": "Dissemination",
+     "def": "Delivering finished intelligence to its audience."
+    },
+    {
+     "term": "Confidence level",
+     "def": "An analyst's stated degree of certainty in an assessment."
+    }
+   ],
+   "check": [
+    {
+     "q": "Who is the typical audience of strategic intelligence?",
+     "options": [
+      "Packet analysts",
+      "Executives and decision makers",
+      "Firewalls",
+      "Developers only"
+     ],
+     "a": 1,
+     "why": "Strategic intelligence supports high-level decisions."
+    },
+    {
+     "q": "Which phase sets the questions to be answered?",
+     "options": [
+      "Collection",
+      "Direction",
+      "Dissemination",
+      "Processing"
+     ],
+     "a": 1,
+     "why": "Direction defines requirements."
+    },
+    {
+     "q": "Which type consists of IPs, domains and hashes?",
+     "options": [
+      "Strategic",
+      "Technical",
+      "Policy",
+      "Legal"
+     ],
+     "a": 1,
+     "why": "Technical intelligence consists of machine-readable indicators."
+    },
+    {
+     "q": "What is the purpose of the feedback phase?",
+     "options": [
+      "Delete data",
+      "Check usefulness and refine requirements",
+      "Collect more data randomly",
+      "Publish publicly"
+     ],
+     "a": 1,
+     "why": "Feedback improves the next cycle."
+    }
+   ],
+   "recap": [
+    "Strategic, operational, tactical and technical intel serve different audiences.",
+    "The cycle runs direction, collection, processing, analysis, dissemination, feedback.",
+    "Rate sources, state confidence and tie intel to decisions."
+   ]
+  },
+  {
+   "title": "IOCs vs TTPs",
+   "why": "Defenders often chase hashes and IPs that attackers change in minutes. Understanding the Pyramid of Pain shows where to invest for lasting detection.",
+   "sections": [
+    {
+     "h": "Indicators of compromise",
+     "p": [
+      "An indicator of compromise (IOC) is an artifact observed on a network or host that suggests intrusion: file hashes, IP addresses, domain names, URLs, email addresses, registry keys, mutex names and user-agent strings. They are easy to share and match automatically, which makes them useful for quick blocking and for scoping an incident once you know the malware. Their weakness is short life: attackers recompile to change a hash, rent new servers for new IPs and register new domains cheaply, so an IOC list can be stale within days."
+     ]
+    },
+    {
+     "h": "The Pyramid of Pain",
+     "p": [
+      "David Bianco's Pyramid of Pain ranks indicator types by how much it hurts an adversary when you detect and deny them. From bottom to top: hash values (trivial to change), IP addresses (easy), domain names (simple), network and host artifacts such as unique user agents, URI patterns and registry keys (annoying), tools (challenging), and at the top, TTPs (tough). Denying a hash costs the adversary a recompile; denying a behavior forces them to redesign their method. The higher the level, the harder it is to detect, but the more durable the value."
+     ]
+    },
+    {
+     "h": "TTPs and ATT&CK",
+     "p": [
+      "Tactics, techniques and procedures describe how an adversary operates. A tactic is the goal, such as initial access or lateral movement. A technique is the method, such as T1566 Phishing or T1021.002 SMB/Windows Admin Shares. A procedure is the specific way a group implements it. MITRE ATT&CK catalogs these and links techniques to known groups and software. Detecting a behavior such as an Office process spawning PowerShell, or a service created remotely over SMB, catches many malware families and variants without needing their hashes."
+     ]
+    },
+    {
+     "h": "Using both",
+     "p": [
+      "IOCs and TTPs are complementary. Feed fresh IOCs into blocklists and retrospective searches for fast coverage, with expiry times and context such as source and confidence. Invest engineering time in behavior-based detections mapped to ATT&CK and test them with adversary emulation. When writing intel reports, include both the indicator table and a description of behaviors, so readers can hunt for what remains after the infrastructure changes. Measure coverage by technique, and prioritize techniques used by groups that target your sector."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Pyramid of Pain",
+    "text": "TTPs                 -> Tough\nTools                -> Challenging\nNetwork/Host artifacts -> Annoying\nDomain names         -> Simple\nIP addresses         -> Easy\nHash values          -> Trivial"
+   },
+   "example": "A report on a malware campaign lists 12 hashes, 5 IPs, 3 domains and a behavior: a scheduled task named by a pattern, created by an Office macro, which calls rundll32. The team places the hashes and IPs at the bottom as fragile and writes a detection for the task creation pattern, which sits higher and should survive the next rebuild. Two weeks later the hashes have changed, but the behavior rule still fires on the new variant.",
+   "terms": [
+    {
+     "term": "IOC",
+     "def": "An observable artifact indicating a likely intrusion."
+    },
+    {
+     "term": "TTP",
+     "def": "The tactics, techniques and procedures an adversary uses."
+    },
+    {
+     "term": "Pyramid of Pain",
+     "def": "A model ranking indicators by how much their denial hurts an attacker."
+    },
+    {
+     "term": "ATT&CK",
+     "def": "A MITRE knowledge base of adversary tactics and techniques."
+    },
+    {
+     "term": "Technique ID",
+     "def": "An identifier such as T1566 for a specific ATT&CK technique."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which level of the Pyramid of Pain is the easiest for attackers to change?",
+     "options": [
+      "TTPs",
+      "Tools",
+      "Hash values",
+      "Network artifacts"
+     ],
+     "a": 2,
+     "why": "A recompile changes a hash instantly."
+    },
+    {
+     "q": "What do TTPs describe?",
+     "options": [
+      "File sizes",
+      "How an adversary operates",
+      "Port numbers",
+      "DNS TTL"
+     ],
+     "a": 1,
+     "why": "They describe behavior and methods."
+    },
+    {
+     "q": "Why do behaviors outlast hashes?",
+     "options": [
+      "They are secret",
+      "The attacker must change their method, not just a file",
+      "Hashes are encrypted",
+      "They are shorter"
+     ],
+     "a": 1,
+     "why": "Changing behavior is costly compared with changing artifacts."
+    },
+    {
+     "q": "T1566 in ATT&CK refers to",
+     "options": [
+      "Phishing",
+      "Port scanning",
+      "Ransomware",
+      "Keylogging"
+     ],
+     "a": 0,
+     "why": "T1566 is the Phishing technique."
+    }
+   ],
+   "recap": [
+    "IOCs are easy to match but short-lived.",
+    "The Pyramid of Pain shows behaviors cause the most pain to adversaries.",
+    "Use IOCs for speed and TTP detections for durability."
+   ]
+  },
+  {
+   "title": "Intel formats: STIX and TAXII",
+   "why": "Intelligence is only useful if tools can exchange it. STIX describes it and TAXII moves it, so analysts can share and automate.",
+   "sections": [
+    {
+     "h": "STIX 2.1 objects",
+     "p": [
+      "Structured Threat Information Expression (STIX) 2.1 is a JSON language for describing cyber threat intelligence. STIX Domain Objects (SDOs) include indicator, malware, threat-actor, campaign, intrusion-set, attack-pattern, identity, vulnerability and report. STIX Cyber-observable Objects (SCOs) represent facts like ipv4-addr, domain-name, file and url. Every object has a type, an id of the form type--UUID, created and modified timestamps and a spec_version of 2.1. A bundle is a container object holding many objects for transport. Because it is typed and linked, tools can parse it consistently."
+     ]
+    },
+    {
+     "h": "Indicators, relationships and patterns",
+     "p": [
+      "An indicator object holds a pattern written in the STIX patterning language, for example [ipv4-addr:value = '203.0.113.50'] or [file:hashes.'SHA-256' = '...'], plus valid_from, optional valid_until, and indicator_types such as malicious-activity. An indicator does not say what malware it belongs to by itself. A relationship object links two objects with a relationship_type such as indicates, uses, targets or attributed-to, with source_ref and target_ref. So an indicator indicates a malware object, and an intrusion set uses that malware. These links turn lists of artifacts into a graph of knowledge."
+     ]
+    },
+    {
+     "h": "TAXII",
+     "p": [
+      "Trusted Automated eXchange of Intelligence Information (TAXII) 2.1 is the HTTPS protocol for exchanging STIX. A TAXII server hosts API roots, which contain collections of objects. Clients can discover the server, list collections, get objects (often with filters like added_after) and, if permitted, add objects. Two sharing models exist: a collection model where clients request, and a channel model for publish and subscribe, though 2.1 focuses on collections. Access uses authentication such as basic auth or tokens over TLS. Feeds from ISACs and vendors are often provided this way."
+     ]
+    },
+    {
+     "h": "Practical considerations",
+     "p": [
+      "Validate incoming STIX before ingest, since malformed or poisoned data can pollute your platform. Check valid_from and valid_until, confidence, labels and the TLP marking carried by marking-definition objects, because sharing rules travel with the data. Deduplicate by id, and expire indicators. Remember that STIX describes the data but not its quality; a perfectly structured indicator can still be a false positive. When you build your own reports, include context: the campaign, the malware, and the relationships, so readers do not receive a bare list of IPs."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "STIX 2.1 indicator (abridged)",
+    "text": "{\"type\":\"indicator\",\"spec_version\":\"2.1\",\n \"id\":\"indicator--8e2e2d2b-17d4-4cbe-b5f1-aaaaaaaaaaaa\",\n \"created\":\"2026-03-02T00:00:00.000Z\",\n \"pattern\":\"[ipv4-addr:value = '203.0.113.50']\",\n \"pattern_type\":\"stix\",\"valid_from\":\"2026-03-02T00:00:00Z\",\n \"indicator_types\":[\"malicious-activity\"]}"
+   },
+   "example": "An analyst pulls a collection from a TAXII server and receives a bundle with an indicator for 203.0.113.50, a malware object named ExampleLoader and a relationship of type indicates linking the indicator to that malware. She validates the JSON, checks the TLP marking permits internal sharing, and loads the indicator into the SIEM with the malware name as context. The valid_until date is used to retire it after 30 days.",
+   "terms": [
+    {
+     "term": "STIX",
+     "def": "A JSON language for describing cyber threat intelligence."
+    },
+    {
+     "term": "TAXII",
+     "def": "An HTTPS protocol for exchanging STIX content."
+    },
+    {
+     "term": "Bundle",
+     "def": "A STIX container for a set of objects."
+    },
+    {
+     "term": "SDO",
+     "def": "A STIX Domain Object such as indicator or malware."
+    },
+    {
+     "term": "Relationship object",
+     "def": "A STIX object that links two other objects with a verb like indicates."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is TAXII used for?",
+     "options": [
+      "Signing email",
+      "Transporting STIX over HTTPS",
+      "Capturing packets",
+      "Encrypting disks"
+     ],
+     "a": 1,
+     "why": "TAXII defines how STIX data is exchanged."
+    },
+    {
+     "q": "Which STIX object describes a detection pattern?",
+     "options": [
+      "Indicator",
+      "Identity",
+      "Report only",
+      "Bundle"
+     ],
+     "a": 0,
+     "why": "Indicator objects hold a pattern."
+    },
+    {
+     "q": "How does STIX link an indicator to malware?",
+     "options": [
+      "Relationship object with indicates",
+      "A comment",
+      "A filename",
+      "A port"
+     ],
+     "a": 0,
+     "why": "relationship_type indicates connects them."
+    },
+    {
+     "q": "A TAXII collection is",
+     "options": [
+      "A group of STIX objects served by the server",
+      "A password",
+      "A DNS record",
+      "A packet capture"
+     ],
+     "a": 0,
+     "why": "Collections group objects under an API root."
+    }
+   ],
+   "recap": [
+    "STIX 2.1 structures intel as typed JSON objects and relationships.",
+    "Indicator patterns use the STIX pattern language.",
+    "TAXII transports STIX in collections over HTTPS."
+   ]
+  },
+  {
+   "title": "MISP and intel platforms",
+   "why": "A threat intelligence platform stores, correlates and shares indicators. MISP is a widely used open-source example that analysts meet in practice.",
+   "sections": [
+    {
+     "h": "MISP data model",
+     "p": [
+      "MISP, the Malware Information Sharing Platform, organizes intelligence into events. An event describes an incident or report and contains attributes, the individual indicators such as ip-dst, domain, sha256 or url, each with a category and type. Attributes can be flagged to_ids to indicate they are suitable for detection. Objects group related attributes, for example a file object with name, hashes and size. Events and attributes can be tagged, and published to make them available to connected instances and communities. Users and organizations have roles that control access."
+     ]
+    },
+    {
+     "h": "Tags, taxonomies and galaxies",
+     "p": [
+      "Tags classify content. Taxonomies are standardized tag namespaces, such as tlp:amber, and admiralty-scale for source reliability. Galaxies are larger knowledge clusters, for example MITRE ATT&CK techniques, threat actor profiles, malware families and tools, which can be attached to events so that a tag like misp-galaxy:mitre-attack-pattern points to a technique. Using these shared vocabularies makes data comparable across teams and allows searching by technique or actor. Consistent tagging is what turns a pile of events into usable intelligence."
+     ]
+    },
+    {
+     "h": "Correlation and enrichment",
+     "p": [
+      "MISP automatically correlates attributes with the same value across events, so seeing 203.0.113.50 in two different events reveals a link between incidents. Enrichment modules query external services for context, such as VirusTotal, passive DNS or WHOIS, and add results to the event. Warninglists flag values likely to be false positives, such as public DNS resolvers, popular domains and private ranges, so you do not distribute them as indicators. Export formats include STIX, CSV, Suricata and Snort rules, and APIs allow SIEM and SOAR integration through the PyMISP library."
+     ]
+    },
+    {
+     "h": "Sharing and TLP",
+     "p": [
+      "Sharing is governed by distribution levels (your organization only, community, connected communities, all) and by the Traffic Light Protocol. TLP:RED is restricted to named recipients, TLP:AMBER limited to the organization and its clients (TLP:AMBER+STRICT to the organization only), TLP:GREEN to the community and TLP:CLEAR for public release. Before sharing, remove sensitive details such as internal hostnames, victim names and personal data, and ask whether sharing helps defenders without exposing your organization. Feed back sightings, since confirming or disputing indicators improves the community data."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "MISP event (summary)",
+    "text": "Event 1042: ExampleLoader campaign   tags: tlp:amber, misp-galaxy:mitre-attack-pattern=\"Phishing - T1566\"\n  ip-dst      203.0.113.50      to_ids: yes\n  domain      update.example.net  to_ids: yes\n  sha256      0f1e...a9         to_ids: yes\n  Correlation: 203.0.113.50 also in Event 987 (Q4 incident)"
+   },
+   "example": "An analyst adds the IP, domain and hash from a phishing incident to a new MISP event, tags it tlp:amber and the ATT&CK technique for phishing, and publishes. MISP correlates 203.0.113.50 with an older event from a partner, linking the two incidents to one campaign. A warninglist flags one candidate address as a public resolver, so she removes it. The event is shared with the trusted community only, with internal hostnames removed.",
+   "terms": [
+    {
+     "term": "Event (MISP)",
+     "def": "A container for related intelligence about an incident or report."
+    },
+    {
+     "term": "Attribute",
+     "def": "A single indicator within a MISP event."
+    },
+    {
+     "term": "Galaxy",
+     "def": "A MISP knowledge cluster such as ATT&CK techniques or threat actors."
+    },
+    {
+     "term": "Warninglist",
+     "def": "A list of values likely to be false positives."
+    },
+    {
+     "term": "TLP",
+     "def": "The Traffic Light Protocol for labeling sharing limits."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the to_ids flag?",
+     "options": [
+      "The attribute is suitable for detection",
+      "The attribute is secret",
+      "The attribute is deleted",
+      "It sets TLP"
+     ],
+     "a": 0,
+     "why": "to_ids marks attributes meant for IDS and blocking use."
+    },
+    {
+     "q": "What does MISP correlation do?",
+     "options": [
+      "Encrypts events",
+      "Links events sharing the same attribute value",
+      "Deletes duplicates",
+      "Sends email"
+     ],
+     "a": 1,
+     "why": "Matching values across events reveal relationships."
+    },
+    {
+     "q": "Which TLP label allows only named recipients?",
+     "options": [
+      "TLP:CLEAR",
+      "TLP:GREEN",
+      "TLP:AMBER",
+      "TLP:RED"
+     ],
+     "a": 3,
+     "why": "TLP:RED is restricted to named recipients."
+    },
+    {
+     "q": "Why use warninglists?",
+     "options": [
+      "Prevent sharing false-positive-prone values such as public resolvers",
+      "Speed up DNS",
+      "Encrypt data",
+      "Rename tags"
+     ],
+     "a": 0,
+     "why": "They flag benign values that should not become indicators."
+    }
+   ],
+   "recap": [
+    "MISP stores events with attributes, objects, tags and galaxies.",
+    "Correlation, enrichment and warninglists add context and reduce errors.",
+    "Share by TLP and distribution level, after removing sensitive data."
+   ]
+  },
+  {
+   "title": "Diamond Model and intel-driven defense",
+   "why": "Indicators alone do not explain an intrusion. The Diamond Model connects them, and intel-driven defense turns the result into detections and blocks.",
+   "sections": [
+    {
+     "h": "The four vertices",
+     "p": [
+      "The Diamond Model of Intrusion Analysis describes each malicious event with four core features: adversary (who is behind it), capability (the tools and techniques, such as a loader or exploit), infrastructure (the physical or logical resources used, such as domains, IPs and email accounts) and victim (the target person, organization or asset). Edges between the vertices show relationships: the adversary uses a capability over infrastructure against a victim. Meta-features add timestamp, phase, result, direction, methodology and resources, so each event is a documented fact."
+     ]
+    },
+    {
+     "h": "Pivoting",
+     "p": [
+      "Pivoting means using one vertex to discover others. From the victim, you find the capability that hit it. From the capability, such as a malware sample, you find the infrastructure it contacted. From the infrastructure, such as a domain, you find other domains on the same IP or sharing a certificate, which reveals more victims and maybe the adversary's habits. Each new discovery is placed in the model as another event. Activity threads link events across time into campaigns, and activity groups cluster threads that likely come from the same actor."
+     ]
+    },
+    {
+     "h": "Kill chain and ATT&CK context",
+     "p": [
+      "Place Diamond events within a framework. The Lockheed Martin Cyber Kill Chain sequences reconnaissance, weaponization, delivery, exploitation, installation, command and control and actions on objectives, while ATT&CK offers fine-grained techniques. Mapping events to phases highlights where defenders can intervene, and which phases lack visibility. Detections early in the chain, like phishing email blocks, cost the adversary more than detections in late phases. Attribution is a separate and hard step; avoid naming an actor without strong, multi-source evidence and clear confidence."
+     ]
+    },
+    {
+     "h": "Turning intel into defense",
+     "p": [
+      "Intel-driven defense converts findings into action. Block or sinkhole confirmed infrastructure at the proxy, DNS and firewall; run retrospective searches in the SIEM and EDR for historical hits to see if you were already breached; write detection rules for the capability and behaviors, mapped to ATT&CK; and add monitoring for the victim assets most likely targeted. Measure results: how many hits, how many true positives, and the time between report and deployment. Share what you learn so others can protect themselves, and update the model as new events appear."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Diamond model notes",
+    "text": "Adversary:       unknown actor 'ExampleCrew' (low confidence)\nCapability:      ExampleLoader, macro doc, PowerShell stager\nInfrastructure:  update.example.net -> 203.0.113.50\nVictim:          Accounting staff, EXAMPLE Corp\nPivot: 203.0.113.50 also hosts login-example-secure.example.net\nAction: block both, hunt 30 days, add T1059.001 rule"
+   },
+   "example": "From an incident report, the analyst fills the diamond: victim is the accounting team, capability is a macro document that runs a PowerShell stager, infrastructure is update.example.net on 203.0.113.50, adversary is unknown. She pivots on the IP and finds a second domain with a similar name on the same address, which is added as a new node. She blocks both, searches the SIEM for 30 days of hits, and creates a detection for the PowerShell stager behavior.",
+   "terms": [
+    {
+     "term": "Diamond Model",
+     "def": "A framework linking adversary, capability, infrastructure and victim for each intrusion event."
+    },
+    {
+     "term": "Infrastructure",
+     "def": "The domains, IPs and accounts an adversary uses to operate."
+    },
+    {
+     "term": "Pivot",
+     "def": "Moving from one known artifact to related ones."
+    },
+    {
+     "term": "Activity thread",
+     "def": "A chain of related events across time."
+    },
+    {
+     "term": "Retrospective search",
+     "def": "Searching historical logs for newly learned indicators."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which are the four vertices of the Diamond Model?",
+     "options": [
+      "Adversary, capability, infrastructure, victim",
+      "Source, sink, hash, port",
+      "Plan, do, check, act",
+      "Red, blue, green, amber"
+     ],
+     "a": 0,
+     "why": "Those four features describe every event."
+    },
+    {
+     "q": "A domain is which Diamond element?",
+     "options": [
+      "Infrastructure",
+      "Victim",
+      "Adversary",
+      "Capability"
+     ],
+     "a": 0,
+     "why": "Domains and IPs are infrastructure."
+    },
+    {
+     "q": "Why run retrospective searches?",
+     "options": [
+      "To see whether the indicators already appeared in past logs",
+      "To delete logs",
+      "To update TLP",
+      "To speed up DNS"
+     ],
+     "a": 0,
+     "why": "New intel may reveal earlier compromise."
+    },
+    {
+     "q": "What is needed before attributing activity to a named actor?",
+     "options": [
+      "A guess",
+      "Strong multi-source evidence and stated confidence",
+      "A tweet",
+      "Nothing"
+     ],
+     "a": 1,
+     "why": "Attribution requires solid evidence and honest confidence."
+    }
+   ],
+   "recap": [
+    "The Diamond Model links adversary, capability, infrastructure and victim.",
+    "Pivoting expands from one artifact to related ones.",
+    "Convert intel into blocks, retrospective hunts and behavior detections."
+   ]
+  },
+  {
+   "title": "OSINT for analysts",
+   "why": "Open-source intelligence lets you enrich an alert in minutes with public data. Doing it safely avoids tipping off attackers or exposing your own organization.",
+   "sections": [
+    {
+     "h": "Principles and safety",
+     "p": [
+      "OSINT uses publicly available sources. Before looking up an indicator, consider operational security. Submitting a file or URL to public scanners may make it visible to others, including the adversary, and can leak internal data if the file is unique to your organization. Prefer hash lookups for files, use a separate research environment and browser profile, avoid logging in with corporate accounts, and never interact with attacker infrastructure beyond what is needed. Follow legal and policy limits. Record each source and the time of the lookup, because public data changes."
+     ]
+    },
+    {
+     "h": "IPs, domains and hashes",
+     "p": [
+      "For an IP, look at WHOIS or RDAP for the network owner and country, reverse DNS, passive DNS for domains previously hosted, and Shodan or Censys for open ports, banners and certificates. For a domain, check WHOIS creation date and registrar, DNS records, passive DNS history, the TLS certificate and Certificate Transparency logs, and reputation. For a file hash, search VirusTotal for detection counts, names, first seen date, relationships and behavior. Hosting providers and CDNs mean one IP may serve thousands of unrelated sites, so judge shared hosting carefully."
+     ]
+    },
+    {
+     "h": "Tools for context",
+     "p": [
+      "VirusTotal aggregates antivirus and URL scanner verdicts and relationships between files, domains and IPs. urlscan.io loads a page and records requests, screenshots and the DOM so you can see a phishing page without visiting it yourself. Passive DNS services such as those from commercial vendors show historical resolutions. Shodan indexes internet-facing services. Other useful sources include AbuseIPDB, MalwareBazaar, ThreatFox, GreyNoise (to tell mass scanners from targeted activity) and Certificate Transparency search such as crt.sh. No single source is authoritative, so look for agreement across several."
+     ]
+    },
+    {
+     "h": "Judgment and recording",
+     "p": [
+      "Reputation data produces false positives and gaps. A single engine detecting a file may be noise, while zero detections on a new sample does not make it safe. Weigh age, relationships and context: a domain created yesterday that resolves to an IP also hosting known phishing is stronger than one flag. Write findings with source, time, defanged indicators and your confidence. Feed validated indicators into your intel platform with tags and expiry, and note unanswered questions for further research. Keep the target in mind: enrich enough to decide, not to wander."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Enrichment notes (defanged)",
+    "text": "IP 203.0.113.50: AS64500 Example Hosting, reverse DNS none\n  Passive DNS: update[.]example[.]net (first seen 2026-02-28)\n  Open ports: 80, 443; cert CN=update.example.net issued 2026-02-28\nDomain update[.]example[.]net: created 2026-02-28 (3 days)\nSHA-256 0f1e...a9: 41/72 detections, first seen 2026-03-01"
+   },
+   "example": "An alert names 203.0.113.50. The analyst finds in WHOIS that the owner is a hosting provider, passive DNS shows update.example.net first appeared three days ago, the TLS certificate was issued the same day, and the file hash from the endpoint has 41 of 72 detections. These agree: new domain, new certificate, known malicious file. She records the findings defanged with the lookup times, rates her confidence as high, and escalates for blocking.",
+   "terms": [
+    {
+     "term": "OSINT",
+     "def": "Intelligence gathered from publicly available sources."
+    },
+    {
+     "term": "Passive DNS",
+     "def": "A historical database of observed DNS resolutions."
+    },
+    {
+     "term": "WHOIS/RDAP",
+     "def": "Registration data about domains and IP address blocks."
+    },
+    {
+     "term": "Certificate Transparency",
+     "def": "Public logs of issued TLS certificates, searchable for domains."
+    },
+    {
+     "term": "Shodan",
+     "def": "A search engine that indexes internet-connected services and banners."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why prefer a hash lookup over uploading a sample to a public scanner?",
+     "options": [
+      "It is slower",
+      "Uploads may expose the file and alert the adversary",
+      "Hashes cannot be looked up",
+      "Scanners do not accept hashes"
+     ],
+     "a": 1,
+     "why": "Public uploads can leak internal data and tip off attackers."
+    },
+    {
+     "q": "What does passive DNS provide?",
+     "options": [
+      "Live traffic capture",
+      "Historical domain-to-IP resolutions",
+      "Password hashes",
+      "Email headers"
+     ],
+     "a": 1,
+     "why": "It shows which names resolved to which IPs over time."
+    },
+    {
+     "q": "A domain registered three days ago with a new certificate is",
+     "options": [
+      "More suspicious than an aged one",
+      "Always safe",
+      "Irrelevant",
+      "Proof of attribution"
+     ],
+     "a": 0,
+     "why": "Young infrastructure fits many campaigns but still needs corroboration."
+    },
+    {
+     "q": "When sources disagree, you should",
+     "options": [
+      "Pick the first",
+      "Weigh them, look for agreement and state confidence",
+      "Ignore all",
+      "Delete the alert"
+     ],
+     "a": 1,
+     "why": "No single source is authoritative."
+    }
+   ],
+   "recap": [
+    "OSINT enrichment should be safe: separate environment, no sensitive uploads.",
+    "Combine WHOIS, passive DNS, certificates, VirusTotal, Shodan and urlscan.",
+    "Record sources and time, defang indicators and state confidence."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Enrich the indicator",
+   "sim": "web-proxy",
+   "scenario": "An alert names IP 203.0.113.50 and domain update.example.net. The proxy simulator mimics VirusTotal, WHOIS and passive DNS pages. All data is fictional.",
+   "objective": "Look up the IP and domain and record the findings.",
+   "steps": [
+    {
+     "do": "Open VT for 203.0.113.50.",
+     "see": "Detections 9/90. Last analysis 2026-03-02. Relations: 3 files communicate with this IP."
+    },
+    {
+     "do": "Open WHOIS/RDAP for the IP.",
+     "see": "Org: Example Hosting, AS64500, country: NL. Allocation date 2018."
+    },
+    {
+     "do": "Open passive DNS for the IP.",
+     "see": "update.example.net (first seen 2026-02-28), login-example-secure.example.net (2026-03-01)."
+    },
+    {
+     "do": "Open WHOIS for update.example.net.",
+     "see": "Created 2026-02-28, registrar RegCo Example, privacy enabled."
+    },
+    {
+     "do": "Open the file relation on VT.",
+     "see": "SHA-256 0f1e...a9, 41/72 detections, name invoice_viewer.exe."
+    },
+    {
+     "do": "Open the notes tool and record findings.",
+     "see": "Note saved with source, time and defanged values."
+    }
+   ],
+   "answer": "The IP hosts a three-day-old domain and a second lookalike phishing domain, has 9 detections and is linked to a file with 41/72 detections. Findings point to malicious infrastructure; record defanged values with sources and times.",
+   "hint": "Check how new the domain is and what else resolves to the IP."
+  },
+  {
+   "title": "Sort IOCs and TTPs",
+   "sim": "diagram-builder",
+   "scenario": "The diagram builder shows a blank Pyramid of Pain with six levels and a tray of ten indicators from a report.",
+   "objective": "Place indicators on the Pyramid and mark which are fragile and which are durable.",
+   "steps": [
+    {
+     "do": "Drag SHA-256 0f1e...a9 to a level.",
+     "see": "Placed at Hash values (Trivial). Marked: fragile."
+    },
+    {
+     "do": "Drag 203.0.113.50.",
+     "see": "Placed at IP addresses (Easy). Marked: fragile."
+    },
+    {
+     "do": "Drag update.example.net.",
+     "see": "Placed at Domain names (Simple). Marked: fragile."
+    },
+    {
+     "do": "Drag the user agent python-requests/2.28 and the URI pattern /api/v2/sync.",
+     "see": "Placed at Network/host artifacts (Annoying). Marked: moderate."
+    },
+    {
+     "do": "Drag the ExampleLoader tool name.",
+     "see": "Placed at Tools (Challenging). Marked: durable."
+    },
+    {
+     "do": "Drag Office macro spawning PowerShell and rundll32.",
+     "see": "Placed at TTPs (Tough). Marked: durable."
+    },
+    {
+     "do": "Click Check.",
+     "see": "All 10 placed correctly. Suggestion: build detections for the top two levels."
+    }
+   ],
+   "answer": "Hashes, IPs and domains are fragile and belong at the base. Artifacts are moderate, while the tool and the macro-to-PowerShell-to-rundll32 behavior are durable. Prioritize detections for the TTP and tool levels.",
+   "hint": "Ask how easily an attacker could change each item."
+  },
+  {
+   "title": "Read a STIX bundle",
+   "sim": "code-editor",
+   "scenario": "The editor shows a STIX 2.1 bundle with three objects: an indicator, a malware object and a relationship. All values are fictional.",
+   "objective": "Extract the indicator pattern and the linked malware name.",
+   "steps": [
+    {
+     "do": "Open bundle.json.",
+     "see": "Bundle with id bundle--11111111-... containing 3 objects."
+    },
+    {
+     "do": "Find the object with type indicator.",
+     "see": "pattern: [ipv4-addr:value = '203.0.113.50'], valid_from 2026-03-02T00:00:00Z"
+    },
+    {
+     "do": "Find the object with type malware.",
+     "see": "name: ExampleLoader, malware_types: [loader], id malware--22222222-..."
+    },
+    {
+     "do": "Find the relationship object.",
+     "see": "relationship_type: indicates, source_ref indicator--8e2e..., target_ref malware--2222..."
+    },
+    {
+     "do": "Click Validate.",
+     "see": "Schema valid for STIX 2.1."
+    },
+    {
+     "do": "Enter your answer.",
+     "see": "Pattern 203.0.113.50 / malware ExampleLoader accepted."
+    }
+   ],
+   "answer": "The indicator pattern is [ipv4-addr:value = '203.0.113.50'] and, via a relationship of type indicates, it is linked to the malware ExampleLoader (a loader). The match is made by source_ref and target_ref ids.",
+   "hint": "Follow the ids in the relationship object."
+  },
+  {
+   "title": "Build a Diamond model",
+   "sim": "diagram-builder",
+   "scenario": "The builder shows an empty Diamond with four vertices and an incident report summary: a phishing email with a macro document led to a PowerShell stager that called update.example.net.",
+   "objective": "Fill the four vertices from the report and pivot to a related infrastructure node.",
+   "steps": [
+    {
+     "do": "Fill Victim.",
+     "see": "Accounting staff, EXAMPLE Corp. Saved."
+    },
+    {
+     "do": "Fill Capability.",
+     "see": "Macro document, PowerShell stager, ExampleLoader. Saved."
+    },
+    {
+     "do": "Fill Infrastructure.",
+     "see": "update.example.net, 203.0.113.50. Saved."
+    },
+    {
+     "do": "Fill Adversary.",
+     "see": "Unknown (low confidence). Saved."
+    },
+    {
+     "do": "Click Pivot on 203.0.113.50.",
+     "see": "Related node found: login-example-secure.example.net (passive DNS, same IP)."
+    },
+    {
+     "do": "Add the node and link it.",
+     "see": "New infrastructure node added, linked to the same event. Suggested action: block and hunt."
+    }
+   ],
+   "answer": "Victim: accounting staff. Capability: macro, PowerShell stager, ExampleLoader. Infrastructure: update.example.net and 203.0.113.50, pivoting to login-example-secure.example.net. Adversary: unknown, low confidence.",
+   "hint": "Pivot on the shared IP to find sibling domains."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which intelligence type best informs a budget decision for executives?",
+   "options": [
+    "Technical",
+    "Strategic",
+    "Tactical only",
+    "Packet-level"
+   ],
+   "a": 1,
+   "why": "Strategic intel supports high-level decisions."
+  },
+  {
+   "q": "Which phase of the cycle turns processed data into judgments?",
+   "options": [
+    "Analysis",
+    "Collection",
+    "Direction",
+    "Feedback"
+   ],
+   "a": 0,
+   "why": "Analysis produces assessments."
+  },
+  {
+   "q": "Which indicator type is the most trivial for an attacker to change?",
+   "options": [
+    "TTP",
+    "Tool",
+    "Hash",
+    "Behavior"
+   ],
+   "a": 2,
+   "why": "Recompiling changes the hash."
+  },
+  {
+   "q": "In ATT&CK, T1566 is",
+   "options": [
+    "Phishing",
+    "Brute force",
+    "DNS tunneling",
+    "Ransomware"
+   ],
+   "a": 0,
+   "why": "T1566 is Phishing."
+  },
+  {
+   "q": "STIX 2.1 is formatted as",
+   "options": [
+    "XML only",
+    "JSON",
+    "Binary",
+    "CSV"
+   ],
+   "a": 1,
+   "why": "STIX 2.1 uses JSON."
+  },
+  {
+   "q": "TAXII is",
+   "options": [
+    "A packet filter",
+    "An HTTPS protocol for sharing STIX",
+    "A hash algorithm",
+    "A SIEM"
+   ],
+   "a": 1,
+   "why": "TAXII exchanges STIX collections."
+  },
+  {
+   "q": "In MISP, a galaxy is",
+   "options": [
+    "A knowledge cluster such as ATT&CK or threat actors",
+    "A user role",
+    "A file type",
+    "A firewall"
+   ],
+   "a": 0,
+   "why": "Galaxies bring shared knowledge into events."
+  },
+  {
+   "q": "Which TLP level permits public release?",
+   "options": [
+    "TLP:RED",
+    "TLP:AMBER",
+    "TLP:GREEN",
+    "TLP:CLEAR"
+   ],
+   "a": 3,
+   "why": "TLP:CLEAR has no sharing restriction."
+  },
+  {
+   "q": "An IP address in the Diamond Model belongs to",
+   "options": [
+    "Infrastructure",
+    "Victim",
+    "Adversary",
+    "Capability"
+   ],
+   "a": 0,
+   "why": "IPs are infrastructure."
+  },
+  {
+   "q": "What should you do with a hash lookup of a possibly unique internal file?",
+   "options": [
+    "Upload it publicly",
+    "Look up the hash rather than uploading the file",
+    "Email it",
+    "Post it online"
+   ],
+   "a": 1,
+   "why": "Hash lookups avoid leaking the file."
+  }
+ ]
+}

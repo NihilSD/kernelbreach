@@ -1,0 +1,817 @@
+{
+ "code": "ENG-12",
+ "intro": "A vulnerability program turns scanning into reduced risk. This module covers building an asset inventory with owners, planning scans so coverage is real without breaking services, and prioritizing findings with CVSS, EPSS, the CISA Known Exploited Vulnerabilities catalog, exposure and asset criticality. You will then define remediation SLAs, report on aging, and run exception processes with expiry, approvals and compensating controls.",
+ "lessons": [
+  {
+   "title": "Asset inventory and attack surface",
+   "why": "You cannot patch what you do not know exists. An accurate inventory with owners decides whether scans cover everything and whether a finding reaches someone who can fix it.",
+   "sections": [
+    {
+     "h": "Why inventory comes first",
+     "p": [
+      "Every vulnerability program rests on knowing what assets exist, what they do and who owns them. Missing assets are never scanned or patched, and the forgotten server, test database or cloud instance is a favorite entry point for attackers. Inventory also supplies context for prioritization: a flaw on an internet-facing payment server matters more than the same flaw on an isolated lab machine. Aim to track hardware, operating systems, software, cloud resources, containers, SaaS applications and network devices."
+     ]
+    },
+    {
+     "h": "Combining data sources",
+     "p": [
+      "No single source is complete. A configuration management database (CMDB) holds intended assets and ownership but is often stale. Cloud provider APIs list instances, buckets and databases accurately in real time. Endpoint agents, EDR and MDM report managed devices. Directory services show domain-joined machines. Network discovery scans, DHCP leases and NetFlow reveal what is actually on the wire. Reconcile these sources by a stable key such as hostname, MAC address, cloud instance ID or serial number, and treat differences as findings."
+     ]
+    },
+    {
+     "h": "Owners, criticality and attack surface",
+     "p": [
+      "Each asset needs an owner team, a business criticality rating, a data classification and an environment tag (production, test). Without an owner, tickets go nowhere. External attack surface management searches from the outside: domains, subdomains, open ports, certificates and cloud storage visible to the internet, including shadow IT that teams created without notification. Compare that external view to the internal inventory. Anything reachable from the internet that is not in the inventory deserves prompt investigation."
+     ]
+    },
+    {
+     "h": "Keeping it accurate",
+     "p": [
+      "Automate reconciliation on a schedule and measure the results: the percentage of assets with an owner, the number of unmanaged devices, and the number of assets seen by scanners but absent from the CMDB. Tag cloud resources at creation through policy so ownership is enforced from the start. Retire records when assets are decommissioned. Set an expectation that new systems register before going live, and use discovery as a safety net rather than the primary process.",
+      "Review stale records: an asset not seen for 30 to 60 days is either gone or hiding, and either answer needs action."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Reconciliation output",
+    "text": "Source        Count\nCMDB          1,204\nCloud API     1,311\nScanner       1,289\nEDR           1,150\nIn scanner, not in CMDB: 94 (61 no owner)\nIn CMDB, not scanned 30d: 9\nExternal: vpn-old.example.com 203.0.113.60 (not in inventory)"
+   },
+   "example": "A reconciliation job compares scanner results with the CMDB and finds 94 hosts that scanned successfully but are not in the CMDB, 61 with no owner. It also finds an old VPN gateway visible from the internet at 203.0.113.60 that no one has listed. The team assigns the cloud tagging policy to enforce an owner tag, opens tickets with the likely owning teams, and schedules the old gateway for emergency review because it could be unpatched.",
+   "terms": [
+    {
+     "term": "CMDB",
+     "def": "Configuration management database that records assets and their relationships."
+    },
+    {
+     "term": "Asset owner",
+     "def": "The person or team accountable for an asset and its remediation."
+    },
+    {
+     "term": "Attack surface",
+     "def": "The set of systems and entry points reachable by an attacker."
+    },
+    {
+     "term": "Shadow IT",
+     "def": "Systems or services used without formal approval or registration."
+    },
+    {
+     "term": "Reconciliation",
+     "def": "Comparing multiple data sources to find gaps and mismatches."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why is an inventory the first step of a vulnerability program?",
+     "options": [
+      "It speeds scanners",
+      "Unknown assets are never scanned or patched",
+      "It replaces patching",
+      "It is required by TCP"
+     ],
+     "a": 1,
+     "why": "Coverage depends on knowing what exists."
+    },
+    {
+     "q": "Which source is generally most current for cloud resources?",
+     "options": [
+      "A spreadsheet",
+      "The cloud provider API",
+      "A printed list",
+      "Last year's CMDB export"
+     ],
+     "a": 1,
+     "why": "APIs reflect the real, current state."
+    },
+    {
+     "q": "An internet-facing host not in the inventory should be:",
+     "options": [
+      "Ignored",
+      "Investigated promptly",
+      "Assumed safe",
+      "Scanned only yearly"
+     ],
+     "a": 1,
+     "why": "Unknown exposed assets are high risk."
+    },
+    {
+     "q": "Why record an owner for each asset?",
+     "options": [
+      "For decoration",
+      "So findings can be routed to someone who can fix them",
+      "To reduce disk use",
+      "For DNS"
+     ],
+     "a": 1,
+     "why": "Without owners remediation tickets stall."
+    }
+   ],
+   "recap": [
+    "Inventory must cover hosts, cloud, containers and SaaS, with owners and criticality.",
+    "Combine CMDB, cloud APIs, agents and discovery, then reconcile.",
+    "Include external attack surface and measure inventory quality."
+   ]
+  },
+  {
+   "title": "Scanning cadence and coverage",
+   "why": "Scans are your measurement tool. The method, frequency and credentials you choose determine whether results are accurate and whether scanning itself causes outages.",
+   "sections": [
+    {
+     "h": "Authenticated versus unauthenticated scans",
+     "p": [
+      "An unauthenticated scan probes from the network, as an outsider would, and sees open ports, banners and exposed services. It is good for the perimeter view but misses installed software and missing patches. An authenticated (credentialed) scan logs in using SSH, WinRM or SMB with a dedicated read-only account and inspects the registry, package lists and file versions. It finds far more vulnerabilities and gives fewer false positives. Use authenticated scans internally and unauthenticated scans for the external view."
+     ]
+    },
+    {
+     "h": "Agents, containers and cloud",
+     "p": [
+      "Network scans struggle with laptops that are off the corporate network, ephemeral cloud servers and containers. Agents installed on endpoints report vulnerabilities wherever the device is, and are good for remote workers. Cloud workloads can be assessed by snapshot-based scanning or agentless platform tools, and container images should be scanned in the registry and pipeline. Web applications need dynamic testing (DAST) and dependency analysis (SCA), which network vulnerability scanners do not replace."
+     ]
+    },
+    {
+     "h": "Cadence and scan windows",
+     "p": [
+      "Common practice is to scan internet-facing assets daily or weekly, internal servers weekly, and workstations through agents continuously, with a full discovery scan at least monthly. Compliance frameworks, such as PCI DSS, require internal and external scans at least quarterly and after significant changes. Schedule heavy scans in maintenance windows, throttle the number of concurrent hosts and requests, and exclude fragile systems such as legacy industrial controllers from intrusive checks. Coordinate with owners so an unexpected scan is not mistaken for an attack."
+     ]
+    },
+    {
+     "h": "Quality and coverage metrics",
+     "p": [
+      "Measure scan coverage as the percentage of inventory assets scanned successfully within the cadence, and authentication success as the share of assets where credentials worked. A failed login means the host was only partly assessed, which creates a false sense of safety. Use dedicated, vaulted scan credentials with least privilege, allow-list scanner IPs in firewalls and EDR, and verify that scanner traffic is not blocked. Keep scanner plugins updated so new vulnerabilities are recognized.",
+      "Review scans that time out repeatedly, since they often hide unstable or overloaded systems that deserve attention."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Scan summary",
+    "text": "Scan: internal-weekly   Targets: 820   Completed: 781\nAuth success: 702  Auth failed: 79  Unreachable: 39\nTop auth failures: SSH key rejected (41), WinRM refused (28), timeout (10)\nScan window: Sat 01:00-05:00 UTC, max 20 hosts concurrent, source 192.0.2.5"
+   },
+   "example": "A weekly scan reports 781 of 820 targets complete, but authentication failed on 79 hosts. The team finds that 41 Linux hosts rejected the scan key after a rotation and that 28 Windows hosts block WinRM from the scanner subnet. They fix credentials and firewall rules, then rerun only the failed targets. Coverage then rises from 86 to 98 percent authenticated, and the 39 unreachable hosts are checked against the inventory to see which are decommissioned.",
+   "terms": [
+    {
+     "term": "Authenticated scan",
+     "def": "A scan that logs in to a host to inspect installed software and patches."
+    },
+    {
+     "term": "Agent-based scanning",
+     "def": "Using software on the endpoint to report vulnerabilities from wherever it is."
+    },
+    {
+     "term": "Scan window",
+     "def": "A scheduled period when scans may run, chosen to limit impact."
+    },
+    {
+     "term": "DAST",
+     "def": "Dynamic application security testing that probes a running web app."
+    },
+    {
+     "term": "Scan coverage",
+     "def": "The percentage of assets successfully scanned within the required cadence."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does an authenticated scan provide that an unauthenticated one usually cannot?",
+     "options": [
+      "Public DNS names",
+      "Installed software and patch levels",
+      "Router MAC addresses",
+      "Faster results only"
+     ],
+     "a": 1,
+     "why": "Credentialed access reveals local package and patch data."
+    },
+    {
+     "q": "Which assets are best covered by agents?",
+     "options": [
+      "Remote laptops often off the network",
+      "A firewall in a data center",
+      "A printer",
+      "A switch"
+     ],
+     "a": 0,
+     "why": "Agents report from wherever the device is."
+    },
+    {
+     "q": "A scan shows many authentication failures. This means:",
+     "options": [
+      "Hosts are safe",
+      "Hosts were only partly assessed",
+      "Scanner works perfectly",
+      "Coverage is 100%"
+     ],
+     "a": 1,
+     "why": "Without a login, local vulnerabilities are not detected."
+    },
+    {
+     "q": "Why throttle scans and use windows?",
+     "options": [
+      "To make results longer",
+      "To avoid disrupting fragile services",
+      "To avoid inventory",
+      "To hide results"
+     ],
+     "a": 1,
+     "why": "Heavy scanning can slow or crash systems."
+    }
+   ],
+   "recap": [
+    "Use authenticated scans internally and unauthenticated scans for the external view.",
+    "Add agents, cloud and container scanning where network scans cannot reach.",
+    "Track coverage and authentication success, not just scan completion."
+   ]
+  },
+  {
+   "title": "Risk-based prioritization",
+   "why": "Thousands of findings cannot be fixed at once. Prioritizing by real-world risk lets a small team reduce the most danger first, instead of chasing every high CVSS number.",
+   "sections": [
+    {
+     "h": "CVSS and its limits",
+     "p": [
+      "The Common Vulnerability Scoring System rates the technical severity of a vulnerability from 0.0 to 10.0, with bands: Low 0.1-3.9, Medium 4.0-6.9, High 7.0-8.9, Critical 9.0-10.0. The base score reflects attack vector, complexity, privileges required, user interaction and impact on confidentiality, integrity and availability. It does not measure whether anyone is exploiting the flaw or how important your asset is. Treating all scores of 7 and above as equally urgent produces long queues, because a large share of high-scoring vulnerabilities are never exploited."
+     ]
+    },
+    {
+     "h": "EPSS and the KEV catalog",
+     "p": [
+      "The Exploit Prediction Scoring System (EPSS) estimates the probability, from 0 to 1, that a vulnerability will be exploited in the wild within the next 30 days, using data on exploit activity and vulnerability characteristics. The CISA Known Exploited Vulnerabilities (KEV) catalog lists CVEs with confirmed active exploitation and is binding, with due dates, for US federal agencies. A KEV listing is a strong signal to move that vulnerability to the front of the queue regardless of its CVSS score."
+     ]
+    },
+    {
+     "h": "Exposure and asset criticality",
+     "p": [
+      "Context completes the picture. Is the vulnerable service reachable from the internet, or only from a restricted network? Does a public exploit or a working proof-of-concept exist? Is a compensating control, such as a web application firewall rule or EDR protection, in place? How critical is the asset: does it hold regulated data, support revenue, or act as a domain controller? Combine these factors into a priority tier, as frameworks such as SSVC (Stakeholder-Specific Vulnerability Categorization) formalize with decisions such as Track, Attend, Act."
+     ]
+    },
+    {
+     "h": "A practical ranking approach",
+     "p": [
+      "A simple model is to rank first by KEV status, then by EPSS and exposure, then by asset criticality, using CVSS only as a tiebreaker. For example, a KEV-listed flaw on an internet-facing server is an emergency. A critical CVSS flaw with EPSS 0.01 on an internal, low-value host can wait for the normal cycle. Document the rules so decisions are consistent and defensible, and review them periodically. Remember that prioritization chooses order, not who is exempt: everything still needs a plan.",
+      "Re-score continuously, because EPSS and KEV change as exploitation evidence appears."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Priority table",
+    "text": "CVE            CVSS  EPSS   KEV  Exposed  Asset      Priority\nCVE-2026-1111  9.8   0.02   no   no       lab-vm     P3\nCVE-2026-2222  7.5   0.91   yes  yes      web-gw     P1 (act now)\nCVE-2026-3333  8.8   0.40   no   yes      crm-app    P2\nCVE-2026-4444  5.3   0.01   no   no       intranet   P4"
+   },
+   "example": "A backlog lists CVE-2026-1111 with CVSS 9.8 on an isolated lab VM and CVE-2026-2222 with CVSS 7.5 on an internet-facing gateway. The second has EPSS 0.91 and appears in KEV. Despite the lower score, it is the first to be fixed, with an emergency change. The lab VM flaw is scheduled in the normal cycle, and the team documents why. Within two days the exploited flaw is patched and the gateway is rescanned to confirm.",
+   "terms": [
+    {
+     "term": "CVSS",
+     "def": "A standard scoring system for the technical severity of vulnerabilities, from 0.0 to 10.0."
+    },
+    {
+     "term": "EPSS",
+     "def": "A model estimating the probability that a vulnerability will be exploited in the next 30 days."
+    },
+    {
+     "term": "KEV",
+     "def": "CISA's catalog of vulnerabilities known to be exploited in the wild."
+    },
+    {
+     "term": "SSVC",
+     "def": "A decision framework that prioritizes vulnerabilities using context and outcomes."
+    },
+    {
+     "term": "Compensating control",
+     "def": "A safeguard that reduces risk when a vulnerability cannot be patched immediately."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does EPSS estimate?",
+     "options": [
+      "Impact on confidentiality",
+      "Probability of exploitation in the near term",
+      "Patch size",
+      "CVSS vector"
+     ],
+     "a": 1,
+     "why": "EPSS predicts the chance of exploitation in the next 30 days."
+    },
+    {
+     "q": "A CVE listed in CISA KEV means:",
+     "options": [
+      "It has never been exploited",
+      "Exploitation in the wild is confirmed",
+      "It is low risk",
+      "It has no patch"
+     ],
+     "a": 1,
+     "why": "KEV lists vulnerabilities with known active exploitation."
+    },
+    {
+     "q": "Why is CVSS alone a poor prioritization method?",
+     "options": [
+      "It ignores exploitation and asset context",
+      "It is not numeric",
+      "It is secret",
+      "It only covers Linux"
+     ],
+     "a": 0,
+     "why": "CVSS measures severity, not likelihood or business importance."
+    },
+    {
+     "q": "Which finding is typically most urgent?",
+     "options": [
+      "Critical CVSS, isolated lab, EPSS 0.01",
+      "Medium CVSS, internet-facing, in KEV",
+      "Low CVSS, offline",
+      "Informational banner"
+     ],
+     "a": 1,
+     "why": "Active exploitation plus exposure drives urgency."
+    }
+   ],
+   "recap": [
+    "CVSS measures severity; EPSS measures likelihood; KEV confirms exploitation.",
+    "Add exposure, compensating controls and asset criticality.",
+    "Use a documented ranking and re-score as data changes."
+   ]
+  },
+  {
+   "title": "Remediation SLAs and reporting",
+   "why": "Prioritization means little unless fixes happen on time. SLAs, tickets and clear reporting create accountability across teams.",
+   "sections": [
+    {
+     "h": "Defining SLAs",
+     "p": [
+      "A remediation SLA sets the maximum time to fix or mitigate a vulnerability by priority. A typical example is: emergency (KEV or actively exploited and exposed) within 48 hours to 7 days, critical within 15 days, high within 30 days, medium within 60 to 90 days, low within 180 days or the next cycle. Align timings with obligations such as CISA's KEV due dates or PCI DSS, which expects critical patches within a month of release. Count the clock from detection or vendor release, and say clearly which."
+     ]
+    },
+    {
+     "h": "Tickets, ownership and workflow",
+     "p": [
+      "Findings must reach owners as actionable tickets, not as raw scanner exports. Group by asset or by fix, such as 'update package X on these 40 hosts', to reduce the number of tickets. Each ticket includes the affected assets, the CVE, the priority, the due date, the fix guidance and the validation step. Integrate scanners with the ticketing system, such as Jira or ServiceNow, and automate closure when a rescan confirms the fix. Work with patch and change management so approved maintenance windows exist."
+     ]
+    },
+    {
+     "h": "Metrics and aging",
+     "p": [
+      "Track mean and median time to remediate by severity, SLA compliance percentage, the count of open findings by age band (for example 0-30, 31-60, 61-90, 90+ days), and the number of overdue critical items. Show trends rather than one-time counts, and normalize by asset count so large teams are not unfairly compared. Watch for the vulnerability half-life, the time taken to remove half of new findings, as an indicator of process health. Report KEV items separately because they have the strongest risk signal."
+     ]
+    },
+    {
+     "h": "Reporting to different audiences",
+     "p": [
+      "Engineers need lists of what to fix and by when. Team leads want a view of their team's overdue items and trends. Executives need a short summary: overall risk trend, SLA compliance, top exposed systems and decisions required, such as resourcing for a legacy platform. Use dashboards that update automatically and a monthly review with owners of the worst-performing areas. Escalate overdue critical items through a defined path, and celebrate teams who improve, since recognition sustains cooperation better than blame alone.",
+      "Use root-cause analysis for repeated misses, for instance a base image that is never rebuilt."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Dashboard excerpt",
+    "text": "Priority  SLA     Open  Overdue  Median TTR\nP1 (KEV)  7d      3     1        4d\nCritical  15d     41    9        19d\nHigh      30d     212   44       33d\nMedium    90d     640   58       61d\nAging (critical+high): 0-30d 140 | 31-60d 62 | 61-90d 31 | 90d+ 20"
+   },
+   "example": "A monthly report shows critical SLA compliance at 78 percent. Drilling down, nine overdue critical findings are mostly in one team's container images that have not been rebuilt in months. Instead of chasing nine tickets, the security team works with the team to automate weekly base-image rebuilds. They report the change to leadership, and in the following month overdue critical items fall to two.",
+   "terms": [
+    {
+     "term": "SLA",
+     "def": "A service level agreement setting the time allowed to remediate by priority."
+    },
+    {
+     "term": "Time to remediate",
+     "def": "The elapsed time from detection to verified fix."
+    },
+    {
+     "term": "Aging",
+     "def": "How long open findings have been unresolved, grouped in bands."
+    },
+    {
+     "term": "SLA compliance",
+     "def": "The percentage of findings fixed within their SLA."
+    },
+    {
+     "term": "Rescan validation",
+     "def": "Scanning again to confirm that a fix worked before closing a ticket."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which finding class should normally have the shortest SLA?",
+     "options": [
+      "Low severity internal",
+      "Actively exploited and exposed (KEV)",
+      "Informational",
+      "Documentation issues"
+     ],
+     "a": 1,
+     "why": "Active exploitation on exposed assets demands the fastest response."
+    },
+    {
+     "q": "Why group findings by fix?",
+     "options": [
+      "It increases tickets",
+      "It reduces ticket volume and effort",
+      "It hides risk",
+      "It removes SLAs"
+     ],
+     "a": 1,
+     "why": "One action can resolve many findings."
+    },
+    {
+     "q": "What does aging show?",
+     "options": [
+      "Hardware age",
+      "How long findings have stayed open",
+      "Network speed",
+      "Employee tenure"
+     ],
+     "a": 1,
+     "why": "Aging bands reveal stuck or neglected items."
+    },
+    {
+     "q": "Best way to close a vulnerability ticket?",
+     "options": [
+      "When the owner says done",
+      "After a rescan confirms the fix",
+      "After 30 days",
+      "When priority changes"
+     ],
+     "a": 1,
+     "why": "Verification prevents false closure."
+    }
+   ],
+   "recap": [
+    "Set SLAs by priority and align with regulations and KEV due dates.",
+    "Deliver actionable tickets, grouped by fix, to named owners.",
+    "Report aging, SLA compliance and trends to each audience, and fix root causes."
+   ]
+  },
+  {
+   "title": "Exceptions and compensating controls",
+   "why": "Some vulnerabilities cannot be fixed on time. A controlled exception process manages that risk openly instead of leaving it as silent, permanent debt.",
+   "sections": [
+    {
+     "h": "When exceptions are legitimate",
+     "p": [
+      "Reasons include legacy systems that vendors no longer patch, patches that break critical applications, validated medical or industrial devices that cannot be changed without recertification, and short-term business constraints such as a year-end freeze. An exception is a formal, documented decision to accept a known risk for a limited time. It is not a way to avoid work: someone with authority must consciously accept the risk, and the vulnerability remains on the books."
+     ]
+    },
+    {
+     "h": "What a good exception record contains",
+     "p": [
+      "Each request lists the vulnerability and affected assets, the business reason, the risk if exploited, the compensating controls, the requester and risk owner, the approver, the start date and, importantly, an expiry date, typically 30, 90 or at most 180 days. It also defines a plan for permanent remediation, such as replacement or vendor upgrade, with a target date. Approval levels should scale with risk: a low-risk exception can be approved by a manager, while an exposed critical flaw needs a senior risk owner."
+     ]
+    },
+    {
+     "h": "Compensating controls",
+     "p": [
+      "A compensating control reduces the likelihood or impact of exploitation when the fix is not applied. Examples include network segmentation or a firewall rule limiting access to a few hosts, a web application firewall or IPS virtual patch for a known exploit pattern, disabling the vulnerable feature or service, enhanced monitoring with specific detection rules, stronger authentication, and removing internet exposure. A good compensating control addresses the same attack path, is verified to work, and is monitored. A promise to be careful is not a control."
+     ]
+    },
+    {
+     "h": "Running the process",
+     "p": [
+      "Maintain an exception register with owners and expiry dates, send reminders before expiry, and require re-approval with fresh evidence rather than automatic renewal. Re-evaluate when new information arrives, for example when the CVE is added to KEV or an exploit is published, because that may invalidate the original risk acceptance. Report the number of active exceptions, those expiring soon and those renewed repeatedly. Repeated renewals signal a systemic problem that needs funding or architectural change, not another extension.",
+      "Test that compensating controls still work, such as checking the firewall rule or WAF signature after changes."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Exception record",
+    "text": "ID: EXC-0192   Status: Approved\nVuln: CVE-2026-5555 on erp-legacy (192.0.2.80), CVSS 8.1, EPSS 0.12, not in KEV\nReason: vendor patch needs 6-week migration\nCompensating: access limited to 192.0.2.0/28 via firewall; IPS signature 90112 enabled; alert rule ERP-EXPLOIT-01\nRisk owner: fake-owner (Finance IT)   Expires: 2026-09-30\nPlan: upgrade to v12 by 2026-09-15"
+   },
+   "example": "The finance team asks to delay patching erp-legacy for six weeks because the upgrade needs testing. The security analyst agrees to a time-boxed exception only if access is restricted to a small admin subnet, an IPS signature is enabled, and a detection rule is added. The risk owner signs, the register records the expiry date, and a reminder is set. Two weeks later the CVE is added to KEV, so the analyst reopens the decision and shortens the exception.",
+   "terms": [
+    {
+     "term": "Risk acceptance",
+     "def": "A formal decision by an accountable owner to tolerate a known risk."
+    },
+    {
+     "term": "Exception expiry",
+     "def": "The date when an exception ends and must be remediated or re-approved."
+    },
+    {
+     "term": "Virtual patching",
+     "def": "Using IPS or WAF rules to block exploitation without changing the vulnerable software."
+    },
+    {
+     "term": "Exception register",
+     "def": "A tracked list of all approved exceptions with owners and expiry dates."
+    },
+    {
+     "term": "Risk owner",
+     "def": "The business person accountable for a risk and its acceptance."
+    }
+   ],
+   "check": [
+    {
+     "q": "An exception should always include:",
+     "options": [
+      "No end date",
+      "An expiry date and a remediation plan",
+      "Only a verbal approval",
+      "No compensating controls"
+     ],
+     "a": 1,
+     "why": "Time-boxing and a plan prevent permanent risk debt."
+    },
+    {
+     "q": "Which is a valid compensating control?",
+     "options": [
+      "Hoping nobody attacks",
+      "Network restriction plus an IPS signature and monitoring",
+      "Ignoring the CVE",
+      "Renaming the host"
+     ],
+     "a": 1,
+     "why": "It must address the attack path and be verifiable."
+    },
+    {
+     "q": "A CVE in an exception is newly added to KEV. What should happen?",
+     "options": [
+      "Nothing",
+      "Re-evaluate and likely shorten or end the exception",
+      "Extend it a year",
+      "Delete the register"
+     ],
+     "a": 1,
+     "why": "New exploitation evidence invalidates the old assessment."
+    },
+    {
+     "q": "Repeated renewals of the same exception indicate:",
+     "options": [
+      "Good process",
+      "A systemic problem needing real remediation",
+      "A scanner bug",
+      "Perfect security"
+     ],
+     "a": 1,
+     "why": "Constant extensions mean the root issue is not being solved."
+    }
+   ],
+   "recap": [
+    "Exceptions are documented, approved, time-boxed risk acceptance.",
+    "Compensating controls must address the attack path and be verified.",
+    "Keep a register, reassess on new intelligence and escalate repeated renewals."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Reconcile inventory",
+   "sim": "file-explorer",
+   "scenario": "You have three exported files: cmdb.csv, scanner.csv and cloud.csv. Your job is to compare them and report on gaps before the quarterly audit. All hosts use fictional names and 192.0.2.x or 198.51.100.x addresses.",
+   "objective": "Find unmanaged assets and assets without owners by comparing scanner results to the CMDB.",
+   "steps": [
+    {
+     "do": "Open cmdb.csv",
+     "see": "1,204 rows. Columns: hostname, ip, owner, criticality, env."
+    },
+    {
+     "do": "Open scanner.csv",
+     "see": "1,289 rows. Columns: hostname, ip, os, last_scan."
+    },
+    {
+     "do": "Run Compare: scanner minus CMDB by hostname",
+     "see": "94 hosts in scanner but not in CMDB, e.g. build-07 (192.0.2.115), kiosk-03 (198.51.100.22)."
+    },
+    {
+     "do": "Filter the 94 by owner tag in cloud.csv",
+     "see": "33 have an owner tag in the cloud; 61 have no owner anywhere."
+    },
+    {
+     "do": "Run Compare: CMDB minus scanner (last_scan older than 30 days)",
+     "see": "9 hosts, e.g. old-fs01 (192.0.2.60)."
+    },
+    {
+     "do": "Open external.csv from attack surface scan",
+     "see": "vpn-old.example.com 203.0.113.60 open on 443, not in CMDB or scanner."
+    },
+    {
+     "do": "Click Summarize",
+     "see": "Unmanaged: 94. No owner: 61. Stale: 9. Exposed unknown: 1 (vpn-old.example.com)."
+    }
+   ],
+   "answer": "Findings: 94 assets seen by the scanner but absent from the CMDB, 61 with no owner anywhere, 9 CMDB assets not scanned in 30 days, and one unknown internet-exposed host, vpn-old.example.com at 203.0.113.60. Assign owners, add or retire records, and investigate the exposed host first.",
+   "hint": "Subtract one list from the other, then check which results have no owner tag."
+  },
+  {
+   "title": "Prioritize the backlog",
+   "sim": "scenario",
+   "scenario": "You have 10 CVEs from this week's scans. Each has CVSS, EPSS, KEV status, exposure and asset criticality. The patch team can handle three emergency items this week. Decide the order and justify it.",
+   "objective": "Rank the ten CVEs and choose the top three with reasons.",
+   "steps": [
+    {
+     "do": "View the table of 10 CVEs",
+     "see": "CVE-A 9.8/0.02/no/internal/low; CVE-B 7.5/0.91/KEV/internet/high; CVE-C 8.8/0.40/no/internet/high; CVE-D 9.1/0.85/KEV/internal/high; ... (10 rows)."
+    },
+    {
+     "do": "Sort by KEV status",
+     "see": "KEV items: CVE-B (internet, web-gw) and CVE-D (internal, domain controller)."
+    },
+    {
+     "do": "Rank KEV plus internet exposure first",
+     "see": "Rank 1: CVE-B. Reason: exploited, exposed, high-value."
+    },
+    {
+     "do": "Rank the KEV internal item next",
+     "see": "Rank 2: CVE-D. Reason: exploited and the asset is a domain controller."
+    },
+    {
+     "do": "Pick the next by EPSS and exposure",
+     "see": "Rank 3: CVE-C. Reason: EPSS 0.40, internet exposed, CRM data."
+    },
+    {
+     "do": "Place CVE-A and the rest by criticality",
+     "see": "CVE-A (CVSS 9.8, EPSS 0.02, lab, internal) moves to the normal cycle."
+    },
+    {
+     "do": "Submit order with justification",
+     "see": "Accepted: top three B, D, C. Note: CVE-A deferred with documented rationale."
+    }
+   ],
+   "answer": "Patch CVE-B first (KEV, internet-facing, high value), then CVE-D (KEV on a domain controller), then CVE-C (high EPSS, exposed). CVE-A has the highest CVSS but low exploitation probability and no exposure, so it follows the normal SLA with documented reasoning.",
+   "hint": "Start with KEV, then exposure and EPSS; use CVSS last."
+  },
+  {
+   "title": "Read a scan report",
+   "sim": "log-viewer",
+   "scenario": "An authenticated scan of a web server (192.0.2.30) produced a long report. Several findings may be false positives because of backported patches or tool quirks. You have the log viewer and the host's package details.",
+   "objective": "Separate false positives from real findings and decide what to fix.",
+   "steps": [
+    {
+     "do": "Open finding 1: Apache 2.4.37 vulnerable to CVE-2026-6001",
+     "see": "Detected by banner version. Authenticated check: package httpd-2.4.37-65.el8 with vendor backport RHSA-2026:1234."
+    },
+    {
+     "do": "Compare with the vendor advisory",
+     "see": "The advisory lists 2.4.37-65 as fixed. Classification: FALSE POSITIVE (backported)."
+    },
+    {
+     "do": "Open finding 2: OpenSSL 1.1.1k CVE-2026-6002",
+     "see": "Package openssl-1.1.1k-9.el8 is older than the fixed 1.1.1k-12. Classification: REAL."
+    },
+    {
+     "do": "Open finding 3: SSH weak MAC algorithms",
+     "see": "sshd_config allows hmac-sha1. Real configuration issue, medium."
+    },
+    {
+     "do": "Open finding 4: Missing patch KB5000000 on Linux host",
+     "see": "Plugin targets Windows only. Classification: FALSE POSITIVE (wrong OS plugin). Report to scanner team."
+    },
+    {
+     "do": "Mark false positives with evidence",
+     "see": "2 false positives recorded with justification and expiry."
+    },
+    {
+     "do": "Create tickets for real findings",
+     "see": "Tickets: update openssl package (P2); change MACs (P3)."
+    }
+   ],
+   "answer": "Findings 1 and 4 are false positives: one is a backported fix that a banner check misreads and the other is a Windows plugin firing on a Linux host. Findings 2 and 3 are real: an outdated OpenSSL package and weak SSH MACs. Record evidence for false positives and create tickets for the real ones.",
+   "hint": "Check the package release and vendor advisory, not just the banner version."
+  },
+  {
+   "title": "Handle an exception",
+   "sim": "chat-sim",
+   "scenario": "You are a security analyst. The owner of erp-legacy (192.0.2.80), a finance manager, asks to postpone patching a high-severity vulnerability for six months because of a busy audit season. You chat with them to agree on terms.",
+   "objective": "Negotiate and document a time-boxed exception with a compensating control.",
+   "steps": [
+    {
+     "do": "Type: Thanks for explaining. Six months is too long. What is the earliest feasible date?",
+     "see": "Owner: The vendor upgrade needs a 6-week migration. We can do it by Sept 15 if we start now."
+    },
+    {
+     "do": "Type: I can support a 90-day exception if we add compensating controls. Is access limited to a few admins?",
+     "see": "Owner: Only the finance admin subnet needs it. Everyone else uses the web front end."
+    },
+    {
+     "do": "Type: Please restrict port 443 on that server to 192.0.2.0/28 and let me enable an IPS signature.",
+     "see": "Owner: Agreed. Network team will change the firewall today."
+    },
+    {
+     "do": "Type: I also need a detection rule and you as the named risk owner with a 90-day expiry.",
+     "see": "Owner: OK. I will sign as risk owner. Expiry 90 days."
+    },
+    {
+     "do": "Fill the exception form: reason, controls, owner, expiry, plan",
+     "see": "Form saved: EXC-0192, expiry 90 days, plan: upgrade to v12 by Sept 15."
+    },
+    {
+     "do": "Click Submit for approval",
+     "see": "Approved by security manager. Reminder set 14 days before expiry."
+    },
+    {
+     "do": "Type: If the CVE is added to KEV, I will reopen this decision.",
+     "see": "Owner: Understood."
+    }
+   ],
+   "answer": "The agreed outcome is a 90-day exception, not six months, with compensating controls: access restricted to 192.0.2.0/28, an IPS signature and a detection rule. It names the risk owner, includes a remediation plan with a target date, has an expiry, and is reopened if exploitation evidence such as KEV listing appears.",
+   "hint": "Offer a shorter time-box plus concrete controls and a named owner, rather than refusing outright."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which approach best finds assets missing from the CMDB?",
+   "options": [
+    "Reading the README",
+    "Comparing scanner and cloud data to the CMDB",
+    "Rebooting hosts",
+    "Ignoring DHCP"
+   ],
+   "a": 1,
+   "why": "Reconciliation across independent sources exposes gaps."
+  },
+  {
+   "q": "An authenticated scan generally gives:",
+   "options": [
+    "Fewer details",
+    "More accurate local patch and software findings",
+    "Only port lists",
+    "No findings"
+   ],
+   "a": 1,
+   "why": "Credentialed access reveals installed software and patches."
+  },
+  {
+   "q": "Which asset type is best covered by agents?",
+   "options": [
+    "Remote laptops",
+    "Data center firewall",
+    "Switch",
+    "Printer"
+   ],
+   "a": 0,
+   "why": "Agents report from wherever the endpoint is."
+  },
+  {
+   "q": "CVSS Critical range is:",
+   "options": [
+    "1.0-3.9",
+    "4.0-6.9",
+    "7.0-8.9",
+    "9.0-10.0"
+   ],
+   "a": 3,
+   "why": "Critical is 9.0 to 10.0."
+  },
+  {
+   "q": "What does EPSS predict?",
+   "options": [
+    "Patch time",
+    "Likelihood of exploitation within 30 days",
+    "Asset value",
+    "Network latency"
+   ],
+   "a": 1,
+   "why": "EPSS gives an exploitation probability."
+  },
+  {
+   "q": "Which should usually go first?",
+   "options": [
+    "CVSS 9.8, isolated, not in KEV",
+    "CVSS 7.5, KEV-listed, internet-facing",
+    "CVSS 4.0, internal",
+    "CVSS 3.1, offline"
+   ],
+   "a": 1,
+   "why": "Known exploitation and exposure drive urgency."
+  },
+  {
+   "q": "A good remediation ticket includes:",
+   "options": [
+    "Only a CVE ID",
+    "Assets, priority, due date, fix and validation",
+    "A random ID",
+    "Nothing"
+   ],
+   "a": 1,
+   "why": "Owners need actionable, verifiable detail."
+  },
+  {
+   "q": "What does aging reporting reveal?",
+   "options": [
+    "Staff age",
+    "How long findings remain open",
+    "Disk age",
+    "DNS TTL"
+   ],
+   "a": 1,
+   "why": "Aging bands show backlog health."
+  },
+  {
+   "q": "An exception must have:",
+   "options": [
+    "No expiry",
+    "An expiry date, owner and compensating controls",
+    "Only an email",
+    "No risk owner"
+   ],
+   "a": 1,
+   "why": "These make risk acceptance time-boxed and accountable."
+  },
+  {
+   "q": "Which is a false positive example?",
+   "options": [
+    "Outdated package confirmed by version",
+    "Banner version flagged although the vendor backported the fix",
+    "Weak cipher in config",
+    "Open admin port"
+   ],
+   "a": 1,
+   "why": "Backported fixes often fool banner-based checks."
+  }
+ ]
+}

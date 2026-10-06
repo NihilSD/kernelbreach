@@ -1,0 +1,944 @@
+{
+ "code": "ENG-01",
+ "intro": "This module teaches you to think about security before a single server is built. You will learn the threat modeling process, how to draw data flow diagrams with trust boundaries, and how to apply STRIDE, PASTA and attack trees to find and rank threats. You will then turn findings into design decisions using classic secure design principles, zero trust and defense in depth. Threats found on a whiteboard cost a fraction of what the same flaws cost after release, which is why architects and engineers use these methods on every significant design.",
+ "lessons": [
+  {
+   "title": "Threat modeling process and DFDs",
+   "why": "Threat modeling turns vague worry into a concrete list of problems you can fix while changes are still cheap. A data flow diagram gives the whole team one shared picture to reason about.",
+   "sections": [
+    {
+     "h": "The four questions",
+     "p": [
+      "Threat modeling is structured thinking about what can go wrong. Adam Shostack frames it as four questions: What are we working on? What can go wrong? What are we going to do about it? Did we do a good enough job? The first question produces a model, usually a diagram. The second applies a method such as STRIDE to that diagram. The third produces mitigations, which you can avoid, reduce, transfer or accept. The fourth validates the work and feeds back into the first. The activity is iterative: you repeat it whenever the design, data or deployment changes, not once before launch."
+     ]
+    },
+    {
+     "h": "Data flow diagram elements",
+     "p": [
+      "A data flow diagram (DFD) uses five symbols. An external entity (a rectangle) is something outside your control that sends or receives data, such as a customer browser or a payment provider. A process (a circle) is code that transforms data, such as a web API. A data store (two parallel lines) holds data at rest, such as a database or a file bucket. A data flow (an arrow) shows data moving between the other elements and should be labeled with what it carries and over which protocol. A trust boundary (a dashed line or box) separates areas of different privilege or ownership. Start with a level 0 context diagram that shows the whole system as one process surrounded by entities. Then decompose into level 1 and level 2 diagrams until each process has one clear job."
+     ]
+    },
+    {
+     "h": "Scoping and doing it well",
+     "p": [
+      "A good model is small enough to finish and detailed enough to find real problems. Begin with the assets worth protecting: credentials, personal data, payment data, signing keys, availability of a key service. Draw only the flows that touch those assets at first. Involve developers, operations and a product owner, because each sees different flows. Write down assumptions explicitly, for example 'the internal network is not trusted' or 'the cloud provider patches the hypervisor'. Unstated assumptions are where most missed threats hide. Capture results as trackable tickets with an owner, a severity and a mitigation, rather than as a document nobody reopens."
+     ]
+    },
+    {
+     "h": "When and how often",
+     "p": [
+      "Run a full model during design, a lighter review for each significant feature, and a refresh after incidents or architecture changes. Triggers include a new external integration, a new data type, a change of identity provider, moving to a new cloud region or service, and exposure of a previously internal API. Keep the diagram in version control next to the code, in a text format such as a diagram-as-code file, so changes to the system produce a visible diff. Tools like OWASP Threat Dragon and the Microsoft Threat Modeling Tool store models in files that can be reviewed like any other artifact."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "DFD in text form",
+    "text": "[Customer browser] (entity)\n   -- HTTPS login request --> [Web API] (process)\n==== trust boundary: internet | DMZ ====\n[Web API] -- SQL over TLS --> [(Users DB)] (store)\n==== trust boundary: DMZ | data tier ====\n[Web API] -- HTTPS --> [Email provider] (entity)"
+   },
+   "example": "A team plans a customer portal for example.com. The level 0 diagram shows one process, Portal, with three entities: Customer, Support Agent and Payment Provider. At level 1 they split Portal into Web API, Auth Service and a Users database. They label each flow with protocol and data, such as 'password over HTTPS'. Asking 'what can go wrong with the flow from Customer to Web API?' immediately raises credential theft and tampering questions, and asking 'did we do a good enough job?' later prompts a review once the payment provider integration is added.",
+   "terms": [
+    {
+     "term": "DFD",
+     "def": "Data flow diagram showing processes, stores, entities, flows and boundaries."
+    },
+    {
+     "term": "External entity",
+     "def": "A person or system outside your control that sends or receives data."
+    },
+    {
+     "term": "Data store",
+     "def": "A place where data rests, such as a database or file share."
+    },
+    {
+     "term": "Trust boundary",
+     "def": "A line where data crosses between different privilege or ownership levels."
+    },
+    {
+     "term": "Context diagram",
+     "def": "Level 0 view that shows the system as a single process."
+    },
+    {
+     "term": "Mitigation",
+     "def": "An action that avoids, reduces, transfers or accepts a threat."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which question is NOT one of the four Shostack threat modeling questions?",
+     "options": [
+      "What are we working on?",
+      "What can go wrong?",
+      "Who should we blame?",
+      "Did we do a good enough job?"
+     ],
+     "a": 2,
+     "why": "The four questions cover scope, threats, response and validation, not blame."
+    },
+    {
+     "q": "In a DFD, a database is drawn as which element?",
+     "options": [
+      "External entity",
+      "Process",
+      "Data store",
+      "Trust boundary"
+     ],
+     "a": 2,
+     "why": "Databases and files holding data at rest are data stores."
+    },
+    {
+     "q": "Which output best belongs to the 'What are we going to do about it?' step?",
+     "options": [
+      "A list of mitigations with owners",
+      "The first DFD draft",
+      "A penetration test report",
+      "A network scan"
+     ],
+     "a": 0,
+     "why": "That step decides how to avoid, reduce, transfer or accept each threat."
+    },
+    {
+     "q": "When should a threat model be revisited?",
+     "options": [
+      "Only before first launch",
+      "When the design, data or integrations change",
+      "Never, once approved",
+      "Only after a breach"
+     ],
+     "a": 1,
+     "why": "Threat modeling is iterative and tied to change."
+    }
+   ],
+   "recap": [
+    "Threat modeling asks what we are building, what can go wrong, what we will do, and whether it was enough.",
+    "A DFD uses entities, processes, stores, flows and trust boundaries.",
+    "Write down assumptions and track findings as owned tickets, and refresh the model when the system changes."
+   ]
+  },
+  {
+   "title": "Trust boundaries and attack surface",
+   "why": "Most serious flaws appear where data or control crosses from a less trusted place to a more trusted one. Finding those crossings tells you where to spend validation and monitoring effort.",
+   "sections": [
+    {
+     "h": "What a trust boundary is",
+     "p": [
+      "A trust boundary exists wherever two parts of a system have different privilege levels, owners or assumptions about the other side. Typical boundaries include the internet and your edge network, a browser and a server, a web tier and a database tier, one tenant and another in a multi-tenant service, a user-mode process and the kernel, and your code and a third-party API. Each boundary answers the question: which principal can do what on the far side? If data or commands cross it, the receiving side must not assume the sender behaved well. Draw boundaries as dashed lines on the DFD and label them."
+     ]
+    },
+    {
+     "h": "Entry points and attack surface",
+     "p": [
+      "The attack surface is the sum of all places where an attacker can send input to the system or extract data from it. Entry points include public URLs, API endpoints, open ports, file upload forms, message queues, admin consoles, email addresses that are parsed automatically, and software update channels. Exit points matter too, because error pages, logs and exports can leak data. Enumerate them from the DFD: every flow that crosses a boundary toward you is an entry point. Then rank by exposure (anonymous internet versus authenticated internal) and by the privilege of the process that handles the input."
+     ]
+    },
+    {
+     "h": "Validating at the crossing",
+     "p": [
+      "Data crossing into a more trusted zone must be validated at the point of crossing. That means authenticating the caller, authorizing the action, checking type, length, range and format of input against an allow list, and encoding output for its destination, for example HTML encoding for a page or parameterized queries for SQL. Validation in the browser is a convenience only, since the client is on the untrusted side. Equally, data leaving a trusted zone toward a less trusted one may need filtering, so internal error details and secrets do not escape."
+     ]
+    },
+    {
+     "h": "Reducing the surface",
+     "p": [
+      "You cannot defend what you do not know exists, and you cannot be attacked through what you never built. Reduce the surface by removing unused endpoints and features, closing unneeded ports, disabling default accounts, restricting administrative interfaces to a management network or VPN, and splitting high-risk functions (such as file parsing) into low-privilege sandboxed processes. Measure the surface over time with an inventory of exposed hosts, APIs and ports, and treat any unexplained growth as a finding. Shadow IT and forgotten test environments are common sources of unplanned exposure."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Entry point inventory",
+    "text": "ID  Entry point            Boundary crossed        Auth     Exposure\nE1  POST /login            internet -> DMZ         none     public\nE2  POST /upload (PDF)     internet -> DMZ         user     public\nE3  GET /admin             corp VPN -> DMZ         MFA      restricted\nE4  queue: orders-in       partner -> internal     mTLS     partner\nE5  SSH 22 on 198.51.100.7 mgmt -> host            key      mgmt only"
+   },
+   "example": "Reviewing the inventory above, the team sees that E2 accepts files from the public internet and is handled by the same process that holds database credentials. They decide to validate file type and size at the boundary, scan files in a separate low-privilege worker, and store uploads outside the web root. E1 is anonymous by nature, so they add rate limiting and monitoring for credential stuffing. E3 is moved behind the VPN, which shrinks the attack surface without removing a feature.",
+   "terms": [
+    {
+     "term": "Trust boundary",
+     "def": "A line between zones with different privilege, ownership or trust."
+    },
+    {
+     "term": "Attack surface",
+     "def": "The sum of entry points through which an attacker can interact with a system."
+    },
+    {
+     "term": "Entry point",
+     "def": "A place where external input reaches the system."
+    },
+    {
+     "term": "Allow list validation",
+     "def": "Accepting only input that matches a known-good pattern."
+    },
+    {
+     "term": "Input encoding",
+     "def": "Transforming data so it is treated as data in its destination context."
+    },
+    {
+     "term": "Attack surface reduction",
+     "def": "Removing or restricting features, ports and interfaces that are not needed."
+    }
+   ],
+   "check": [
+    {
+     "q": "Where must input validation that you rely on for security occur?",
+     "options": [
+      "In the browser only",
+      "On the trusted side when data crosses the boundary",
+      "Only in the database",
+      "Only in logs"
+     ],
+     "a": 1,
+     "why": "The client is untrusted, so the receiving trusted side must validate."
+    },
+    {
+     "q": "Which is an example of attack surface reduction?",
+     "options": [
+      "Adding more public endpoints",
+      "Moving the admin console behind a VPN",
+      "Disabling logging",
+      "Reusing one password everywhere"
+     ],
+     "a": 1,
+     "why": "Restricting exposure of the admin interface shrinks who can reach it."
+    },
+    {
+     "q": "What defines a trust boundary?",
+     "options": [
+      "A firewall brand",
+      "A change in privilege level or ownership between two zones",
+      "Any TCP connection",
+      "The size of the network"
+     ],
+     "a": 1,
+     "why": "Boundaries separate zones with different trust assumptions."
+    },
+    {
+     "q": "Why do exit points matter for attack surface?",
+     "options": [
+      "They do not matter",
+      "Errors, logs and exports can leak sensitive data",
+      "They only affect speed",
+      "They replace entry points"
+     ],
+     "a": 1,
+     "why": "Data leaving the system can disclose secrets or internals."
+    }
+   ],
+   "recap": [
+    "Trust boundaries sit where privilege or ownership changes, and flows crossing them are entry points.",
+    "Validate, authorize and encode at the crossing on the trusted side.",
+    "Shrink the attack surface by removing, restricting and isolating exposed functions."
+   ]
+  },
+  {
+   "title": "STRIDE per element",
+   "why": "STRIDE gives a repeatable checklist so you consider every kind of threat for every element, instead of only the ones you already worry about.",
+   "sections": [
+    {
+     "h": "The six categories and the property each breaks",
+     "p": [
+      "STRIDE, created at Microsoft, names six threat types, each the opposite of a security property. Spoofing violates authentication: pretending to be another user or system. Tampering violates integrity: modifying data or code. Repudiation violates non-repudiation: denying an action when no reliable record exists. Information disclosure violates confidentiality: exposing data to those not authorized. Denial of service violates availability: exhausting or blocking a resource. Elevation of privilege violates authorization: gaining rights beyond those granted. Memorizing the pairing lets you work backward from a required property to the threat that would break it."
+     ]
+    },
+    {
+     "h": "STRIDE per element",
+     "p": [
+      "Not every category applies to every DFD element, so the per-element method narrows the work. External entities are subject to spoofing and repudiation. Processes are subject to all six. Data stores are subject to tampering, information disclosure and denial of service, and to repudiation when they hold logs. Data flows are subject to tampering, information disclosure and denial of service. Walk each element on the diagram, ask which categories apply, and write at least one concrete threat per applicable category, such as 'an attacker replays a captured session cookie to the Web API' for spoofing."
+     ]
+    },
+    {
+     "h": "Typical mitigations",
+     "p": [
+      "Pair each category with standard controls. Spoofing: strong authentication, MFA, mutual TLS between services, signed tokens. Tampering: TLS, digital signatures, message authentication codes, file integrity monitoring, database permissions and constraints. Repudiation: secure, centralized, append-only audit logs with synchronized time and user identity. Information disclosure: encryption in transit and at rest, access control, minimal error messages, secrets management. Denial of service: rate limiting, quotas, autoscaling, timeouts and upstream filtering. Elevation of privilege: least privilege, input validation, sandboxing, separate admin paths and patching. The mitigation must act at the right element, not just somewhere nearby."
+     ]
+    },
+    {
+     "h": "Recording and prioritizing",
+     "p": [
+      "Record each threat as an entry: element, category, scenario, existing control, proposed mitigation, owner and priority. Prioritize by likelihood and impact using a simple scale or a scheme such as DREAD or CVSS-style scoring, and be consistent. Do not try to prove a threat is real by exploiting it; the goal is to decide what to build. Some threats will be accepted with sign-off from a risk owner, which is a valid outcome if documented. Finally, check coverage: every element and every boundary-crossing flow should have been considered against every applicable category."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "STRIDE worksheet row",
+    "text": "Element : Web API (process), login handler\nS: attacker guesses or replays credentials   -> MFA, lockout, rate limit\nT: request body altered in transit           -> TLS 1.2+, server-side validation\nR: user denies a password reset              -> audit log with user id and time\nI: stack trace in error page                 -> generic errors, log server-side\nD: flood of login requests                   -> rate limit, WAF, timeouts\nE: injection yields admin role               -> parameterized queries, least privilege"
+   },
+   "example": "A team analyzes the flow carrying order data from the Web API to an Orders database on 192.0.2.40. Flows are subject to T, I and D. For tampering, they note that an on-path attacker could alter order totals, so they require TLS with certificate validation. For information disclosure, plaintext SQL would expose customer data, which the same TLS control addresses. For denial of service, they add connection pool limits and query timeouts. One control family covers two categories, but the denial of service item needed its own control.",
+   "terms": [
+    {
+     "term": "STRIDE",
+     "def": "Mnemonic for Spoofing, Tampering, Repudiation, Information disclosure, Denial of service, Elevation of privilege."
+    },
+    {
+     "term": "Spoofing",
+     "def": "Pretending to be another identity, breaking authentication."
+    },
+    {
+     "term": "Repudiation",
+     "def": "Denying an action when no trustworthy evidence exists."
+    },
+    {
+     "term": "Elevation of privilege",
+     "def": "Gaining rights beyond those intended."
+    },
+    {
+     "term": "Non-repudiation",
+     "def": "Assurance that an actor cannot credibly deny an action."
+    },
+    {
+     "term": "Audit log",
+     "def": "A tamper-resistant record of who did what and when."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which STRIDE category violates integrity?",
+     "options": [
+      "Spoofing",
+      "Tampering",
+      "Repudiation",
+      "Denial of service"
+     ],
+     "a": 1,
+     "why": "Tampering is unauthorized modification of data or code."
+    },
+    {
+     "q": "Which elements are subject to spoofing and repudiation in STRIDE per element?",
+     "options": [
+      "Data flows",
+      "Data stores",
+      "External entities",
+      "Trust boundaries"
+     ],
+     "a": 2,
+     "why": "External entities are the sources of identity claims and actions."
+    },
+    {
+     "q": "Which mitigation best addresses repudiation?",
+     "options": [
+      "Rate limiting",
+      "Centralized append-only audit logging",
+      "Input length checks",
+      "Disk encryption"
+     ],
+     "a": 1,
+     "why": "Reliable logs provide evidence of who did what."
+    },
+    {
+     "q": "An attacker floods an API so legitimate users cannot connect. Which category is this?",
+     "options": [
+      "Information disclosure",
+      "Tampering",
+      "Denial of service",
+      "Spoofing"
+     ],
+     "a": 2,
+     "why": "Exhausting a resource to block service is denial of service."
+    }
+   ],
+   "recap": [
+    "Each STRIDE category breaks one property: authentication, integrity, non-repudiation, confidentiality, availability, authorization.",
+    "Apply categories per element: entities S and R, processes all, stores T I D, flows T I D.",
+    "Record threat, control, owner and priority, and accept risk only with sign-off."
+   ]
+  },
+  {
+   "title": "PASTA and attack trees",
+   "why": "STRIDE finds categories of threats, while PASTA and attack trees connect them to attacker goals, cost and business impact so you can rank what to fix first.",
+   "sections": [
+    {
+     "h": "PASTA: seven stages",
+     "p": [
+      "PASTA, the Process for Attack Simulation and Threat Analysis, is a risk-centric method with seven stages. 1) Define objectives: business goals, compliance needs and impact criteria. 2) Define the technical scope: infrastructure, applications and dependencies. 3) Application decomposition: DFDs, trust boundaries, entry points and assets. 4) Threat analysis: use threat intelligence to identify realistic threat actors and techniques. 5) Vulnerability and weakness analysis: map known weaknesses, scan results and design flaws to the threats. 6) Attack modeling: build attack trees and simulate attack paths. 7) Risk and impact analysis: rank risks and select countermeasures in business terms."
+     ]
+    },
+    {
+     "h": "Attack trees",
+     "p": [
+      "An attack tree, popularized by Bruce Schneier, puts the attacker goal at the root and decomposes it into sub-goals. Child nodes are joined by OR when any one is enough, or AND when all are needed. Leaves are concrete actions. A root of 'steal customer data' might have OR children 'exploit the web app', 'phish an administrator' and 'steal a backup'. The node 'phish an administrator' might be AND of 'send a convincing lure', 'capture credentials' and 'bypass MFA'. The tree makes assumptions visible and shows which single action unlocks many paths."
+     ]
+    },
+    {
+     "h": "Annotating with cost and likelihood",
+     "p": [
+      "Each leaf can be annotated with attributes such as cost to attacker, skill required, probability of success or detection chance. Values propagate upward: an OR node takes the cheapest (minimum cost) of its children, because the attacker will choose the easiest route; an AND node takes the sum of costs, since every child is required. Likelihood combines similarly, with AND multiplying probabilities and OR taking the best option. The cheapest path to the root is where defenders should invest first, because raising cost on a path the attacker would never choose adds little."
+     ]
+    },
+    {
+     "h": "Using the results",
+     "p": [
+      "Turn the tree into decisions. If the cheapest path runs through phishing, strengthen MFA with phishing-resistant factors and add mail filtering rather than hardening an already strong database. Add detection at nodes where prevention is hard. Revisit the tree when new vulnerabilities, techniques or business changes appear, and keep numbers as relative estimates, not false precision. Attack trees pair well with STRIDE: STRIDE generates the list of leaf threats, and the tree arranges them into realistic attack paths with a cost view. Document the tree so reviewers can challenge the numbers."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Attack tree with costs (USD)",
+    "text": "GOAL: steal customer data (OR, cost = min)\n 1 Exploit web app SQL injection ........ 4000\n 2 Phish administrator (AND) ............ 1500\n    2a Craft lure ........................ 300\n    2b Capture credentials ............... 400\n    2c Bypass SMS-based MFA .............. 800\n 3 Steal unencrypted backup ............. 9000\nCHEAPEST PATH: node 2 = 300+400+800 = 1500"
+   },
+   "example": "Using the tree above, the AND node 'Phish administrator' costs 1500 (300 + 400 + 800), the web exploit costs 4000 and the backup theft costs 9000. The OR root takes the minimum, so phishing is the path to fix. Replacing SMS codes with FIDO2 security keys makes node 2c effectively very expensive, so recalculating shows the cheapest path is now the web exploit at 4000. The team then schedules code review and a WAF for that path. The tree showed that MFA, not the database, was the best investment.",
+   "terms": [
+    {
+     "term": "PASTA",
+     "def": "A seven-stage, risk-centric threat modeling methodology."
+    },
+    {
+     "term": "Attack tree",
+     "def": "A hierarchy of attacker goals decomposed into sub-goals and actions."
+    },
+    {
+     "term": "OR node",
+     "def": "A node satisfied when any one child is achieved."
+    },
+    {
+     "term": "AND node",
+     "def": "A node satisfied only when all children are achieved."
+    },
+    {
+     "term": "Leaf",
+     "def": "A concrete attacker action at the bottom of the tree."
+    },
+    {
+     "term": "Cheapest path",
+     "def": "The lowest total cost route to the root goal."
+    }
+   ],
+   "check": [
+    {
+     "q": "In an attack tree, how is the cost of an OR node usually computed?",
+     "options": [
+      "Sum of children",
+      "Minimum of children",
+      "Maximum of children",
+      "Average of children"
+     ],
+     "a": 1,
+     "why": "The attacker picks the cheapest alternative."
+    },
+    {
+     "q": "How is the cost of an AND node usually computed?",
+     "options": [
+      "Minimum of children",
+      "Sum of children",
+      "Zero",
+      "Maximum only"
+     ],
+     "a": 1,
+     "why": "All children are required, so costs add."
+    },
+    {
+     "q": "Which PASTA stage builds attack trees and simulates attack paths?",
+     "options": [
+      "Stage 1",
+      "Stage 3",
+      "Stage 6",
+      "Stage 7"
+     ],
+     "a": 2,
+     "why": "Stage 6 is attack modeling."
+    },
+    {
+     "q": "Why focus first on the cheapest attack path?",
+     "options": [
+      "It is the most expensive",
+      "It is the route a rational attacker will choose",
+      "It has no leaves",
+      "It is always the longest"
+     ],
+     "a": 1,
+     "why": "Raising cost on paths the attacker would not choose gains little."
+    }
+   ],
+   "recap": [
+    "PASTA has seven stages from business objectives to risk and impact analysis.",
+    "Attack trees use OR (any) and AND (all) nodes with leaf costs.",
+    "OR takes the minimum cost and AND the sum, and the cheapest path guides investment."
+   ]
+  },
+  {
+   "title": "Secure design patterns and principles",
+   "why": "Principles from the 1970s still explain most design flaws. Applying them early prevents entire classes of vulnerabilities rather than fixing them one at a time.",
+   "sections": [
+    {
+     "h": "Least privilege and fail-safe defaults",
+     "p": [
+      "Least privilege means every user, process and service receives only the rights needed for its task and only for as long as needed. A web application should connect to its database with an account that can read and write its own tables, not one that can drop schemas. Fail-safe defaults (Saltzer and Schroeder) means access is denied unless explicitly granted, so a missing rule, a failed lookup or an exception results in refusal. In code, that means an authorization check that returns false on error, and in networks, a firewall policy that ends in default deny. Defaults that are open make every misconfiguration a breach."
+     ]
+    },
+    {
+     "h": "Complete mediation",
+     "p": [
+      "Complete mediation requires that every access to every resource be checked for authority, every time. Caching a decision or checking only at the first page of a workflow creates gaps. Classic failures include an API that checks permission in the user interface but not on the server, and an object reference such as /invoices/1042 that is served without verifying that the caller owns invoice 1042. The remedy is a central enforcement point, such as middleware or a policy engine, that cannot be bypassed, with checks on the server side for each request and for each object."
+     ]
+    },
+    {
+     "h": "Separation of duties and related principles",
+     "p": [
+      "Separation of privilege or duties requires more than one party or condition for a sensitive action, such as a developer who writes code and a different person who approves production deployment, or two approvals for a large payment. It limits the damage of mistakes, insider abuse and a single compromised account. Other Saltzer and Schroeder principles help too. Economy of mechanism favors simple designs that are easier to verify. Open design means security must not depend on secret algorithms. Least common mechanism limits shared components that could carry attacks between users. Psychological acceptability asks that secure paths be usable, or people will bypass them."
+     ]
+    },
+    {
+     "h": "Putting principles into patterns",
+     "p": [
+      "Common patterns apply these ideas. Use a single gateway or reverse proxy for authentication and logging. Isolate untrusted processing, such as image conversion, in sandboxed low-privilege containers. Separate administrative interfaces from user interfaces on a different network path. Use a secrets manager instead of embedding keys. Prefer well-reviewed libraries for cryptography and session handling instead of custom code. Fail closed for security decisions but design availability separately, for example with redundant enforcement points, since failing closed on a single node can itself cause an outage. Document each choice in the threat model so reviewers see why it exists."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Authorization check, fail closed",
+    "text": "def can_view_invoice(user, invoice_id):\n    try:\n        inv = repo.get(invoice_id)\n        return inv is not None and inv.owner_id == user.id\n    except Exception:\n        return False   # deny on any error"
+   },
+   "example": "A reporting service on example.com first used a database account with full administrator rights, and its /reports/{id} endpoint checked only that the user was logged in. Applying the principles, the team creates a read-only database role limited to the reporting views (least privilege), adds an ownership check on every request (complete mediation), makes the check return false on any error (fail-safe default), and requires a second approver before report definitions change in production (separation of duties).",
+   "terms": [
+    {
+     "term": "Least privilege",
+     "def": "Granting only the minimum rights necessary for the shortest necessary time."
+    },
+    {
+     "term": "Fail-safe default",
+     "def": "A design where lack of explicit permission results in denial."
+    },
+    {
+     "term": "Complete mediation",
+     "def": "Checking authorization on every access to every object."
+    },
+    {
+     "term": "Separation of duties",
+     "def": "Splitting a sensitive task among multiple people or roles."
+    },
+    {
+     "term": "Economy of mechanism",
+     "def": "Preferring simple designs that are easier to analyze."
+    },
+    {
+     "term": "Open design",
+     "def": "Security should not rely on secrecy of the design or algorithm."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which principle says that a failed authorization lookup should result in denial?",
+     "options": [
+      "Open design",
+      "Fail-safe defaults",
+      "Economy of mechanism",
+      "Least common mechanism"
+     ],
+     "a": 1,
+     "why": "Access is denied unless explicitly granted."
+    },
+    {
+     "q": "An API checks login but not whether the caller owns the requested record. Which principle is violated?",
+     "options": [
+      "Complete mediation",
+      "Open design",
+      "Psychological acceptability",
+      "Economy of mechanism"
+     ],
+     "a": 0,
+     "why": "Every access to every object must be checked."
+    },
+    {
+     "q": "Requiring one person to write code and another to approve release is which principle?",
+     "options": [
+      "Least privilege",
+      "Separation of duties",
+      "Fail-safe defaults",
+      "Open design"
+     ],
+     "a": 1,
+     "why": "Splitting duties limits single-party abuse or error."
+    },
+    {
+     "q": "A database account for an app can only read and write its own tables. This applies which principle?",
+     "options": [
+      "Least privilege",
+      "Repudiation",
+      "Obscurity",
+      "Replay protection"
+     ],
+     "a": 0,
+     "why": "The account has only the rights needed for the task."
+    }
+   ],
+   "recap": [
+    "Least privilege and fail-safe defaults limit damage and make failures safe.",
+    "Complete mediation means check every request and every object on the server.",
+    "Separation of duties, simplicity and open design reduce single points of failure and reliance on secrecy."
+   ]
+  },
+  {
+   "title": "Zero trust and defense in depth",
+   "why": "Modern systems cannot rely on a trusted internal network or a single control. Zero trust and layered defenses assume something will fail and make sure no one failure exposes the asset.",
+   "sections": [
+    {
+     "h": "Zero trust and NIST SP 800-207",
+     "p": [
+      "Zero trust shifts defense from network perimeters to resources and identities. NIST SP 800-207 lists seven tenets: all data sources and computing services are resources; all communication is secured regardless of network location; access is granted per session; access is determined by dynamic policy including client identity, application state and other attributes; the enterprise monitors the integrity and security posture of all assets; authentication and authorization are dynamic and strictly enforced before access; and the enterprise collects data to improve its posture. The core idea is never trust, always verify, and no implicit trust from network location."
+     ]
+    },
+    {
+     "h": "Architecture components",
+     "p": [
+      "The 800-207 logical model separates a control plane from a data plane. The Policy Engine (PE) decides whether to grant access using policy and inputs such as identity, device health and threat intelligence. The Policy Administrator (PA) establishes or tears down the session based on that decision. The Policy Enforcement Point (PEP) sits in the path of the resource and enforces it. Together the PE and PA form the Policy Decision Point. Inputs include a CDM system, identity management, SIEM, threat intelligence and data access policies. Resources are reached only through the PEP, never directly."
+     ]
+    },
+    {
+     "h": "Defense in depth",
+     "p": [
+      "Defense in depth places several independent controls between the attacker and the asset so that one failure is not fatal. Layers include physical and policy controls; the perimeter and network (firewalls, segmentation, DDoS protection); the host (hardening, EDR, patching, host firewall); the application (input validation, authentication, WAF, secure coding); and the data (encryption, tokenization, access control, backups). People and process, such as training and incident response, form another layer. Controls should be diverse, so that a flaw in one vendor or technique does not defeat them all, and they should include detection as well as prevention."
+     ]
+    },
+    {
+     "h": "Combining the two",
+     "p": [
+      "Zero trust and defense in depth complement each other. Zero trust removes the assumption that being inside the network earns access, while layering ensures that even a verified session faces more checks at each tier. A practical design might require device-compliant MFA at an identity-aware proxy, microsegmented application tiers, a hardened host with EDR, an application that checks authorization per object, and database encryption with separate key custody. Test the design with the question: if this one control fails or is bypassed, what stops the attacker next, and who will notice? If the answer is nothing, add a layer or a detection."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Layers for one asset",
+    "text": "Asset: customer database (203.0.113.20)\nNetwork : only app tier 198.51.100.0/24 may reach TCP 5432\nHost    : hardened image, EDR agent, no interactive logins\nApp     : parameterized queries, per-object authorization\nData    : encryption at rest, keys in separate KMS\nDetect  : DB audit log -> SIEM alert on bulk export"
+   },
+   "example": "A firewall misconfiguration briefly exposes the database port to a wider range. Because the host accepts only connections from the application account with a certificate, the attacker cannot authenticate. Because data is encrypted with keys held in a separate KMS, a copied disk image is unreadable. Because the audit log alerts on bulk exports, the team notices the unusual query volume within minutes. No single layer decided the outcome, and a zero trust policy that requires per-session verification added another check.",
+   "terms": [
+    {
+     "term": "Zero trust",
+     "def": "A model that grants access per request based on identity and context, not network location."
+    },
+    {
+     "term": "Policy Engine",
+     "def": "The component that decides whether access is granted."
+    },
+    {
+     "term": "Policy Enforcement Point",
+     "def": "The component in the path that enforces the access decision."
+    },
+    {
+     "term": "Defense in depth",
+     "def": "Using multiple independent layers of controls."
+    },
+    {
+     "term": "Control plane",
+     "def": "The part of the architecture that makes and distributes decisions."
+    },
+    {
+     "term": "Posture",
+     "def": "The current security health of a device or asset."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the main change zero trust makes compared with perimeter security?",
+     "options": [
+      "It trusts all internal traffic",
+      "It removes implicit trust based on network location",
+      "It eliminates authentication",
+      "It requires one large firewall"
+     ],
+     "a": 1,
+     "why": "No implicit trust is given for being on an internal network."
+    },
+    {
+     "q": "In NIST SP 800-207, which component enforces the decision in the path to the resource?",
+     "options": [
+      "Policy Enforcement Point",
+      "Threat feed",
+      "Backup server",
+      "DNS resolver"
+     ],
+     "a": 0,
+     "why": "The PEP enables, monitors and terminates connections."
+    },
+    {
+     "q": "Which set lists typical defense in depth layers?",
+     "options": [
+      "Network, host, application, data",
+      "Only the perimeter",
+      "Only endpoints",
+      "Only encryption"
+     ],
+     "a": 0,
+     "why": "Layers span network, host, app and data."
+    },
+    {
+     "q": "Why should layered controls be diverse?",
+     "options": [
+      "To raise costs only",
+      "So one flaw or technique does not defeat all layers",
+      "To remove detection",
+      "To avoid logging"
+     ],
+     "a": 1,
+     "why": "Independent controls avoid a common failure."
+    }
+   ],
+   "recap": [
+    "Zero trust verifies each session using identity, device and policy, with no trust from location.",
+    "NIST 800-207 separates policy decision (PE and PA) from enforcement (PEP).",
+    "Defense in depth layers diverse prevention and detection across network, host, app and data."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Draw the DFD",
+   "sim": "diagram-builder",
+   "scenario": "You are modeling a small online store at example.com. Customers use browsers, the Web API runs in a DMZ, an Orders database sits in a private data tier, and a third-party payment provider is called over the internet. The team needs a first diagram before the design review.",
+   "objective": "Build a DFD with the correct element types, labeled flows and trust boundaries.",
+   "steps": [
+    {
+     "do": "Drag a Customer onto the canvas and set type to External entity.",
+     "see": "Node 'Customer' added as rectangle (entity)."
+    },
+    {
+     "do": "Add 'Web API' as a Process and 'Orders DB' as a Data store.",
+     "see": "Circle 'Web API' and parallel-lines 'Orders DB' placed."
+    },
+    {
+     "do": "Add 'Payment Provider' as an External entity.",
+     "see": "Second rectangle placed outside any boundary."
+    },
+    {
+     "do": "Draw flows: Customer -> Web API (HTTPS order), Web API -> Orders DB (SQL over TLS), Web API -> Payment Provider (HTTPS tokenized card).",
+     "see": "Three arrows created, each with a protocol label."
+    },
+    {
+     "do": "Draw a dashed boundary around the customer and another between the DMZ and the data tier.",
+     "see": "Boundaries 'internet|DMZ' and 'DMZ|data tier' drawn."
+    },
+    {
+     "do": "Click Validate.",
+     "see": "Warning: flow Web API -> Payment Provider crosses the boundary but has no boundary marker."
+    },
+    {
+     "do": "Add a boundary line separating Payment Provider from your systems and validate again.",
+     "see": "Validation passed: 3 flows, 3 boundaries, all crossing flows labeled."
+    }
+   ],
+   "answer": "A valid DFD has Customer and Payment Provider as entities, Web API as a process, Orders DB as a store, three labeled flows, and trust boundaries for internet to DMZ, DMZ to data tier and your systems to the payment provider.",
+   "hint": "Every flow that leaves your control needs a boundary line on it."
+  },
+  {
+   "title": "STRIDE a login flow",
+   "sim": "scenario",
+   "scenario": "A login DFD has four elements: User (entity), Login API (process), Credentials DB (store) and the flow carrying the password from User to Login API. The product owner wants a short list of the most relevant STRIDE threats with one mitigation each before the sprint starts.",
+   "objective": "Match applicable STRIDE categories and mitigations to each login element.",
+   "steps": [
+    {
+     "do": "Select element 'User' and view its applicable categories.",
+     "see": "Simulator lists: Spoofing, Repudiation."
+    },
+    {
+     "do": "Choose Spoofing and pick a mitigation from the list.",
+     "see": "Options: MFA, ASCII banner, longer logs. Choose MFA."
+    },
+    {
+     "do": "Select element 'Login flow' (User to API).",
+     "see": "Applicable: Tampering, Information disclosure, Denial of service."
+    },
+    {
+     "do": "For Information disclosure choose 'TLS 1.2+ with certificate validation'.",
+     "see": "Correct. Also covers Tampering for this flow."
+    },
+    {
+     "do": "Select 'Login API' and add Elevation of privilege with 'Parameterized queries and least privilege'.",
+     "see": "Accepted: process allows all six categories."
+    },
+    {
+     "do": "Select 'Credentials DB' and add Information disclosure with 'Salted slow password hashes'.",
+     "see": "Accepted: stored hashes resist offline cracking."
+    },
+    {
+     "do": "Click Score.",
+     "see": "Score: 6 of 6 applicable threat/mitigation pairs matched; no inapplicable categories chosen."
+    }
+   ],
+   "answer": "Spoofing and repudiation map to the User entity (MFA, audit logs); tampering, disclosure and denial of service map to the flow (TLS, rate limits); the API takes elevation of privilege (parameterized queries, least privilege); the store takes information disclosure (salted slow hashes).",
+   "hint": "Check which categories apply to each element type before choosing mitigations."
+  },
+  {
+   "title": "Build an attack tree",
+   "sim": "diagram-builder",
+   "scenario": "A retailer fears theft of customer data. Analysts supply three candidate routes with leaf costs: SQL injection in the web app (4000), phishing an administrator past SMS MFA (300 + 400 + 800), and stealing an unencrypted backup tape (9000). You must arrange the tree and mark the cheapest path.",
+   "objective": "Construct the tree with correct AND/OR nodes and highlight the lowest-cost path.",
+   "steps": [
+    {
+     "do": "Place the root node 'Steal customer data' and set it to OR.",
+     "see": "Root created with type OR."
+    },
+    {
+     "do": "Add child 'Exploit web app' as a leaf with cost 4000.",
+     "see": "Leaf added: cost 4000."
+    },
+    {
+     "do": "Add child 'Phish administrator' and set it to AND.",
+     "see": "AND node added, cost pending."
+    },
+    {
+     "do": "Add three leaves under it: Craft lure 300, Capture credentials 400, Bypass SMS MFA 800.",
+     "see": "AND node cost computed: 1500."
+    },
+    {
+     "do": "Add child 'Steal backup' as a leaf with cost 9000.",
+     "see": "Leaf added: cost 9000."
+    },
+    {
+     "do": "Click Compute.",
+     "see": "Root cost = min(4000, 1500, 9000) = 1500."
+    },
+    {
+     "do": "Click the highlight tool on the lowest path.",
+     "see": "Path highlighted: Root -> Phish administrator."
+    }
+   ],
+   "answer": "The cheapest path is phishing the administrator at a total of 1500, the sum of its three AND children. The OR root takes the minimum of the three branches, so phishing resistant MFA and email controls are the first priority.",
+   "hint": "AND nodes add their children; OR nodes pick the minimum."
+  },
+  {
+   "title": "Layer the defenses",
+   "sim": "config-editor",
+   "scenario": "The customer database holds regulated data. Management asks that no single control failure expose it. A configuration panel lists twelve candidate controls and four layers: network, host, application and data. You must assign controls so each layer has at least two and one detection control is included.",
+   "objective": "Assign controls to layers so any one failure is covered by another layer.",
+   "steps": [
+    {
+     "do": "Open the controls list.",
+     "see": "12 controls shown: security group, segmentation, EDR, OS hardening, input validation, per-object authz, encryption at rest, KMS key separation, DB audit log, WAF, host firewall, backups."
+    },
+    {
+     "do": "Drag 'security group' and 'segmentation' to Network.",
+     "see": "Network layer: 2 controls."
+    },
+    {
+     "do": "Drag 'OS hardening', 'EDR' and 'host firewall' to Host.",
+     "see": "Host layer: 3 controls."
+    },
+    {
+     "do": "Drag 'input validation', 'per-object authz' and 'WAF' to Application.",
+     "see": "Application layer: 3 controls."
+    },
+    {
+     "do": "Drag 'encryption at rest' and 'KMS key separation' to Data.",
+     "see": "Data layer: 2 controls."
+    },
+    {
+     "do": "Mark 'DB audit log' as detection and attach it to Data.",
+     "see": "Detection coverage: 1 (alerts to SIEM)."
+    },
+    {
+     "do": "Click Simulate failure of the network layer.",
+     "see": "Result: host, application and data layers still block access; alert raised by audit log."
+    }
+   ],
+   "answer": "Each layer has at least two controls, a detection control exists, and simulating failure of any single layer leaves other layers preventing access to the data. Diverse controls and separate key custody are important.",
+   "hint": "Put encryption keys under different custody than the data they protect."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which DFD element represents a database?",
+   "options": [
+    "Process",
+    "Data store",
+    "Trust boundary",
+    "External entity"
+   ],
+   "a": 1,
+   "why": "A database holds data at rest."
+  },
+  {
+   "q": "Data crossing a trust boundary into a more trusted zone should be:",
+   "options": [
+    "Trusted automatically",
+    "Validated and authorized on the trusted side",
+    "Only validated in the browser",
+    "Ignored"
+   ],
+   "a": 1,
+   "why": "The receiving side must not assume the sender is well behaved."
+  },
+  {
+   "q": "Which STRIDE category breaks confidentiality?",
+   "options": [
+    "Spoofing",
+    "Information disclosure",
+    "Repudiation",
+    "Elevation of privilege"
+   ],
+   "a": 1,
+   "why": "Information disclosure exposes data to unauthorized parties."
+  },
+  {
+   "q": "In STRIDE per element, data flows are subject to:",
+   "options": [
+    "Spoofing and repudiation",
+    "Tampering, information disclosure and denial of service",
+    "Only elevation of privilege",
+    "All six"
+   ],
+   "a": 1,
+   "why": "Flows can be modified, read or disrupted."
+  },
+  {
+   "q": "An attack tree OR node with children costing 400, 900 and 1500 has cost:",
+   "options": [
+    "400",
+    "900",
+    "1500",
+    "2800"
+   ],
+   "a": 0,
+   "why": "OR takes the minimum cost."
+  },
+  {
+   "q": "An attack tree AND node with children costing 400, 900 and 1500 has cost:",
+   "options": [
+    "400",
+    "1500",
+    "2800",
+    "900"
+   ],
+   "a": 2,
+   "why": "AND adds all required children."
+  },
+  {
+   "q": "Which PASTA stage covers risk and impact analysis?",
+   "options": [
+    "Stage 2",
+    "Stage 4",
+    "Stage 6",
+    "Stage 7"
+   ],
+   "a": 3,
+   "why": "Stage 7 is the final risk and impact stage."
+  },
+  {
+   "q": "An API that fails to check object ownership violates:",
+   "options": [
+    "Open design",
+    "Complete mediation",
+    "Economy of mechanism",
+    "Separation of privilege"
+   ],
+   "a": 1,
+   "why": "Every access to every object needs a check."
+  },
+  {
+   "q": "In NIST SP 800-207, the component that decides access using policy and signals is the:",
+   "options": [
+    "Policy Enforcement Point",
+    "Policy Engine",
+    "Syslog server",
+    "DHCP server"
+   ],
+   "a": 1,
+   "why": "The Policy Engine makes the grant or deny decision."
+  },
+  {
+   "q": "What is the best test of a layered design?",
+   "options": [
+    "Count the number of products",
+    "Ask what stops the attacker if one control fails",
+    "Use a single vendor",
+    "Remove detection"
+   ],
+   "a": 1,
+   "why": "Defense in depth means no single failure exposes the asset."
+  }
+ ]
+}

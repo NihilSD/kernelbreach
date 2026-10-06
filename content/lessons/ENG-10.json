@@ -1,0 +1,670 @@
+{
+ "code": "ENG-10",
+ "intro": "Infrastructure as Code lets teams build cloud environments from reviewed text files, which also means a single bad line can be copied to hundreds of resources. This module covers the common IaC misconfigurations and the risk of secrets in state files, how to scan Terraform and CloudFormation with tools such as Checkov, tfsec and cfn-nag, how to detect and respond to drift, and how to enforce guardrails with OPA, Sentinel and service control policies before and after deployment.",
+ "lessons": [
+  {
+   "title": "IaC security risks",
+   "why": "IaC turns infrastructure into software, so it inherits software risks at cloud scale. Finding a problem in a pull request is far cheaper than finding it in production.",
+   "sections": [
+    {
+     "h": "Why IaC changes the risk picture",
+     "p": [
+      "With Terraform, CloudFormation, Pulumi or Bicep, a few lines describe networks, storage, identities and firewalls. That brings speed, repeatability and review through version control, but also means a mistake is replicated every time the module is used. A public storage bucket in a shared module can appear in every environment. Attackers and auditors alike see the same weakness repeated, and the fix needs to be made once, in code, then rolled out through the pipeline rather than patched by hand in a console."
+     ]
+    },
+    {
+     "h": "Common misconfigurations",
+     "p": [
+      "Typical findings include storage buckets with public access or without encryption, security groups open to 0.0.0.0/0 on ports such as 22 and 3389, databases reachable from the internet, IAM policies using Action: '*' and Resource: '*', disabled logging such as CloudTrail or flow logs, missing versioning and backups, and unencrypted volumes. Compute resources may also lack IMDSv2 enforcement. These are rarely clever mistakes; they are defaults, copy-pasted examples and temporary shortcuts that were never removed. Because they are declarative, they can be detected reliably by static analysis."
+     ]
+    },
+    {
+     "h": "Secrets and state files",
+     "p": [
+      "Hard-coded credentials in .tf files, variables files or CI logs are an obvious problem and end up in Git history, where deleting the line does not remove them. Less obvious is the Terraform state file, which records resource attributes in plain text, including database passwords, generated keys and connection strings, even when variables are marked sensitive. Anyone who can read the state can read those values. Store state in a remote backend with encryption and tight access, never commit terraform.tfstate, and pull secrets from a secrets manager at runtime instead of passing them through code."
+     ]
+    },
+    {
+     "h": "Shift-left scanning",
+     "p": [
+      "Shift-left means moving checks earlier: in the editor, in pre-commit hooks, in pull requests and in the pipeline before apply. Static scanners read templates without deploying anything, so feedback arrives in seconds and fixes are cheap. A layered model is best: scan code early, evaluate the plan before apply, enforce policy at deployment, and detect drift and misconfiguration in the running cloud afterward. No single layer catches everything, since console changes and dynamic values can bypass static checks, but together they close most of the gaps.",
+      "Keep ownership clear: name a team that owns the shared modules, publish a short secure-by-default module catalog, and make the pipeline output explain each failure in plain language. When developers can fix a finding in one commit without opening a ticket, adoption rises and the number of risky resources falls quickly."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Code excerpt",
+    "text": "resource \"aws_s3_bucket\" \"logs\" {\n  bucket = \"example-logs-prod\"\n  acl    = \"public-read\"        # finding: public access\n}\nresource \"aws_security_group_rule\" \"ssh\" {\n  type        = \"ingress\"\n  from_port   = 22\n  to_port     = 22\n  protocol    = \"tcp\"\n  cidr_blocks = [\"0.0.0.0/0\"]   # finding: SSH open to world\n}"
+   },
+   "example": "A pull request adds the module above to create a log bucket and an SSH rule. A scanner running in CI flags the public-read ACL and the world-open SSH rule before anyone reviews the diff. The author changes the bucket to block public access with encryption and restricts SSH to the office range 198.51.100.0/24, or better, removes SSH in favor of a managed session service. The pipeline passes, and the weak pattern never reaches the cloud account.",
+   "terms": [
+    {
+     "term": "Infrastructure as Code",
+     "def": "Defining infrastructure in version-controlled text files that tools apply automatically."
+    },
+    {
+     "term": "Misconfiguration",
+     "def": "A setting that is valid but unsafe, such as a public bucket."
+    },
+    {
+     "term": "State file",
+     "def": "A record of deployed resources that can contain sensitive values in plain text."
+    },
+    {
+     "term": "Shift left",
+     "def": "Moving security checks earlier in the development process."
+    },
+    {
+     "term": "Static analysis",
+     "def": "Inspecting code or templates for problems without running them."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why can an IaC mistake be especially damaging?",
+     "options": [
+      "IaC cannot be reviewed",
+      "One flawed module can be replicated across many resources",
+      "IaC disables logging",
+      "IaC is not versioned"
+     ],
+     "a": 1,
+     "why": "Reusable code multiplies a defect everywhere it is applied."
+    },
+    {
+     "q": "Which item is a typical IaC misconfiguration?",
+     "options": [
+      "Encrypted volumes",
+      "Security group allowing 0.0.0.0/0 to port 22",
+      "Least-privilege IAM",
+      "Enabled CloudTrail"
+     ],
+     "a": 1,
+     "why": "World-open administrative ports are a classic finding."
+    },
+    {
+     "q": "Where can secrets be exposed even if variables are marked sensitive?",
+     "options": [
+      "Terraform state file",
+      "Terraform version number",
+      "Provider name",
+      "Module comments only"
+     ],
+     "a": 0,
+     "why": "State stores resource attributes in plain text."
+    },
+    {
+     "q": "What is the main benefit of scanning IaC in pull requests?",
+     "options": [
+      "It replaces monitoring",
+      "Problems are found before deployment, when fixes are cheap",
+      "It encrypts the cloud",
+      "It removes the need for review"
+     ],
+     "a": 1,
+     "why": "Early feedback is faster and cheaper than remediation in production."
+    }
+   ],
+   "recap": [
+    "IaC multiplies both good and bad configuration.",
+    "Watch for public storage, open ports, wide IAM, disabled logging and secrets in code and state.",
+    "Layer checks: pre-commit, pull request, plan, deploy-time policy and runtime detection."
+   ]
+  },
+  {
+   "title": "Scanning IaC templates",
+   "why": "Scanners encode hundreds of known good practices so reviewers do not have to remember them. Using them well means reading findings sensibly and tuning them without hiding real risk.",
+   "sections": [
+    {
+     "h": "The scanner landscape",
+     "p": [
+      "Checkov (Python, Terraform, CloudFormation, Kubernetes, Dockerfiles and more), tfsec (now folded into Trivy), Trivy's config scanning, KICS and Terrascan examine Terraform and related formats. cfn-nag and cfn-lint target CloudFormation, and cfn-guard evaluates templates against rules. Each ships with a library of checks mapped to benchmarks such as the CIS Foundations Benchmarks. They differ in language coverage, custom rule syntax and how well they resolve variables and modules, so many teams pick one primary tool and test it on their own code."
+     ]
+    },
+    {
+     "h": "Running a scan and reading results",
+     "p": [
+      "A basic run is checkov -d ./infra or trivy config ./infra. Output lists each failed check with an ID such as CKV_AWS_18, a short description, the resource and the file and line range. Some tools also print a guide link and the passed checks. Output can be emitted as SARIF or JUnit so a code host can annotate pull requests directly. Start by sorting by severity, and look for repeated patterns that point to one shared module where a single fix removes many findings."
+     ]
+    },
+    {
+     "h": "Fixing, suppressing and tuning",
+     "p": [
+      "Fix findings in code wherever possible: add server-side encryption, enable block public access, narrow the CIDR range, scope IAM actions. When a finding is a real exception, suppress it narrowly with an inline comment such as #checkov:skip=CKV_AWS_18:Reason and ticket, or a baseline file, so the reason is visible in review. Never disable a check globally to make a build pass. Review suppressions on a schedule, because a skip written for a temporary case can outlive its purpose."
+     ]
+    },
+    {
+     "h": "Pipeline integration and limits",
+     "p": [
+      "Run scanners in pre-commit for fast feedback and in CI as an enforced gate. Begin in report-only mode, establish a baseline of existing findings, then fail builds on new high-severity issues while the backlog is paid down. Remember the limits: static scanners cannot always resolve values computed at apply time, cannot see changes made in the console, and may produce false positives. Complement them with plan-based scanning, which evaluates the resolved terraform plan output, and with runtime checks such as cloud security posture management.",
+      "Document each suppression in the same pull request that adds it, and set a recurring review so old skips are re-evaluated. Pair scanner results with a short list of the checks your organization treats as always blocking, such as public storage and world-open admin ports, so teams know which findings are negotiable."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ checkov -d ./infra --compact\nFailed checks: 3, Passed checks: 41\nCheck: CKV_AWS_18: \"Ensure S3 bucket has access logging\"\n  FAILED for resource: aws_s3_bucket.logs\n  File: /s3.tf:1-4\nCheck: CKV_AWS_24: \"Ensure no SG allows 0.0.0.0/0 to port 22\"\n  FAILED for resource: aws_security_group_rule.ssh\n  File: /sg.tf:1-8"
+   },
+   "example": "A team adds Checkov to CI in report-only mode and finds 120 failed checks. They group results by module and discover that 70 come from one shared bucket module. After fixing that module, the count drops by more than half. They then enable blocking for new critical findings, and record two justified skips, each with a ticket number and review date, for a bucket that must be public by design as a static website.",
+   "terms": [
+    {
+     "term": "Checkov",
+     "def": "An open-source policy-as-code scanner for Terraform, CloudFormation and other IaC formats."
+    },
+    {
+     "term": "cfn-nag",
+     "def": "A tool that scans CloudFormation templates for insecure patterns."
+    },
+    {
+     "term": "SARIF",
+     "def": "A standard JSON format for static analysis results used by code hosts."
+    },
+    {
+     "term": "Suppression",
+     "def": "A documented exception that tells a scanner to skip a specific check."
+    },
+    {
+     "term": "Baseline",
+     "def": "A recorded set of existing findings used so only new problems fail the build."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the best way to handle a justified exception?",
+     "options": [
+      "Disable the check globally",
+      "Add a narrow, documented suppression with a reason",
+      "Delete the template",
+      "Ignore the scanner"
+     ],
+     "a": 1,
+     "why": "A scoped skip with a reason keeps the control active elsewhere."
+    },
+    {
+     "q": "Which tool primarily targets CloudFormation?",
+     "options": [
+      "cfn-nag",
+      "tfsec",
+      "kubectl",
+      "docker scan"
+     ],
+     "a": 0,
+     "why": "cfn-nag checks CloudFormation templates."
+    },
+    {
+     "q": "Why start with report-only mode and a baseline?",
+     "options": [
+      "To hide findings",
+      "To avoid blocking all work while preventing new issues",
+      "To speed up the cloud",
+      "To skip reviews"
+     ],
+     "a": 1,
+     "why": "A baseline lets you block new regressions while paying down old findings."
+    },
+    {
+     "q": "A limitation of static template scanning is that it may not see:",
+     "options": [
+      "Resource names",
+      "Console changes made outside code",
+      "File paths",
+      "Provider versions"
+     ],
+     "a": 1,
+     "why": "Manual changes in the cloud are not in the templates."
+    }
+   ],
+   "recap": [
+    "Use Checkov, Trivy or similar tools plus cfn-nag for CloudFormation.",
+    "Fix in code, suppress narrowly and review suppressions.",
+    "Gate pipelines gradually and add plan-based and runtime checks."
+   ]
+  },
+  {
+   "title": "Drift detection and state security",
+   "why": "The cloud as deployed often differs from the code. Drift can hide risky manual changes, and an unprotected state file can hand an attacker the keys to the environment.",
+   "sections": [
+    {
+     "h": "What drift is and why it happens",
+     "p": [
+      "Drift is a difference between the declared configuration in code and the actual resources in the cloud. Causes include emergency console edits during an incident, another automation tool changing the same resource, a team member testing a change, or an attacker deliberately weakening a control, such as opening a firewall rule. Drift matters twice: it breaks the guarantee that code is the source of truth, and it can silently introduce exposure that no scanner of the templates will ever see."
+     ]
+    },
+    {
+     "h": "Detecting drift",
+     "p": [
+      "For Terraform, terraform plan compares code and state to the real resources after refreshing, and shows changes marked with ~ for update in place, + for create, - for destroy. Scheduled plans, or a platform feature like Terraform Cloud drift detection, give regular reports. In AWS, CloudFormation drift detection reports resources as IN_SYNC or MODIFIED, and AWS Config evaluates resources against rules continuously and records configuration history. Alert on changes to security-critical resources and use CloudTrail to learn who made a manual change."
+     ]
+    },
+    {
+     "h": "Responding: revert or codify",
+     "p": [
+      "Triage each drift. If the change was unauthorized or unsafe, revert it by applying the code, and investigate how it happened. If the change was legitimate, such as a needed emergency fix, codify it by updating the code through a pull request so the next apply does not undo it. Never ignore it, because the next terraform apply may overwrite a good fix or fail unexpectedly. Reduce future drift by limiting console write access, using read-only roles for humans, and requiring changes through the pipeline."
+     ]
+    },
+    {
+     "h": "Protecting remote state",
+     "p": [
+      "Use a remote backend such as an encrypted S3 bucket with versioning, access limited to the pipeline role and administrators, and a locking mechanism (DynamoDB or native locking, or Terraform Cloud) so two applies cannot corrupt state. Enable server-side encryption with a customer-managed KMS key, block public access, log access, and keep backups. Reduce secrets in state by using references to secret managers and ephemeral values where supported. Treat the state bucket as highly sensitive, since read access can reveal credentials and write access can alter what gets deployed.",
+      "Build drift handling into routine operations: assign an owner for each stack, send drift reports to that owner, and set a service level for resolving them. Frequent drift in one stack usually points to a process gap, such as missing permissions in the pipeline, rather than careless users."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ terraform plan -refresh-only\n  # aws_security_group.web has changed\n  ~ resource \"aws_security_group\" \"web\" {\n      ~ ingress = [\n          + {\n              + cidr_blocks = [\"0.0.0.0/0\"]\n              + from_port   = 22\n              + to_port     = 22\n            },\n        ]\n    }\nPlan: 0 to add, 1 to change, 0 to destroy."
+   },
+   "example": "A scheduled plan shows that the web security group gained a rule allowing SSH from 0.0.0.0/0. CloudTrail shows a user changed it in the console at 02:10 for troubleshooting and forgot to remove it. Because the rule is unsafe, the team reverts it by running apply, restricts that user's console write permissions, and adds an AWS Config rule that alerts on any security group open to the world on port 22.",
+   "terms": [
+    {
+     "term": "Drift",
+     "def": "A difference between declared infrastructure code and the real deployed resources."
+    },
+    {
+     "term": "State locking",
+     "def": "A mechanism preventing concurrent operations from corrupting the state file."
+    },
+    {
+     "term": "AWS Config",
+     "def": "A service that records resource configuration and evaluates it against rules."
+    },
+    {
+     "term": "Remote backend",
+     "def": "Shared storage for Terraform state, such as an encrypted S3 bucket."
+    },
+    {
+     "term": "Codify",
+     "def": "To bring a legitimate manual change into code so it is tracked and repeatable."
+    }
+   ],
+   "check": [
+    {
+     "q": "A manual console change that is unsafe should usually be:",
+     "options": [
+      "Left in place",
+      "Reverted through the pipeline and investigated",
+      "Hidden from the plan",
+      "Copied to every region"
+     ],
+     "a": 1,
+     "why": "Restore the declared secure state and learn how the change occurred."
+    },
+    {
+     "q": "Which Terraform symbol in a plan indicates an in-place update?",
+     "options": [
+      "+",
+      "-",
+      "~",
+      "#"
+     ],
+     "a": 2,
+     "why": "The tilde marks a resource to be changed in place."
+    },
+    {
+     "q": "Why enable state locking?",
+     "options": [
+      "To encrypt secrets",
+      "To prevent concurrent applies from corrupting state",
+      "To speed up scans",
+      "To disable drift"
+     ],
+     "a": 1,
+     "why": "Locking serializes operations on the same state."
+    },
+    {
+     "q": "Why must state storage be tightly protected?",
+     "options": [
+      "It is public by design",
+      "It can contain secrets and controls what is deployed",
+      "It stores only comments",
+      "It is deleted after each run"
+     ],
+     "a": 1,
+     "why": "Read access leaks values and write access can change deployments."
+    }
+   ],
+   "recap": [
+    "Drift is divergence between code and reality, whether accidental or malicious.",
+    "Detect with plan, CloudFormation drift detection and AWS Config; decide revert or codify.",
+    "Protect state: encryption, versioning, locking and strict access."
+   ]
+  },
+  {
+   "title": "Guardrails and policy as code",
+   "why": "Scanners advise; guardrails enforce. Policy as code makes security rules testable, versioned and automatic so non-compliant infrastructure is blocked rather than merely reported.",
+   "sections": [
+    {
+     "h": "Preventive versus detective controls",
+     "p": [
+      "A detective control finds a problem after it exists, such as AWS Config flagging an open security group. A preventive control stops it from being created. Mature programs use both, in layers: policy checks in the pipeline before apply, organization-level restrictions that even administrators cannot bypass, and continuous detection in the running environment. Policy as code expresses these rules as machine-readable files in version control, so they get reviews, tests, change history and consistent enforcement across teams and accounts."
+     ]
+    },
+    {
+     "h": "OPA, Conftest and Sentinel",
+     "p": [
+      "Open Policy Agent (OPA) uses the Rego language to evaluate structured input and return allow or deny decisions. Conftest applies OPA policies to files such as Terraform plan JSON, Kubernetes manifests or CI configuration. HashiCorp Sentinel is the equivalent embedded in Terraform Cloud and Enterprise, evaluating plans between plan and apply. Policies commonly require encryption, approved regions, mandatory tags, and forbid public ingress to administrative ports. Evaluate the plan output, not just the source, so computed values and module expansions are included."
+     ]
+    },
+    {
+     "h": "Service control policies and cloud-native guardrails",
+     "p": [
+      "AWS Organizations service control policies (SCPs) set the maximum permissions for member accounts, regardless of local IAM. They can deny actions such as disabling CloudTrail, leaving the organization, or creating resources outside approved regions. Azure Policy and GCP Organization Policy offer similar effects. These apply even if IaC is bypassed, which makes them a strong backstop. They need careful testing, because an overbroad deny can break deployments, and an exception path should exist for approved break-glass activity."
+     ]
+    },
+    {
+     "h": "Designing and testing guardrails",
+     "p": [
+      "Write each policy with a clear message, an owner and a test suite with both passing and failing examples, so changes do not silently weaken rules. Roll out in advisory mode first, review the violations, then move to mandatory. Provide secure modules that already comply, because developers follow the easy path. Track exceptions with expiry. Measure outcomes: number of blocked deployments by rule, time to fix, and number of resources that bypassed checks. The goal is not to say no but to make the safe way the default and fast.",
+      "Keep guardrails understandable. A policy that fails with a cryptic message trains developers to look for workarounds, while one that names the resource, the rule and the approved alternative gets fixed quickly. Review blocked-deployment metrics monthly to retire rules that no longer matter and tighten ones that are often bypassed."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Policy excerpt",
+    "text": "package terraform.ssh\ndeny[msg] {\n  rc := input.resource_changes[_]\n  rc.type == \"aws_security_group_rule\"\n  rc.change.after.type == \"ingress\"\n  rc.change.after.from_port <= 22\n  rc.change.after.to_port >= 22\n  rc.change.after.cidr_blocks[_] == \"0.0.0.0/0\"\n  msg := sprintf(\"%s opens SSH to the internet\", [rc.address])\n}"
+   },
+   "example": "A platform team adds the Rego policy above to the pipeline using Conftest against terraform show -json output. A developer's plan that opens port 22 to everyone is rejected with the message naming the resource. They also deploy an SCP that denies cloudtrail:StopLogging and DeleteTrail in all member accounts. When someone later tries to disable logging with console access, the organization-level policy blocks it regardless of their local permissions.",
+   "terms": [
+    {
+     "term": "Policy as code",
+     "def": "Security and compliance rules written as versioned, testable, machine-enforced code."
+    },
+    {
+     "term": "OPA/Rego",
+     "def": "An open policy engine and its declarative language for evaluating structured data."
+    },
+    {
+     "term": "Sentinel",
+     "def": "HashiCorp's policy framework that checks Terraform plans before apply."
+    },
+    {
+     "term": "Service control policy",
+     "def": "An AWS Organizations policy that sets maximum permissions for accounts."
+    },
+    {
+     "term": "Preventive control",
+     "def": "A control that blocks a bad action before it happens."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which control type blocks a non-compliant deployment before it is created?",
+     "options": [
+      "Detective",
+      "Preventive",
+      "Corrective only",
+      "Informational"
+     ],
+     "a": 1,
+     "why": "Preventive controls stop the action; detective ones report it after."
+    },
+    {
+     "q": "Why evaluate the terraform plan JSON instead of only the source files?",
+     "options": [
+      "It is smaller",
+      "It contains resolved values and module expansions",
+      "It is encrypted",
+      "It removes drift"
+     ],
+     "a": 1,
+     "why": "The plan reflects what will actually be created."
+    },
+    {
+     "q": "What is the effect of an SCP?",
+     "options": [
+      "Grants permissions to users",
+      "Sets the maximum permissions available in member accounts",
+      "Encrypts state",
+      "Scans templates"
+     ],
+     "a": 1,
+     "why": "SCPs restrict what any identity in the account can be allowed to do."
+    },
+    {
+     "q": "What is a good rollout approach for a new guardrail?",
+     "options": [
+      "Enforce immediately everywhere",
+      "Advisory mode first, review violations, then enforce",
+      "Never test it",
+      "Apply it only to production without review"
+     ],
+     "a": 1,
+     "why": "Advisory mode reveals impact before blocking work."
+    }
+   ],
+   "recap": [
+    "Use preventive and detective controls in layers.",
+    "OPA/Conftest and Sentinel check plans; SCPs and cloud policies block at account level.",
+    "Test policies, provide secure modules, and track exceptions and outcomes."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Fix a Terraform file",
+   "sim": "code-editor",
+   "scenario": "A developer's Terraform file creates a storage bucket for application logs and a security group for a bastion host. The CI scanner fails with several findings. You are editing main.tf in the lab editor.",
+   "objective": "Correct the bucket and security group so all scanner checks pass.",
+   "steps": [
+    {
+     "do": "Run scan: checkov -f main.tf",
+     "see": "Failed: CKV_AWS_20 bucket ACL public-read; CKV_AWS_19 no server-side encryption; CKV_AWS_24 SG allows 0.0.0.0/0 on port 22."
+    },
+    {
+     "do": "Change acl = \"public-read\" to acl = \"private\"",
+     "see": "Line updated. CKV_AWS_20 now pending re-scan."
+    },
+    {
+     "do": "Add an aws_s3_bucket_public_access_block resource with all four settings true",
+     "see": "Resource added."
+    },
+    {
+     "do": "Add aws_s3_bucket_server_side_encryption_configuration using sse_algorithm = \"aws:kms\"",
+     "see": "Resource added."
+    },
+    {
+     "do": "In the security group, replace cidr_blocks [\"0.0.0.0/0\"] with [\"198.51.100.0/24\"]",
+     "see": "Rule now limited to the office range."
+    },
+    {
+     "do": "Run scan again: checkov -f main.tf",
+     "see": "Failed checks: 0. Passed checks: 12."
+    },
+    {
+     "do": "Review the file for any #checkov:skip comments",
+     "see": "No suppression comments present; all findings were fixed in code."
+    }
+   ],
+   "answer": "The bucket must be private with public access blocked and server-side encryption enabled, and the SSH rule must be limited to a known range such as 198.51.100.0/24 rather than 0.0.0.0/0. After the fixes, the scan reports zero failed checks without any suppressions.",
+   "hint": "Fix the cause in code before considering a skip; check the ACL, encryption and CIDR."
+  },
+  {
+   "title": "Triage drift",
+   "sim": "terminal",
+   "scenario": "The nightly pipeline ran terraform plan and produced a non-empty diff although no pull request was merged. You have a terminal on the pipeline host and read access to the cloud audit log.",
+   "objective": "Decide for each drifted change whether to revert or codify it.",
+   "steps": [
+    {
+     "do": "Run: terraform plan -refresh-only",
+     "see": "Two changes: aws_security_group.web ingress +22 from 0.0.0.0/0; aws_instance.api instance_type t3.medium -> t3.large."
+    },
+    {
+     "do": "Run: cloudtrail lookup for AuthorizeSecurityGroupIngress",
+     "see": "Event at 02:10 by user fake-user-a via console, source IP 203.0.113.25. No ticket reference."
+    },
+    {
+     "do": "Run: cloudtrail lookup for ModifyInstanceAttribute",
+     "see": "Event at 09:40 by user fake-user-b referencing incident INC-4411: CPU saturation."
+    },
+    {
+     "do": "Decide on the security group change",
+     "see": "Marked: UNSAFE, REVERT. SSH open to the internet has no approval."
+    },
+    {
+     "do": "Decide on the instance size change",
+     "see": "Marked: LEGITIMATE, CODIFY. Update instance_type to t3.large in code via pull request."
+    },
+    {
+     "do": "Run: terraform apply on the revert branch",
+     "see": "1 changed: aws_security_group.web ingress rule removed. Apply complete."
+    },
+    {
+     "do": "Run: terraform plan",
+     "see": "Only expected change: instance size matches once the codify PR merges. No other drift."
+    }
+   ],
+   "answer": "Revert the security group rule because it exposed SSH to the world without approval, and investigate the 02:10 console session. Codify the instance type increase, which has a legitimate incident reference, by updating the code through a pull request. Then restrict console write access to prevent recurrence.",
+   "hint": "Check who made each change and whether a ticket or approval exists."
+  },
+  {
+   "title": "Write a guardrail",
+   "sim": "config-editor",
+   "scenario": "The platform team wants to block any Terraform plan that opens port 22 to the internet. You will author a Rego policy in the editor and test it against two sample plans.",
+   "objective": "Write and verify a policy that denies public ingress on port 22 and allows a restricted range.",
+   "steps": [
+    {
+     "do": "Create policy file ssh.rego with package terraform.ssh",
+     "see": "File created."
+    },
+    {
+     "do": "Add a deny rule matching aws_security_group_rule ingress where from_port <= 22 and to_port >= 22",
+     "see": "Rule saved. Syntax check: OK."
+    },
+    {
+     "do": "Add the condition cidr_blocks[_] == \"0.0.0.0/0\"",
+     "see": "Condition saved."
+    },
+    {
+     "do": "Add msg := sprintf(\"%s opens SSH to the internet\", [rc.address])",
+     "see": "Message saved."
+    },
+    {
+     "do": "Run test against bad-plan.json (0.0.0.0/0 on 22)",
+     "see": "FAIL: aws_security_group_rule.ssh opens SSH to the internet."
+    },
+    {
+     "do": "Run test against good-plan.json (198.51.100.0/24 on 22)",
+     "see": "PASS: no violations."
+    },
+    {
+     "do": "Run test against plan with 0.0.0.0/0 on port 443",
+     "see": "PASS: not matched, HTTPS is allowed."
+    }
+   ],
+   "answer": "The policy denies any ingress rule whose port range includes 22 and whose CIDR includes 0.0.0.0/0, with a message naming the resource. It fails the bad plan, passes the restricted range, and does not block unrelated port 443 rules, showing it is both effective and not overbroad.",
+   "hint": "Test both a failing and a passing plan, and check the port range condition."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which is a typical secret exposure risk specific to Terraform?",
+   "options": [
+    "Provider docs",
+    "Plain-text values in the state file",
+    "Module names",
+    "Resource tags"
+   ],
+   "a": 1,
+   "why": "State contains resource attributes including secrets."
+  },
+  {
+   "q": "What does shift-left mean for IaC?",
+   "options": [
+    "Scan only in production",
+    "Check configuration earlier, such as in pull requests",
+    "Stop using IaC",
+    "Delay reviews"
+   ],
+   "a": 1,
+   "why": "Earlier checks are faster and cheaper to act on."
+  },
+  {
+   "q": "Which tool family checks CloudFormation templates for insecure patterns?",
+   "options": [
+    "cfn-nag",
+    "kubectl",
+    "nmap",
+    "Wireshark"
+   ],
+   "a": 0,
+   "why": "cfn-nag is built for CloudFormation."
+  },
+  {
+   "q": "What is the safest way to deal with a real, accepted exception to a check?",
+   "options": [
+    "Disable the check globally",
+    "Use a narrow documented skip with reason and review date",
+    "Remove the scanner",
+    "Rename the resource"
+   ],
+   "a": 1,
+   "why": "Narrow, documented suppressions preserve the control elsewhere."
+  },
+  {
+   "q": "Which result in a Terraform plan shows an in-place change?",
+   "options": [
+    "+",
+    "-",
+    "~",
+    "!"
+   ],
+   "a": 2,
+   "why": "The tilde marks an update in place."
+  },
+  {
+   "q": "A legitimate emergency console change should be:",
+   "options": [
+    "Ignored",
+    "Codified in code through a pull request",
+    "Hidden",
+    "Overwritten silently"
+   ],
+   "a": 1,
+   "why": "Codify it so apply does not undo it and it is tracked."
+  },
+  {
+   "q": "What does state locking prevent?",
+   "options": [
+    "Encryption",
+    "Concurrent runs corrupting state",
+    "Tagging",
+    "Drift"
+   ],
+   "a": 1,
+   "why": "Locks serialize operations."
+  },
+  {
+   "q": "Which control still applies even when IaC is bypassed through the console?",
+   "options": [
+    "A pre-commit hook",
+    "An AWS service control policy",
+    "A code comment",
+    "A README"
+   ],
+   "a": 1,
+   "why": "SCPs apply to all identities in the account."
+  },
+  {
+   "q": "Why test policies with both passing and failing inputs?",
+   "options": [
+    "To increase file size",
+    "To confirm they block bad cases without blocking good ones",
+    "To avoid reviews",
+    "To speed up plans"
+   ],
+   "a": 1,
+   "why": "Tests prevent silent weakening and false blocks."
+  },
+  {
+   "q": "Which scanner input resolves computed values best?",
+   "options": [
+    "Raw .tf source only",
+    "terraform plan JSON output",
+    "README files",
+    "Git commit messages"
+   ],
+   "a": 1,
+   "why": "Plan output includes resolved values."
+  }
+ ]
+}

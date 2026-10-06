@@ -1,0 +1,816 @@
+{
+ "code": "ROOK-11",
+ "intro": "This module gives you the core vocabulary and mental models of security. You will define the CIA triad and its extensions, separate threats, vulnerabilities and risk and score them with likelihood times impact, and map attack surfaces and threat actors. You will then see how layered controls, least privilege and separation of duties limit damage, and how policies, standards, NIST CSF and ISO 27001 turn practice into a managed program. Every later technical module reuses these ideas.",
+ "lessons": [
+  {
+   "title": "The CIA Triad and Beyond",
+   "why": "The CIA triad gives you a shared vocabulary for naming exactly what went wrong in any security incident, which is the first step toward fixing it.",
+   "sections": [
+    {
+     "h": "Confidentiality",
+     "p": [
+      "Confidentiality means information is disclosed only to people and systems authorized to see it. Controls that protect it include encryption, access control lists, authentication and data classification labels such as public, internal and restricted. A confidentiality failure is any unauthorized disclosure: a misconfigured storage bucket that exposes customer files, a laptop stolen with an unencrypted disk, or an employee emailing a payroll sheet to the wrong person. Notice that no data has to be changed or destroyed for confidentiality to fail. The data can be perfectly intact and still be in the wrong hands, which is why breach notification laws focus on disclosure."
+     ]
+    },
+    {
+     "h": "Integrity and availability",
+     "p": [
+      "Integrity means data and systems are accurate, complete and changed only by authorized parties in authorized ways. Typical controls are file hashes, digital signatures, input validation, version control and change management. An integrity failure is a silent or unauthorized modification: an attacker altering a price in a database, malware patching a program, or a bank balance edited by an insider. Availability means systems and data are usable when needed. Redundancy, backups, capacity planning and DDoS protection support it. A ransomware lockout, a power failure, a deleted database and a flooded web server are all availability failures, whether the cause is hostile or accidental."
+     ]
+    },
+    {
+     "h": "Authenticity and non-repudiation",
+     "p": [
+      "Two further properties are often added to the triad. Authenticity means you can verify that a user, message or system is genuinely what it claims to be, using passwords, certificates, multi-factor authentication or message signatures. Non-repudiation means a party cannot credibly deny an action they performed, such as sending a message or approving a payment. It relies on digital signatures and tamper-resistant audit logs that tie each action to a unique identity. Shared accounts destroy non-repudiation because several people can claim that someone else used the login. Accountability is the related idea that every action must be traceable to an individual."
+     ]
+    },
+    {
+     "h": "Classifying a failure in practice",
+     "p": [
+      "To classify an incident, ask three questions in order. Was information seen by someone who should not see it (confidentiality)? Was it altered without permission (integrity)? Could authorized users no longer reach it (availability)? Many incidents break more than one goal. Double extortion ransomware first copies data, breaking confidentiality, then encrypts it, breaking availability. The goals can also conflict: strict access controls improve confidentiality but may slow legitimate work, and heavy replication improves availability but creates more copies to protect. Security design is therefore a balance based on what the business values most, such as integrity for financial ledgers and availability for hospital systems."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Triad and extensions",
+    "text": "C  Confidentiality  -> encryption, access control\nI  Integrity        -> hashes, signatures, change control\nA  Availability     -> backups, redundancy, DDoS defense\n+  Authenticity     -> MFA, certificates\n+  Non-repudiation  -> signatures, audit logs"
+   },
+   "example": "At the fictional company Example Retail, an analyst finds three events in one week. First, a public web folder at www.example.com/backup lists customer order files. Second, a database record shows a product priced at 0.01 instead of 49.99, edited outside the change window. Third, the checkout site is unreachable for two hours during a traffic flood. The three events map cleanly to the triad: the exposed folder is a confidentiality failure, the altered price is an integrity failure, and the outage is an availability failure. Each needs a different fix.",
+   "terms": [
+    {
+     "term": "Confidentiality",
+     "def": "Only authorized parties can view information."
+    },
+    {
+     "term": "Integrity",
+     "def": "Information is accurate and altered only by authorized parties."
+    },
+    {
+     "term": "Availability",
+     "def": "Systems and data are usable when needed."
+    },
+    {
+     "term": "Authenticity",
+     "def": "Assurance that an identity or message is genuine."
+    },
+    {
+     "term": "Non-repudiation",
+     "def": "A party cannot credibly deny having performed an action."
+    }
+   ],
+   "check": [
+    {
+     "q": "A stolen laptop with an unencrypted disk is primarily which failure?",
+     "options": [
+      "Integrity",
+      "Availability",
+      "Confidentiality",
+      "Non-repudiation"
+     ],
+     "a": 2,
+     "why": "Data may be read by an unauthorized person, which is disclosure."
+    },
+    {
+     "q": "An attacker silently changes a price in a database. Which goal failed?",
+     "options": [
+      "Confidentiality",
+      "Integrity",
+      "Availability",
+      "Authenticity of the server"
+     ],
+     "a": 1,
+     "why": "Unauthorized modification is an integrity failure."
+    },
+    {
+     "q": "Why do shared administrator accounts weaken non-repudiation?",
+     "options": [
+      "They are always encrypted",
+      "Actions cannot be tied to one individual",
+      "They are too slow",
+      "They require MFA"
+     ],
+     "a": 1,
+     "why": "With a shared login, several people could have performed the action."
+    },
+    {
+     "q": "Double extortion ransomware breaks which goals?",
+     "options": [
+      "Only availability",
+      "Only integrity",
+      "Confidentiality and availability",
+      "Authenticity only"
+     ],
+     "a": 2,
+     "why": "Data is copied (confidentiality) and then encrypted (availability)."
+    }
+   ],
+   "recap": [
+    "The triad names three goals: confidentiality, integrity, availability.",
+    "Authenticity and non-repudiation extend it to identity and accountability.",
+    "One incident can break several goals, and controls often trade off against each other."
+   ]
+  },
+  {
+   "title": "Threats, Vulnerabilities and Risk",
+   "why": "Risk language lets you rank problems objectively so limited time and money go to the issues that matter most.",
+   "sections": [
+    {
+     "h": "Four terms, kept separate",
+     "p": [
+      "A vulnerability is a weakness, such as unpatched software, a default password or a missing check in code. A threat is anything that could exploit a weakness and cause harm: a criminal group, a careless employee, a flood. An exploit is the specific technique or tool that takes advantage of a vulnerability. Risk is the potential for loss when a threat meets a vulnerability and affects an asset. A vulnerability with no threat able to reach it is low risk, and a strong threat facing no vulnerability is also low risk. Confusing these terms leads to bad decisions, such as spending heavily on a scary-sounding threat while ignoring a trivial and exposed weakness."
+     ]
+    },
+    {
+     "h": "Likelihood times impact",
+     "p": [
+      "The classic quantitative-style shortcut is risk = likelihood x impact. Teams commonly score each factor from 1 to 5, giving a result from 1 to 25. A 4 for likelihood and a 5 for impact gives 20, which is critical. Likelihood depends on threat capability, exposure and how easy the vulnerability is to exploit. Impact depends on asset value and the effect on confidentiality, integrity, availability, money, law and reputation. Scores are estimates, so use consistent definitions: for example, impact 5 might mean more than 1 million in loss or a regulatory penalty. Consistency matters more than precision."
+     ]
+    },
+    {
+     "h": "Quantitative measures",
+     "p": [
+      "Quantitative analysis uses money. Single loss expectancy (SLE) is asset value times exposure factor, the fraction of the asset lost in one event. Annualized rate of occurrence (ARO) is how many times per year the event is expected. Annualized loss expectancy (ALE) equals SLE times ARO. If a server worth 100,000 would lose 50 percent of its value in an incident (SLE 50,000) and such incidents are expected once every five years (ARO 0.2), the ALE is 10,000. A control costing 30,000 per year to prevent a 10,000 per year loss is hard to justify on cost alone."
+     ]
+    },
+    {
+     "h": "Treating risk",
+     "p": [
+      "Once risk is scored, an organization chooses one of four responses. Mitigate by adding controls that reduce likelihood or impact, such as patching. Transfer by shifting financial impact, usually through cyber insurance or outsourcing. Avoid by ceasing the risky activity, for example not storing card numbers at all. Accept by knowingly tolerating the risk, which should be documented and signed by someone with authority. What remains after controls is residual risk. Findings are recorded in a risk register with an owner, a score, a treatment and a review date so that nothing is forgotten."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Risk register row and ALE",
+    "text": "Finding : OpenSSH 7.x exposed on 192.0.2.10\nLikelihood 4 x Impact 4 = Risk 16 (High)\nTreatment: Mitigate - upgrade, restrict source IPs\n\nSLE = 100000 x 0.5 = 50000\nARO = 0.2\nALE = 50000 x 0.2 = 10000"
+   },
+   "example": "A small firm finds two issues on the same day. A public file server at 192.0.2.20 runs unpatched software with a known remote flaw and holds client contracts. A forgotten test printer has a default password but sits on an isolated segment with no sensitive data. The file server scores likelihood 4 and impact 5, risk 20. The printer scores likelihood 2 and impact 1, risk 2. Both are real vulnerabilities, but the register shows that the file server must be fixed this week while the printer can wait for routine maintenance.",
+   "terms": [
+    {
+     "term": "Vulnerability",
+     "def": "A weakness that could be exploited."
+    },
+    {
+     "term": "Threat",
+     "def": "A potential cause of harm, such as an actor or event."
+    },
+    {
+     "term": "Exploit",
+     "def": "A method or tool that takes advantage of a vulnerability."
+    },
+    {
+     "term": "Risk",
+     "def": "Likelihood of loss multiplied by its impact."
+    },
+    {
+     "term": "Residual risk",
+     "def": "Risk remaining after controls are applied."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which best describes a vulnerability?",
+     "options": [
+      "A hacker group",
+      "A weakness that could be exploited",
+      "A stolen password",
+      "A security policy"
+     ],
+     "a": 1,
+     "why": "A vulnerability is a weakness; the group is a threat."
+    },
+    {
+     "q": "Likelihood 3 and impact 5 give what score?",
+     "options": [
+      "8",
+      "15",
+      "35",
+      "2"
+     ],
+     "a": 1,
+     "why": "Risk = 3 x 5 = 15."
+    },
+    {
+     "q": "An ALE is calculated as which product?",
+     "options": [
+      "SLE x ARO",
+      "Asset value x ARO only",
+      "Likelihood + impact",
+      "SLE / ARO"
+     ],
+     "a": 0,
+     "why": "Annualized loss expectancy equals single loss expectancy times annual rate of occurrence."
+    },
+    {
+     "q": "Buying cyber insurance is an example of which risk response?",
+     "options": [
+      "Avoid",
+      "Accept",
+      "Transfer",
+      "Eliminate"
+     ],
+     "a": 2,
+     "why": "Insurance shifts financial impact to a third party."
+    }
+   ],
+   "recap": [
+    "Threat, vulnerability, exploit and risk are four different things.",
+    "Risk = likelihood x impact; ALE = SLE x ARO.",
+    "Treat risk by mitigating, transferring, avoiding or accepting, and track it in a register."
+   ]
+  },
+  {
+   "title": "Attack Surface and Threat Actors",
+   "why": "Knowing what is exposed and who is likely to attack it tells you where to focus defenses.",
+   "sections": [
+    {
+     "h": "What the attack surface is",
+     "p": [
+      "The attack surface is the sum of all points where an unauthorized party could try to enter, extract data or cause harm. It includes network surface, such as open ports and internet-facing services; software surface, such as web forms, APIs and installed packages; human surface, such as staff who can be phished; and physical surface, such as USB ports and unlocked server rooms. Cloud adoption, remote work and third-party integrations widen it. Shadow IT, systems deployed without security knowing, is a common blind spot. You cannot defend what you do not know exists, so asset inventory and regular scanning are the starting point."
+     ]
+    },
+    {
+     "h": "Reducing the surface",
+     "p": [
+      "Reduction follows a simple order: remove, restrict, then protect. Remove services you do not need, such as an old FTP daemon listening on port 21 or a Telnet service on port 23. Restrict what remains by limiting access to required source addresses with firewall rules and network segmentation. Protect what must stay exposed with patching, strong authentication and monitoring. Disabling unused accounts, closing unneeded ports, removing sample applications and uninstalling unused software all shrink exposure. Every feature is potential attack surface, which is why secure defaults and minimal installations are recommended by hardening guides such as the CIS Benchmarks."
+     ]
+    },
+    {
+     "h": "Threat actors and motives",
+     "p": [
+      "Threat actors differ in skill, resources and motive. Script kiddies run publicly available tools with little understanding, usually for notoriety. Hacktivists attack to make a political or social point, often through defacement or DDoS. Cybercriminals seek profit through ransomware, fraud and data resale. Insiders, malicious or careless, already hold legitimate access. Competitors may steal trade secrets. Nation-state groups, often called advanced persistent threats (APTs), are well funded, patient and focused on espionage or disruption. Knowing the likely actor shapes expectations: a small shop faces mostly opportunistic criminals, while a defense contractor must also plan for APTs."
+     ]
+    },
+    {
+     "h": "Vectors and modeling",
+     "p": [
+      "An attack vector is the route used to reach a target, such as phishing email, an exposed remote desktop service on port 3389, a vulnerable web application, a malicious USB drive or a compromised supplier. Pairing actors with vectors produces a threat model, a structured answer to who might attack, how, and what they want. Simple models list assets, entry points and plausible actors, then rank them. Frameworks such as STRIDE help brainstorm threats per component. Models should be revisited whenever the system changes, for example when a new public API or vendor connection is added."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Quick exposure review",
+    "text": "Host 192.0.2.30 open ports:\n 22/tcp  ssh      (needed, restrict to admin IPs)\n 23/tcp  telnet   (remove)\n 80/tcp  http     (redirect to 443)\n 443/tcp https    (needed)\n3389/tcp rdp      (remove from internet)"
+   },
+   "example": "Example Corp scans its public range and finds that a web server at 198.51.100.15 exposes ports 22, 23, 80, 443 and 3389. Telnet and RDP are not needed by outsiders. The team removes Telnet, moves RDP behind a VPN, limits SSH to the office address, and keeps only ports 80 and 443 public. The attack surface shrinks from five exposed services to two, and the remaining two are covered by patching and monitoring. The likely actors are opportunistic criminals running automated scans, so the highest-value change was removing easy targets.",
+   "terms": [
+    {
+     "term": "Attack surface",
+     "def": "All the points where an attacker could attempt entry or harm."
+    },
+    {
+     "term": "Attack vector",
+     "def": "The path or method used to reach a target."
+    },
+    {
+     "term": "APT",
+     "def": "Advanced persistent threat; a skilled, well-resourced, long-running attacker."
+    },
+    {
+     "term": "Insider threat",
+     "def": "Risk from someone with legitimate access."
+    },
+    {
+     "term": "Shadow IT",
+     "def": "Systems used without the knowledge of the security team."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which step should come first when reducing attack surface?",
+     "options": [
+      "Add monitoring",
+      "Remove unneeded services",
+      "Buy insurance",
+      "Write a slogan"
+     ],
+     "a": 1,
+     "why": "Removing what you do not need eliminates exposure entirely."
+    },
+    {
+     "q": "Which actor is typically well funded, patient and focused on espionage?",
+     "options": [
+      "Script kiddie",
+      "Nation-state APT",
+      "Hacktivist",
+      "Careless user"
+     ],
+     "a": 1,
+     "why": "APTs are state-linked groups with resources and long timelines."
+    },
+    {
+     "q": "An exposed RDP service is an example of what?",
+     "options": [
+      "A network attack surface item",
+      "A policy",
+      "A hash",
+      "A residual risk"
+     ],
+     "a": 0,
+     "why": "It is an internet-reachable service an attacker can probe."
+    },
+    {
+     "q": "What does a threat model primarily answer?",
+     "options": [
+      "Who might attack, how, and what they want",
+      "Which firewall is cheapest",
+      "How to write code",
+      "How to compress logs"
+     ],
+     "a": 0,
+     "why": "It pairs assets, entry points and plausible actors."
+    }
+   ],
+   "recap": [
+    "The attack surface covers network, software, human and physical entry points.",
+    "Remove, restrict, then protect to shrink it.",
+    "Actors differ in motive and skill; match defenses to the likely actor."
+   ]
+  },
+  {
+   "title": "Defense in Depth and Least Privilege",
+   "why": "No single control is perfect, so layered controls and tight permissions limit the damage when one layer fails.",
+   "sections": [
+    {
+     "h": "Layers of defense",
+     "p": [
+      "Defense in depth places several independent controls between an attacker and an asset so that one failure does not mean compromise. Common layers are physical (locks, badges), network (firewalls, segmentation, IDS), host (patching, endpoint detection and response, disk encryption), application (input validation, secure coding), data (encryption, backups) and people (training, clear reporting). The layers should be diverse, since two controls with the same weakness provide little extra protection. Think of an email attack: a mail filter, a user who hesitates, endpoint protection that blocks the payload and MFA that stops stolen credentials each give a separate chance to stop it."
+     ]
+    },
+    {
+     "h": "Preventive, detective, corrective",
+     "p": [
+      "Controls are also grouped by function. Preventive controls stop an event: firewalls, MFA, patches, access control. Detective controls reveal an event: log monitoring, intrusion detection, file integrity checks, CCTV. Corrective controls restore normal state after an event: backups, incident response, patch rollouts. Related categories include deterrent controls such as warning banners, compensating controls that substitute when the ideal control is impractical, and directive controls such as policy. A balanced design uses all of them. Heavy prevention with no detection leaves you blind, and detection with no corrective capability leaves you watching the damage."
+     ]
+    },
+    {
+     "h": "Least privilege",
+     "p": [
+      "The principle of least privilege says every user, process and system should have only the access needed for its job and only for as long as needed. A help-desk worker may reset passwords but should not read finance files. A web server process should run as an unprivileged account, not root or Administrator. Practices include role-based access control, just-in-time elevation, separate admin and everyday accounts, and periodic access reviews to remove privilege creep, where permissions pile up as people change roles. If an account with minimal rights is compromised, the attacker inherits very little."
+     ]
+    },
+    {
+     "h": "Separation of duties and related ideas",
+     "p": [
+      "Separation of duties splits a sensitive task among several people so that no single person can complete fraud or a major mistake alone. One employee requests a payment and another approves it, or one developer writes code and another reviews it before release. Job rotation and mandatory vacation expose hidden misconduct. Need to know limits information to those whose duties require it, even when their clearance would permit more. Fail-safe defaults mean access is denied unless explicitly granted. Together with defense in depth, these principles make a system resilient to both attackers and honest errors."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Layers on one attack path",
+    "text": "Phish email -> [mail filter] -> [user report] -> [EDR on host]\n   -> [MFA on login] -> [segmentation] -> [logging/SIEM]\n   -> [offline backup] (corrective)"
+   },
+   "example": "At Example Corp a user clicks a phishing link and enters a password on a fake page. The mail filter missed it, but MFA blocks the attacker's login because the second factor is missing. Had the login worked, the account was a standard user with no admin rights, so the attacker could not install tools. Log monitoring would have flagged the unusual sign-in location, and offline backups protected against any later ransomware. Five independent layers, none perfect alone, turned a likely breach into a reported event.",
+   "terms": [
+    {
+     "term": "Defense in depth",
+     "def": "Using multiple independent layers of controls."
+    },
+    {
+     "term": "Least privilege",
+     "def": "Granting only the minimum access needed, for the minimum time."
+    },
+    {
+     "term": "Separation of duties",
+     "def": "Splitting sensitive tasks among several people."
+    },
+    {
+     "term": "Preventive control",
+     "def": "A control that stops an event from occurring."
+    },
+    {
+     "term": "Privilege creep",
+     "def": "Accumulation of unneeded permissions over time."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which is a detective control?",
+     "options": [
+      "Firewall rule",
+      "Log monitoring alert",
+      "Backup restore",
+      "Warning banner"
+     ],
+     "a": 1,
+     "why": "Monitoring reveals events after or as they occur."
+    },
+    {
+     "q": "A user keeps old permissions after changing departments. This is called?",
+     "options": [
+      "Separation of duties",
+      "Privilege creep",
+      "Defense in depth",
+      "Fail-safe default"
+     ],
+     "a": 1,
+     "why": "Permissions accumulate beyond current need."
+    },
+    {
+     "q": "Requiring one person to request and another to approve a payment applies?",
+     "options": [
+      "Separation of duties",
+      "Non-repudiation",
+      "Hashing",
+      "Transfer of risk"
+     ],
+     "a": 0,
+     "why": "No single person can complete the sensitive task alone."
+    },
+    {
+     "q": "Why should layers be diverse?",
+     "options": [
+      "To look complex",
+      "So one shared weakness does not defeat all layers",
+      "To reduce logging",
+      "To avoid patching"
+     ],
+     "a": 1,
+     "why": "Independent controls fail in different ways."
+    }
+   ],
+   "recap": [
+    "Layer preventive, detective and corrective controls.",
+    "Least privilege limits what a compromised account can do.",
+    "Separation of duties prevents any one person completing fraud alone."
+   ]
+  },
+  {
+   "title": "Security Policies and Frameworks",
+   "why": "Policies and frameworks turn good intentions into repeatable, auditable practice that an entire organization can follow.",
+   "sections": [
+    {
+     "h": "The policy hierarchy",
+     "p": [
+      "Organizations document security in a hierarchy. A policy is a high-level, mandatory statement of management intent, for example 'All laptops must be encrypted.' A standard states specific measurable requirements that support the policy, such as 'Use AES-256 full-disk encryption.' A procedure gives step-by-step instructions for performing a task, and a guideline offers recommended but optional advice. Policies change rarely, while procedures change often as tools change. A good policy statement is clear, enforceable and assigned to an owner, and it says who must comply, what is required, and what happens on violation."
+     ]
+    },
+    {
+     "h": "Common policies",
+     "p": [
+      "Typical policies include an acceptable use policy defining proper use of company systems, an access control policy, a password or authentication policy, a data classification and handling policy, a remote work policy, an incident response policy and a backup and retention policy. Policies must be approved by senior management, communicated to staff, acknowledged in writing and reviewed at least annually. A policy no one has read cannot be enforced. Exceptions should go through a documented approval so that deviations are visible. Policies also support legal defense, because they show the organization defined expected behavior before an incident."
+     ]
+    },
+    {
+     "h": "NIST CSF and ISO 27001",
+     "p": [
+      "Frameworks provide a tested structure so you do not invent your program from nothing. The NIST Cybersecurity Framework organizes work into functions: Identify, Protect, Detect, Respond and Recover, with version 2.0 adding Govern. It is flexible and widely used as a planning and communication tool. ISO/IEC 27001 specifies requirements for an information security management system (ISMS) and allows an organization to be independently certified. Its Annex A lists controls, selected through risk assessment and recorded in a Statement of Applicability. NIST SP 800-53 is a detailed control catalog, and the CIS Controls give a prioritized practical list."
+     ]
+    },
+    {
+     "h": "Compliance and improvement",
+     "p": [
+      "Compliance means meeting external requirements such as PCI DSS for card data, HIPAA for US health information, or GDPR for personal data of people in the EU. Being compliant is not the same as being secure: compliance sets a minimum baseline while security addresses real threats. Frameworks work as a cycle. Assess the current state, find gaps, set priorities, implement controls, measure and repeat, which ISO expresses as Plan, Do, Check, Act. Audits, internal or external, test whether documented controls actually operate. Evidence such as logs, tickets and screenshots proves that practice matches policy."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Policy to procedure chain",
+    "text": "POLICY    : Laptops must be encrypted.\nSTANDARD  : Use AES-256 full-disk encryption.\nPROCEDURE : 1. Open disk settings 2. Enable encryption\n            3. Store recovery key in the vault\nGUIDELINE : Reboot weekly to apply patches."
+   },
+   "example": "Example Corp leadership signs a policy that all remote access must use multi-factor authentication. The security team writes a standard saying that MFA must use an authenticator app or hardware key, not SMS alone. The help desk then follows a procedure for enrolling new users. During an annual audit, the auditor samples ten accounts and checks the logs for MFA events as evidence. Because the chain from policy to evidence is documented, the company can show it meets its own rule and map the work to the Protect function of NIST CSF.",
+   "terms": [
+    {
+     "term": "Policy",
+     "def": "A high-level mandatory statement of management intent."
+    },
+    {
+     "term": "Standard",
+     "def": "A specific measurable requirement supporting a policy."
+    },
+    {
+     "term": "Procedure",
+     "def": "Step-by-step instructions to perform a task."
+    },
+    {
+     "term": "NIST CSF",
+     "def": "Framework of Govern, Identify, Protect, Detect, Respond, Recover."
+    },
+    {
+     "term": "ISMS",
+     "def": "Information security management system, the basis of ISO 27001."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which document gives step-by-step instructions?",
+     "options": [
+      "Policy",
+      "Standard",
+      "Procedure",
+      "Framework"
+     ],
+     "a": 2,
+     "why": "Procedures describe exactly how to carry out a task."
+    },
+    {
+     "q": "Which is an NIST CSF function?",
+     "options": [
+      "Detect",
+      "Encrypt",
+      "Sign",
+      "Route"
+     ],
+     "a": 0,
+     "why": "Identify, Protect, Detect, Respond and Recover (plus Govern in 2.0)."
+    },
+    {
+     "q": "ISO 27001 certification applies to what?",
+     "options": [
+      "A single product",
+      "An information security management system",
+      "A password",
+      "A firewall model"
+     ],
+     "a": 1,
+     "why": "Organizations are certified against ISMS requirements."
+    },
+    {
+     "q": "Why is compliance not the same as security?",
+     "options": [
+      "It is a minimum baseline, not a defense against every threat",
+      "It is illegal",
+      "It has no audits",
+      "It only covers hardware"
+     ],
+     "a": 0,
+     "why": "Meeting requirements does not guarantee protection from current threats."
+    }
+   ],
+   "recap": [
+    "Policy states intent, standards set measures, procedures give steps.",
+    "NIST CSF and ISO 27001 give structure for a security program.",
+    "Compliance is a baseline; audits check practice against documents."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Classify the Incident",
+   "sim": "scenario",
+   "scenario": "You are an analyst at the fictional Example Corp reviewing eight incident summaries from the past quarter. The ticket system asks you to tag each with the security goal that failed: confidentiality, integrity or availability. Some incidents involve more than one goal, so you must choose the primary failure and note the secondary one in the comment field. Work through each summary slowly, and ask what happened to the data or service before choosing.",
+   "objective": "Label each of eight incidents with the primary CIA failure.",
+   "steps": [
+    {
+     "do": "Open incident 1: a public storage bucket exposed customer files.",
+     "see": "The tag menu shows C, I, A."
+    },
+    {
+     "do": "Tag incident 1 as confidentiality.",
+     "see": "Correct. Unauthorized disclosure."
+    },
+    {
+     "do": "Open incident 2: a ransomware attack locked the file server.",
+     "see": "Summary shown with a ransom note."
+    },
+    {
+     "do": "Tag incident 2 as availability, with confidentiality as secondary if data was copied.",
+     "see": "Correct. Files unusable."
+    },
+    {
+     "do": "Tag incident 3, an employee changing invoice amounts, as integrity.",
+     "see": "Correct. Unauthorized modification."
+    },
+    {
+     "do": "Tag incident 4, a DDoS against the web shop, as availability.",
+     "see": "Correct. Service unreachable."
+    },
+    {
+     "do": "Tag incident 5, a lost unencrypted USB stick, as confidentiality, and incident 6, tampered log files, as integrity.",
+     "see": "Both correct."
+    },
+    {
+     "do": "Tag incident 7, a power outage in the data center, as availability, and incident 8, a phishing credential theft, as confidentiality.",
+     "see": "Score 8 of 8."
+    }
+   ],
+   "answer": "Confidentiality: exposed bucket, lost USB, phishing credential theft. Integrity: altered invoices, tampered logs. Availability: ransomware lockout, DDoS, power outage. Ransomware that also copies data adds a confidentiality failure as a secondary tag.",
+   "hint": "Ask whether data was seen, changed or made unreachable."
+  },
+  {
+   "title": "Build a Risk Register",
+   "sim": "scenario",
+   "scenario": "Example Corp has five findings from a recent scan and review. The simulator provides a spreadsheet with columns for asset, likelihood, impact and score. You rate likelihood and impact from 1 to 5 using the definitions on the side panel, multiply them, and sort the register from highest to lowest risk. Finally you choose a treatment for the top item: mitigate, transfer, avoid or accept. Be consistent in how you score similar findings.",
+   "objective": "Score five findings and sort them into a prioritized register.",
+   "steps": [
+    {
+     "do": "Open finding 1: an unpatched file server at 192.0.2.20 holding contracts.",
+     "see": "Definitions panel appears."
+    },
+    {
+     "do": "Score it likelihood 4, impact 5.",
+     "see": "Risk shows 20."
+    },
+    {
+     "do": "Score finding 2, a default password on an isolated test printer, as 2 and 1.",
+     "see": "Risk shows 2."
+    },
+    {
+     "do": "Score finding 3, no MFA on the VPN, as 4 and 4.",
+     "see": "Risk shows 16."
+    },
+    {
+     "do": "Score finding 4, an expired internal wiki certificate, as 3 and 2, and finding 5, no offline backups, as 3 and 5.",
+     "see": "Risks show 6 and 15."
+    },
+    {
+     "do": "Click Sort descending.",
+     "see": "Order: 20, 16, 15, 6, 2."
+    },
+    {
+     "do": "Choose Mitigate for the top item and add an owner and date.",
+     "see": "Register saved."
+    }
+   ],
+   "answer": "The sorted register is file server (20), VPN without MFA (16), no offline backups (15), expired certificate (6), test printer (2). The top item is mitigated by patching and restricting access. Scores are estimates, but consistent scale use keeps the order defensible.",
+   "hint": "Multiply likelihood by impact, then sort high to low."
+  },
+  {
+   "title": "Layer the Defenses",
+   "sim": "diagram-builder",
+   "scenario": "A diagram shows an attack path at Example Corp: a phishing email reaches a workstation, the attacker steals a password, logs in remotely, moves to a file server and encrypts data. You are given five control icons: firewall, EDR, MFA, backups and logging. Your task is to drag each icon to the point on the path where it helps most, and label it as preventive, detective or corrective. Aim for coverage of every stage.",
+   "objective": "Place five controls on the attack path and label their types.",
+   "steps": [
+    {
+     "do": "Look at the attack path stages shown on the canvas.",
+     "see": "Five stages are highlighted."
+    },
+    {
+     "do": "Drag the firewall to the network boundary.",
+     "see": "Label as preventive; it blocks unneeded inbound ports."
+    },
+    {
+     "do": "Drag EDR to the workstation.",
+     "see": "Label as preventive and detective."
+    },
+    {
+     "do": "Drag MFA to the remote login step.",
+     "see": "Label as preventive; stolen password alone fails."
+    },
+    {
+     "do": "Drag logging to the file server and network segments.",
+     "see": "Label as detective."
+    },
+    {
+     "do": "Drag backups to the data store.",
+     "see": "Label as corrective."
+    },
+    {
+     "do": "Click Check coverage.",
+     "see": "All stages covered, no single point of failure."
+    }
+   ],
+   "answer": "Firewall at the boundary, EDR on the workstation, MFA on the remote login, logging on servers and network, and offline backups on the data store. This gives preventive, detective and corrective coverage so one failing layer does not complete the attack.",
+   "hint": "Match each control to the stage it can stop, notice or repair."
+  },
+  {
+   "title": "Shrink the Attack Surface",
+   "sim": "config-editor",
+   "scenario": "You are hardening a fictional server at 203.0.113.10 for Example Corp. The config editor shows a services list, a firewall allow list and a user account section. The server only needs to host a website, but it also runs FTP, Telnet and a database listener open to the internet. A service account runs as root. Edit the configuration to remove or restrict everything that is not needed and run the validator.",
+   "objective": "Disable unneeded services and ports and set a minimal-privilege account.",
+   "steps": [
+    {
+     "do": "Open services.conf and review the enabled list.",
+     "see": "Services: ssh, ftp, telnet, http, https, mysql."
+    },
+    {
+     "do": "Set ftp and telnet to disabled.",
+     "see": "Validator notes two services removed."
+    },
+    {
+     "do": "Change the firewall rule for port 3306 from any to 10.0.0.0/24 or deny.",
+     "see": "Database no longer internet exposed."
+    },
+    {
+     "do": "Restrict ssh to the admin address 198.51.100.5.",
+     "see": "Rule updated."
+    },
+    {
+     "do": "Open accounts.conf and change webapp from root to a user named webapp with no shell.",
+     "see": "Privilege level shows standard."
+    },
+    {
+     "do": "Click Validate.",
+     "see": "Open ports: 80, 443, and 22 from one address."
+    },
+    {
+     "do": "Review the score.",
+     "see": "Attack surface reduced from six services to three."
+    }
+   ],
+   "answer": "Disable FTP and Telnet, restrict MySQL to an internal range, limit SSH to one admin address, keep only 80 and 443 public, and run the web application under an unprivileged account with no shell. This applies remove, restrict, protect and least privilege together.",
+   "hint": "Remove first, then restrict what must stay, then lower privilege."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "A database record is silently changed by an attacker. Which goal failed?",
+   "options": [
+    "Confidentiality",
+    "Integrity",
+    "Availability",
+    "Accountability only"
+   ],
+   "a": 1,
+   "why": "Unauthorized modification breaks integrity."
+  },
+  {
+   "q": "Which pair is correctly matched?",
+   "options": [
+    "Threat: unpatched server",
+    "Vulnerability: criminal group",
+    "Exploit: technique that uses a weakness",
+    "Risk: firewall"
+   ],
+   "a": 2,
+   "why": "An exploit takes advantage of a vulnerability."
+  },
+  {
+   "q": "Likelihood 5 and impact 4 give a risk score of?",
+   "options": [
+    "9",
+    "20",
+    "1",
+    "54"
+   ],
+   "a": 1,
+   "why": "5 x 4 = 20."
+  },
+  {
+   "q": "ALE equals?",
+   "options": [
+    "SLE x ARO",
+    "SLE + ARO",
+    "Asset value / ARO",
+    "Impact only"
+   ],
+   "a": 0,
+   "why": "Annualized loss expectancy equals SLE times ARO."
+  },
+  {
+   "q": "Which risk response is removing a risky activity entirely?",
+   "options": [
+    "Accept",
+    "Transfer",
+    "Avoid",
+    "Mitigate"
+   ],
+   "a": 2,
+   "why": "Avoidance stops the activity that creates the risk."
+  },
+  {
+   "q": "Removing an unused Telnet service is mainly which activity?",
+   "options": [
+    "Reducing attack surface",
+    "Increasing availability",
+    "Signing data",
+    "Transferring risk"
+   ],
+   "a": 0,
+   "why": "Fewer exposed services means a smaller surface."
+  },
+  {
+   "q": "Backups are what type of control?",
+   "options": [
+    "Preventive only",
+    "Corrective",
+    "Deterrent",
+    "Directive"
+   ],
+   "a": 1,
+   "why": "They restore normal state after an event."
+  },
+  {
+   "q": "Giving a web server process only the permissions it needs applies?",
+   "options": [
+    "Least privilege",
+    "Separation of duties",
+    "Non-repudiation",
+    "Risk transfer"
+   ],
+   "a": 0,
+   "why": "Minimum rights limit damage from compromise."
+  },
+  {
+   "q": "Which statement is a standard rather than a policy?",
+   "options": [
+    "Data must be protected",
+    "Use TLS 1.2 or higher for all web traffic",
+    "Security is everyone's job",
+    "Be careful online"
+   ],
+   "a": 1,
+   "why": "Standards are specific and measurable."
+  },
+  {
+   "q": "Which actor is best described as a nation-state APT?",
+   "options": [
+    "Bored teenager with a tool",
+    "Well-funded long-term espionage group",
+    "Disgruntled competitor only",
+    "Automated scanner"
+   ],
+   "a": 1,
+   "why": "APTs are resourced, patient and goal-driven."
+  }
+ ]
+}

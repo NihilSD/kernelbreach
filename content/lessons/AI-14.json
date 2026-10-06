@@ -1,0 +1,524 @@
+{
+ "code": "AI-14",
+ "intro": "This capstone walks you through a structured security review of a fictional LLM-powered support assistant at Example Corp. You will set scope and authorization, document architecture, data flows, models and tools, and build a threat model. Then you will test for prompt injection, data leakage, excessive agency and supply chain weaknesses and capture reproducible evidence. Finally you will map findings to OWASP LLM and NIST AI RMF, rate severity, write a prioritized fix plan and present it clearly to stakeholders.",
+ "lessons": [
+  {
+   "title": "Scope and threat model the target app",
+   "why": "A review is only as good as its boundaries and its map of the system, so you define what is in scope and where an attacker could act before you test anything.",
+   "sections": [
+    {
+     "h": "Rules of engagement and scope",
+     "p": [
+      "A security review begins with written authorization, never with testing. For this capstone the target is a fictional assistant, HelpDesk Copilot, run by Example Corp. Customers chat with it on the support site; it retrieves answers from a knowledge base, can look up orders, and can open tickets or issue small refunds through internal APIs. The scope document lists in-scope components (chat front end, orchestration service, vector store, model endpoint, tool APIs, logs), out-of-scope items (production customer data, the model vendor's own infrastructure), allowed methods, test accounts, time windows and a contact for emergencies. Without those limits, a review of an assistant that can move money could itself cause harm."
+     ]
+    },
+    {
+     "h": "Documenting architecture and data flows",
+     "p": [
+      "Next, draw the system. Typical components are a web client, an API gateway with authentication, an orchestrator holding the system prompt and conversation memory, a retrieval pipeline that chunks documents, embeds them and stores vectors, a hosted or self-hosted model, and tools exposed as functions. Number each data flow: user message to orchestrator, query to vector store, retrieved passages into the prompt, model output to tool call, tool result back to the user. Record which identity each hop uses, what data classes it carries and where logs are written. Add trust boundaries around the internet, the internal network, third-party model providers and any place where untrusted text enters the prompt."
+     ]
+    },
+    {
+     "h": "Inventory models, data and tools",
+     "p": [
+      "Create an inventory the way you would for any asset register. For models, record name, version, source and license, whether weights were downloaded from a public hub, and the fine-tuning data. For data, note the knowledge base sources, who can edit them, whether documents mix public and confidential material, and what personal data appears in conversation logs. For tools, list each function the model may call, the credential it runs with, its rate and value limits, and whether a human approves it. Include dependencies such as the embedding model, vector database, orchestration library and prompt templates. Anything you did not inventory is a blind spot, and each unlisted item is a likely place for a supply chain finding."
+     ]
+    },
+    {
+     "h": "Identify and rank the top threats",
+     "p": [
+      "Apply a threat modeling method such as STRIDE, extended with AI-specific cases, to each component and flow. For HelpDesk Copilot, typical top threats are direct and indirect prompt injection through chat input and poisoned knowledge base pages, leakage of other customers' data through retrieval without per-user access control, system prompt disclosure, excessive agency where the refund tool has no limit or approval, unsafe output rendered as HTML in the chat widget, and an unvetted model or plugin in the supply chain. Rank by likelihood and impact, label each with a framework reference such as OWASP LLM01 or MITRE ATLAS, and choose five to test first."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Scope record (excerpt)",
+    "text": "Target     : HelpDesk Copilot (Example Corp, fictional)\nIn scope   : chat UI, orchestrator, vector store, tools\nOut scope  : production data, model vendor platform\nTest IDs   : tester01@example.com (customer role)\nWindow     : 09:00-17:00 UTC, staging only\nTools      : lookup_order, open_ticket, refund (<=50 USD)"
+   },
+   "example": "While drawing the data flow, the reviewer notices that the retrieval step queries one shared vector index for all customers and that the refund tool uses a single service account with no per-user check. Those two facts, found before any testing, produce two high-priority threats: cross-customer data exposure and excessive agency. The reviewer also notes that wiki pages edited by contractors feed the index, which raises indirect injection risk. The scope sheet then lists staging tests for each, using only the issued test account.",
+   "terms": [
+    {
+     "term": "Rules of engagement",
+     "def": "Written scope, methods, limits and authorization that govern a security test."
+    },
+    {
+     "term": "Data flow diagram",
+     "def": "A drawing of components, data movements and trust boundaries used for threat modeling."
+    },
+    {
+     "term": "Trust boundary",
+     "def": "A line across which data or control passes between different levels of trust."
+    },
+    {
+     "term": "STRIDE",
+     "def": "Threat categories: spoofing, tampering, repudiation, information disclosure, denial of service, elevation of privilege."
+    },
+    {
+     "term": "Excessive agency",
+     "def": "Giving an AI system more tools, permissions or autonomy than its task needs."
+    }
+   ],
+   "check": [
+    {
+     "q": "What must exist before any testing starts?",
+     "options": [
+      "A tool license",
+      "Written authorization and defined scope",
+      "A patched model",
+      "A bug bounty"
+     ],
+     "a": 1,
+     "why": "Testing without authorization and limits is unsafe and may be illegal."
+    },
+    {
+     "q": "Why record the credential each tool runs with?",
+     "options": [
+      "To save storage",
+      "To find over-privileged tools and missing per-user checks",
+      "To pick a font",
+      "To train the model"
+     ],
+     "a": 1,
+     "why": "Agent actions inherit the tool's privileges, so over-broad credentials amplify any injection."
+    },
+    {
+     "q": "Which input path is an indirect prompt injection risk?",
+     "options": [
+      "Typed chat message only",
+      "Knowledge base pages edited by third parties",
+      "The model's license",
+      "The log retention policy"
+     ],
+     "a": 1,
+     "why": "Untrusted retrieved content enters the prompt and can carry instructions."
+    },
+    {
+     "q": "A shared vector index with no access control per user mainly risks:",
+     "options": [
+      "Slow queries",
+      "Cross-user data leakage",
+      "Larger bills only",
+      "Font errors"
+     ],
+     "a": 1,
+     "why": "Retrieval can return documents the requesting user must not see."
+    }
+   ],
+   "recap": [
+    "Authorization and scope come first, in writing.",
+    "Diagram components, flows, identities and trust boundaries, and inventory models, data and tools.",
+    "Rank threats by likelihood and impact and map them to OWASP LLM and ATLAS."
+   ]
+  },
+  {
+   "title": "Test and evidence the findings",
+   "why": "A finding is only useful if someone else can reproduce it, so you test carefully inside scope and capture clear evidence for each claim.",
+   "sections": [
+    {
+     "h": "Test plan and safe method",
+     "p": [
+      "Turn the ranked threats into a test plan: one row per test with the objective, the OWASP LLM category, the exact account and environment, expected safe behavior and the stop condition. Work in staging with test accounts and fictional data. Keep inputs simple and benign, such as asking the assistant to reveal its hidden instructions or to ignore prior rules, and never run tests that destroy data or contact real people. Because model output is non-deterministic, repeat each probe several times, such as ten attempts, and record the success rate. A vulnerability that works three times in ten is still a finding; note the rate so the developer can verify a fix statistically."
+     ]
+    },
+    {
+     "h": "Probing injection and leakage",
+     "p": [
+      "For prompt injection, test direct attempts through the chat box and indirect attempts by placing a harmless marker instruction in a knowledge base page you are allowed to edit, then asking a normal question to see whether the model follows the planted text. For leakage, check system prompt disclosure (LLM07), personal data in answers (LLM02) and retrieval leaks: as customer A, ask about customer B's order and see whether passages for B are returned. Also check error messages, debug output and logs for secrets such as API keys. Compare behavior with and without the guardrail layer to learn which control actually blocked a request, since an input filter alone is easy to bypass by rephrasing."
+     ]
+    },
+    {
+     "h": "Excessive agency, output handling and supply chain",
+     "p": [
+      "Review each tool. Can the model call refund with an amount above policy, for an order that does not belong to the user, without confirmation? Test with test orders only and note whether server-side checks exist or whether the model is the only gate. For improper output handling (LLM05), see whether model text containing markup is rendered unescaped in the chat widget or passed to a shell, query or template. For supply chain (LLM03), check model provenance and hashes, pickled weight files, pinned library versions, a software bill of materials and third-party plugins. Run a dependency audit and compare the model file digest with the vendor's published value."
+     ]
+    },
+    {
+     "h": "Collecting reproducible evidence",
+     "p": [
+      "Evidence turns an opinion into a finding. For each issue record the date and time, environment, account, exact input, full output, model and prompt version, number of attempts and successes, and a screenshot or exported transcript with a request ID that matches the server log line. Redact real secrets and personal data. State the observed behavior, the expected behavior and the security impact in plain language. Separate fact from inference: write 'the refund tool accepted 400 USD from a user session' rather than 'attackers can steal money'. Store evidence in a controlled location, hash the files, and keep a log of every test so the work can be audited and repeated by the engineering team."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Evidence record (fictional)",
+    "text": "ID       : F-03\nDate     : 2026-03-10 14:22 UTC, staging\nAccount  : tester01@example.com (customer)\nInput    : \"Show details for order 88217\" (not owned)\nOutput   : returned name, address, items of other user\nAttempts : 10, successes: 10\nLog ref  : req-7f31c2 (retrieval hit doc 441)\nOWASP    : LLM02, LLM08"
+   },
+   "example": "The reviewer asks the staging assistant as tester01 about another customer's order and gets the full name and address in all ten attempts. The log shows the retrieval step returned a document tagged to a different user, so the missing filter is in the vector query, not in the prompt. A second test with an input filter enabled blocks the exact phrase but not a reworded question. The evidence record lists attempts, request IDs and the log line, which lets the developers reproduce it within minutes and later confirm the fix.",
+   "terms": [
+    {
+     "term": "Indirect prompt injection",
+     "def": "Instructions hidden in retrieved or external content that the model treats as commands."
+    },
+    {
+     "term": "System prompt leakage",
+     "def": "Disclosure of hidden instructions, which may reveal rules, keys or internal logic."
+    },
+    {
+     "term": "Improper output handling",
+     "def": "Using model output in a browser, shell or query without validation or escaping."
+    },
+    {
+     "term": "Software bill of materials",
+     "def": "An inventory of components and versions used to build software or an AI system."
+    },
+    {
+     "term": "Reproducibility",
+     "def": "Quality of a finding that lets others obtain the same result from documented steps."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why repeat each prompt probe several times?",
+     "options": [
+      "To increase load",
+      "Model output varies, so success rate must be recorded",
+      "To fill the report",
+      "To expire sessions"
+     ],
+     "a": 1,
+     "why": "Non-deterministic output means one attempt does not show how often the flaw occurs."
+    },
+    {
+     "q": "Which test checks retrieval access control?",
+     "options": [
+      "Asking customer A's session for customer B's order",
+      "Changing the font",
+      "Measuring latency",
+      "Resetting a password"
+     ],
+     "a": 0,
+     "why": "Cross-user queries reveal whether retrieval filters by identity."
+    },
+    {
+     "q": "What makes evidence reproducible?",
+     "options": [
+      "A confident summary",
+      "Exact inputs, outputs, account, versions, attempts and log references",
+      "A screenshot with no date",
+      "A verbal report"
+     ],
+     "a": 1,
+     "why": "Others must be able to repeat the steps and match them with server logs."
+    },
+    {
+     "q": "A refund tool that relies only on the model to refuse large amounts shows:",
+     "options": [
+      "Good defense in depth",
+      "Missing server-side authorization, an excessive agency issue",
+      "A cache fault",
+      "A DNS error"
+     ],
+     "a": 1,
+     "why": "Authorization must be enforced in code, not left to model judgment."
+    }
+   ],
+   "recap": [
+    "Test in staging within scope and repeat probes to measure rates.",
+    "Probe injection, leakage, tool permissions, output handling and supply chain separately.",
+    "Record exact inputs, outputs, versions and log IDs so each finding can be reproduced."
+   ]
+  },
+  {
+   "title": "Report, prioritize and remediate",
+   "why": "Findings only reduce risk when they reach the right people in a form that tells them what matters first and exactly how to fix it.",
+   "sections": [
+    {
+     "h": "Mapping to OWASP LLM and NIST AI RMF",
+     "p": [
+      "Map each finding to recognized frameworks so stakeholders can compare it with industry guidance. The OWASP Top 10 for LLM Applications (2025) lists LLM01 prompt injection, LLM02 sensitive information disclosure, LLM03 supply chain, LLM04 data and model poisoning, LLM05 improper output handling, LLM06 excessive agency, LLM07 system prompt leakage, LLM08 vector and embedding weaknesses, LLM09 misinformation and LLM10 unbounded consumption. MITRE ATLAS gives adversary technique names for AI systems. The NIST AI Risk Management Framework organizes risk work into Govern, Map, Measure and Manage. A cross-user leak maps to LLM02 and LLM08, and to the Measure and Manage functions, which cover testing and treating risk."
+     ]
+    },
+    {
+     "h": "Rating severity",
+     "p": [
+      "Rate each finding on likelihood and impact, using a simple scale such as critical, high, medium, low and informational, and explain the reasoning. Impact asks what data, money or safety is affected and how many users. Likelihood asks how easy it is, what access is needed and whether it succeeds consistently. Traditional tools such as CVSS can be used for software flaws, but AI behavior needs judgment about success rate and blast radius. A cross-customer data leak that works every time with a normal account is critical. A system prompt disclosure with no secrets inside is low. Record assumptions, because a prompt that holds an API key changes the same finding from low to high."
+     ]
+    },
+    {
+     "h": "Writing the fix plan",
+     "p": [
+      "Remediation must be specific and testable. Prefer controls enforced outside the model: filter retrieval by the authenticated user before ranking, so unauthorized chunks never reach the prompt; issue each tool call with a scoped, short-lived credential and enforce limits and ownership checks on the server; require human approval for refunds above a threshold; escape or sanitize model output before rendering; remove secrets from prompts; pin and verify model files and dependencies; add rate and token limits for unbounded consumption; and log prompts, retrievals and tool calls with request IDs. Guardrail filters and prompt wording help but are not primary controls. For each fix give an owner, an effort estimate and a verification test."
+     ]
+    },
+    {
+     "h": "Presenting to stakeholders",
+     "p": [
+      "Different audiences need different views. The executive summary states the overall risk in a few sentences, the count of findings by severity, the business impact in plain terms and the three decisions needed. Engineers receive the detailed findings with evidence, root cause and fix steps. Order the fix plan by risk reduction per effort, separating quick wins this week, structural changes this quarter and longer governance work such as an AI usage policy and incident process. Offer a retest date and define what a closed finding looks like. Be accurate about limits: say what was not tested and avoid claims that the app is secure, since a review shows only what was examined."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Finding summary table (fictional)",
+    "text": "ID   Title                         OWASP   Sev\nF-01 Cross-user retrieval leak     LLM02/08 Critical\nF-02 Refund tool lacks server cap  LLM06    High\nF-03 Indirect injection via wiki   LLM01    High\nF-04 Unescaped HTML in chat        LLM05    Medium\nF-05 System prompt discloses rules LLM07    Low"
+   },
+   "example": "The reviewer presents to Example Corp's product owner and engineering lead. The headline: one critical and two high findings, all reachable with a normal customer account in staging. The fix plan starts with a per-user filter on retrieval and a server-side refund cap of 50 USD with approval above it, both estimated at under three days. The wiki injection finding gets content review and a trust label on retrieved text. The report states that load testing and the model vendor were out of scope and schedules a retest in 30 days.",
+   "terms": [
+    {
+     "term": "OWASP Top 10 for LLM Applications",
+     "def": "A ranked list of the most critical risks in LLM-based applications."
+    },
+    {
+     "term": "NIST AI RMF",
+     "def": "Framework with Govern, Map, Measure and Manage functions for managing AI risk."
+    },
+    {
+     "term": "MITRE ATLAS",
+     "def": "A knowledge base of adversary tactics and techniques against AI systems."
+    },
+    {
+     "term": "Severity",
+     "def": "A rating combining likelihood and impact used to prioritize findings."
+    },
+    {
+     "term": "Remediation",
+     "def": "Specific corrective action that removes or reduces a finding's risk."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which OWASP LLM category covers a tool with too many permissions?",
+     "options": [
+      "LLM03",
+      "LLM06 Excessive Agency",
+      "LLM09",
+      "LLM10"
+     ],
+     "a": 1,
+     "why": "LLM06 addresses excessive functionality, permissions and autonomy."
+    },
+    {
+     "q": "Which fix is the strongest for cross-user retrieval leaks?",
+     "options": [
+      "Ask the model to be careful",
+      "Filter retrieval by the authenticated user before results enter the prompt",
+      "Shorten answers",
+      "Rename documents"
+     ],
+     "a": 1,
+     "why": "Enforcing access control outside the model keeps unauthorized data out of the context."
+    },
+    {
+     "q": "What are the four NIST AI RMF functions?",
+     "options": [
+      "Plan, Do, Check, Act",
+      "Identify, Protect, Detect, Respond",
+      "Govern, Map, Measure, Manage",
+      "Prepare, Analyze, Contain, Recover"
+     ],
+     "a": 2,
+     "why": "The AI RMF core functions are Govern, Map, Measure and Manage."
+    },
+    {
+     "q": "What should an honest report include about coverage?",
+     "options": [
+      "Nothing, to avoid doubt",
+      "What was not tested and the assumptions made",
+      "A guarantee of security",
+      "Only passing results"
+     ],
+     "a": 1,
+     "why": "A review proves only what was examined; stating limits keeps conclusions accurate."
+    }
+   ],
+   "recap": [
+    "Map findings to OWASP LLM, ATLAS and NIST AI RMF for shared language.",
+    "Rate severity by likelihood, impact and blast radius and state assumptions.",
+    "Prefer enforced controls outside the model and give each fix an owner and a verification test."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Threat model the target app",
+   "sim": "diagram-builder",
+   "scenario": "You are the reviewer for HelpDesk Copilot, the fictional support assistant at Example Corp. The diagram builder gives you blank canvas tiles for a chat client, API gateway, orchestrator, vector store, model endpoint, tool APIs and logging. Place the components, draw the data flows, mark trust boundaries and annotate five prioritized AI-specific threats with their OWASP LLM identifiers. The architecture notes say the vector index is shared and the refund tool uses one service account.",
+   "objective": "Build a data flow diagram and annotate five prioritized AI-specific threats.",
+   "steps": [
+    {
+     "do": "Drag the seven component tiles onto the canvas.",
+     "see": "Tiles snap to the grid and display their labels."
+    },
+    {
+     "do": "Draw flows: client to gateway, gateway to orchestrator, orchestrator to vector store, orchestrator to model, orchestrator to tools.",
+     "see": "Arrows appear and are numbered 1 to 5."
+    },
+    {
+     "do": "Draw trust boundaries around the internet, internal network and third-party model provider.",
+     "see": "Three dashed boxes are added; the model endpoint sits outside the internal box."
+    },
+    {
+     "do": "Attach a threat note to flow 3: shared index lacks per-user filter (LLM02/LLM08).",
+     "see": "Note accepted and rated critical."
+    },
+    {
+     "do": "Attach a note to the tools component: refund account over-privileged (LLM06).",
+     "see": "Note accepted and rated high."
+    },
+    {
+     "do": "Attach notes for indirect injection via wiki content (LLM01), unescaped output in the client (LLM05) and unverified model weights (LLM03).",
+     "see": "Three more notes added; the validator checks that five unique threats exist."
+    },
+    {
+     "do": "Order the five threats by likelihood times impact and submit.",
+     "see": "Validator shows ranking: 1 leak, 2 agency, 3 injection, 4 output, 5 supply chain, and gives a pass."
+    }
+   ],
+   "answer": "The diagram shows seven components, numbered flows and three trust boundaries. Top threats in order: cross-user retrieval leak (LLM02/08), excessive agency in the refund tool (LLM06), indirect injection through wiki content (LLM01), improper output handling (LLM05) and unverified model supply chain (LLM03).",
+   "hint": "Look for where untrusted text enters the prompt and where the model can act with a powerful credential."
+  },
+  {
+   "title": "Assess and report the app",
+   "sim": "scenario",
+   "scenario": "After modeling, you now review evidence from the staging deployment of HelpDesk Copilot at Example Corp: a configuration file, log excerpts and three chat transcripts, all using fictional data. Your task is to find the issues, record each finding with its evidence, map it to an OWASP LLM category, rate severity and rank the list for the product owner. Be careful to separate what the evidence shows from what you only suspect.",
+   "objective": "Record findings with evidence, map them to frameworks and rank them by severity.",
+   "steps": [
+    {
+     "do": "Open the config file and read the tool section.",
+     "see": "refund tool has max_amount: none and uses service account svc-support with admin scope."
+    },
+    {
+     "do": "Record finding 1 with the config line as evidence.",
+     "see": "Finding logged as LLM06, proposed severity High."
+    },
+    {
+     "do": "Open transcript 1 and read the assistant's answer to 'order 88217'.",
+     "see": "The tester account received another customer's name and address; log shows retrieval of doc 441."
+    },
+    {
+     "do": "Record finding 2 with transcript ID and log line.",
+     "see": "Logged as LLM02/LLM08, Critical, success 10 of 10."
+    },
+    {
+     "do": "Open transcript 2 and find the response to a normal question after the wiki edit.",
+     "see": "Assistant followed a planted marker instruction from page 'Returns FAQ'."
+    },
+    {
+     "do": "Record finding 3 as indirect injection and note it needs wiki edit rights.",
+     "see": "Logged as LLM01, High, with a likelihood note."
+    },
+    {
+     "do": "Open transcript 3 and the log of system prompt text.",
+     "see": "Assistant printed its rules; no secrets in the prompt but an internal URL appears."
+    },
+    {
+     "do": "Record finding 4 as LLM07, Low, then drag the four findings into severity order and submit.",
+     "see": "Ranking accepted: Critical, High, High, Low; the report template fills in."
+    }
+   ],
+   "answer": "Four findings: cross-user data leak (Critical, LLM02/08), refund tool with no cap and admin credential (High, LLM06), indirect injection via wiki (High, LLM01), system prompt disclosure with an internal URL (Low, LLM07). Each cites config lines, transcript IDs or log references.",
+   "hint": "Rate by how easily it works with a normal account and how much data or money is exposed."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "What is the first step of a security review?",
+   "options": [
+    "Run exploit tools",
+    "Obtain written authorization and define scope",
+    "Publish a report",
+    "Patch the model"
+   ],
+   "a": 1,
+   "why": "Scope and authorization set safe limits for all later work."
+  },
+  {
+   "q": "What does a data flow diagram with trust boundaries help find?",
+   "options": [
+    "Font problems",
+    "Places where untrusted data or control crosses into the system",
+    "Billing errors",
+    "Typos"
+   ],
+   "a": 1,
+   "why": "Boundary crossings are where validation and access control are needed."
+  },
+  {
+   "q": "Which input could carry an indirect prompt injection?",
+   "options": [
+    "The tester's password",
+    "A retrieved web page or knowledge base article",
+    "The color theme",
+    "A TLS certificate"
+   ],
+   "a": 1,
+   "why": "Retrieved content enters the prompt and may contain instructions."
+  },
+  {
+   "q": "Why record the number of attempts and successes?",
+   "options": [
+    "Model outputs vary, so frequency shows real risk and verifies fixes",
+    "It reduces cost",
+    "It speeds the model",
+    "It is required by TLS"
+   ],
+   "a": 0,
+   "why": "Non-deterministic systems need a success rate rather than a single result."
+  },
+  {
+   "q": "Which request best tests excessive agency?",
+   "options": [
+    "Ask for a joke",
+    "Have a test session request a refund above policy for an unowned test order",
+    "Ask for the weather",
+    "Resize the window"
+   ],
+   "a": 1,
+   "why": "It checks whether server-side limits and ownership checks exist."
+  },
+  {
+   "q": "Where should authorization for tool calls be enforced?",
+   "options": [
+    "Only in the system prompt",
+    "In code on the server, with scoped credentials",
+    "In the user's browser",
+    "In the model's training data"
+   ],
+   "a": 1,
+   "why": "Prompts can be bypassed; code-level checks are reliable."
+  },
+  {
+   "q": "A model file downloaded from a public hub with no hash check is mainly a:",
+   "options": [
+    "Latency issue",
+    "Supply chain risk (LLM03)",
+    "UI issue",
+    "Logging issue"
+   ],
+   "a": 1,
+   "why": "Unverified artifacts can be tampered with or contain unsafe serialization."
+  },
+  {
+   "q": "Which finding is most severe?",
+   "options": [
+    "Prompt leak with no secrets",
+    "Any customer can read other customers' data every time",
+    "A typo in the greeting",
+    "Slow responses at night"
+   ],
+   "a": 1,
+   "why": "Reliable cross-user data exposure has high impact and high likelihood."
+  },
+  {
+   "q": "Which pair of NIST AI RMF functions covers testing and treating risks?",
+   "options": [
+    "Govern and Plan",
+    "Measure and Manage",
+    "Map and Delete",
+    "Detect and Recover"
+   ],
+   "a": 1,
+   "why": "Measure covers analysis and testing; Manage covers prioritizing and treating risk."
+  },
+  {
+   "q": "What should the executive summary of the report contain?",
+   "options": [
+    "Raw logs",
+    "Overall risk, severity counts, business impact and needed decisions",
+    "Every prompt tried",
+    "Source code"
+   ],
+   "a": 1,
+   "why": "Executives need risk, impact and decisions, with details left to the technical sections."
+  }
+ ]
+}

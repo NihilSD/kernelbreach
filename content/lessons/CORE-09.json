@@ -1,0 +1,820 @@
+{
+ "code": "CORE-09",
+ "intro": "This module teaches you how defenders find, describe, score and fix weaknesses. You will separate the ideas of vulnerability, threat, exploit and risk, read CVE, CWE, NVD and CVSS data, and understand what vulnerability scanners such as Nessus and OpenVAS actually report. You will then learn how to prioritize with CVSS, CISA KEV and EPSS, run a scan-to-remediation cycle with realistic SLAs, and see how disclosure and bug bounty programs fit in. Vulnerability management is one of the most common entry-level security tasks, and exam questions on it are frequent.",
+ "lessons": [
+  {
+   "title": "Vulnerability, threat, exploit and risk",
+   "why": "Clear vocabulary prevents bad decisions: teams that mix up a vulnerability with a risk waste effort fixing the wrong things.",
+   "sections": [
+    {
+     "h": "Four related words",
+     "p": [
+      "A vulnerability is a weakness in a system, process or person that could be misused, such as an unpatched web server or a weak password policy. A threat is anything that could cause harm by using a weakness: a criminal group, a careless insider, or even a flood. A threat actor is the person or group behind it. An exploit is the technique, tool or code that takes advantage of a specific vulnerability. Risk is the chance that a threat uses a vulnerability and the damage that follows. Notice that these are different kinds of things: a vulnerability exists whether or not anyone cares, a threat needs motive and capability, and risk only appears when both meet something valuable."
+     ]
+    },
+    {
+     "h": "Risk equals likelihood times impact",
+     "p": [
+      "The classic model says risk = likelihood x impact. Likelihood depends on how exposed the weakness is, how easy it is to use, and whether threat actors are active. Impact depends on what the asset is worth: the data it holds, the money lost per hour of downtime, legal penalties and reputation. A critical flaw on an isolated lab machine can be lower risk than a medium flaw on the internet-facing payment server. Qualitative scales (low, medium, high) are common, and quantitative methods such as annualized loss expectancy (ALE = single loss expectancy x annual rate of occurrence) are used when numbers exist."
+     ]
+    },
+    {
+     "h": "Responding to risk",
+     "p": [
+      "Once risk is estimated, an organization chooses one of four treatments. It can mitigate by adding controls such as patches or firewalls, transfer by buying insurance or outsourcing, avoid by dropping the risky activity, or accept when the cost of treatment exceeds the loss and management signs off. Residual risk is what remains after controls. A risk register records each risk, its owner, score, treatment and review date. Accepting a risk is a legitimate decision only when it is documented and approved by someone with authority, not a way to ignore an unfixed finding."
+     ]
+    },
+    {
+     "h": "Where the terms appear in practice",
+     "p": [
+      "A scanner report lists vulnerabilities, not risks. A threat intelligence feed describes threats and available exploits. Only when you combine them with asset value and existing controls do you get risk. The zero-day label means a vulnerability being exploited before a patch exists. Exposure, such as a service reachable from the internet, raises likelihood. A compensating control, for example a web application firewall rule that blocks the known attack pattern, lowers likelihood while a real fix is prepared. Always ask three questions: what is weak, who or what could use it, and what would it cost us?"
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Risk register row",
+    "text": "Asset: customer-portal (internet-facing)\nVulnerability: outdated web framework\nThreat: opportunistic ransomware group\nLikelihood: High   Impact: High\nRisk: Critical\nTreatment: Mitigate (patch in 7 days)\nOwner: Web team lead"
+   },
+   "example": "A small clinic has an old file server with a known flaw, but it sits on an isolated VLAN with no internet access and holds only printer drivers. The same flaw exists on a patient-records server reachable through a VPN. Both share one vulnerability, but the records server has far higher impact and likelihood, so its risk is high while the file server's is low. The team patches the records server this week and schedules the file server for the next maintenance window, documenting the decision in the risk register.",
+   "terms": [
+    {
+     "term": "Vulnerability",
+     "def": "A weakness that could be used to cause harm."
+    },
+    {
+     "term": "Threat",
+     "def": "Any actor or event that could cause harm by using a weakness."
+    },
+    {
+     "term": "Exploit",
+     "def": "Code or a technique that takes advantage of a specific vulnerability."
+    },
+    {
+     "term": "Risk",
+     "def": "The likelihood of harm multiplied by its impact."
+    },
+    {
+     "term": "Residual risk",
+     "def": "The risk left after controls are applied."
+    },
+    {
+     "term": "Zero-day",
+     "def": "A vulnerability exploited before a patch is available."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which statement best describes an exploit?",
+     "options": [
+      "A weakness in a system",
+      "The code or technique that takes advantage of a weakness",
+      "The probability of a loss",
+      "A person who attacks systems"
+     ],
+     "a": 1,
+     "why": "An exploit is the means of using a vulnerability; the weakness itself is the vulnerability."
+    },
+    {
+     "q": "A critical flaw sits on a server with no network access and no data. Compared with a medium flaw on a public payment server, its risk is likely:",
+     "options": [
+      "Higher, because the score is higher",
+      "Lower, because likelihood and impact are small",
+      "Identical",
+      "Impossible to estimate"
+     ],
+     "a": 1,
+     "why": "Risk combines likelihood and impact, not severity alone."
+    },
+    {
+     "q": "Buying cyber insurance is an example of which risk treatment?",
+     "options": [
+      "Avoid",
+      "Accept",
+      "Transfer",
+      "Mitigate"
+     ],
+     "a": 2,
+     "why": "Insurance moves part of the financial loss to another party."
+    },
+    {
+     "q": "What is residual risk?",
+     "options": [
+      "Risk before any controls",
+      "Risk remaining after controls are applied",
+      "Risk that has been transferred",
+      "Risk caused by insiders"
+     ],
+     "a": 1,
+     "why": "Residual risk is what is left once controls reduce the original risk."
+    }
+   ],
+   "recap": [
+    "Vulnerability = weakness, threat = who or what may use it, exploit = the method.",
+    "Risk = likelihood x impact, so asset value matters.",
+    "Treatments: mitigate, transfer, avoid, accept, with documented approval."
+   ]
+  },
+  {
+   "title": "CVE, CWE, NVD and exploit databases",
+   "why": "Every security tool and advisory refers to the same public identifiers, so knowing how to look them up is a daily skill.",
+   "sections": [
+    {
+     "h": "CVE identifiers",
+     "p": [
+      "The Common Vulnerabilities and Exposures (CVE) program gives each publicly known flaw a unique ID in the form CVE-YEAR-NUMBER, for example CVE-2021-44228. The year is when the ID was reserved or assigned, not always when the flaw was found. MITRE operates the program and many CVE Numbering Authorities (CNAs), such as vendors, assign IDs for their own products. A CVE record is short: the ID, a description and references. It does not contain scores, patches or a full analysis, which is why other databases exist around it."
+     ]
+    },
+    {
+     "h": "CWE, NVD and vendor advisories",
+     "p": [
+      "The Common Weakness Enumeration (CWE) classifies the type of mistake behind flaws, not individual products. CWE-79 is cross-site scripting, CWE-89 is SQL injection, CWE-787 is out-of-bounds write and CWE-798 is hard-coded credentials. One CWE can cover thousands of CVEs. The National Vulnerability Database (NVD), run by NIST, enriches CVE records with CVSS scores, CWE mappings and CPE names, which identify affected products and versions. Vendor advisories and release notes give the authoritative patch information, so always read them next to the NVD entry."
+     ]
+    },
+    {
+     "h": "Exploit databases and KEV",
+     "p": [
+      "Exploit-DB, maintained by OffSec, archives public proofs of concept and exploits, and the command line tool searchsploit searches an offline copy. Metasploit modules also reference CVE IDs. The CISA Known Exploited Vulnerabilities (KEV) catalog is a short list of CVEs with confirmed exploitation in the wild, each with a required remediation date for US federal agencies under BOD 22-01. Defenders treat KEV membership as a strong signal. The existence of public exploit code is not the same as active exploitation, but it lowers the skill needed by attackers."
+     ]
+    },
+    {
+     "h": "Doing a lookup",
+     "p": [
+      "A typical workflow starts with a product and version found by a scan, such as a web server banner. You search NVD or the vendor site for that version, note matching CVE IDs, check the CWE to understand the weakness type, read the CVSS vector for exposure, and check whether the CVE appears in KEV or Exploit-DB. Then you confirm the fixed version in the vendor advisory. Be careful with version matching: distributions such as Debian or Red Hat often backport fixes without changing the version number, so a banner can look vulnerable when the package is already patched."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ searchsploit examplehttpd 2.4\n---------------------------------------------\n Exploit Title                    | Path\n---------------------------------------------\n ExampleHTTPd 2.4.1 - Path Trav.. | multiple/webapps/50001.txt\n ExampleHTTPd < 2.4.3 - Overflow  | linux/remote/50120.py\n---------------------------------------------"
+   },
+   "example": "An analyst sees a scan note that the host 192.0.2.20 runs ExampleHTTPd 2.4.1. Searching NVD shows CVE-2023-00001 with CWE-22 (path traversal), score 7.5, fixed in 2.4.3. KEV has no entry, but Exploit-DB lists a public proof of concept. The analyst checks the vendor advisory, sees that the OS vendor backported the fix to package 2.4.1-3, confirms the package version on the host, and marks the finding as a false positive with evidence rather than patching blindly.",
+   "terms": [
+    {
+     "term": "CVE",
+     "def": "A unique public identifier for a specific vulnerability."
+    },
+    {
+     "term": "CWE",
+     "def": "A catalogue of weakness types such as injection or buffer errors."
+    },
+    {
+     "term": "NVD",
+     "def": "NIST's database that adds scores and product data to CVE records."
+    },
+    {
+     "term": "CPE",
+     "def": "A naming scheme that identifies affected products and versions."
+    },
+    {
+     "term": "KEV",
+     "def": "CISA's catalog of vulnerabilities known to be exploited in the wild."
+    },
+    {
+     "term": "searchsploit",
+     "def": "A command line tool that searches a local copy of Exploit-DB."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does CWE-89 describe?",
+     "options": [
+      "A specific product bug",
+      "A weakness class: SQL injection",
+      "A scoring formula",
+      "A patch release"
+     ],
+     "a": 1,
+     "why": "CWE classifies weakness types, and CWE-89 is SQL injection."
+    },
+    {
+     "q": "Which database adds CVSS scores and CPE data to CVE records?",
+     "options": [
+      "Exploit-DB",
+      "NVD",
+      "KEV",
+      "MISP"
+     ],
+     "a": 1,
+     "why": "NIST's NVD enriches CVE entries with scores and product data."
+    },
+    {
+     "q": "Why can a banner showing an old version be misleading?",
+     "options": [
+      "Banners are always encrypted",
+      "Distributions may backport fixes without changing the version",
+      "CVE IDs expire",
+      "CVSS changes daily"
+     ],
+     "a": 1,
+     "why": "Backported patches keep the upstream version number while removing the flaw."
+    },
+    {
+     "q": "What does KEV membership indicate?",
+     "options": [
+      "The flaw has a high CVSS score",
+      "The flaw is confirmed as exploited in the wild",
+      "The flaw has no patch",
+      "The flaw is in a Windows product"
+     ],
+     "a": 1,
+     "why": "KEV lists only vulnerabilities with evidence of active exploitation."
+    }
+   ],
+   "recap": [
+    "CVE names a flaw, CWE names the weakness type, NVD adds scores and product data.",
+    "KEV and Exploit-DB tell you about exploitation and public exploit code.",
+    "Verify patch status in the vendor advisory, especially with backports."
+   ]
+  },
+  {
+   "title": "CVSS scoring",
+   "why": "CVSS gives a common language for severity, but you must be able to read it rather than trust a single number.",
+   "sections": [
+    {
+     "h": "What CVSS measures",
+     "p": [
+      "The Common Vulnerability Scoring System (CVSS) rates the technical severity of a vulnerability from 0.0 to 10.0. Version 3.1 is widely used, and version 4.0 is newer and adds extra metric groups. The base score describes properties that do not change over time or between organizations. Temporal metrics (exploit maturity, remediation level) and environmental metrics (your own asset importance and controls) can adjust it. Remember that CVSS measures severity, not risk: it knows nothing about your assets or whether attackers are active."
+     ]
+    },
+    {
+     "h": "Reading the base vector",
+     "p": [
+      "A v3.1 vector looks like CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H. AV is Attack Vector: Network, Adjacent, Local or Physical. AC is Attack Complexity: Low or High. PR is Privileges Required: None, Low or High. UI is User Interaction: None or Required. S is Scope: Unchanged or Changed, meaning whether the flaw lets an attacker affect resources beyond the vulnerable component. C, I and A are the impacts on Confidentiality, Integrity and Availability, each None, Low or High. Network, low complexity, no privileges and no user interaction push the score up."
+     ]
+    },
+    {
+     "h": "Severity bands",
+     "p": [
+      "The numeric score maps to bands: 0.0 is None, 0.1 to 3.9 Low, 4.0 to 6.9 Medium, 7.0 to 8.9 High and 9.0 to 10.0 Critical. The vector above scores 9.8, Critical. Change UI to Required and the score drops to 8.8, High, because the attacker needs a victim to act. A local flaw needing low privileges with full impact (AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H) scores 7.8. A network flaw that only leaks a little data (C:L/I:N/A:N) scores 5.3, Medium. Changed scope with full impact reaches 10.0."
+     ]
+    },
+    {
+     "h": "Using scores sensibly",
+     "p": [
+      "Calculators on the FIRST website or NVD compute the score from the vector, so you never need to do the arithmetic by hand, but you should predict the direction of a change. Scores from vendors, NVD and scanners can differ, because each analyst may choose metrics differently. Treat CVSS as one input. A 9.8 on a service nobody can reach may matter less than a 7.5 on a server under active attack. Always keep the vector with the score, since the vector explains why the number is high and tells you which controls, such as network segmentation, would reduce exposure."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Vector breakdown",
+    "text": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H\nAV:N  reachable over the network\nAC:L  no special conditions\nPR:N  no account needed\nUI:N  no victim action\nS:U   impact stays in component\nC/I/A:H  full impact\nScore 9.8 = Critical"
+   },
+   "example": "A scanner reports two findings. Finding one has vector AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H, a browser flaw requiring a click, score 8.8. Finding two has AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H, a local privilege escalation, score 7.8. Both are High. The analyst notes that finding one is reachable from outside but needs user action, while finding two matters mainly after an attacker already has a foothold. Both go on the queue, with the browser flaw first on workstations that browse the web.",
+   "terms": [
+    {
+     "term": "Base score",
+     "def": "The severity value based on intrinsic properties of the flaw."
+    },
+    {
+     "term": "Attack Vector (AV)",
+     "def": "How remote the attacker can be: network, adjacent, local or physical."
+    },
+    {
+     "term": "Scope (S)",
+     "def": "Whether exploitation affects resources beyond the vulnerable component."
+    },
+    {
+     "term": "Environmental metrics",
+     "def": "Adjustments reflecting your own assets and controls."
+    },
+    {
+     "term": "Critical band",
+     "def": "Scores from 9.0 to 10.0 in CVSS v3.1."
+    },
+    {
+     "term": "Vector string",
+     "def": "The compact text listing every metric value behind a score."
+    }
+   ],
+   "check": [
+    {
+     "q": "A CVSS score of 7.4 falls into which v3.1 band?",
+     "options": [
+      "Medium",
+      "High",
+      "Critical",
+      "Low"
+     ],
+     "a": 1,
+     "why": "7.0 to 8.9 is High."
+    },
+    {
+     "q": "In the vector, what does PR:N mean?",
+     "options": [
+      "Physical access required",
+      "No privileges required",
+      "Patch released",
+      "Network reachable only"
+     ],
+     "a": 1,
+     "why": "PR is Privileges Required and N means None."
+    },
+    {
+     "q": "Changing UI:N to UI:R generally does what to the score?",
+     "options": [
+      "Raises it",
+      "Lowers it",
+      "Leaves it unchanged",
+      "Makes it zero"
+     ],
+     "a": 1,
+     "why": "Requiring user interaction makes exploitation harder, so the score falls."
+    },
+    {
+     "q": "CVSS base score is best described as a measure of:",
+     "options": [
+      "Business risk to your company",
+      "Technical severity of the flaw",
+      "Probability of exploitation",
+      "Patch cost"
+     ],
+     "a": 1,
+     "why": "CVSS rates severity; risk needs asset and threat context."
+    }
+   ],
+   "recap": [
+    "Read the vector, not just the number.",
+    "Bands: Low 0.1-3.9, Medium 4.0-6.9, High 7.0-8.9, Critical 9.0-10.0.",
+    "CVSS measures severity, not risk."
+   ]
+  },
+  {
+   "title": "Scanning and the patching process",
+   "why": "Scanning is how most organizations discover weaknesses, and the process around it decides whether findings actually get fixed.",
+   "sections": [
+    {
+     "h": "What scanners do",
+     "p": [
+      "A vulnerability scanner such as Nessus, OpenVAS (Greenbone) or Qualys probes hosts, identifies services and versions, and compares them against a database of known flaws and insecure configurations. Discovery scans find live hosts and open ports, while vulnerability scans check for specific issues. Web application scanners test pages for problems such as injection. Scanners should run only with written authorization, because probing can slow or crash fragile devices such as old printers or medical equipment. Schedule scans in agreed windows and tune their intensity."
+     ]
+    },
+    {
+     "h": "Authenticated vs unauthenticated",
+     "p": [
+      "An unauthenticated scan sees the system as an outside attacker does: open ports, banners and exposed services. An authenticated (credentialed) scan logs in with a read-only account using SSH, WinRM or SMB and inspects installed packages, patch levels, registry settings and local configuration. Credentialed scans are more accurate and produce fewer false positives, and they find missing patches on workstations that expose no services. The scanning account should have minimum rights, its password should be stored in a vault, and its use should be monitored like any privileged account."
+     ]
+    },
+    {
+     "h": "False positives and negatives",
+     "p": [
+      "A false positive is a reported issue that does not exist, for instance a banner match on a backported package. A false negative is a real flaw the scanner missed, such as one on a host that was offline or blocked by a firewall. Analysts validate findings by checking package versions, reading plugin output, or safely testing the condition. Record why a finding was dismissed so the next scan does not reopen it. Tuning scan policies and keeping plugin feeds updated reduce noise, but no scanner finds everything, so scans complement code review and testing."
+     ]
+    },
+    {
+     "h": "From finding to fix",
+     "p": [
+      "The remediation cycle is: discover assets, scan, validate, prioritize, assign an owner, fix, rescan to verify, and report. Fixes include patching, changing configuration, disabling a service or applying a compensating control. Service level agreements set deadlines, for example critical within 7 days, high within 30, medium within 90, though each policy differs. Changes go through change management, with testing and rollback plans, because a patch can break an application. Exceptions need an owner, a reason, a compensating control and an expiry date. Metrics such as mean time to remediate show whether the program works."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Scan report excerpt",
+    "text": "Host: 192.0.2.30  Scan: credentialed\nPlugin 10001  Severity: High\n  Package openssl 1.1.1k-1 installed\n  Fixed in 1.1.1n-0+deb11u3\nPlugin 10002  Severity: Medium\n  SMB signing not required\nPlugin 10003  Severity: Info\n  Host fingerprint: Debian 11"
+   },
+   "example": "A weekly unauthenticated scan reports 40 high findings on a web farm, but a credentialed scan the next day lists only 9. The analyst compares them and finds that 31 were banner-based guesses on packages the vendor had patched. The 9 confirmed findings are grouped by fix: 6 need one OpenSSL package update, 3 need a configuration change. Owners are assigned, the critical item gets a 7 day SLA, and a rescan after the change window confirms closure.",
+   "terms": [
+    {
+     "term": "Authenticated scan",
+     "def": "A scan that logs in to inspect local patches and configuration."
+    },
+    {
+     "term": "False positive",
+     "def": "A reported finding that is not actually present."
+    },
+    {
+     "term": "False negative",
+     "def": "A real vulnerability the scanner failed to report."
+    },
+    {
+     "term": "Remediation SLA",
+     "def": "The agreed deadline for fixing a finding by severity."
+    },
+    {
+     "term": "Compensating control",
+     "def": "A substitute safeguard used when a direct fix is not possible."
+    },
+    {
+     "term": "Rescan",
+     "def": "A follow-up scan that verifies a fix worked."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which scan type usually has fewer false positives?",
+     "options": [
+      "Unauthenticated",
+      "Authenticated",
+      "Ping sweep",
+      "Passive banner capture"
+     ],
+     "a": 1,
+     "why": "Credentialed scans read actual package and configuration data."
+    },
+    {
+     "q": "A scanner misses a real flaw. This is a:",
+     "options": [
+      "False positive",
+      "True positive",
+      "False negative",
+      "Compensating control"
+     ],
+     "a": 2,
+     "why": "Missing a real issue is a false negative."
+    },
+    {
+     "q": "What is the last step of the remediation cycle?",
+     "options": [
+      "Scan",
+      "Verify with a rescan and report",
+      "Prioritize",
+      "Assign an owner"
+     ],
+     "a": 1,
+     "why": "After fixing, you rescan to confirm closure and report."
+    },
+    {
+     "q": "An exception to an SLA should include:",
+     "options": [
+      "Nothing, it is informal",
+      "An owner, reason, compensating control and expiry",
+      "Only a manager's verbal approval",
+      "Deleting the finding"
+     ],
+     "a": 1,
+     "why": "Documented, time-limited exceptions keep risk visible."
+    }
+   ],
+   "recap": [
+    "Use credentialed scans for accuracy and unauthenticated scans for the attacker view.",
+    "Validate findings and record false positives.",
+    "Close the loop with owners, SLAs and rescans."
+   ]
+  },
+  {
+   "title": "Prioritization and bug bounty overview",
+   "why": "You will never have time to fix everything, so ranking findings well is the skill that reduces real risk.",
+   "sections": [
+    {
+     "h": "Why CVSS alone is not enough",
+     "p": [
+      "Most organizations carry thousands of open findings, and a large share are rated High or Critical. Research on exploitation shows that only a small fraction of published CVEs are ever exploited in the wild. Sorting by CVSS therefore wastes effort on flaws that attackers ignore. Better programs add context: is the flaw being exploited now, how likely is exploitation, where is the asset, and what does the asset do for the business? This moves the work from patching by score to patching by risk."
+     ]
+    },
+    {
+     "h": "Signals to combine",
+     "p": [
+      "The CISA KEV catalog confirms real exploitation, so KEV items rise to the top, often with short deadlines. The Exploit Prediction Scoring System (EPSS) estimates the probability, from 0 to 1, that a CVE will be exploited in the next 30 days using data about threat activity. Public exploit code, ransomware usage and vendor warnings add weight. On the asset side, consider internet exposure, data sensitivity, business criticality, privileged access and available compensating controls. A simple matrix such as exposed plus KEV plus critical asset equals fix now, works well in practice."
+     ]
+    },
+    {
+     "h": "Building a queue",
+     "p": [
+      "Group findings by fix so one patch closes many items, and by owner so work is assignable. Typical tiers: emergency (KEV or active attack on exposed assets, hours to days), urgent (high EPSS or critical on crown-jewel assets, about 7 days), standard (30 days) and routine (next maintenance cycle). Where patching is impossible, use virtual patching with a web application firewall or intrusion prevention rule, isolate the host, or disable the feature. Review the queue regularly because EPSS values and KEV listings change as new information appears."
+     ]
+    },
+    {
+     "h": "Disclosure and bug bounties",
+     "p": [
+      "Not all vulnerabilities come from your scanner. Researchers may report flaws they find. Coordinated disclosure means the finder tells the vendor privately and allows a reasonable time, often 90 days, before publishing details. A security.txt file at /.well-known/security.txt tells researchers how to contact you. A vulnerability disclosure policy (VDP) sets expectations and safe-harbor language. Bug bounty programs, run directly or through platforms such as HackerOne or Bugcrowd, pay for valid reports within a defined scope. Testing outside the scope or the rules can be illegal, so always read the program terms first."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Prioritization table",
+    "text": "ID   CVSS  KEV  EPSS  Asset            Action\nF-1  9.8   no   0.02  lab VM           routine\nF-2  7.5   yes  0.91  public web srv   emergency 48h\nF-3  8.1   no   0.40  HR database      urgent 7d\nF-4  5.3   no   0.01  intranet wiki    standard 30d"
+   },
+   "example": "The table above shows why F-2 beats F-1. The lab VM has the highest CVSS score but low exploitation probability and no business value. The public web server flaw has a lower score but appears in KEV and has an EPSS of 0.91, so it needs a fix within 48 hours or a virtual patch. The HR database finding follows because of data sensitivity. Documenting this logic lets the team defend its order to auditors and managers.",
+   "terms": [
+    {
+     "term": "EPSS",
+     "def": "A score estimating the probability that a CVE will be exploited within 30 days."
+    },
+    {
+     "term": "Virtual patching",
+     "def": "Blocking an attack pattern at a WAF or IPS before the software is fixed."
+    },
+    {
+     "term": "Coordinated disclosure",
+     "def": "Reporting a flaw privately to the vendor and allowing time to fix it."
+    },
+    {
+     "term": "security.txt",
+     "def": "A standard file that tells researchers how to report vulnerabilities."
+    },
+    {
+     "term": "Bug bounty",
+     "def": "A program that pays researchers for valid in-scope vulnerability reports."
+    },
+    {
+     "term": "Crown-jewel asset",
+     "def": "A system whose compromise would seriously harm the business."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which signal best shows a vulnerability is exploited right now?",
+     "options": [
+      "High CVSS",
+      "KEV listing",
+      "Old CVE year",
+      "Long description"
+     ],
+     "a": 1,
+     "why": "KEV lists vulnerabilities with confirmed exploitation."
+    },
+    {
+     "q": "EPSS predicts:",
+     "options": [
+      "Patch size",
+      "Probability of exploitation in the next 30 days",
+      "Network latency",
+      "Password strength"
+     ],
+     "a": 1,
+     "why": "EPSS gives a 0 to 1 exploitation probability over 30 days."
+    },
+    {
+     "q": "A good first step when a patch cannot be applied is:",
+     "options": [
+      "Ignore the finding",
+      "Apply a compensating control such as a WAF rule or isolation",
+      "Delete the scanner",
+      "Lower the CVSS score"
+     ],
+     "a": 1,
+     "why": "Compensating controls reduce likelihood until a fix is possible."
+    },
+    {
+     "q": "Where would a researcher look to find how to report a flaw to a company?",
+     "options": [
+      "/.well-known/security.txt",
+      "/robots.txt only",
+      "The DNS zone file",
+      "The TLS certificate"
+     ],
+     "a": 0,
+     "why": "security.txt is the standard location for vulnerability contact details."
+    }
+   ],
+   "recap": [
+    "Rank by exploitation signals, exposure and asset value, not CVSS alone.",
+    "Group by fix and owner; use tiers with SLAs.",
+    "Disclosure and bounty programs have scope and safe-harbor rules."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Score a CVSS vector",
+   "sim": "scenario",
+   "scenario": "You are a junior analyst at Example Corp. Four findings arrived from a vendor advisory without scores. You have a CVSS calculator in the simulator and must set the base metrics from the descriptions to learn how each choice moves the score.",
+   "objective": "Choose base metrics for four vulnerabilities and rank them by resulting severity.",
+   "steps": [
+    {
+     "do": "Open finding A: remote code execution in a public web app, no login, no click needed.",
+     "see": "Calculator pre-fills nothing; metric panel ready."
+    },
+    {
+     "do": "Set AV:N, AC:L, PR:N, UI:N, S:U, C:H, I:H, A:H.",
+     "see": "Score 9.8 Critical."
+    },
+    {
+     "do": "Open finding B: browser flaw needing the user to open a crafted page. Set UI:R, other metrics as A.",
+     "see": "Score 8.8 High."
+    },
+    {
+     "do": "Open finding C: local privilege escalation from a low-privilege account. Set AV:L, PR:L, UI:N, S:U, C:H, I:H, A:H.",
+     "see": "Score 7.8 High."
+    },
+    {
+     "do": "Open finding D: information leak over the network exposing minor data. Set AV:N, AC:L, PR:N, UI:N, S:U, C:L, I:N, A:N.",
+     "see": "Score 5.3 Medium."
+    },
+    {
+     "do": "Click Compare to sort the four findings.",
+     "see": "Order: A 9.8, B 8.8, C 7.8, D 5.3."
+    }
+   ],
+   "answer": "Scores are A 9.8 Critical, B 8.8 High, C 7.8 High and D 5.3 Medium. Moving UI to Required lowered B, requiring local access and privileges lowered C, and limiting impact to low confidentiality gave D a medium rating.",
+   "hint": "Ask who can reach the flaw, what they need first, and how much damage results."
+  },
+  {
+   "title": "Triage scanner output",
+   "sim": "file-explorer",
+   "scenario": "A weekend scan of the 198.51.100.0/24 server range produced a 60-line report. Some entries are banner guesses on patched packages. You must clean the report before sending it to system owners.",
+   "objective": "Remove false positives and group the remaining findings by host and fix.",
+   "steps": [
+    {
+     "do": "Open scan_report.csv in the file explorer.",
+     "see": "60 rows shown with columns host, plugin, severity, evidence."
+    },
+    {
+     "do": "Filter rows where evidence says 'banner only'.",
+     "see": "22 rows match, all on hosts 198.51.100.10 and .11."
+    },
+    {
+     "do": "Open the package notes for .10 and compare version.",
+     "see": "Package 2.4.1-3 includes the backported fix; mark as false positive."
+    },
+    {
+     "do": "Mark the 22 banner rows as False Positive with a note.",
+     "see": "Rows turn grey; 38 rows remain."
+    },
+    {
+     "do": "Group the remaining rows by host.",
+     "see": "Groups: .12 (14 rows), .13 (16 rows), .14 (8 rows)."
+    },
+    {
+     "do": "Group again by fix.",
+     "see": "Three fixes: OpenSSL update (24 rows), SMB signing config (9), outdated PHP (5)."
+    }
+   ],
+   "answer": "After removing 22 banner-based false positives, 38 findings remain. They collapse into three fixes: an OpenSSL update, an SMB signing configuration change, and a PHP upgrade, spread over hosts .12 to .14. Owners can now act on three tasks instead of 60 lines.",
+   "hint": "Banner-only evidence on a backported package is the usual false positive."
+  },
+  {
+   "title": "Search CVE records",
+   "sim": "terminal",
+   "scenario": "A sandbox host at 192.0.2.50 runs a service that announces itself as 'ExampleFTPd 1.3.2'. You are authorized to look up known vulnerabilities from the terminal, without touching the host further.",
+   "objective": "Find known vulnerabilities for the service banner using searchsploit and a CVE lookup.",
+   "steps": [
+    {
+     "do": "Type: searchsploit exampleftpd 1.3",
+     "see": "Two results: 'ExampleFTPd 1.3.2 - Backdoor' and 'ExampleFTPd 1.3.x - Dir Traversal'."
+    },
+    {
+     "do": "Type: searchsploit -x 1 (view first entry notes)",
+     "see": "Notes mention CVE-2011-90001 and a trojaned source tarball."
+    },
+    {
+     "do": "Type: cvelookup CVE-2011-90001",
+     "see": "CWE-506 Embedded Malicious Code, CVSS 9.8 Critical, fixed in 1.3.3."
+    },
+    {
+     "do": "Type: cvelookup --kev CVE-2011-90001",
+     "see": "Not found in KEV catalog."
+    },
+    {
+     "do": "Type: cvelookup CVE-2012-90002",
+     "see": "CWE-22 path traversal, CVSS 5.3 Medium, fixed in 1.3.4."
+    },
+    {
+     "do": "Type: report --summary",
+     "see": "Recommend upgrade to 1.3.4 or later and verify package integrity."
+    }
+   ],
+   "answer": "The banner matches a backdoor flaw (CVE-2011-90001, Critical 9.8, CWE-506) and a traversal flaw (CVE-2012-90002, Medium 5.3, CWE-22). Neither is in KEV in the sandbox. The fix is upgrading to 1.3.4 or later and verifying the package source.",
+   "hint": "Search the product and the major.minor version, then read each entry's CVE ID."
+  },
+  {
+   "title": "Rank the remediation queue",
+   "sim": "scenario",
+   "scenario": "Eight findings sit in the queue for Example Corp. You have CVSS, KEV status, EPSS and asset criticality for each, and the SLA policy: emergency 2 days, urgent 7, standard 30, routine 90.",
+   "objective": "Order the eight findings and assign an SLA to each.",
+   "steps": [
+    {
+     "do": "Open the queue; sort by CVSS only.",
+     "see": "F1 9.8 lab VM tops the list; F5 7.5 public web server is fourth."
+    },
+    {
+     "do": "Add the KEV column.",
+     "see": "F5 and F7 show KEV = yes."
+    },
+    {
+     "do": "Add EPSS and asset criticality.",
+     "see": "F5 EPSS 0.91 on public web; F7 EPSS 0.78 on VPN gateway; F1 EPSS 0.02 on lab VM."
+    },
+    {
+     "do": "Drag F5 and F7 to the top and set SLA Emergency 2 days.",
+     "see": "Both marked Emergency."
+    },
+    {
+     "do": "Set F3 (HR database, 8.1, EPSS 0.40) to Urgent 7 days.",
+     "see": "SLA saved."
+    },
+    {
+     "do": "Set F1, F2, F4 by value: F2 Standard 30 days, F1 and F4 Routine 90 days.",
+     "see": "SLAs saved."
+    },
+    {
+     "do": "Submit the order.",
+     "see": "Checker: Order accepted. Reasoning matches exposure and KEV."
+    }
+   ],
+   "answer": "Final order: F5 and F7 (KEV, exposed, emergency 2 days), F3 (sensitive data, urgent 7 days), F2 (standard 30), then F1 and F4 (routine 90). F1 has a high CVSS score but low exploitation probability and no business value.",
+   "hint": "Put KEV on exposed assets first, then sensitive data, and push isolated low-value items last."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "What is the difference between a vulnerability and a threat?",
+   "options": [
+    "They are the same",
+    "A vulnerability is a weakness; a threat is something that could exploit it",
+    "A threat is a patch",
+    "A vulnerability is an attacker"
+   ],
+   "a": 1,
+   "why": "The weakness and the actor or event are separate concepts."
+  },
+  {
+   "q": "Risk is commonly expressed as:",
+   "options": [
+    "Likelihood x impact",
+    "CVSS + EPSS",
+    "Patches / hosts",
+    "Assets - threats"
+   ],
+   "a": 0,
+   "why": "Risk combines how likely harm is with how bad it would be."
+  },
+  {
+   "q": "CWE-79 identifies:",
+   "options": [
+    "A product version",
+    "Cross-site scripting weakness class",
+    "A scanner plugin",
+    "A patch bulletin"
+   ],
+   "a": 1,
+   "why": "CWE-79 is cross-site scripting."
+  },
+  {
+   "q": "Which organization runs the NVD?",
+   "options": [
+    "CISA",
+    "NIST",
+    "OWASP",
+    "IANA"
+   ],
+   "a": 1,
+   "why": "The National Vulnerability Database is run by NIST."
+  },
+  {
+   "q": "In the vector AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H, the severity band is:",
+   "options": [
+    "Medium",
+    "High",
+    "Critical",
+    "Low"
+   ],
+   "a": 2,
+   "why": "This vector scores 9.8, in the Critical band."
+  },
+  {
+   "q": "Which scan finds missing local patches most reliably?",
+   "options": [
+    "Unauthenticated port scan",
+    "Credentialed scan",
+    "Ping sweep",
+    "Banner grab"
+   ],
+   "a": 1,
+   "why": "Logging in lets the scanner read installed packages."
+  },
+  {
+   "q": "A finding reported on a patched, backported package is a:",
+   "options": [
+    "False positive",
+    "False negative",
+    "Zero-day",
+    "Exploit"
+   ],
+   "a": 0,
+   "why": "The issue is reported but is not actually present."
+  },
+  {
+   "q": "The strongest sign that a CVE is being used by attackers today is:",
+   "options": [
+    "High CVSS",
+    "KEV listing",
+    "Low complexity",
+    "Old CVE ID"
+   ],
+   "a": 1,
+   "why": "KEV requires evidence of exploitation in the wild."
+  },
+  {
+   "q": "A bug bounty researcher should:",
+   "options": [
+    "Test anything on the internet",
+    "Stay within the program scope and rules",
+    "Publish immediately",
+    "Avoid reporting"
+   ],
+   "a": 1,
+   "why": "Testing outside scope can be illegal and void safe harbor."
+  },
+  {
+   "q": "After applying a patch, the final verification step is:",
+   "options": [
+    "Delete the ticket",
+    "Rescan to confirm the fix",
+    "Lower the SLA",
+    "Disable logging"
+   ],
+   "a": 1,
+   "why": "A rescan confirms the vulnerability is closed."
+  }
+ ]
+}

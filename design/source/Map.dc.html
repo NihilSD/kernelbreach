@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Learning map</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+a{color:inherit}
+</style>
+</helmet>
+<div style="width:390px;height:1034px;box-sizing:border-box;position:relative;overflow:hidden;display:flex;flex-direction:column;background-color:#F3F5F9;background-image:radial-gradient(#D3DAE8 1px,transparent 1px);background-size:18px 18px;font-family:'Hanken Grotesk',sans-serif;color:#101B33">
+  <div style="flex:none;padding:56px 20px 0;box-sizing:border-box">
+    <h1 style="margin:0;font:700 32px/1.05 'Bricolage Grotesque',sans-serif;letter-spacing:-.01em">Your map</h1>
+    <p style="margin:8px 0 0;font:400 16px/1.4 'Hanken Grotesk',sans-serif;color:#46546F">Every line is a path. Every stop is a stage.</p>
+    <div style="margin-top:14px;display:flex;gap:16px;align-items:center;font:500 13px/1 'Hanken Grotesk',sans-serif;color:#46546F">
+      <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:14px;height:14px;box-sizing:border-box;border-radius:50%;border:4px solid #0F9D8A;background:#fff"></span>You are here</span>
+      <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:14px;height:14px;box-sizing:border-box;border-radius:50%;border:3px solid #9DB6FF;background:#fff"></span>Up next</span>
+      <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:14px;height:14px;box-sizing:border-box;border-radius:50%;border:4px solid #101B33;background:#fff"></span>You choose</span>
+    </div>
+  </div>
+
+  <div style="flex:1;min-height:0;position:relative;margin-top:8px">
+    <sc-for list="{{lines}}" as="l" hint-placeholder-count="7">
+      <div style="position:absolute;left:{{l.x}}px;top:{{l.y}}px;width:{{l.w}}px;height:{{l.h}}px;border-radius:4px;background:{{l.c}}"></div>
+    </sc-for>
+    <sc-for list="{{stations}}" as="s" hint-placeholder-count="20">
+      <div style="position:absolute;left:{{s.l}}px;top:{{s.t}}px;width:{{s.d}}px;height:{{s.d}}px;box-sizing:border-box;border-radius:50%;background:#fff;border:{{s.bw}}px solid {{s.bc}};box-shadow:{{s.sh}}"></div>
+    </sc-for>
+    <sc-for list="{{labels}}" as="b" hint-placeholder-count="8">
+      <div style="position:absolute;left:80px;top:{{b.y}}px;width:260px">
+        <div style="font:600 15px/18px 'Hanken Grotesk',sans-serif;color:#101B33">{{b.t}}</div>
+        <div style="font:400 13px/16px 'Hanken Grotesk',sans-serif;color:#5B6781">{{b.s}}</div>
+      </div>
+    </sc-for>
+    <sc-for list="{{names}}" as="n" hint-placeholder-count="4">
+      <div style="position:absolute;left:66px;top:{{n.y}}px;display:flex;align-items:center;gap:8px;font:700 15px/18px 'Hanken Grotesk',sans-serif;color:#101B33">
+        <span style="width:10px;height:10px;border-radius:50%;background:{{n.c}}"></span>{{n.t}}<span style="font:400 13px/18px 'Hanken Grotesk',sans-serif;color:#5B6781">{{n.s}}</span>
+      </div>
+    </sc-for>
+    <sc-for list="{{stageLabels}}" as="g" hint-placeholder-count="14">
+      <div style="position:absolute;left:{{g.x}}px;top:{{g.y}}px;width:76px;text-align:center;font:500 12px/14px 'Hanken Grotesk',sans-serif;color:#46546F">{{g.t}}</div>
+    </sc-for>
+    <a href="Module.dc.html" style="position:absolute;left:262px;top:34px;height:44px;display:flex;align-items:center;text-decoration:none">
+      <span style="padding:7px 11px;border-radius:999px;background:#101B33;color:#fff;font:700 11px/1 'Hanken Grotesk',sans-serif;letter-spacing:.06em">YOU ARE HERE</span>
+    </a>
+  </div>
+
+  <nav style="height:84px;flex:none;background:#fff;border-top:1px solid #DCE2EC;display:flex;padding:8px 12px 0;box-sizing:border-box">
+    <a href="Main.dc.html" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;text-decoration:none;color:#101B33">
+      <span style="width:60px;height:32px;border-radius:16px;background:#FFE066;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#101B33" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg></span>
+      <span style="font:700 12px/1 'Hanken Grotesk',sans-serif">Learn</span>
+    </a>
+    <a href="Review.dc.html" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;text-decoration:none;color:#5B6781">
+      <span style="width:60px;height:32px;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5B6781" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg></span>
+      <span style="font:600 12px/1 'Hanken Grotesk',sans-serif">Refresh</span>
+    </a>
+    <a href="Library.dc.html" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;text-decoration:none;color:#5B6781">
+      <span style="width:60px;height:32px;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5B6781" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h10"/></svg></span>
+      <span style="font:600 12px/1 'Hanken Grotesk',sans-serif">Library</span>
+    </a>
+    <a href="Me.dc.html" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;text-decoration:none;color:#5B6781">
+      <span style="width:60px;height:32px;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5B6781" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c1-4 4-6 8-6s7 2 8 6"/></svg></span>
+      <span style="font:600 12px/1 'Hanken Grotesk',sans-serif">You</span>
+    </a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1034}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const T = '#0F9D8A', TL = '#8FD3C9', BL = '#9DB6FF', INK = '#101B33', GREY = '#C9D1E0';
+    const P = '#C2358A', PL = '#E19AC5', R = '#E5532D', RL = '#F2A996', G = '#E0A100', GL = '#F0D080', V = '#7B4DFF', VL = '#BDA6FF';
+    const B = '#2F6BFF';
+    const lines = [
+      { x: 44, y: 56, w: 8, h: 188, c: T },
+      { x: 44, y: 244, w: 8, h: 240, c: B },
+      { x: 44, y: 484, w: 8, h: 264, c: GREY },
+      { x: 44, y: 544, w: 330, h: 8, c: PL },
+      { x: 44, y: 610, w: 330, h: 8, c: RL },
+      { x: 44, y: 676, w: 330, h: 8, c: GL },
+      { x: 44, y: 742, w: 330, h: 8, c: VL }
+    ];
+    const st = (cx, cy, d, bc, bw, sh) => ({ l: cx - d / 2, t: cy - d / 2, d: d, bc: bc, bw: bw, sh: sh || 'none' });
+    const stations = [
+      st(48, 56, 30, T, 6, '0 0 0 6px rgba(15,157,138,.2)'),
+      st(48, 120, 22, TL, 4), st(48, 184, 22, TL, 4),
+      st(48, 244, 34, INK, 5),
+      st(48, 304, 22, BL, 4), st(48, 364, 22, BL, 4), st(48, 424, 22, BL, 4),
+      st(48, 484, 34, INK, 5)
+    ];
+    const rows = [
+      { y: 548, c: PL, dot: P, name: 'Cyber Analyst', sub: '18 modules', xs: [120, 196, 272], ls: ['Foundations', 'Investigation', 'Response'] },
+      { y: 614, c: RL, dot: R, name: 'Penetration Testing', sub: '20 modules', xs: [120, 196, 272, 348], ls: ['Basics', 'Web and API', 'Systems', 'Advanced'] },
+      { y: 680, c: GL, dot: G, name: 'Security Engineering', sub: '18 modules', xs: [120, 196, 272], ls: ['Design', 'Platforms', 'Operate'] },
+      { y: 746, c: VL, dot: V, name: 'AI Security', sub: '14 modules', xs: [120, 196, 272, 348], ls: ['Foundations', 'Attacks', 'Assess', 'Defender'] }
+    ];
+    const names = [];
+    const stageLabels = [];
+    rows.forEach((r) => {
+      names.push({ y: r.y - 32, t: r.name, s: r.sub, c: r.dot });
+      r.xs.forEach((x, i) => {
+        stations.push(st(x, r.y, 20, r.c, 4));
+        stageLabels.push({ x: x - 38, y: r.y + 14, t: r.ls[i] });
+      });
+    });
+    const labels = [
+      { y: 39, t: 'Computers and networks', s: 'Module 3 of 11 · Networking' },
+      { y: 103, t: 'The web and Linux', s: '5 modules' },
+      { y: 167, t: 'Windows, scripting, basics', s: '3 modules' },
+      { y: 227, t: 'Security Core begins', s: 'Finish Cybersecurity Rookie to start' },
+      { y: 287, t: 'Core ideas', s: '5 modules' },
+      { y: 347, t: 'Defending systems', s: '5 modules' },
+      { y: 407, t: 'Offense and wrap-up', s: '5 modules' },
+      { y: 467, t: 'Choose a specialization', s: '4 paths, any order' }
+    ];
+    return { lines: lines, stations: stations, labels: labels, names: names, stageLabels: stageLabels };
+  }
+}
+</script>
+</body>
+</html>

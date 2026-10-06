@@ -1,0 +1,1042 @@
+{
+ "code": "AI-06",
+ "intro": "This module covers attacks aimed at machine learning models and their data rather than at the surrounding application. You will study data poisoning, backdoors, adversarial examples, model extraction, membership inference and model inversion, including what access an attacker needs for each. The module closes by comparing defenses and their costs in accuracy and privacy. Knowing these attack classes lets you threat-model ML systems, choose proportionate controls and recognize the signs of abuse in telemetry.",
+ "lessons": [
+  {
+   "title": "Data poisoning",
+   "why": "Models learn from data, so whoever can influence the data can influence the model, often without touching any code.",
+   "sections": [
+    {
+     "h": "Threat model",
+     "p": [
+      "Data poisoning is an attack on training integrity. The attacker needs write influence over some portion of the training set: a crowdsourcing platform, scraped web pages, a user feedback loop, a shared public dataset or a compromised labeling vendor. They do not need access to the model, code or infrastructure. Poisoning can be untargeted, degrading overall accuracy, or targeted, causing specific inputs to be misclassified while performance on everything else stays normal, which makes it hard to notice in aggregate metrics."
+     ]
+    },
+    {
+     "h": "Label flipping and clean-label",
+     "p": [
+      "In label flipping the attacker changes labels, for example marking spam as legitimate, so the learned boundary shifts. It is simple but often visible to a reviewer who inspects samples. Clean-label poisoning is stealthier: the attacker adds correctly labeled samples that are subtly modified so the model associates a feature with the target class, and a human check of image-label pairs finds nothing wrong. Because labels look right, detection must rely on feature-space analysis, influence measurement or provenance rather than eyeballing labels."
+     ]
+    },
+    {
+     "h": "How much data is enough",
+     "p": [
+      "Research on poisoning shows that a small fraction of the data can be enough to change behavior, especially for targeted goals and for large web-scraped corpora where a few thousand pages can matter. Studies of language models have found that a near-constant, small number of poisoned documents can implant a trigger behavior regardless of dataset size. The practical lesson is that low percentages are not safe: defenders must assume any uncontrolled source can contribute a harmful fraction and treat ingestion as a security boundary."
+     ]
+    },
+    {
+     "h": "Sanitizing datasets",
+     "p": [
+      "Defenses start with provenance: use trusted sources, hash and version datasets, and restrict who can add data. Then analyze content: deduplicate, find label conflicts between near-duplicate samples, cluster embeddings and inspect outliers, and use influence or spectral-signature methods to flag suspicious samples. Train with robust methods such as data augmentation, differential privacy noise or outlier-resistant losses. Finally, validate the trained model on a held-out trusted set and on targeted probes, and keep the ability to retrain from a clean snapshot when contamination is found. Keep a retrainable clean snapshot and a change log of every data batch, so that when contamination is found you can identify the affected sources, remove them and rebuild the model quickly without guessing which release was harmed."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Audit output (fictional)",
+    "text": "$ python audit.py train_labels.csv\nrows=20000 near_dup_pairs=3150\nlabel_conflicts=140\ntop_cluster_outliers=96 (source=vendor_b)\naction: hold vendor_b batch for review"
+   },
+   "example": "A spam filter retrains nightly on user reports. An attacker with 300 fake accounts reports their own promotional emails as not spam for weeks. Overall accuracy barely moves, but the filter now passes messages containing one specific product phrase. The team detects it by comparing per-source label rates, notices the 300 accounts account for 90 percent of the phrase, quarantines their reports, and requires account age and reputation thresholds before feedback is used.",
+   "terms": [
+    {
+     "term": "Data poisoning",
+     "def": "Corrupting training data to alter model behavior."
+    },
+    {
+     "term": "Label flipping",
+     "def": "Changing training labels to mislead the model."
+    },
+    {
+     "term": "Clean-label attack",
+     "def": "Poisoning with correctly labeled but crafted samples."
+    },
+    {
+     "term": "Targeted attack",
+     "def": "An attack that affects specific inputs while leaving general accuracy intact."
+    },
+    {
+     "term": "Provenance",
+     "def": "Documented origin and history of data."
+    }
+   ],
+   "check": [
+    {
+     "q": "What access does a poisoning attacker need?",
+     "options": [
+      "The inference API key only",
+      "Root on the GPU host",
+      "Influence over some training data",
+      "The model weights"
+     ],
+     "a": 2,
+     "why": "Poisoning works through data the model learns from."
+    },
+    {
+     "q": "Why is clean-label poisoning stealthy?",
+     "options": [
+      "It deletes logs",
+      "It encrypts data",
+      "It needs no data",
+      "Labels appear correct to reviewers"
+     ],
+     "a": 3,
+     "why": "The crafted samples are labeled truthfully so manual checks pass."
+    },
+    {
+     "q": "Which defense helps catch poisoned feedback?",
+     "options": [
+      "Dark mode",
+      "Lower learning rate",
+      "Bigger batch size",
+      "Per-source label statistics and reputation thresholds"
+     ],
+     "a": 3,
+     "why": "Concentration of odd labels in a few sources reveals abuse."
+    },
+    {
+     "q": "Is a poisoned fraction of under 1 percent always harmless?",
+     "options": [
+      "Yes, always",
+      "Only for text",
+      "No, small amounts can be enough for targeted goals",
+      "Only for images"
+     ],
+     "a": 2,
+     "why": "Research shows small numbers of samples can implant behavior."
+    }
+   ],
+   "recap": [
+    "Poisoning needs data influence, not model access.",
+    "Clean-label attacks defeat simple label review.",
+    "Control provenance, analyze data and test on trusted sets."
+   ]
+  },
+  {
+   "title": "Backdoors and trojaned models",
+   "why": "A backdoored model behaves normally until a hidden trigger appears, so ordinary accuracy tests do not reveal it.",
+   "sections": [
+    {
+     "h": "What a backdoor is",
+     "p": [
+      "A backdoor attack trains or modifies a model so that it responds to a specific trigger with an attacker-chosen output while behaving normally on clean inputs. The trigger might be a small pixel patch in an image, a rare word or phrase in text, or a particular audio tone. Test accuracy on a normal validation set stays high, so the model looks healthy. The attacker holds the key: any input carrying the trigger flips the output to the target class, for example approving a forged document or bypassing a face check."
+     ]
+    },
+    {
+     "h": "BadNets and how they arise",
+     "p": [
+      "BadNets, a 2017 research paper, showed the pattern clearly: poison part of the training set by stamping a trigger patch on images and relabeling them to a target class, and the network learns the shortcut. Backdoors enter through poisoned datasets, malicious outsourced training, and tampered pretrained models downloaded and fine-tuned by victims. Because transfer learning keeps most pretrained weights, a trojan in a base model can survive fine-tuning, turning the model supply chain into an attack path."
+     ]
+    },
+    {
+     "h": "Sleeper behavior in LLMs",
+     "p": [
+      "Language models can hold conditional behavior too. Research on sleeper agents showed models trained to write secure code when the stated year was 2023 but insert vulnerabilities when it was 2024, and that standard safety training did not always remove the behavior. The lesson for defenders is that apparent safety in evaluation does not prove absence of triggered behavior. Tests must probe unusual contexts, dates, phrases and formats, and models from untrusted sources should be treated as potentially hostile code."
+     ]
+    },
+    {
+     "h": "Detection approaches",
+     "p": [
+      "Neural Cleanse, a published technique, searches for the smallest perturbation that flips every input to each label; a label whose reverse-engineered trigger is anomalously small suggests a backdoor. Other methods include activation clustering, spectral signatures, fine-pruning that removes dormant neurons, and STRIP, which checks whether overlaying inputs leaves predictions suspiciously stable. None is complete, so combine them with provenance controls, trusted sources, signed artifacts and behavior tests, and retrain from clean data when a trojan is confirmed. Treat every externally sourced model as untrusted code: scan it, run it first in an isolated environment, compare its behavior against a trusted baseline, and require a signed provenance record before it enters any production pipeline."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Detector output (fictional)",
+    "text": "$ nc_scan model.onnx --classes 10\nclass 0: trigger_l1=210\nclass 3: trigger_l1=19   <-- anomaly\nclass 7: trigger_l1=198\nMAD anomaly index (class 3): 3.8"
+   },
+   "example": "A company fine-tunes a downloaded image classifier for access badges. Accuracy is 98 percent, yet a reviewer runs a trojan scan and finds class 3, authorized visitor, needs a trigger patch far smaller than any other class. Stamping that patch on unauthorized photos gets them accepted. The team discards the model, obtains a signed base model from the vendor, retrains on audited data, and adds trigger scans to the release gate.",
+   "terms": [
+    {
+     "term": "Backdoor",
+     "def": "Hidden model behavior activated by a trigger."
+    },
+    {
+     "term": "Trigger",
+     "def": "The input pattern that activates a backdoor."
+    },
+    {
+     "term": "BadNets",
+     "def": "A foundational research demonstration of trigger-based backdoors in neural networks."
+    },
+    {
+     "term": "Neural Cleanse",
+     "def": "A method that reverse-engineers minimal triggers to detect backdoors."
+    },
+    {
+     "term": "Sleeper behavior",
+     "def": "Malicious behavior that stays dormant until a condition is met."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why do backdoored models pass normal tests?",
+     "options": [
+      "They lack weights",
+      "They run slowly",
+      "They are encrypted",
+      "They behave normally without the trigger"
+     ],
+     "a": 3,
+     "why": "Clean accuracy stays high, so standard validation misses them."
+    },
+    {
+     "q": "Neural Cleanse flags a backdoor when:",
+     "options": [
+      "All labels are equal",
+      "Loss is zero",
+      "One label needs an anomalously small trigger",
+      "Training is slow"
+     ],
+     "a": 2,
+     "why": "A small universal trigger suggests a planted shortcut."
+    },
+    {
+     "q": "How can a trojan reach your model?",
+     "options": [
+      "Only through your own code",
+      "Through monitor brightness",
+      "Only via DNS",
+      "Through a tampered pretrained base model"
+     ],
+     "a": 3,
+     "why": "Fine-tuning often preserves a hidden backdoor from the base."
+    },
+    {
+     "q": "Sleeper agent research showed that:",
+     "options": [
+      "Models never change",
+      "Backdoors are impossible",
+      "Safety training did not always remove conditional behavior",
+      "Logging stops attacks"
+     ],
+     "a": 2,
+     "why": "Evaluations can miss behavior that appears only under triggers."
+    }
+   ],
+   "recap": [
+    "Backdoors respond to triggers and hide behind normal accuracy.",
+    "They enter via poisoned data and tampered base models.",
+    "Scan for anomalous triggers and use trusted, signed sources."
+   ]
+  },
+  {
+   "title": "Adversarial examples and evasion",
+   "why": "Small, targeted input changes can flip a model decision at inference time without any access to training.",
+   "sections": [
+    {
+     "h": "Evasion at inference time",
+     "p": [
+      "An adversarial example is an input modified slightly, often imperceptibly, to cause a wrong prediction. Evasion attacks happen after deployment: the attacker crafts inputs to bypass a malware detector, spam filter, fraud model or image classifier. Because neural networks are highly sensitive along certain directions in input space, tiny changes to pixels or features can cross a decision boundary. In white-box settings the attacker knows the model and uses gradients; in black-box settings they estimate the behavior from outputs."
+     ]
+    },
+    {
+     "h": "FGSM and PGD",
+     "p": [
+      "The Fast Gradient Sign Method (FGSM) takes the gradient of the loss with respect to the input and moves one step of size epsilon in the direction of its sign: x_adv = x + epsilon * sign(grad). It is fast but crude. Projected Gradient Descent (PGD) repeats smaller steps and projects the result back into an epsilon-sized ball around the original, producing stronger perturbations and serving as the standard robustness benchmark. Epsilon controls how visible the change is; evaluations report accuracy at a stated epsilon and norm, typically L-infinity."
+     ]
+    },
+    {
+     "h": "Transferability",
+     "p": [
+      "Adversarial examples often transfer: an input crafted against one model frequently fools a different model trained on similar data. This enables black-box attacks, where the adversary builds a local surrogate model, crafts examples against it, and replays them on the real target. Transferability means keeping weights secret is not a complete defense, and it connects to extraction: an attacker who clones a model through queries gets a better surrogate for crafting evasions. Physical-world versions exist too, such as altered stickers affecting traffic sign classifiers in research."
+     ]
+    },
+    {
+     "h": "Robustness measures",
+     "p": [
+      "The strongest empirical defense is adversarial training, which adds adversarial examples generated during training so the model learns to resist them; it costs compute and some clean accuracy. Others include input preprocessing, randomized smoothing for certified robustness, ensembles, anomaly detection on inputs and limiting how much feedback the API gives. Many early defenses failed against adaptive attackers, so evaluate against attacks designed to bypass your specific defense, and measure robust accuracy at declared epsilon values rather than relying on a single benchmark. Remember that robustness claims are only meaningful with a stated threat model, so record the norm, the epsilon, the attack used and whether the attacker was adaptive when you report results to stakeholders or auditors."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "FGSM formula",
+    "text": "x_adv = clip(x + eps * sign(grad_x L(model(x), y)), 0, 1)\n\n# eps=0.00 -> predicted: cat (0.97)\n# eps=0.03 -> predicted: cat (0.71)\n# eps=0.08 -> predicted: dog (0.62)"
+   },
+   "example": "A fictional image moderation model labels photos as safe or unsafe. A tester with a local copy runs FGSM and finds the prediction flips from unsafe to safe at epsilon 0.03 on a 0 to 1 pixel scale, a change invisible to humans. The team adds adversarial training with PGD, retests at epsilon 0.03 and sees accuracy under attack rise from 4 percent to 58 percent, while clean accuracy falls two points, a trade they accept for this use.",
+   "terms": [
+    {
+     "term": "Adversarial example",
+     "def": "An input perturbed to cause misclassification."
+    },
+    {
+     "term": "FGSM",
+     "def": "A one-step attack using the sign of the input gradient."
+    },
+    {
+     "term": "PGD",
+     "def": "An iterative attack that projects perturbations into an epsilon-bounded region."
+    },
+    {
+     "term": "Transferability",
+     "def": "Adversarial inputs working across different models."
+    },
+    {
+     "term": "Adversarial training",
+     "def": "Training on adversarial examples to improve robustness."
+    }
+   ],
+   "check": [
+    {
+     "q": "FGSM moves the input in the direction of:",
+     "options": [
+      "The mean pixel",
+      "Random noise",
+      "The label index",
+      "The sign of the loss gradient"
+     ],
+     "a": 3,
+     "why": "It uses sign(grad) scaled by epsilon."
+    },
+    {
+     "q": "What does transferability enable?",
+     "options": [
+      "Black-box attacks using a surrogate model",
+      "Faster training",
+      "Encrypted inference",
+      "Weight compression"
+     ],
+     "a": 0,
+     "why": "Examples crafted on a copy often fool the target."
+    },
+    {
+     "q": "The main cost of adversarial training is:",
+     "options": [
+      "Extra compute and some clean accuracy",
+      "Higher DNS latency",
+      "Lost labels",
+      "More API keys"
+     ],
+     "a": 0,
+     "why": "Generating attacks during training is expensive and can reduce accuracy."
+    },
+    {
+     "q": "PGD is stronger than FGSM because it:",
+     "options": [
+      "Uses no gradient",
+      "Deletes layers",
+      "Changes labels",
+      "Iterates and projects back into the epsilon ball"
+     ],
+     "a": 3,
+     "why": "Multiple small steps find better perturbations."
+    }
+   ],
+   "recap": [
+    "Evasion modifies inputs at inference time.",
+    "FGSM and PGD use gradients; epsilon sets perturbation size.",
+    "Adversarial training helps but must be tested against adaptive attacks."
+   ]
+  },
+  {
+   "title": "Model extraction and stealing",
+   "why": "Attackers can clone a model by querying it, taking intellectual property and gaining a better base for further attacks.",
+   "sections": [
+    {
+     "h": "Query-based cloning",
+     "p": [
+      "Model extraction, also called model stealing, reconstructs a functional copy of a target model using only access to its prediction API. The attacker sends many inputs, records the outputs (labels, probabilities or logits) and trains a substitute model on the pairs. Early research cloned commercial prediction services with relatively modest query counts. Richer outputs such as full probability vectors leak more information per query than a bare label, so the response format directly affects how cheaply a model can be copied."
+     ]
+    },
+    {
+     "h": "Why it matters",
+     "p": [
+      "A stolen model removes the owner's competitive advantage and bypasses the cost of training and licensing. It also helps further attacks: a local surrogate allows unlimited white-box experimentation, crafted adversarial examples that transfer to the original, and membership inference tests. Related theft goals include extracting hyperparameters, architecture hints or, for language models, a distilled copy trained on a provider's outputs. Terms of service often forbid this, but technical controls are needed because contracts do not stop a determined actor."
+     ]
+    },
+    {
+     "h": "Detection signals",
+     "p": [
+      "Extraction usually looks different from normal use: very high query volume from one key or a coordinated set of keys, systematic coverage of the input space such as grids or random uniform samples, inputs unlike real user data, low repetition, and queries near decision boundaries. Log requests with key identity, timing and input statistics. In a SIEM, alert on per-key volume well above the baseline, high entropy or unnatural input distributions, and many accounts created from one source sharing similar query patterns."
+     ]
+    },
+    {
+     "h": "Countermeasures",
+     "p": [
+      "Layer defenses. Require authentication, enforce rate limits and quotas, and price or throttle bulk use. Reduce output detail by returning top-1 labels or rounded confidences rather than logits. Add controlled output perturbation, accepting slight accuracy loss. Use watermarking, either embedded behavior in specific rare inputs or text watermarks, so a stolen copy can later be identified. Apply monitoring to ban abusive keys, and limit the number of near-duplicate probing queries. No single measure is complete, so aim to raise the attacker's cost beyond the model's value. Finally, consider the business context: a model whose value lies in rare proprietary data deserves stricter limits than a commodity classifier, and legal terms plus contractual audit rights give you recourse that technical controls alone cannot supply."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Detection query (fictional)",
+    "text": "index=inference | stats count dc(input_hash) as uniq avg(entropy) by api_key\n| where count>50000 AND uniq/count>0.98\n\napi_key=k-7731 count=212400 uniq=0.99 avg_entropy=7.9"
+   },
+   "example": "A fictional credit-scoring API returns full probability vectors. Logs show key k-7731 sending 212,000 nearly unique queries in two days, forming a regular grid across the feature ranges. Normal customers send about 400 per day, mostly repeated. The team suspends the key, reduces responses to a score band, adds a 5,000-per-day quota and implants three rare canary inputs with fixed outputs so any clone can be identified later.",
+   "terms": [
+    {
+     "term": "Model extraction",
+     "def": "Creating a functional copy of a model through its outputs."
+    },
+    {
+     "term": "Surrogate model",
+     "def": "A local substitute trained to mimic a target."
+    },
+    {
+     "term": "Output perturbation",
+     "def": "Adding noise or rounding to reduce information leaked."
+    },
+    {
+     "term": "Watermarking",
+     "def": "Embedding identifiable behavior to prove ownership."
+    },
+    {
+     "term": "Quota",
+     "def": "A cap on usage per key or period."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does an extraction attacker need?",
+     "options": [
+      "The training dataset",
+      "Query access to the model outputs",
+      "Physical server access",
+      "Source code"
+     ],
+     "a": 1,
+     "why": "Inputs and responses are enough to train a substitute."
+    },
+    {
+     "q": "Which output leaks the most information per query?",
+     "options": [
+      "Top-1 label only",
+      "A refusal",
+      "Full probability vectors",
+      "HTTP 429"
+     ],
+     "a": 2,
+     "why": "Probabilities reveal more about the decision function than a label."
+    },
+    {
+     "q": "A strong detection signal of extraction is:",
+     "options": [
+      "Normal daily pattern",
+      "Low volume",
+      "High-volume systematic unique queries from one key",
+      "Repeated identical queries"
+     ],
+     "a": 2,
+     "why": "Coverage-style querying differs from real usage."
+    },
+    {
+     "q": "A purpose of watermarking is to:",
+     "options": [
+      "Speed inference",
+      "Encrypt weights",
+      "Identify a stolen copy",
+      "Remove bias"
+     ],
+     "a": 2,
+     "why": "Embedded behavior can prove the clone derives from your model."
+    }
+   ],
+   "recap": [
+    "Extraction clones a model using only its API.",
+    "Detect with volume and input distribution anomalies.",
+    "Combine rate limits, reduced outputs and watermarking."
+   ]
+  },
+  {
+   "title": "Membership inference",
+   "why": "An attacker can sometimes tell whether a particular record was in the training data, which is a privacy breach on its own.",
+   "sections": [
+    {
+     "h": "The privacy question",
+     "p": [
+      "Membership inference asks: was this specific record used to train the model? The answer can be sensitive. If a model was trained on patients with a particular disease, learning that a person's record is a member reveals that person's health condition. The attacker typically needs only query access and a candidate record, and often a dataset resembling the training distribution. Regulations such as GDPR treat membership as personal data exposure when it reveals attributes about an identifiable person."
+     ]
+    },
+    {
+     "h": "The confidence gap",
+     "p": [
+      "Models usually behave differently on data they saw during training. They are more confident and have lower loss on members than on non-members, especially when overfit. The simplest attack thresholds on confidence or loss: high confidence on the true label suggests membership. Stronger attacks, such as shadow-model methods and likelihood-ratio attacks, train reference models to learn what member and non-member outputs look like and compare. The size of the generalization gap between training and test performance is a good proxy for risk."
+     ]
+    },
+    {
+     "h": "Measuring risk",
+     "p": [
+      "Evaluate by running the attack against your own model with known members and non-members and reporting attack accuracy or the area under the ROC curve (AUC), where 0.5 means no better than guessing. Low-false-positive-rate metrics matter, because an attack that is right with high confidence on a few records can still be harmful. Compare confidence on training versus held-out samples. Tools such as ML Privacy Meter and the privacy modules of common libraries automate this audit before release."
+     ]
+    },
+    {
+     "h": "Reducing leakage",
+     "p": [
+      "Reduce overfitting with regularization (weight decay, dropout), early stopping, more data and smaller models. Limit outputs: return labels or rounded scores instead of full vectors. The principled defense is differential privacy, such as DP-SGD, which clips per-example gradients and adds noise so that any single record has a bounded influence, quantified by an epsilon budget and delta. The cost is lower accuracy and slower training, so tune the privacy budget to the sensitivity of the data. Also remember that auditing is cheap compared with a breach: run the confidence-gap test routinely on every retrained model, store the AUC in the release record, and block deployment when it exceeds an agreed threshold for sensitive data."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Audit result (fictional)",
+    "text": "train_acc=0.99 test_acc=0.81 gap=0.18\nmean_conf members=0.97 non-members=0.74\nthreshold attack AUC=0.78\nafter DP-SGD (eps=8): gap=0.04 AUC=0.54"
+   },
+   "example": "A hospital team trains a classifier on 5,000 patient records and sees 99 percent training accuracy against 81 percent test accuracy. Their audit attack reaches an AUC of 0.78, which means membership is quite predictable. They add dropout, early stopping and DP-SGD with epsilon 8, then return only a risk band to users. The AUC drops to 0.54, near chance, and test accuracy falls only three points.",
+   "terms": [
+    {
+     "term": "Membership inference",
+     "def": "Determining whether a record was in the training set."
+    },
+    {
+     "term": "Generalization gap",
+     "def": "The difference between training and test performance."
+    },
+    {
+     "term": "AUC",
+     "def": "Area under the ROC curve; 0.5 equals random guessing."
+    },
+    {
+     "term": "Differential privacy",
+     "def": "A mathematical guarantee limiting the influence of any single record."
+    },
+    {
+     "term": "DP-SGD",
+     "def": "Training with per-example gradient clipping and added noise."
+    }
+   ],
+   "check": [
+    {
+     "q": "The main signal exploited by simple membership inference is:",
+     "options": [
+      "Higher confidence on training members",
+      "Longer response time only",
+      "Port number",
+      "File size"
+     ],
+     "a": 0,
+     "why": "Models are more confident on data they trained on."
+    },
+    {
+     "q": "An attack AUC of 0.5 means:",
+     "options": [
+      "No better than guessing",
+      "Perfect attack",
+      "Data is poisoned",
+      "Model is stolen"
+     ],
+     "a": 0,
+     "why": "AUC 0.5 is chance level."
+    },
+    {
+     "q": "Which is the principled privacy defense?",
+     "options": [
+      "Differential privacy",
+      "Larger fonts",
+      "Longer prompts",
+      "More GPUs"
+     ],
+     "a": 0,
+     "why": "DP bounds each record's influence on the model."
+    },
+    {
+     "q": "Why does overfitting increase risk?",
+     "options": [
+      "It speeds inference",
+      "It changes labels",
+      "It deletes data",
+      "It widens the member and non-member gap"
+     ],
+     "a": 3,
+     "why": "A wider gap makes membership easier to tell."
+    }
+   ],
+   "recap": [
+    "Membership inference reveals whether a record was in training.",
+    "The confidence gap and overfitting drive risk.",
+    "Regularize, limit outputs and use differential privacy."
+   ]
+  },
+  {
+   "title": "Model inversion and training data extraction",
+   "why": "Beyond learning membership, attackers can reconstruct features or even exact training text from a model.",
+   "sections": [
+    {
+     "h": "Model inversion",
+     "p": [
+      "Model inversion uses model outputs to reconstruct information about training inputs or sensitive attributes. In the classic face recognition study, researchers started from a blank image and used gradient information plus confidence scores to recover a recognizable approximation of a person in a class. In another case, a pharmacogenetics model leaked patient genetic markers when attackers knew other attributes and the output. Richer outputs and white-box access make inversion easier, while label-only access makes it far harder."
+     ]
+    },
+    {
+     "h": "Attribute inference",
+     "p": [
+      "A related risk is attribute inference, where the attacker knows part of a record and the model output helps fill in a sensitive field, such as inferring a health condition from other known fields and the model prediction. The attacker's required knowledge matters: what auxiliary data they hold, whether they can query repeatedly, and whether the output includes confidence values. Threat modeling should state these prerequisites explicitly, since many published attacks assume access that a real deployment may not grant."
+     ]
+    },
+    {
+     "h": "LLM memorization extraction",
+     "p": [
+      "Large language models memorize some training text, especially repeated or unusually distinctive sequences. In published research, attackers generated large volumes of text and filtered for outputs matching known data, recovering names, phone numbers and code, and a divergence-style prompt that made a chat model repeat a token caused it to emit memorized content. Larger models and duplicated data memorize more. Extracted content can include personal information, copyrighted material and credentials that were present in the corpus."
+     ]
+    },
+    {
+     "h": "Mitigations",
+     "p": [
+      "Remove sensitive data before training and deduplicate the corpus, since repetition raises memorization. Apply differential privacy for sensitive fine-tuning, limit output detail, and filter generations that match known sensitive patterns or long verbatim spans. Test with canary sequences planted in training data and measure how often they surface. Add rate limits to slow bulk probing and monitor for repetition or divergence prompts. Document residual risk, because no filter guarantees a model never reproduces a memorized string. Because filters cannot guarantee safety, the strongest control is keeping sensitive material out of the training corpus in the first place, and recording which data classes were ever used so that deletion requests can be assessed honestly."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Canary test (fictional)",
+    "text": "canaries_planted=50 inserted_count=1..20\nprompt_prefix_hit_rate (count=1)=0.00\nprompt_prefix_hit_rate (count=20)=0.34\n=> duplicates drive memorization"
+   },
+   "example": "A team fine-tunes a code assistant on internal repositories and plants 50 random canary strings with varying repetition. Prompting with a canary prefix returns the full string 34 percent of the time for strings repeated 20 times and never for strings seen once. They respond by deduplicating the corpus, scrubbing secrets with a scanner, enabling an output filter for key-like patterns, and rerunning the canary test before each release.",
+   "terms": [
+    {
+     "term": "Model inversion",
+     "def": "Reconstructing training-related information from model outputs."
+    },
+    {
+     "term": "Attribute inference",
+     "def": "Inferring a sensitive attribute of a person from model behavior."
+    },
+    {
+     "term": "Memorization",
+     "def": "A model storing and reproducing specific training sequences."
+    },
+    {
+     "term": "Deduplication",
+     "def": "Removing repeated samples from a corpus."
+    },
+    {
+     "term": "Canary",
+     "def": "A planted unique string used to measure leakage."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which factor raises memorization risk in LLMs?",
+     "options": [
+      "Duplicated training sequences",
+      "Shorter prompts",
+      "A smaller font",
+      "A faster GPU only"
+     ],
+     "a": 0,
+     "why": "Repeated data is memorized more often."
+    },
+    {
+     "q": "Model inversion attacks are easier with:",
+     "options": [
+      "Label-only output",
+      "Confidence scores or white-box access",
+      "Encryption",
+      "Rate limits"
+     ],
+     "a": 1,
+     "why": "More detailed output gives more information to exploit."
+    },
+    {
+     "q": "Why plant canary strings?",
+     "options": [
+      "To measure memorization and leakage",
+      "To speed training",
+      "To compress models",
+      "To label data"
+     ],
+     "a": 0,
+     "why": "Their reappearance in output quantifies extraction risk."
+    },
+    {
+     "q": "Which mitigation reduces verbatim leakage?",
+     "options": [
+      "Disabling logging",
+      "Larger context windows",
+      "Dedup, scrubbing and output filters",
+      "Higher temperature only"
+     ],
+     "a": 2,
+     "why": "Removing sensitive and duplicated data and filtering outputs lowers exposure."
+    }
+   ],
+   "recap": [
+    "Inversion and extraction recover information from outputs.",
+    "LLMs memorize duplicated and distinctive text.",
+    "Scrub, deduplicate, apply DP and test with canaries."
+   ]
+  },
+  {
+   "title": "Defense selection and trade-offs",
+   "why": "No single control stops every attack, so you choose defenses by threat, attacker access and the accuracy or privacy you can afford to give up.",
+   "sections": [
+    {
+     "h": "Start from attacker access",
+     "p": [
+      "Match defenses to what the attacker can reach. Data poisoning requires influence over training data, so controls live in the data pipeline: provenance, vetting, review and trusted sources. Backdoors arrive through data and base models, so add scanning and signed artifacts. Evasion, extraction and membership inference need only query access, so controls live at the API: rate limits, output reduction, monitoring and model-level hardening. Writing down who the attacker is, what they can see and submit, and what they want narrows the options quickly."
+     ]
+    },
+    {
+     "h": "Control families",
+     "p": [
+      "Data controls include provenance, deduplication, label audits and anomaly detection. Model-level controls include adversarial training, regularization, differential privacy and robust architectures. Interface controls include authentication, quotas, output rounding and query monitoring. Process controls include red teaming, evaluation gates, signed models and incident response. Defense in depth works because each family covers different attacker access. A control that is excellent against one attack can be useless against another, for example rate limiting does nothing against a poisoned base model."
+     ]
+    },
+    {
+     "h": "Trade-offs",
+     "p": [
+      "Controls have costs. Adversarial training raises robustness but increases training time and lowers clean accuracy. Differential privacy protects members but reduces utility, most visibly for small datasets and rare classes. Output perturbation and label-only responses hinder extraction and inference yet frustrate legitimate users who want calibrated probabilities. Rate limits can hurt heavy but honest customers. Because privacy and robustness can pull against accuracy and sometimes against each other, define target metrics for all three and measure them together on every release."
+     ]
+    },
+    {
+     "h": "Choosing in practice",
+     "p": [
+      "A practical method is a table of threats against attacker access, impact and recommended controls, reviewed with product owners. Rank by risk, implement cheap and broad controls first (access control, logging, rate limits, data vetting), then add model-level hardening where the threat justifies the cost. Verify with attacks you run yourself and keep results as evidence. Revisit the choices when the deployment changes, for example exposing a private model through a public API, since that changes the attacker's access and invalidates earlier assumptions. Document the accepted residual risk, the owner who accepted it and the review date, since a defense decision without an owner tends to be forgotten until the next incident forces the conversation again."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Selection matrix (fictional)",
+    "text": "threat            access       first control\npoisoning         data write   provenance + vetting\nbackdoor          base model   signed model + scan\nevasion           query        adv. training\nextraction        query        rate limit + monitor\nmembership        query        DP + less output"
+   },
+   "example": "A bank plans to expose a fraud model through a partner API. Threat review notes partners can query heavily but cannot touch training data. Priorities: authenticated keys with quotas and monitoring against extraction, score bands instead of raw probabilities, PGD-based robustness testing for evasion, and a membership inference audit before launch. Data vetting stays important internally but is not the main control for this exposure. Results are logged in the model risk file.",
+   "terms": [
+    {
+     "term": "Attacker access",
+     "def": "What an adversary can see, submit or modify."
+    },
+    {
+     "term": "Defense in depth",
+     "def": "Layering independent controls so one failure is not fatal."
+    },
+    {
+     "term": "Utility",
+     "def": "The usefulness or accuracy of a model for its task."
+    },
+    {
+     "term": "Robust accuracy",
+     "def": "Accuracy measured under adversarial attack."
+    },
+    {
+     "term": "Privacy budget",
+     "def": "The epsilon limit that quantifies differential privacy loss."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which control best fits an extraction threat?",
+     "options": [
+      "Label audits",
+      "Rate limits and query monitoring",
+      "Data augmentation",
+      "Hash-pinned datasets"
+     ],
+     "a": 1,
+     "why": "Extraction needs many queries, so API controls apply."
+    },
+    {
+     "q": "What is the usual cost of adversarial training?",
+     "options": [
+      "Training time and some clean accuracy",
+      "More training data",
+      "None",
+      "Lost labels"
+     ],
+     "a": 0,
+     "why": "Generating attacks adds compute and can lower clean accuracy."
+    },
+    {
+     "q": "Why does exposing a model via public API change the plan?",
+     "options": [
+      "The model shrinks",
+      "Labels flip",
+      "GPU fails",
+      "Attacker access changes"
+     ],
+     "a": 3,
+     "why": "New query access enables extraction, evasion and inference."
+    },
+    {
+     "q": "Which is true about defenses?",
+     "options": [
+      "One control is enough",
+      "Rate limits stop poisoning",
+      "No single defense covers every attack",
+      "DP stops all attacks"
+     ],
+     "a": 2,
+     "why": "Different attacks need different controls in layers."
+    }
+   ],
+   "recap": [
+    "Choose controls by attacker access and threat.",
+    "Defenses trade off accuracy, privacy and robustness.",
+    "Layer data, model, interface and process controls and verify them."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Spot poisoned training samples",
+   "sim": "file-explorer",
+   "scenario": "A fictional image dataset at /data/signs holds 12 folders of labeled traffic sign images. A data vendor delivered the latest batch, and the model team suspects mislabeled images and a repeated sticker-like patch. Use the file explorer to inspect samples and flag those that look poisoned.",
+   "objective": "Identify flipped-label samples and the repeated trigger patch.",
+   "steps": [
+    {
+     "do": "Open /data/signs/stop and view thumbnails.",
+     "see": "42 images; 3 show a speed limit sign."
+    },
+    {
+     "do": "Open the metadata for the 3 odd files.",
+     "see": "files: s_0381.png, s_0392.png, s_0407.png source=vendor_b label=stop"
+    },
+    {
+     "do": "Open /data/signs/yield and view thumbnails.",
+     "see": "57 images; 5 contain a small yellow square in the lower right corner."
+    },
+    {
+     "do": "Run the explorer's 'find similar' on the yellow square.",
+     "see": "61 matches across 6 folders, all source=vendor_b"
+    },
+    {
+     "do": "Compare the label of the matches with their sign content.",
+     "see": "58 of 61 are labeled speed_limit_80 though signs vary."
+    },
+    {
+     "do": "Select all vendor_b files from the batch and mark them quarantined.",
+     "see": "64 files quarantined; clean set rebuilt (11,936 files)."
+    }
+   ],
+   "answer": "Poisoned samples: 3 speed limit images labeled stop (label flipping) and about 61 images with a yellow corner patch labeled speed_limit_80 (trigger backdoor), all from vendor_b. Action: quarantine the batch, notify the vendor and retrain from the clean set.",
+   "hint": "Check the source field in the metadata."
+  },
+  {
+   "title": "Run FGSM in a sandbox",
+   "sim": "terminal",
+   "scenario": "In a lab sandbox you have a provided script fgsm.py and a toy digit classifier. Nothing connects to external systems. You will run the attack at increasing epsilon values to find the smallest perturbation that changes the prediction for a sample image.",
+   "objective": "Report the epsilon at which the prediction flips.",
+   "steps": [
+    {
+     "do": "Run: python fgsm.py --image d7.png --eps 0.00",
+     "see": "pred=7 conf=0.98"
+    },
+    {
+     "do": "Run: python fgsm.py --image d7.png --eps 0.05",
+     "see": "pred=7 conf=0.84"
+    },
+    {
+     "do": "Run: python fgsm.py --image d7.png --eps 0.10",
+     "see": "pred=7 conf=0.51"
+    },
+    {
+     "do": "Run: python fgsm.py --image d7.png --eps 0.15",
+     "see": "pred=2 conf=0.57  FLIPPED"
+    },
+    {
+     "do": "Run: python fgsm.py --image d7.png --eps 0.12",
+     "see": "pred=7 conf=0.44"
+    },
+    {
+     "do": "Run: python fgsm.py --image d7.png --eps 0.14",
+     "see": "pred=2 conf=0.49  FLIPPED"
+    }
+   ],
+   "answer": "The prediction first flips between epsilon 0.12 and 0.14, so the minimal tested flipping epsilon is about 0.14 on a 0 to 1 pixel scale. Confidence drops steadily with epsilon, showing the model is not robust. Mitigation: adversarial training with PGD and re-evaluation.",
+   "hint": "Increase epsilon in small steps and watch the confidence."
+  },
+  {
+   "title": "Detect extraction in API logs",
+   "sim": "siem",
+   "scenario": "A fictional prediction API at api.example.com serves partner keys. Support reports unusual load. Use the SIEM to find systematic high-volume querying from one key and write a detection rule that would catch it again.",
+   "objective": "Identify the extracting key and create a rule using volume and uniqueness.",
+   "steps": [
+    {
+     "do": "Run: index=inference | stats count by api_key | sort -count",
+     "see": "k-7731 212400; k-2204 1930; k-1188 1544; k-3090 1210"
+    },
+    {
+     "do": "Run: index=inference api_key=k-7731 | stats dc(input_hash) as uniq count",
+     "see": "uniq=211900 count=212400 (99.8 percent unique)"
+    },
+    {
+     "do": "Run: index=inference api_key=k-2204 | stats dc(input_hash) as uniq count",
+     "see": "uniq=410 count=1930 (21 percent unique)"
+    },
+    {
+     "do": "Run: index=inference api_key=k-7731 | timechart span=1h count",
+     "see": "Steady 4,400 queries per hour for 48 hours, no daily dip."
+    },
+    {
+     "do": "Open three sample inputs from k-7731.",
+     "see": "feature vectors forming a regular grid: age=18,19,20 ... income=1000,2000,3000 ..."
+    },
+    {
+     "do": "Save rule: count>50000 per 24h AND uniq_ratio>0.95, alert severity high.",
+     "see": "Rule saved: EXTRACTION_SUSPECT. Test run matches k-7731 only."
+    }
+   ],
+   "answer": "Key k-7731 is extracting the model: 212,400 queries with 99.8 percent unique grid-like inputs at a constant rate. The rule alerts on over 50,000 queries per day with a uniqueness ratio above 0.95. Response: suspend the key, reduce output detail and set quotas.",
+   "hint": "Compare unique input ratio between keys."
+  },
+  {
+   "title": "Score membership inference risk",
+   "sim": "code-editor",
+   "scenario": "A short Python script computes model confidence for training and test samples. Part of it is missing. Complete the code to threshold on confidence and compute AUC to judge membership inference risk for a fictional model.",
+   "objective": "Finish the script and report the attack AUC and what it means.",
+   "steps": [
+    {
+     "do": "Open mia.py and read the TODO markers.",
+     "see": "TODO 1: compute conf_train; TODO 2: compute conf_test; TODO 3: AUC"
+    },
+    {
+     "do": "Fill TODO 1 with conf_train = model.predict_proba(X_train).max(axis=1)",
+     "see": "Line accepted."
+    },
+    {
+     "do": "Fill TODO 2 with conf_test = model.predict_proba(X_test).max(axis=1)",
+     "see": "Line accepted."
+    },
+    {
+     "do": "Fill TODO 3 by labeling train as 1, test as 0 and calling roc_auc_score(labels, scores).",
+     "see": "Line accepted."
+    },
+    {
+     "do": "Run the script.",
+     "see": "mean conf train=0.96 test=0.78 AUC=0.77"
+    },
+    {
+     "do": "Enable the regularized model option and run again.",
+     "see": "mean conf train=0.88 test=0.82 AUC=0.58"
+    }
+   ],
+   "answer": "The first model has an attack AUC of 0.77: confidence reliably separates members from non-members, a notable privacy risk caused by overfitting. After regularization the AUC is 0.58, much closer to 0.5. Differential privacy would reduce it further.",
+   "hint": "The score is the maximum predicted probability."
+  },
+  {
+   "title": "Choose defenses per attack",
+   "sim": "scenario",
+   "scenario": "Five fictional attack descriptions appear in the simulator. For each, choose the best primary defense from rate limiting, differential privacy, adversarial training or data vetting, and write a one-line justification.",
+   "objective": "Match each of five attacks to the most suitable primary defense.",
+   "steps": [
+    {
+     "do": "Scenario 1: a crowdsourcing vendor submits labels with a repeated patch.",
+     "see": "Correct: data vetting. Reason: attack is in the training data."
+    },
+    {
+     "do": "Scenario 2: an attacker sends 200,000 grid queries to clone the model.",
+     "see": "Correct: rate limiting with monitoring. Reason: extraction needs volume."
+    },
+    {
+     "do": "Scenario 3: stickers cause a vision model to misread signs.",
+     "see": "Correct: adversarial training. Reason: evasion at inference time."
+    },
+    {
+     "do": "Scenario 4: an attacker can tell whether a person's record was used in training.",
+     "see": "Correct: differential privacy. Reason: bounds per-record influence."
+    },
+    {
+     "do": "Scenario 5: a downloaded base model carries a hidden trigger.",
+     "see": "Correct: data vetting plus model scanning and signed sources. Reason: trojan origin."
+    }
+   ],
+   "answer": "Pairs: poisoning with data vetting, extraction with rate limiting, evasion with adversarial training, membership inference with differential privacy, and the trojaned base model with provenance and scanning controls. Each defense targets the attacker's access.",
+   "hint": "Ask what the attacker can touch: data, model or API."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which attack requires influence over training data?",
+   "options": [
+    "Data poisoning",
+    "Timing attack",
+    "Model extraction",
+    "FGSM evasion"
+   ],
+   "a": 0,
+   "why": "Poisoning works through data the model learns from."
+  },
+  {
+   "q": "Which attack hides behavior behind a trigger while accuracy stays normal?",
+   "options": [
+    "Extraction",
+    "Inversion",
+    "Backdoor",
+    "Membership inference"
+   ],
+   "a": 2,
+   "why": "Backdoors activate only on triggered input."
+  },
+  {
+   "q": "What does epsilon control in FGSM?",
+   "options": [
+    "Number of layers",
+    "Batch size",
+    "Learning rate",
+    "Size of the perturbation"
+   ],
+   "a": 3,
+   "why": "Epsilon scales the step along the gradient sign."
+  },
+  {
+   "q": "Neural Cleanse detects backdoors by:",
+   "options": [
+    "Reading logs",
+    "Encrypting weights",
+    "Finding anomalously small triggers",
+    "Counting parameters"
+   ],
+   "a": 2,
+   "why": "A tiny universal trigger suggests a planted backdoor."
+  },
+  {
+   "q": "Which signal suggests model extraction?",
+   "options": [
+    "Few repeated queries",
+    "Large images only",
+    "High-volume systematic unique queries",
+    "Slow logins"
+   ],
+   "a": 2,
+   "why": "Grid-like coverage differs from natural usage."
+  },
+  {
+   "q": "Why is returning full probability vectors risky?",
+   "options": [
+    "It deletes data",
+    "It leaks more info for cloning and inference",
+    "It slows encryption",
+    "It breaks TLS"
+   ],
+   "a": 1,
+   "why": "Richer outputs help extraction and membership attacks."
+  },
+  {
+   "q": "Membership inference works best against:",
+   "options": [
+    "Overfit models",
+    "Perfectly generalized models",
+    "Encrypted models",
+    "Untrained models"
+   ],
+   "a": 0,
+   "why": "A large train/test gap exposes members."
+  },
+  {
+   "q": "Which defense gives a formal privacy bound?",
+   "options": [
+    "Differential privacy",
+    "Dropout only",
+    "Watermarking",
+    "Rate limiting"
+   ],
+   "a": 0,
+   "why": "DP quantifies each record's influence with epsilon and delta."
+  },
+  {
+   "q": "Duplicated training text mainly increases:",
+   "options": [
+    "LLM memorization",
+    "Encryption strength",
+    "Throughput",
+    "Label accuracy"
+   ],
+   "a": 0,
+   "why": "Repetition makes verbatim recall more likely."
+  },
+  {
+   "q": "For a public API exposing a private model, a priority control is:",
+   "options": [
+    "Bigger GPUs",
+    "Dataset labeling",
+    "Quotas, monitoring and reduced output detail",
+    "Hash pinning only"
+   ],
+   "a": 2,
+   "why": "The new attacker access is query access."
+  }
+ ]
+}

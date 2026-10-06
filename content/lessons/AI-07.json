@@ -1,0 +1,904 @@
+{
+ "code": "AI-07",
+ "intro": "This module treats the machine learning pipeline as a software supply chain that needs the same rigor as code. You will learn to track dataset provenance and lineage, control who can train, approve and deploy models, sign and verify artifacts, and recognize why pickle files can execute code. You will also practice scanning model downloads and monitoring drift and pipeline anomalies. The goal is a pipeline where every data set and model in production can be traced, verified and attributed.",
+ "lessons": [
+  {
+   "title": "Data provenance and lineage",
+   "why": "If you cannot say where training data came from and what was done to it, you cannot trust the model trained on it.",
+   "sections": [
+    {
+     "h": "Why provenance matters",
+     "p": [
+      "Provenance is the documented origin of data: who produced it, when, under what license and how it reached you. Lineage extends this to every transformation, such as cleaning, joining, labeling and splitting, up to the final training set. Without both, a poisoning incident, a privacy deletion request or a license dispute cannot be investigated. Security teams need to answer concrete questions: which dataset version trained the model now in production, who approved it, and which upstream sources could have been tampered with."
+     ]
+    },
+    {
+     "h": "Versioning and hashes",
+     "p": [
+      "The foundation is content addressing. A cryptographic hash such as SHA-256 identifies a file by its content, so any change alters the digest. Tools such as DVC (Data Version Control) store dataset hashes in small .dvc files committed to Git while the large data lives in remote storage; the commit then pins exact data for each experiment. Alternatives include lakeFS, Delta Lake time travel and object storage versioning with object lock. Pair versions with a manifest recording row counts, schema and source for later comparison."
+     ]
+    },
+    {
+     "h": "Verifying trust before training",
+     "p": [
+      "Before a dataset enters a training job, run gates. Verify hashes against the manifest, check the source against an allow-list, validate the schema and value ranges, scan for secrets and personal data, deduplicate, and compare label and feature distributions against the previous version to catch sudden shifts. Require human review for new external sources. Record gate results as metadata attached to the dataset version. A job that references an unverified or modified dataset should fail closed rather than quietly train on it."
+     ]
+    },
+    {
+     "h": "Lineage in practice",
+     "p": [
+      "Capture lineage automatically rather than by hand. Pipeline orchestrators and tools such as MLflow, DVC pipelines and OpenLineage record inputs, code commit, parameters and outputs for each run. Store them in an append-only or access-controlled system so an attacker or careless engineer cannot rewrite history. Tag the resulting model with the dataset hash and training commit. With this chain you can answer an incident question by lookup, and you can reproduce or retrain from a known-good version when contamination is discovered. Review lineage records periodically as a drill: pick a production model at random and prove, from logs alone, which dataset version, code commit and approver produced it. Gaps found in the drill are cheaper than gaps found in an incident."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "DVC check (fictional)",
+    "text": "$ dvc status\nuntracked: none\ndata/train.csv: modified\n$ sha256sum data/train.csv\n9ac1...44d0 data/train.csv\nexpected (manifest): 5be2...91aa\nresult: MISMATCH, block job"
+   },
+   "example": "A nightly training job pulls data/train.csv. The pre-training gate computes its SHA-256 and compares it with the approved manifest, finding a mismatch. The lineage log shows the file was overwritten by a service account that normally only reads. The job fails, security is notified, the previous data version is restored from DVC remote storage, and the write permission on the bucket is removed from that account.",
+   "terms": [
+    {
+     "term": "Provenance",
+     "def": "The documented origin and chain of custody of data."
+    },
+    {
+     "term": "Lineage",
+     "def": "The record of transformations from source data to a final dataset or model."
+    },
+    {
+     "term": "DVC",
+     "def": "A tool that versions datasets and pipelines alongside Git."
+    },
+    {
+     "term": "Manifest",
+     "def": "A list of files with hashes, schema and metadata."
+    },
+    {
+     "term": "Fail closed",
+     "def": "Blocking an action when verification cannot be completed."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does a changed SHA-256 of a dataset indicate?",
+     "options": [
+      "The GPU failed",
+      "The content changed",
+      "Labels improved",
+      "Network is slow"
+     ],
+     "a": 1,
+     "why": "Any content modification changes the digest."
+    },
+    {
+     "q": "DVC stores in Git:",
+     "options": [
+      "Small files with hashes pointing to data",
+      "Passwords",
+      "The full dataset always",
+      "Model weights only"
+     ],
+     "a": 0,
+     "why": "Large data stays in remote storage; Git holds the references."
+    },
+    {
+     "q": "Why record lineage automatically?",
+     "options": [
+      "It reduces accuracy",
+      "It is required by TLS",
+      "It encrypts data",
+      "Manual records can be missing or altered"
+     ],
+     "a": 3,
+     "why": "Automated, protected logs give reliable evidence."
+    },
+    {
+     "q": "A training job given an unverified dataset should:",
+     "options": [
+      "Delete the dataset",
+      "Skip evaluation",
+      "Fail closed",
+      "Run anyway"
+     ],
+     "a": 2,
+     "why": "Unverified inputs must not silently enter training."
+    }
+   ],
+   "recap": [
+    "Provenance and lineage make models auditable.",
+    "Hash and version datasets, for example with DVC.",
+    "Gate and verify data before training and fail closed."
+   ]
+  },
+  {
+   "title": "Model registries and access control",
+   "why": "A registry is the control point where models are stored, reviewed and promoted, so its permissions define who can change what runs in production.",
+   "sections": [
+    {
+     "h": "What a registry does",
+     "p": [
+      "A model registry is a central catalog of trained models with versions, metadata, evaluation results and lifecycle state. Examples include MLflow Model Registry, SageMaker Model Registry, Vertex AI Model Registry and Hugging Face private repositories. It links each model to its training run, dataset hash and code commit. Deployment systems pull from the registry rather than from engineer laptops, which creates a single place to enforce policy, scan artifacts and keep an audit trail of who registered, changed or promoted each version."
+     ]
+    },
+    {
+     "h": "Stages and promotion",
+     "p": [
+      "Models normally move through states such as development, staging and production, or are marked with aliases like candidate and champion. Promotion should depend on evidence: passing evaluation thresholds, security scans, robustness and bias checks, and a documented approval. Make promotion an explicit, logged action, ideally executed by a pipeline after the approver signs off, not an ad hoc file copy. Prevent overwriting an existing version; each registered version should be immutable, so rollback is simply pointing to an earlier known version."
+     ]
+    },
+    {
+     "h": "Roles and separation of duties",
+     "p": [
+      "Define roles by function. Data scientists or training jobs can register new model versions but cannot promote to production. Reviewers approve based on evaluation and security results. A deployment role, often a service account, can read approved versions and deploy them. Administrators manage the registry but should not silently approve their own work. Separation of duties means no single identity can train, approve and deploy a malicious model. Use SSO, short-lived credentials and least privilege on the storage backend, not only on the registry API."
+     ]
+    },
+    {
+     "h": "Hardening and monitoring",
+     "p": [
+      "Protect the storage underneath, since direct writes to the artifact bucket can bypass registry checks. Enforce authentication for every access, restrict network paths, and enable audit logging of registrations, stage changes, deletions and permission edits. Alert on promotions outside change windows, models promoted without approval metadata, or new versions pushed by unexpected identities. Tag models with owner, data sensitivity and risk tier. Regularly review role bindings, because permissions accumulate and the account that once needed access often keeps it indefinitely. Treat registry role reviews like access recertifications, run quarterly, with owners confirming each binding is still needed and removing dormant service accounts that could be abused after a credential leak."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Role bindings (fictional)",
+    "text": "roles:\n  trainer:   [model:register]\n  reviewer:  [model:read, model:approve]\n  deployer:  [model:read, model:deploy]\n  # trainer must NOT have model:promote\npromotion_requires: [eval_pass, scan_pass, approver!=author]"
+   },
+   "example": "A fictional fraud team lets training pipelines both register and promote models. A compromised CI token then registers a model and promotes it straight to production. The remediation splits roles: the trainer can only register, promotion requires a reviewer other than the author after evaluation and scan checks pass, and a deploy service account reads only approved versions. Audit alerts now fire on any promotion lacking an approval record.",
+   "terms": [
+    {
+     "term": "Model registry",
+     "def": "A catalog that stores model versions, metadata and lifecycle state."
+    },
+    {
+     "term": "Promotion",
+     "def": "Moving a model to a higher stage such as production."
+    },
+    {
+     "term": "Separation of duties",
+     "def": "Splitting critical actions across different identities."
+    },
+    {
+     "term": "Immutable version",
+     "def": "A registered version that cannot be overwritten."
+    },
+    {
+     "term": "Audit log",
+     "def": "A record of who performed which action and when."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why should training jobs not promote models?",
+     "options": [
+      "It speeds training",
+      "It improves accuracy",
+      "It saves storage",
+      "One compromised job could ship a bad model"
+     ],
+     "a": 3,
+     "why": "Separation of duties limits the effect of one compromised identity."
+    },
+    {
+     "q": "Why make model versions immutable?",
+     "options": [
+      "They compress better",
+      "They load faster",
+      "Rollback and audit stay reliable",
+      "It removes licensing"
+     ],
+     "a": 2,
+     "why": "No one can swap contents behind a version number."
+    },
+    {
+     "q": "What must also be secured besides the registry API?",
+     "options": [
+      "Underlying storage",
+      "The monitor brightness",
+      "The keyboard",
+      "Fonts"
+     ],
+     "a": 0,
+     "why": "Direct bucket writes can bypass registry policy."
+    },
+    {
+     "q": "A good promotion gate requires:",
+     "options": [
+      "No tests",
+      "Only author approval",
+      "A password in chat",
+      "Evaluation and scan evidence plus approval"
+     ],
+     "a": 3,
+     "why": "Evidence and independent approval reduce risk."
+    }
+   ],
+   "recap": [
+    "The registry is the policy enforcement point for models.",
+    "Version immutably and require evidence for promotion.",
+    "Separate train, approve and deploy roles, and audit changes."
+   ]
+  },
+  {
+   "title": "Model signing and integrity",
+   "why": "A signature proves who produced a model artifact and that it has not changed since, which hashes alone cannot do.",
+   "sections": [
+    {
+     "h": "Hash versus signature",
+     "p": [
+      "A hash tells you whether a file matches a known digest, but anyone who can replace the file can usually replace the published digest next to it. A digital signature binds the artifact to an identity: the publisher signs the digest with a private key, and verifiers check it with the public key or certificate. Verification then proves integrity and authenticity together. For models this matters because weights are large binary files copied between registries, mirrors and clusters, giving many chances for substitution or tampering."
+     ]
+    },
+    {
+     "h": "Sigstore and cosign",
+     "p": [
+      "Sigstore is an open-source project providing signing and verification for software artifacts. The cosign tool signs container images and arbitrary files, for example cosign sign-blob model.safetensors, and verifies with cosign verify-blob. Keyless signing uses short-lived certificates from Fulcio issued against an OIDC identity such as a CI workload, and records the signature in the Rekor transparency log, so there is no long-lived key to steal. Verifiers pin the expected identity and issuer rather than trusting any signature. The OpenSSF model signing project applies the same ideas to ML models."
+     ]
+    },
+    {
+     "h": "Signing in the pipeline",
+     "p": [
+      "Sign at the point the model is produced, inside the controlled CI or training environment, and record the signature with the model in the registry. At deployment, verify before loading: check the signature, the signer identity, and that the digest equals the registered one. Combine with provenance attestations such as SLSA-style statements describing how the artifact was built. Reject unsigned or wrongly signed models by policy, using an admission controller in Kubernetes or a check in the serving startup, so verification cannot be skipped by accident."
+     ]
+    },
+    {
+     "h": "Hash-pinning dependencies",
+     "p": [
+      "Models run inside software environments, so integrity extends to dependencies. Pin Python packages by hash, using pip install --require-hashes with a requirements file that lists sha256 values, and pin container base images by digest rather than tag. Use lock files and a private mirror. A tag such as latest can change under you, and an unpinned dependency can be replaced by a malicious release. Scan the lock file in CI, and fail the build if a new or changed hash was not approved in review. Keep the verification policy in version control and test it with a deliberately bad artifact, so that you know the gate genuinely rejects unsigned or tampered models rather than merely logging a warning."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Verification (fictional)",
+    "text": "$ cosign verify-blob model.safetensors \\\n  --signature model.sig --certificate model.pem \\\n  --certificate-identity ci@example.com \\\n  --certificate-oidc-issuer https://issuer.example.com\nVerified OK\n$ sha256sum -c model.sha256\nmodel.safetensors: OK"
+   },
+   "example": "A serving cluster loads a model from a shared bucket. At startup it runs a verification step requiring a signature from the identity ci@example.com. One morning a pod fails to start with a verification error: the file digest differs from the signed digest. Investigation finds a developer manually uploaded a retrained file to the bucket. The artifact is quarantined, the correct signed version is redeployed, and bucket write access is restricted to the CI role.",
+   "terms": [
+    {
+     "term": "Digital signature",
+     "def": "A cryptographic proof binding an artifact to a signer."
+    },
+    {
+     "term": "cosign",
+     "def": "A Sigstore tool for signing and verifying artifacts."
+    },
+    {
+     "term": "Keyless signing",
+     "def": "Signing with short-lived certificates tied to an identity, not a stored key."
+    },
+    {
+     "term": "Transparency log",
+     "def": "A public append-only record of signatures, such as Rekor."
+    },
+    {
+     "term": "Hash pinning",
+     "def": "Requiring dependencies to match specified digests."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does a signature add over a plain hash?",
+     "options": [
+      "Faster loading",
+      "Compression",
+      "Higher accuracy",
+      "Proof of who signed it"
+     ],
+     "a": 3,
+     "why": "Signatures bind the digest to an identity."
+    },
+    {
+     "q": "Which command pins pip dependencies to hashes?",
+     "options": [
+      "pip install --require-hashes",
+      "pip list",
+      "pip freeze",
+      "pip cache"
+     ],
+     "a": 0,
+     "why": "The flag enforces matching sha256 values."
+    },
+    {
+     "q": "Keyless signing avoids:",
+     "options": [
+      "Verification",
+      "Using certificates",
+      "Managing a long-lived private key",
+      "Logging"
+     ],
+     "a": 2,
+     "why": "Short-lived certificates reduce the risk of key theft."
+    },
+    {
+     "q": "Where should model verification run?",
+     "options": [
+      "After an incident only",
+      "In a spreadsheet",
+      "Never",
+      "Before the model is loaded in serving"
+     ],
+     "a": 3,
+     "why": "Verification must happen before untrusted bytes are used."
+    }
+   ],
+   "recap": [
+    "Signatures prove origin and integrity; hashes alone do not.",
+    "Use Sigstore and cosign, verifying signer identity.",
+    "Pin dependencies and images by digest."
+   ]
+  },
+  {
+   "title": "Unsafe serialization: pickle and friends",
+   "why": "Loading some model formats runs code from the file, so opening a model can compromise the machine.",
+   "sections": [
+    {
+     "h": "How pickle works",
+     "p": [
+      "Pickle is Python's native serialization format. It is not just data: a pickle is a program for a small stack-based virtual machine, with opcodes such as GLOBAL to import a callable and REDUCE to call it with arguments. This design lets objects define how they are rebuilt through the __reduce__ method, so a crafted file can instruct the loader to call any importable function, such as os.system, with attacker-chosen arguments. The Python documentation warns never to unpickle data from an untrusted source."
+     ]
+    },
+    {
+     "h": "Where you meet it",
+     "p": [
+      "Many ML artifacts use pickle internally: PyTorch .pt, .pth and .bin checkpoints loaded with torch.load, scikit-learn models saved with joblib, and various framework checkpoints. Opening such a file from a public hub is equivalent to running a downloaded script. The code runs at load time, before any model behavior is evaluated, with the privileges of the loading process, which often holds cloud credentials in a notebook or training job. Malicious models have been found on public hubs using exactly this route."
+     ]
+    },
+    {
+     "h": "Safer formats",
+     "p": [
+      "Safetensors, developed by Hugging Face, stores raw tensors and a JSON header, with no code execution path, and it supports fast, memory-mapped loading. ONNX describes a model as a graph of operators in protobuf and is generally safer, though external-data references and custom operators still deserve scrutiny, and parser bugs are possible. PyTorch added a weights_only option for torch.load that restricts unpickling to tensors and basic types, and it should be enabled. GGUF and similar formats avoid arbitrary object loading, but still need integrity checks."
+     ]
+    },
+    {
+     "h": "Defensive practice",
+     "p": [
+      "Prefer safe formats and convert models once in an isolated sandbox. Never call pickle.load, torch.load or joblib.load on untrusted files without weights_only or a scan. Inspect suspicious pickles statically with python -m pickletools, which disassembles opcodes without executing them, looking for GLOBAL or STACK_GLOBAL imports of os, subprocess, builtins or socket followed by REDUCE. Load unknown models in a container with no credentials and no network. Restrict the loading identity, and block pickle formats by policy in production registries. Training notebooks deserve extra care because they often hold cloud tokens in environment variables, so a single careless load of an untrusted checkpoint on such a machine can expose far more than the model itself."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "pickletools output (fictional, harmless)",
+    "text": "$ python -m pickletools sample.pkl\n  0: \\x80 PROTO      4\n  2: \\x8c SHORT_BINUNICODE 'posix'\n 10: \\x8c SHORT_BINUNICODE 'system'\n 18: \\x93 STACK_GLOBAL\n 19: \\x8c SHORT_BINUNICODE 'echo lab-test'\n 34: \\x85 TUPLE1\n 35: R    REDUCE"
+   },
+   "example": "A data scientist downloads a checkpoint named bert-finetuned.bin from an unknown account. Before loading, the platform team disassembles it with pickletools in a sandbox and sees STACK_GLOBAL importing posix.system followed by REDUCE. Legitimate checkpoints only reference torch and collections classes. They quarantine the file, report it to the hub, and ask the user to obtain the official safetensors version, loading with weights_only enabled for any remaining pickle files.",
+   "terms": [
+    {
+     "term": "Pickle",
+     "def": "Python serialization format that can execute code on load."
+    },
+    {
+     "term": "REDUCE opcode",
+     "def": "A pickle instruction that calls a callable with arguments."
+    },
+    {
+     "term": "safetensors",
+     "def": "A tensor storage format with no code execution."
+    },
+    {
+     "term": "ONNX",
+     "def": "An interoperable graph-based model format."
+    },
+    {
+     "term": "weights_only",
+     "def": "A torch.load option restricting unpickling to safe types."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why is unpickling untrusted data dangerous?",
+     "options": [
+      "It deletes labels",
+      "It uses much memory",
+      "It can call arbitrary functions",
+      "It slows GPUs"
+     ],
+     "a": 2,
+     "why": "Opcodes like REDUCE let a file invoke importable callables."
+    },
+    {
+     "q": "Which tool disassembles a pickle without running it?",
+     "options": [
+      "curl",
+      "python -m pickletools",
+      "pip freeze",
+      "ls"
+     ],
+     "a": 1,
+     "why": "pickletools shows opcodes statically."
+    },
+    {
+     "q": "Safetensors is safer because:",
+     "options": [
+      "It stores tensors without executable objects",
+      "It is smaller only",
+      "It uses Java",
+      "It is encrypted"
+     ],
+     "a": 0,
+     "why": "There is no code execution path in the format."
+    },
+    {
+     "q": "Which is a red flag in a pickle disassembly?",
+     "options": [
+      "Comments",
+      "Tensor shapes",
+      "GLOBAL or STACK_GLOBAL importing os or subprocess",
+      "Version numbers"
+     ],
+     "a": 2,
+     "why": "System-level imports followed by REDUCE indicate command execution."
+    }
+   ],
+   "recap": [
+    "Pickle files are programs, not just data.",
+    "PyTorch and joblib files often use pickle internally.",
+    "Prefer safetensors, scan, sandbox and use weights_only."
+   ]
+  },
+  {
+   "title": "Scanning and securing ML supply chain",
+   "why": "Scanners and inventories turn the ML supply chain from a blind spot into something you can check and audit.",
+   "sections": [
+    {
+     "h": "Model scanners",
+     "p": [
+      "Scanners inspect serialized files without loading them. picklescan parses pickle opcodes and flags imports of dangerous modules; Hugging Face runs it on hub uploads and marks unsafe files. ModelScan, from Protect AI, supports several formats including pickle, H5/Keras and SavedModel, and reports issues by severity. Commercial and open tools extend coverage to GGUF and ONNX checks. Scanners use denylists and heuristics, so they can miss novel obfuscation. Treat a clean result as reduced risk, never as proof of safety, and keep sandboxing as a second layer."
+     ]
+    },
+    {
+     "h": "Vetting hub downloads",
+     "p": [
+      "Develop a checklist before importing a model. Verify the publisher account and organization, check age, downloads and community reports, and read the model card and license. Check whether files are safetensors or pickle, and look for custom code: some models require trust_remote_code=True, which executes Python from the repository, and should be reviewed or refused. Pin to a specific commit hash, not a branch name that can change. Download to a quarantine location, scan, verify hashes and only then promote it into the internal registry."
+     ]
+    },
+    {
+     "h": "SBOM and AIBOM",
+     "p": [
+      "Inventory what you run. An SBOM in SPDX or CycloneDX lists libraries and versions, which you can check against vulnerability databases such as OSV or NVD. An AIBOM extends this to models and datasets, recording name, version, source, hashes, license and evaluation data; CycloneDX includes ML-BOM support and SPDX 3 has AI profiles. Generate inventories during CI, sign them, and store them with the release. When an advisory appears, query inventories to find every affected deployment in minutes."
+     ]
+    },
+    {
+     "h": "Operating controls",
+     "p": [
+      "Run scans automatically in CI and again on a schedule, since new detections appear over time. Use private mirrors so production never downloads directly from public hubs, and block egress from training and serving environments except to approved endpoints. Apply admission policies requiring a passing scan, signature and approved source. Keep a quarantine process: isolate the artifact, preserve evidence, find who downloaded it, rotate credentials available on the machines that loaded it and notify the publisher or hub. Review exceptions regularly so they do not become permanent. Document an exception process too: when a team truly needs a pickle-based model, require sandboxed loading, a time-limited approval, and a plan to convert the file to a safe format."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Scanner output (fictional)",
+    "text": "$ modelscan -p ./incoming\nmodel_a.safetensors  : no issues\nmodel_b.pkl          : CRITICAL  os.system found\nmodel_c.h5           : MEDIUM    Lambda layer present\nTotal: 1 critical, 1 medium"
+   },
+   "example": "A team imports three artifacts. model_a is a safetensors file from a verified publisher with a matching hash and passes. model_b is a pickle with a critical finding for a system call, so it is quarantined and the loading user is identified. model_c is an H5 file with a Keras Lambda layer, which can embed arbitrary code, so it is held for manual review. Only model_a enters the internal registry with an AIBOM entry.",
+   "terms": [
+    {
+     "term": "picklescan",
+     "def": "A tool that statically checks pickle files for dangerous imports."
+    },
+    {
+     "term": "ModelScan",
+     "def": "A scanner for unsafe code in several ML serialization formats."
+    },
+    {
+     "term": "trust_remote_code",
+     "def": "A flag that executes custom Python from a model repository."
+    },
+    {
+     "term": "Quarantine",
+     "def": "An isolated holding area for unverified artifacts."
+    },
+    {
+     "term": "AIBOM",
+     "def": "An inventory of models, data and provenance for AI systems."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why is a clean scan not proof of safety?",
+     "options": [
+      "Scans delete models",
+      "Scanners run too fast",
+      "Scanners use heuristics and can miss new tricks",
+      "Scans change hashes"
+     ],
+     "a": 2,
+     "why": "Novel obfuscation may evade denylists."
+    },
+    {
+     "q": "trust_remote_code=True is risky because it:",
+     "options": [
+      "Compresses weights",
+      "Changes labels",
+      "Runs repository Python code",
+      "Disables GPUs"
+     ],
+     "a": 2,
+     "why": "It executes code supplied by the model publisher."
+    },
+    {
+     "q": "Why pin a hub download to a commit hash?",
+     "options": [
+      "Hashes are shorter",
+      "It adds encryption",
+      "Branches can change",
+      "It speeds download"
+     ],
+     "a": 2,
+     "why": "A commit is immutable, while a branch name can move."
+    },
+    {
+     "q": "Which environment setting reduces supply chain risk?",
+     "options": [
+      "Private mirror with blocked direct egress",
+      "Shared admin keys",
+      "Disabled logs",
+      "Public downloads in production"
+     ],
+     "a": 0,
+     "why": "Controlled sources prevent unreviewed artifacts entering production."
+    }
+   ],
+   "recap": [
+    "Scan serialized artifacts before loading them.",
+    "Vet publishers, pin commits and avoid trust_remote_code.",
+    "Keep SBOM and AIBOM inventories and quarantine process."
+   ]
+  },
+  {
+   "title": "Drift monitoring and pipeline observability",
+   "why": "Production models degrade and can be tampered with, so continuous measurement is both a quality control and a security control.",
+   "sections": [
+    {
+     "h": "Types of drift",
+     "p": [
+      "Data drift is a change in the distribution of input features compared with training, such as a new customer segment or a sensor recalibration. Concept drift is a change in the relationship between inputs and the correct output, so the same inputs now deserve different predictions, for example after fraud tactics evolve. Label drift is a change in the target distribution. Drift can be natural, but it can also signal attack: poisoning through a feedback loop, an evasion campaign, or an upstream feed that has been modified or broken."
+     ]
+    },
+    {
+     "h": "Statistical tests",
+     "p": [
+      "Common checks compare a recent window against a reference sample. The Kolmogorov-Smirnov (KS) test compares the cumulative distributions of a numeric feature and returns a statistic and a p-value. The Population Stability Index (PSI) bins a feature and sums (actual% - expected%) * ln(actual% / expected%); a widely used rule of thumb treats PSI below 0.1 as stable, 0.1 to 0.25 as moderate shift and above 0.25 as significant. Chi-squared tests fit categorical features. Concept drift needs labels or proxies such as performance metrics, which often arrive late."
+     ]
+    },
+    {
+     "h": "Pipeline observability",
+     "p": [
+      "Monitor beyond the model. Track data freshness, row counts, null rates, schema changes, feature ranges, prediction distributions and confidence, latency and error rates. Log pipeline events: who triggered training, which data and code versions were used, which artifacts were produced and who promoted them. Record the model version and input hash with each prediction for traceability. Send these to your SIEM so security and ML teams share one picture, and keep logs tamper-resistant, since attackers who change a model often try to erase the trace."
+     ]
+    },
+    {
+     "h": "Alerting and response",
+     "p": [
+      "Set thresholds per feature and per model, tuned to avoid constant false alarms, and route alerts with context to an owner. Security-relevant signals include a sudden feature shift after a data source change, an unexpected training run outside schedule, a model artifact whose hash differs from the registry, a promotion without approval, and a spike in low-confidence or rejected predictions. Runbooks should define when to roll back, pause automated retraining, freeze data ingestion and begin an incident investigation. Baselines should be refreshed deliberately, not automatically, otherwise slow tampering shifts the reference along with the data and no alert ever fires; record each baseline change with an owner and reason."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Drift report (fictional)",
+    "text": "feature            PSI    KS_p    status\nincome             0.04   0.62    stable\nage                0.07   0.31    stable\ntxn_amount         0.41   0.00    ALERT\ncountry_code       0.18   n/a     warn\npipeline: unscheduled retrain at 02:13 by svc-batch"
+   },
+   "example": "A fraud model report shows PSI 0.41 on txn_amount and a training run at 02:13 started by a service account that normally never trains. The team first checks the data source and finds a partner feed began sending amounts in cents rather than dollars, a benign cause for the shift. The unscheduled run is still suspicious, so they review its inputs, confirm they came from the approved dataset, tighten who can start training and add an alert for out-of-schedule jobs.",
+   "terms": [
+    {
+     "term": "Data drift",
+     "def": "A change in input data distribution relative to training."
+    },
+    {
+     "term": "Concept drift",
+     "def": "A change in the relationship between inputs and correct outputs."
+    },
+    {
+     "term": "PSI",
+     "def": "A metric comparing two distributions; above 0.25 is a significant shift."
+    },
+    {
+     "term": "KS test",
+     "def": "A statistical test comparing two cumulative distributions."
+    },
+    {
+     "term": "Observability",
+     "def": "The ability to understand system state from logs, metrics and traces."
+    }
+   ],
+   "check": [
+    {
+     "q": "PSI above 0.25 is generally treated as:",
+     "options": [
+      "Perfect stability",
+      "Significant shift",
+      "A syntax error",
+      "A GPU fault"
+     ],
+     "a": 1,
+     "why": "Common practice marks above 0.25 as a major change."
+    },
+    {
+     "q": "Concept drift means:",
+     "options": [
+      "Labels were encrypted",
+      "Input-output relationships changed",
+      "GPU speed changed",
+      "Only file names changed"
+     ],
+     "a": 1,
+     "why": "The same inputs now map to different correct answers."
+    },
+    {
+     "q": "Which is a security-relevant pipeline alert?",
+     "options": [
+      "Longer README",
+      "Dark mode toggled",
+      "Training run outside schedule by an unusual account",
+      "A new logo"
+     ],
+     "a": 2,
+     "why": "Unexpected runs can indicate tampering or credential misuse."
+    },
+    {
+     "q": "Why send ML pipeline logs to a SIEM?",
+     "options": [
+      "To increase accuracy",
+      "Security and ML teams share visibility",
+      "To avoid hashing",
+      "To shrink models"
+     ],
+     "a": 1,
+     "why": "Correlating events helps spot tampering and abuse."
+    }
+   ],
+   "recap": [
+    "Drift can be natural or a sign of attack.",
+    "Use PSI and KS tests with sensible thresholds.",
+    "Log and alert on pipeline events as well as model metrics."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Inspect a pickle for payloads",
+   "sim": "code-editor",
+   "scenario": "A fictional sandbox pickle file named checkpoint_x.pkl arrived from an external contributor. The editor has pickletools available and will never execute the file. Disassemble it, find the opcode sequence that calls a function and decide whether the file is safe.",
+   "objective": "Identify the malicious REDUCE call and the function it invokes.",
+   "steps": [
+    {
+     "do": "In the editor terminal run: python -m pickletools checkpoint_x.pkl",
+     "see": "Disassembly prints 18 opcodes."
+    },
+    {
+     "do": "Scan the output for GLOBAL or STACK_GLOBAL lines.",
+     "see": "STACK_GLOBAL preceded by strings 'posix' and 'system'"
+    },
+    {
+     "do": "Find the argument string pushed before TUPLE1.",
+     "see": "SHORT_BINUNICODE 'echo lab-payload'"
+    },
+    {
+     "do": "Locate the REDUCE opcode at the end.",
+     "see": "35: R REDUCE"
+    },
+    {
+     "do": "Compare with a clean checkpoint, clean_ok.pkl.",
+     "see": "clean_ok.pkl references only collections.OrderedDict and torch._utils._rebuild_tensor_v2"
+    },
+    {
+     "do": "Mark the file as malicious and add it to quarantine.",
+     "see": "checkpoint_x.pkl quarantined. Ticket SEC-501 opened."
+    }
+   ],
+   "answer": "The pickle imports posix.system and, through REDUCE, calls it with the string 'echo lab-payload', meaning code would run at load time. The file is unsafe and must be quarantined; the legitimate model should be obtained as safetensors.",
+   "hint": "Look for imports of system-level modules."
+  },
+  {
+   "title": "Scan a model hub download",
+   "sim": "terminal",
+   "scenario": "Three artifacts were downloaded from a fictional public hub into /quarantine. Use the terminal to run the scanner, verify hashes and decide which artifacts can be promoted to the internal registry and which must stay quarantined.",
+   "objective": "Choose which of three artifacts to quarantine based on findings.",
+   "steps": [
+    {
+     "do": "Run: ls -l /quarantine",
+     "see": "a.safetensors, b.pkl, c.h5"
+    },
+    {
+     "do": "Run: modelscan -p /quarantine",
+     "see": "a.safetensors: no issues; b.pkl: CRITICAL os.system; c.h5: MEDIUM Lambda layer"
+    },
+    {
+     "do": "Run: sha256sum a.safetensors",
+     "see": "7d44...a1c9"
+    },
+    {
+     "do": "Run: grep a.safetensors publisher_hashes.txt",
+     "see": "7d44...a1c9 a.safetensors (publisher release notes)"
+    },
+    {
+     "do": "Run: python -m pickletools b.pkl | head",
+     "see": "STACK_GLOBAL 'os' 'system' ... REDUCE"
+    },
+    {
+     "do": "Run: unzip -p c.h5 config 2>/dev/null; inspect layers",
+     "see": "Lambda layer with embedded Python bytecode"
+    }
+   ],
+   "answer": "Promote a.safetensors only: clean scan and matching publisher hash. Quarantine b.pkl (critical system call) and hold c.h5 (Lambda layer embeds code) for manual review or replacement with a safe format.",
+   "hint": "Combine scanner results with the hash check."
+  },
+  {
+   "title": "Verify a signed model",
+   "sim": "terminal",
+   "scenario": "A release bundle for a fictional model contains model.safetensors, a signature, a certificate and a SHA-256 file. Two artifacts are provided, release_a and release_b. Run signature and hash verification, then explain why one of them fails.",
+   "objective": "Explain why one artifact fails verification.",
+   "steps": [
+    {
+     "do": "Run: cd release_a && sha256sum -c model.sha256",
+     "see": "model.safetensors: OK"
+    },
+    {
+     "do": "Run: cosign verify-blob model.safetensors --signature model.sig --certificate model.pem --certificate-identity ci@example.com --certificate-oidc-issuer https://issuer.example.com",
+     "see": "Verified OK"
+    },
+    {
+     "do": "Run: cd ../release_b && sha256sum -c model.sha256",
+     "see": "model.safetensors: FAILED"
+    },
+    {
+     "do": "Run the same cosign verify-blob command in release_b.",
+     "see": "Error: invalid signature when validating ASN.1 encoded signature"
+    },
+    {
+     "do": "Run: stat model.safetensors",
+     "see": "Modify: 2026-03-02 02:41 (signature file dated 2026-02-27)"
+    },
+    {
+     "do": "Run: sha256sum model.safetensors and compare to the signed digest.",
+     "see": "digest differs from registered digest"
+    }
+   ],
+   "answer": "release_a verifies: hash matches and the signature is valid for the expected CI identity. release_b fails because the model file was modified after signing (newer timestamp, different digest), so the signature no longer matches. Treat it as tampered and quarantine.",
+   "hint": "Compare timestamps and digests."
+  },
+  {
+   "title": "Tighten registry permissions",
+   "sim": "config-editor",
+   "scenario": "A fictional model registry policy file lets the training service account promote models to production. Edit the role bindings so training jobs cannot promote without approval and approvers cannot approve their own work. Then run the policy validator.",
+   "objective": "Edit roles so promotion needs an independent approval.",
+   "steps": [
+    {
+     "do": "Open registry-policy.yaml and review bindings.",
+     "see": "svc-train: [register, promote, deploy]; alice: [admin]"
+    },
+    {
+     "do": "Remove promote and deploy from svc-train.",
+     "see": "svc-train: [register]"
+    },
+    {
+     "do": "Create role reviewer with [read, approve] and bind it to group ml-reviewers.",
+     "see": "role reviewer added"
+    },
+    {
+     "do": "Create role deployer with [read, deploy] and bind it to svc-deploy.",
+     "see": "svc-deploy: [read, deploy]"
+    },
+    {
+     "do": "Add rule: promotion requires eval_pass, scan_pass and approver != author.",
+     "see": "rule saved"
+    },
+    {
+     "do": "Run the validator.",
+     "see": "0 errors. Separation of duties check: PASS. Audit logging: enabled."
+    }
+   ],
+   "answer": "Final state: trainers can only register versions, reviewers approve, the deploy account can only deploy approved versions, and promotion requires passing evaluation and scan plus an approver different from the author. This prevents one identity from shipping a model alone.",
+   "hint": "No single role should be able to register and promote."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "What does a registry make possible?",
+   "options": [
+    "Free licenses",
+    "Faster GPUs",
+    "Central policy and audit for model versions",
+    "Prompt rewriting"
+   ],
+   "a": 2,
+   "why": "It is the control point for storing and promoting models."
+  },
+  {
+   "q": "Which tool versions datasets alongside Git?",
+   "options": [
+    "DVC",
+    "Wireshark",
+    "Burp",
+    "Nmap"
+   ],
+   "a": 0,
+   "why": "DVC tracks data hashes in Git and stores data remotely."
+  },
+  {
+   "q": "Why is a signature stronger than a published hash?",
+   "options": [
+    "It is shorter",
+    "It compresses",
+    "It proves who produced the artifact",
+    "It is secret"
+   ],
+   "a": 2,
+   "why": "Signatures bind a digest to an identity."
+  },
+  {
+   "q": "Which command verifies a blob signed with Sigstore?",
+   "options": [
+    "pip show",
+    "cosign verify-blob",
+    "cosign list",
+    "ls -l"
+   ],
+   "a": 1,
+   "why": "verify-blob checks signature, certificate and identity."
+  },
+  {
+   "q": "Why can pickle execute code?",
+   "options": [
+    "It uses GPUs",
+    "It is a VM program with REDUCE and GLOBAL opcodes",
+    "It is binary",
+    "It uses encryption"
+   ],
+   "a": 1,
+   "why": "Opcodes can import and call arbitrary functions."
+  },
+  {
+   "q": "Which format avoids code execution on load?",
+   "options": [
+    "Lambda H5",
+    "joblib",
+    "pickle",
+    "safetensors"
+   ],
+   "a": 3,
+   "why": "Safetensors stores only tensors and a JSON header."
+  },
+  {
+   "q": "What is a limitation of model scanners?",
+   "options": [
+    "They always delete files",
+    "They sign models",
+    "They can miss novel obfuscation",
+    "They need GPUs"
+   ],
+   "a": 2,
+   "why": "Scanning reduces risk but does not prove safety."
+  },
+  {
+   "q": "PSI above 0.25 usually means:",
+   "options": [
+    "Valid signature",
+    "Significant distribution shift",
+    "Encrypted data",
+    "No change"
+   ],
+   "a": 1,
+   "why": "It is the common threshold for major drift."
+  },
+  {
+   "q": "Separation of duties in a registry means:",
+   "options": [
+    "No logs",
+    "Different identities train, approve and deploy",
+    "One admin does everything",
+    "Shared passwords"
+   ],
+   "a": 1,
+   "why": "It prevents one actor from shipping a malicious model alone."
+  },
+  {
+   "q": "Which is a safer way to take a hub model into production?",
+   "options": [
+    "Download straight into production",
+    "Quarantine, scan, verify hash, pin commit, then mirror",
+    "Use trust_remote_code by default",
+    "Skip license review"
+   ],
+   "a": 1,
+   "why": "Controlled steps reduce supply chain exposure."
+  }
+ ]
+}

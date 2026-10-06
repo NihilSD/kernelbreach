@@ -1,0 +1,816 @@
+{
+ "code": "AI-13",
+ "intro": "This module covers how attackers now use generative AI and automation, and how defenders respond. You will learn how deepfakes and cloned voices are produced and what traces they leave, why fluent AI-written phishing demands better email authentication and training, and how automated reconnaissance, exploit triage, polymorphic malware and credential abuse change the tempo of attacks. The final lesson assembles a layered defense from provenance, liveness checks, callback verification and payment approval controls, which work even when a fake is perfect.",
+ "lessons": [
+  {
+   "title": "Deepfakes and synthetic media",
+   "why": "Realistic fake faces, video and images now cost little to make, so you need to know how they are built and which traces they leave.",
+   "sections": [
+    {
+     "h": "How synthetic media is generated",
+     "p": [
+      "A deepfake is audio, image or video produced or altered by a machine-learning model so that it appears to show a real person doing or saying something they did not. Two families of model dominate. Generative adversarial networks (GANs) train a generator to produce images while a discriminator tries to tell them from real photos; the contest pushes the generator toward realism. Diffusion models start from random noise and remove it step by step, guided by a text prompt or a reference image, and now produce most high-quality output. Older face-swap tools use an autoencoder: one encoder learns a shared representation of two faces, and a decoder for the target face rebuilds it with the source person's expression."
+     ]
+    },
+    {
+     "h": "Common deepfake forms",
+     "p": [
+      "Defenders meet four main forms. Face swap replaces one person's face in an existing video. Face reenactment keeps the identity but drives the mouth and head movement from another actor, which is how a fake executive can appear to speak on a video call. Fully synthetic faces, produced from nothing, are used for fake profile pictures on social networks and for forged identity documents. Image editing and inpainting change part of a real photo, such as a signature, a receipt amount or a badge. The goal of the attacker usually decides the form: fraud and impersonation favor reenactment and face swap, influence campaigns favor synthetic personas and doctored images."
+     ]
+    },
+    {
+     "h": "Visual and behavioral cues",
+     "p": [
+      "Generation is imperfect, and trained eyes can still catch artifacts, though these cues are fading as models improve. Look for unnatural blinking or a fixed gaze, blurred or flickering edges where the face meets hair, neck or glasses, teeth that merge into a single bar, mismatched earrings, and lighting or shadows that disagree with the scene. In live video, ask the person to turn their head to a full profile or pass a hand in front of their face; many real-time swaps break at extreme angles and with occlusion. Audio that does not quite match lip movement is another sign. Treat cues as hints, never proof, because a clean-looking fake is entirely possible."
+     ]
+    },
+    {
+     "h": "Metadata and provenance traces",
+     "p": [
+      "Files carry evidence outside the pixels. Photo metadata in EXIF fields records camera make, lens, capture time and sometimes GPS; a portrait with no camera data, or software tags naming an editing or generation tool, deserves a closer look. Many generators also embed markers in the file, such as a text chunk in a PNG describing the prompt or a signed content credential that follows the C2PA standard. Absence of metadata proves little, since social platforms strip it on upload, but presence of a valid signed credential, or a conflict such as a claimed 2024 camera shot containing an editing-tool stamp, is useful. Reverse image search can show whether a picture existed earlier in a different context."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Metadata red flags (illustrative output)",
+    "text": "$ exiftool profile.jpg\nFile Name       : profile.jpg\nCamera Make     : (not present)\nCreate Date     : (not present)\nSoftware        : ExampleDiffusion 2.1\nImage Size      : 1024x1024\nC2PA Manifest   : none found"
+   },
+   "example": "A finance analyst at the fictional firm Example Corp is invited to a video call with her CFO and two colleagues. All faces look right, yet the CFO's glasses flicker at the edges when he turns. She asks him to turn fully sideways and wave a hand across his face; the image warps and the colleague tiles stay oddly still. She ends the call and phones the CFO on his known mobile number. He knew nothing about the meeting. The attack was a real-time face swap, and the fix was a physical test followed by an independent channel.",
+   "terms": [
+    {
+     "term": "Deepfake",
+     "def": "Machine-generated or altered audio, image or video that falsely shows a real person."
+    },
+    {
+     "term": "GAN",
+     "def": "Generative adversarial network: a generator and a discriminator trained against each other."
+    },
+    {
+     "term": "Diffusion model",
+     "def": "A generator that creates media by progressively removing noise, guided by a prompt."
+    },
+    {
+     "term": "Face reenactment",
+     "def": "Driving a target person's face with the expressions and speech of another actor."
+    },
+    {
+     "term": "EXIF",
+     "def": "Metadata embedded in image files, such as camera model, time and location."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which technique uses a generator and a discriminator that compete?",
+     "options": [
+      "Diffusion model",
+      "Generative adversarial network",
+      "Autoencoder compression",
+      "Reverse image search"
+     ],
+     "a": 1,
+     "why": "A GAN trains a generator against a discriminator until fakes look real."
+    },
+    {
+     "q": "Why ask a caller on a live video to turn to a full profile?",
+     "options": [
+      "To lower bandwidth",
+      "Many real-time face swaps break at extreme angles",
+      "It confirms their password",
+      "It enables encryption"
+     ],
+     "a": 1,
+     "why": "Real-time swaps are trained mostly on frontal faces and often glitch in profile or with occlusion."
+    },
+    {
+     "q": "A photo has no EXIF data at all. What is the correct conclusion?",
+     "options": [
+      "It is definitely a deepfake",
+      "It is definitely authentic",
+      "It proves little, since platforms often strip metadata",
+      "It was taken by a phone"
+     ],
+     "a": 2,
+     "why": "Metadata is commonly removed on upload, so absence is weak evidence."
+    },
+    {
+     "q": "Which form is most associated with a fake executive speaking on a live call?",
+     "options": [
+      "Inpainting a receipt",
+      "Face reenactment",
+      "Image compression",
+      "Watermark removal"
+     ],
+     "a": 1,
+     "why": "Reenactment drives the target's face from an attacker's live movements and speech."
+    }
+   ],
+   "recap": [
+    "Deepfakes come from GANs, diffusion models and autoencoder face swaps.",
+    "Visual cues such as edge flicker and profile glitches help but are fading.",
+    "Metadata and C2PA credentials give supporting evidence, not final proof."
+   ]
+  },
+  {
+   "title": "Voice cloning and vishing",
+   "why": "A few seconds of recorded speech can now produce a convincing copy of a voice, which turns a phone call into an unreliable proof of identity.",
+   "sections": [
+    {
+     "h": "How voice cloning works",
+     "p": [
+      "Modern text-to-speech systems learn to represent a speaker's timbre, pitch and rhythm as a numeric embedding. Zero-shot cloning extracts that embedding from a short sample, often between three and thirty seconds, and then synthesizes any text in that voice. Voice conversion is a related method that changes a live speaker's voice into a target voice with little delay, which allows a real-time conversation rather than pre-recorded lines. Samples are easy to find: conference talks, earnings calls, podcasts, voicemail greetings and social media videos. The quality is high enough to fool relatives and colleagues over a compressed phone line, where background noise hides small flaws."
+     ]
+    },
+    {
+     "h": "Vishing and the CEO-fraud pattern",
+     "p": [
+      "Vishing is voice phishing: a phone call used to trick a victim into acting. With cloning, the classic business email compromise story gets a voice. A caller who sounds like the chief executive tells a finance clerk that a confidential acquisition needs an urgent wire to a new account, and asks for secrecy. Another common script is the family emergency call, where a cloned relative claims to be in trouble and needs money now. Attackers add caller ID spoofing so the number looks familiar. The persuasion tools stay the same as in older fraud: authority, urgency, secrecy and an unusual request that bypasses normal process."
+     ]
+    },
+    {
+     "h": "What to listen for",
+     "p": [
+      "Audio tells exist but are unreliable. Flat emotion, odd pauses before answers, identical phrasing on repeated words, missing breaths and mouth noises, and a strangely clean background can all hint at synthesis. A better test is behavior. Cloned voice systems struggle with off-script questions that require shared memory, such as asking what was discussed at last week's meeting. Live voice conversion may also add lag. Still, the guidance for staff should not depend on spotting artifacts. Detection by ear fails often, so policy must treat any voice request involving money, credentials or access changes as unverified until confirmed through a separate channel."
+     ]
+    },
+    {
+     "h": "Verification: callback and code words",
+     "p": [
+      "The strongest control is out-of-band verification. End the call and dial the person back using a number from the company directory or your own contacts, never the number that called you or one the caller supplies. For families and small teams, a pre-agreed code word, chosen in person and never posted online, gives a challenge that a clone cannot answer. Organizations add process rules: payments above a threshold require two approvers, changes to bank details require a ticket and a callback to the registered contact, and no one may be pressured to skip steps. Staff who follow the rule must be praised, not criticized, even when the request turns out to be real."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Verification script for finance staff",
+    "text": "1. Do not act on a voice request alone.\n2. Say: \"I will call you back to confirm.\"\n3. Hang up. Look up the number in the directory.\n4. Call back. Ask the agreed challenge question.\n5. Log the request in the payment ticket.\n6. Second approver signs off before release."
+   },
+   "example": "A clerk at Example Corp receives a call that appears to come from the director's office. The voice, which sounds exactly like the director, asks for an urgent transfer of 48,000 dollars to a new supplier and insists on secrecy. The clerk says she must follow procedure, hangs up and calls the director's extension from the directory. The real director answers, surprised. The clerk opens an incident ticket, the bank is told to freeze the receiving account, and the director's public conference recording is identified as the likely source of the voice sample.",
+   "terms": [
+    {
+     "term": "Vishing",
+     "def": "Voice phishing: using phone calls to trick people into disclosing data or moving money."
+    },
+    {
+     "term": "Voice cloning",
+     "def": "Synthesizing speech that imitates a specific person's voice from a sample."
+    },
+    {
+     "term": "Voice conversion",
+     "def": "Transforming a live speaker's voice into a target voice in near real time."
+    },
+    {
+     "term": "Callback verification",
+     "def": "Confirming a request by calling back on a trusted, independently sourced number."
+    },
+    {
+     "term": "Code word",
+     "def": "A pre-agreed secret phrase used to prove identity during a suspicious call."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the most reliable defense against a cloned-voice payment request?",
+     "options": [
+      "Listening for robotic tone",
+      "Callback on a trusted number plus approval controls",
+      "Asking the caller to repeat the request",
+      "Blocking all calls"
+     ],
+     "a": 1,
+     "why": "Independent channel verification does not depend on spotting audio artifacts."
+    },
+    {
+     "q": "Roughly how much audio can zero-shot cloning need?",
+     "options": [
+      "Several hours",
+      "Ten minutes of studio audio",
+      "A few seconds to under a minute",
+      "A full transcript only"
+     ],
+     "a": 2,
+     "why": "Modern systems extract a speaker embedding from very short samples."
+    },
+    {
+     "q": "Which number should you call back?",
+     "options": [
+      "The one in the caller ID",
+      "One the caller gives you",
+      "One from the company directory or your contacts",
+      "Any number on the invoice"
+     ],
+     "a": 2,
+     "why": "Caller ID can be spoofed and caller-supplied numbers reach the attacker."
+    },
+    {
+     "q": "Which element is typical of CEO-fraud scripts?",
+     "options": [
+      "Routine request",
+      "Authority, urgency and secrecy",
+      "Written approval trail",
+      "Small amount"
+     ],
+     "a": 1,
+     "why": "These pressure cues are meant to bypass normal process."
+    }
+   ],
+   "recap": [
+    "A short public sample is enough to clone a voice.",
+    "Never trust a voice alone for money, credentials or access changes.",
+    "Call back on a known number, use code words and require dual approval."
+   ]
+  },
+  {
+   "title": "AI-written phishing and social engineering",
+   "why": "Language models remove the spelling mistakes and generic wording that used to give phishing away, so email controls and training must change.",
+   "sections": [
+    {
+     "h": "What changes with LLM-written lures",
+     "p": [
+      "Phishing used to be limited by the attacker's writing skill and time. Large language models remove both limits. A prompt can produce fluent, grammatically correct messages in dozens of languages, in the tone of a payroll department, a bank or a colleague. They can rewrite one lure into thousands of unique variants, which defeats simple filters that match identical text. Attackers can also feed public details from a company website or professional profile and generate spear phishing that mentions a real project, manager or event. The cost of a personalized lure drops from many minutes of research to seconds."
+     ]
+    },
+    {
+     "h": "Traits that remain detectable",
+     "p": [
+      "Fluent text does not fix the underlying attack. The message still has to get a victim to click, open, pay or reply, so it still carries a call to action under time pressure. Look at what the model cannot control: the sending domain, the reply-to address, authentication results, link destinations, attachment type and whether the request fits normal business flow. AI text can show its own habits, including very polished generic phrasing, no specific internal knowledge, perfect structure with bland content, and sometimes leftover phrases such as an assistant disclaimer. These are weak indicators and must not be used alone because humans can write the same way."
+     ]
+    },
+    {
+     "h": "Email authentication and technical controls",
+     "p": [
+      "Technical controls matter more as text quality rises. SPF lists servers allowed to send for a domain, DKIM signs messages so alterations are detectable, and DMARC tells receivers what to do when SPF or DKIM does not align with the visible From domain; a policy of reject stops direct spoofing. Header review shows the Authentication-Results line with pass or fail values. Secure email gateways add URL rewriting and sandboxing of attachments, and newly registered or lookalike domains such as examp1e.com can be flagged by age and similarity. Banners marking external senders, and rules that flag display names matching executives, address impersonation of internal staff."
+     ]
+    },
+    {
+     "h": "Adapting training and process",
+     "p": [
+      "Old advice such as look for spelling errors is now misleading and should be retired. Teach behavior instead: check the sender address and not just the display name, hover over links, treat unexpected urgency as a warning, and verify any request about money, credentials or data through another channel. Phishing simulations should use realistic, AI-grade lures so that staff calibrate to current quality. Provide an easy report button and thank people who use it. Measure report rate and time to report along with click rate. Combine this with phishing-resistant authentication such as FIDO2 security keys, since a perfect lure cannot steal a credential that cannot be replayed."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Header check (fictional message)",
+    "text": "From: Payroll <payroll@examp1e-hr.example>\nReply-To: hr-help@mailbox.example\nAuthentication-Results: mx.example.com;\n  spf=fail smtp.mailfrom=examp1e-hr.example;\n  dkim=none;\n  dmarc=fail header.from=examp1e-hr.example\nSubject: Updated bonus schedule - action needed today"
+   },
+   "example": "An Example Corp employee receives a perfectly written note from 'HR' about a bonus statement, referring to a real reorganization announced last week. The text has no mistakes, so the old advice would clear it. The header shows SPF fail, no DKIM, a DMARC fail and a Reply-To on a free mailbox, and the domain was registered four days ago. The link leads to a fake sign-in page. The employee presses the report button, the gateway pulls the message from 60 other inboxes, and the domain is blocked.",
+   "terms": [
+    {
+     "term": "Spear phishing",
+     "def": "A targeted phishing message tailored to a specific person or organization."
+    },
+    {
+     "term": "SPF",
+     "def": "DNS record listing the servers authorized to send mail for a domain."
+    },
+    {
+     "term": "DKIM",
+     "def": "Cryptographic signing of mail so tampering and sender domain can be verified."
+    },
+    {
+     "term": "DMARC",
+     "def": "Policy that tells receivers how to treat mail failing SPF or DKIM alignment."
+    },
+    {
+     "term": "Lookalike domain",
+     "def": "A registered domain that imitates a trusted name with small character changes."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the main effect of LLMs on phishing?",
+     "options": [
+      "They make email authentication obsolete",
+      "They remove language errors and enable cheap personalization at scale",
+      "They stop attachments working",
+      "They only help defenders"
+     ],
+     "a": 1,
+     "why": "Fluent, unique, personalized lures are cheap, which weakens spelling-based cues and text-matching filters."
+    },
+    {
+     "q": "Which control best stops direct spoofing of your own domain?",
+     "options": [
+      "Longer subject lines",
+      "DMARC with a reject policy",
+      "Larger mailboxes",
+      "Spell checking"
+     ],
+     "a": 1,
+     "why": "DMARC reject tells receivers to refuse mail that fails alignment with your domain."
+    },
+    {
+     "q": "Why is 'look for typos' poor advice now?",
+     "options": [
+      "Typos never occur",
+      "Models write fluent text",
+      "Typos are harmless",
+      "Email is encrypted"
+     ],
+     "a": 1,
+     "why": "Generated text is usually clean, so the cue no longer separates real from fake."
+    },
+    {
+     "q": "Which protects against a stolen password captured by a perfect lure?",
+     "options": [
+      "Phishing-resistant FIDO2 keys",
+      "Longer reminder emails",
+      "A banner on every email",
+      "Blocking images"
+     ],
+     "a": 0,
+     "why": "FIDO2 credentials are bound to the real site, so a fake page cannot capture something replayable."
+    }
+   ],
+   "recap": [
+    "LLMs improve wording and scale, not the attacker's need to deceive.",
+    "Check headers, domains, authentication results and request context.",
+    "Update training to behavior-based checks and use phishing-resistant MFA."
+   ]
+  },
+  {
+   "title": "Automated attacks and AI-assisted malware",
+   "why": "Automation and AI shorten the time between a published weakness and attempted exploitation, so defenders must plan for faster, broader and noisier activity.",
+   "sections": [
+    {
+     "h": "Automated reconnaissance",
+     "p": [
+      "Reconnaissance was always partly automated through scanners that probe ports and enumerate subdomains. AI adds summarization and decision-making. Models can read public job posts, code repositories, documentation and leaked data to infer technology stacks, and can draft target lists with likely usernames and email formats. Agent frameworks chain tools together: scan, read the result, choose the next probe. The practical effect for defenders is more reconnaissance traffic, tuned to look ordinary, and quicker identification of exposed assets. Reducing the external attack surface, with an inventory of internet-facing services and removal of anything unused, is the response that scales."
+     ]
+    },
+    {
+     "h": "Exploit development and vulnerability triage",
+     "p": [
+      "Researchers have shown that language models can explain a patch diff, locate the underlying flaw and suggest how to reach it, which compresses the gap between patch release and working exploit from weeks toward days. Models also help sift large volumes of fuzzing crashes and code to find candidate bugs. Their results are uneven: they make mistakes, need testing, and work best on well-documented, simple flaws. The defender lesson is time. Known-exploited vulnerabilities, tracked in the CISA KEV catalog, should be patched on the order of days, and internet-facing systems first. Virtual patching with a web application firewall and network segmentation buy time while updates are tested."
+     ]
+    },
+    {
+     "h": "AI-assisted and polymorphic malware",
+     "p": [
+      "Polymorphic malware changes its own code or packaging between copies so hash and static signature matching fail. Tools to do this long predate AI, such as packers and encryptors. Language models can generate many functionally similar variants, rename variables, rewrite scripts and obfuscate loaders, and some reported samples query a model at run time for new commands. Capability gains are modest: the malware still has to run, persist, communicate and act, and each of those steps produces telemetry. Behavior stays detectable even when code differs. Process trees, unusual child processes of office applications, new scheduled tasks, odd outbound connections and mass file changes are signals that do not depend on a known file hash."
+     ]
+    },
+    {
+     "h": "Credential abuse at machine speed",
+     "p": [
+      "Automation is most visible in authentication attacks. Credential stuffing replays username and password pairs leaked from other breaches against a login page, and password spraying tries a few common passwords across many accounts to avoid lockouts. Bots rotate through residential proxy addresses, mimic browser headers and solve simple CAPTCHAs, sometimes with machine-learning help. Telltale patterns remain: very high attempt rates, many distinct usernames from one address or one user agent, failures far above the normal ratio, and uniform timing between requests. Rate limits per account and per source, breached-password checks, MFA, bot management and alerting on failure ratios counter these attacks without needing to know whether an AI was involved."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Detection idea (pseudo-query)",
+    "text": "auth_events\n| where result == \"failure\"\n| summarize attempts=count(), users=dcount(user)\n    by src_ip, bin(time, 5m)\n| where attempts > 100 and users > 20\n| project src_ip, attempts, users"
+   },
+   "example": "Example Corp's login portal sees 9,000 failed sign-ins in ten minutes from 40 addresses in 203.0.113.0/24 and neighboring ranges, each trying only two or three accounts, with exactly 1.2 seconds between attempts. No single address trips the per-IP lockout, yet the overall failure ratio jumps from 3 percent to 94 percent. The SOC rule on aggregate failure ratio fires, rate limiting is applied per account, and affected users are forced to reset passwords and enroll in MFA. Whether a model drove the bots made no difference to the response.",
+   "terms": [
+    {
+     "term": "Polymorphic malware",
+     "def": "Malware that alters its code or packaging between copies to evade signature matching."
+    },
+    {
+     "term": "Credential stuffing",
+     "def": "Replaying leaked username and password pairs against other services."
+    },
+    {
+     "term": "Password spraying",
+     "def": "Trying a few common passwords across many accounts to avoid lockouts."
+    },
+    {
+     "term": "CISA KEV",
+     "def": "Catalog of vulnerabilities known to be exploited in the wild, used to prioritize patching."
+    },
+    {
+     "term": "Virtual patching",
+     "def": "Blocking exploitation of a flaw with a WAF or network rule before the code is fixed."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why does polymorphism defeat hash-based detection?",
+     "options": [
+      "It encrypts the network",
+      "Each copy has a different file hash",
+      "It disables logging",
+      "It uses larger files"
+     ],
+     "a": 1,
+     "why": "Hash matching needs identical bytes; changed code means a new hash."
+    },
+    {
+     "q": "Which signal still works against AI-varied malware?",
+     "options": [
+      "Known file hash",
+      "Behavior such as an office app spawning a shell",
+      "File name",
+      "Compression ratio"
+     ],
+     "a": 1,
+     "why": "Behavior and process telemetry remain stable even when code changes."
+    },
+    {
+     "q": "Password spraying is best described as:",
+     "options": [
+      "Many passwords against one account",
+      "A few common passwords across many accounts",
+      "Replaying session cookies",
+      "Brute forcing hashes offline"
+     ],
+     "a": 1,
+     "why": "Spraying avoids lockout by keeping attempts per account low."
+    },
+    {
+     "q": "What should happen to known-exploited internet-facing flaws?",
+     "options": [
+      "Patch within the normal quarterly cycle",
+      "Patch in days, prioritized first",
+      "Ignore until a scan finds them",
+      "Disable logging"
+     ],
+     "a": 1,
+     "why": "Exploit time is shrinking, so KEV-listed flaws on exposed systems come first."
+    }
+   ],
+   "recap": [
+    "AI speeds reconnaissance, exploit triage and malware variation but does not remove the need for the attacker to act.",
+    "Defend with attack-surface reduction, fast patching and behavior-based detection.",
+    "Rate-based rules and MFA counter automated login abuse."
+   ]
+  },
+  {
+   "title": "Detection and organizational defenses",
+   "why": "No single detector reliably spots fakes, so organizations combine provenance, liveness, human process and payment controls in layers.",
+   "sections": [
+    {
+     "h": "Why detectors alone fail",
+     "p": [
+      "Tools that classify an image or audio clip as real or synthetic exist, but they are unreliable in practice. Accuracy drops on new generators the detector has not seen, on compressed or re-recorded media, and against deliberate evasion. They also create false positives that accuse genuine content. Treat a detector score as one input, never a verdict. Because the attacker needs only one convincing fake and the defender must judge every item, the sound strategy shifts from asking whether media is fake toward asking whether the request is verified. Controls should work even when the fake is perfect, which means building trust in processes and sources rather than in how something looks or sounds."
+     ]
+    },
+    {
+     "h": "Provenance and C2PA",
+     "p": [
+      "Content provenance records where media came from. The C2PA standard, from the Coalition for Content Provenance and Authenticity, defines signed Content Credentials: a manifest that lists the capture device or tool, each edit, and the signer, protected by a certificate chain so tampering breaks the signature. Cameras, editing software and some generators can attach them. A verifier tool reads and validates the manifest. Invisible watermarks embedded in pixels or audio offer a second signal. Both have limits: credentials can be stripped, most existing content has none, and a valid signature proves who signed and what was recorded, not that the scene is true. Provenance helps most when a trusted source signs at capture."
+     ]
+    },
+    {
+     "h": "Liveness checks and identity proofing",
+     "p": [
+      "Remote identity checks, such as onboarding or account recovery, are targets for synthetic faces and replayed video. Liveness detection tests that a live person is present. Passive checks analyze texture, depth and reflections from a single capture. Active checks ask the user to turn their head, blink or read random digits, so a prerecorded clip fails. Injection attacks bypass the camera by feeding fake video into the software stream, so strong systems also verify the device, attest the camera and use document checks that read chip data from an ID. Standards such as ISO/IEC 30107-3 define presentation attack detection testing. Pair the biometric with a second factor and risk checks."
+     ]
+    },
+    {
+     "h": "Out-of-band verification and payment controls",
+     "p": [
+      "Process controls stop fraud even when media is flawless. Require out-of-band verification for sensitive requests: call back using a directory number, or confirm in a separate system. Apply dual approval for payments above a threshold, with the approvers independent of the requester. Lock changes to supplier bank details behind a ticket and callback to the registered contact, and add a waiting period for first payments to new accounts. Define code words for executives and finance. Empower staff to say no without penalty, run tabletop exercises with deepfake scenarios, and prepare a response plan to alert the bank within hours, since recalling a wire works best when it is fast."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Payment approval policy (excerpt)",
+    "text": "Rule 1: Request over 10,000 USD needs two approvers.\nRule 2: Approver must not be the requester.\nRule 3: New or changed bank details need a callback\n        to the number held in the vendor master file.\nRule 4: First payment to a new payee waits 24 hours.\nRule 5: Any pressure to skip rules is reported to Security."
+   },
+   "example": "Example Corp adopts a policy after a near miss. When a video-call request to change a supplier's bank account arrives, finance cannot approve it on the call. A ticket opens, a different employee phones the supplier using the number in the vendor master file, and a second approver signs the change. The supplier says no change was requested. Separately, the marketing team signs its photos with C2PA credentials at export, so a doctored version circulating online lacks the valid manifest and can be rebutted quickly.",
+   "terms": [
+    {
+     "term": "C2PA",
+     "def": "Standard for signed Content Credentials recording the origin and edit history of media."
+    },
+    {
+     "term": "Liveness detection",
+     "def": "Checks that a biometric sample comes from a live person, not a photo, video or mask."
+    },
+    {
+     "term": "Injection attack",
+     "def": "Feeding synthetic video into the capture software, bypassing the physical camera."
+    },
+    {
+     "term": "Out-of-band verification",
+     "def": "Confirming a request through a different, trusted channel than the one it arrived on."
+    },
+    {
+     "term": "Dual approval",
+     "def": "Requiring two independent people to authorize a sensitive transaction."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does a valid C2PA manifest prove?",
+     "options": [
+      "The scene is true",
+      "Who signed it and the recorded history, unless altered",
+      "The file is safe",
+      "The image has no edits ever"
+     ],
+     "a": 1,
+     "why": "It shows signed origin and edits, not truth of the depicted event."
+    },
+    {
+     "q": "Why are deepfake classifiers insufficient alone?",
+     "options": [
+      "They are too fast",
+      "They generalize poorly to new generators and give false results",
+      "They need no data",
+      "They only work on text"
+     ],
+     "a": 1,
+     "why": "Detectors age quickly and are evaded, so scores are only one input."
+    },
+    {
+     "q": "Which test defeats a prerecorded video in a liveness check?",
+     "options": [
+      "Static selfie",
+      "Asking for random head movements or digits",
+      "Longer file name",
+      "Higher resolution"
+     ],
+     "a": 1,
+     "why": "Random challenges cannot be known in advance by a replayed clip."
+    },
+    {
+     "q": "Which control still works if the fake is perfect?",
+     "options": [
+      "Visual inspection",
+      "Dual approval with callback verification",
+      "Faster internet",
+      "Larger monitors"
+     ],
+     "a": 1,
+     "why": "Process controls do not rely on judging the quality of the fake."
+    }
+   ],
+   "recap": [
+    "Treat detectors as a hint and design controls that survive a perfect fake.",
+    "Use C2PA provenance, liveness checks and device attestation where identity matters.",
+    "Back everything with callback verification, dual approval and a blame-free reporting culture."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Verify a suspicious voice request",
+   "sim": "scenario",
+   "scenario": "You work in accounts payable at the fictional Example Corp. At 16:40 on a Friday a call appears to come from the managing director, Ms. Okafor, and the voice sounds right. She asks you to send 52,000 dollars to a new account for a confidential acquisition and says not to tell anyone. The simulator offers verification steps and escalation choices. Choose the sequence that protects the company without panic.",
+   "objective": "Select verification and escalation steps for a suspected cloned-voice payment request.",
+   "steps": [
+    {
+     "do": "Review the call details panel.",
+     "see": "Caller ID shows the director's number, request is urgent, secret and involves a new payee."
+    },
+    {
+     "do": "Choose 'Pay now because the voice is familiar'.",
+     "see": "Marked wrong. Voice alone is not verification."
+    },
+    {
+     "do": "Choose 'Say you will call back and end the call'.",
+     "see": "Marked correct. You keep control of the channel."
+    },
+    {
+     "do": "Select the number to call back from three options: caller ID, number the caller gave, directory entry.",
+     "see": "Only the directory entry is accepted."
+    },
+    {
+     "do": "Call the directory number and ask the agreed challenge question.",
+     "see": "The real director answers and denies the request."
+    },
+    {
+     "do": "Open an incident ticket and notify Security and your manager.",
+     "see": "Ticket recorded with call time, number and request details."
+    },
+    {
+     "do": "Ask the bank to flag the receiving account details.",
+     "see": "Simulator marks escalation complete and shows a 5 of 5 score."
+    }
+   ],
+   "answer": "Do not act on the voice. End the call, call back on the directory number, ask the challenge question, confirm the request is false, then log an incident, notify Security and give the bank the account details. Dual approval would have blocked the payment anyway.",
+   "hint": "Ask which channel the attacker controls, then switch to one they do not."
+  },
+  {
+   "title": "Analyze a phishing email set",
+   "sim": "packet-viewer",
+   "scenario": "The mail security team at Example Corp exported eight messages reported by staff. Each has full headers and body text in the packet viewer. All read fluently and none contains obvious spelling errors. You must decide which emails look machine-generated, which fail SPF, DKIM or DMARC, and which are actually legitimate, then recommend a gateway change. Focus on evidence in the headers rather than gut feeling about the writing.",
+   "objective": "Use header authentication results and body traits to classify eight emails.",
+   "steps": [
+    {
+     "do": "Open email 1 and find the Authentication-Results header.",
+     "see": "spf=pass, dkim=pass, dmarc=pass for example.com. Likely legitimate."
+    },
+    {
+     "do": "Open email 2 and compare From and Reply-To.",
+     "see": "From payroll@examp1e-hr.example, Reply-To on a free mailbox, spf=fail."
+    },
+    {
+     "do": "Check the received-from chain of email 3.",
+     "see": "Origin host is 198.51.100.77, not an Example Corp mail server."
+    },
+    {
+     "do": "Hover each link in email 4.",
+     "see": "Visible text says example.com, real target is a lookalike domain registered 3 days ago."
+    },
+    {
+     "do": "Read the body of email 5 for AI traits.",
+     "see": "Polished generic text, no reference to internal systems, closing line of an assistant style."
+    },
+    {
+     "do": "Open emails 6 and 7 and read their authentication lines.",
+     "see": "6 has dkim=fail; 7 has dmarc=fail with policy none."
+    },
+    {
+     "do": "Open email 8 and check attachment type.",
+     "see": "Password-protected archive with an instruction to enable macros."
+    },
+    {
+     "do": "Fill the classification table and submit.",
+     "see": "Emails 2-8 flagged suspicious, email 1 legitimate; feedback recommends DMARC enforcement and URL rewriting."
+    }
+   ],
+   "answer": "Email 1 is legitimate, with all three checks passing. Emails 2 to 8 are suspicious through failed SPF, DKIM or DMARC, mismatched Reply-To, lookalike links or a risky attachment. Fluent text proves nothing, so move DMARC to reject and enable URL and attachment sandboxing.",
+   "hint": "Ignore how good the writing is and read the Authentication-Results line first."
+  },
+  {
+   "title": "Inspect media metadata",
+   "sim": "terminal",
+   "scenario": "A colleague at Example Corp forwards two images and a short clip that supposedly show a product launch event with a well-known spokesperson, and the communications team must decide what to publish. In the lab terminal you will run exiftool and a C2PA verification tool on three sample files. You will read the output and judge which file has trustworthy provenance, which has suspicious tool tags and which simply lacks data.",
+   "objective": "Interpret exiftool and C2PA output to judge the authenticity of media files.",
+   "steps": [
+    {
+     "do": "Run: exiftool launch_a.jpg",
+     "see": "Camera Make, Model, Create Date and lens present; no Software tag beyond camera firmware."
+    },
+    {
+     "do": "Run: c2patool launch_a.jpg",
+     "see": "Manifest found, signature valid, signer Example Camera Co, no edits recorded."
+    },
+    {
+     "do": "Run: exiftool launch_b.png",
+     "see": "No camera fields. Software shows ExampleDiffusion 2.1 and a prompt text chunk."
+    },
+    {
+     "do": "Run: c2patool launch_b.png",
+     "see": "Manifest shows 'created by generative AI tool'. Label as synthetic."
+    },
+    {
+     "do": "Run: exiftool clip_c.mp4",
+     "see": "Encoder tag is a social platform transcoder; creation date reset; no GPS or camera."
+    },
+    {
+     "do": "Run: c2patool clip_c.mp4",
+     "see": "No manifest found. Result is inconclusive, not proof of fakery."
+    },
+    {
+     "do": "Record a verdict for each file in the report form.",
+     "see": "A: trusted provenance. B: synthetic, do not publish as real. C: unverified, seek original."
+    }
+   ],
+   "answer": "File A has valid signed provenance and camera metadata, so it is the best candidate for use. File B declares generative creation and must not be presented as real. File C lacks metadata after platform processing, which is inconclusive; request the original file from the source.",
+   "hint": "Absence of metadata is weak evidence; a valid signature or an explicit generator tag is stronger."
+  },
+  {
+   "title": "Hunt automated login abuse",
+   "sim": "siem",
+   "scenario": "The SOC at Example Corp saw a spike in sign-in failures on the customer portal overnight. In the SIEM you can query authentication logs for the last 24 hours. Your task is to find the high-speed credential attempts, tell credential stuffing from password spraying, identify the source ranges (documentation addresses only), and write a rate-based detection rule that alerts without flooding the team with false positives from normal users who mistype passwords.",
+   "objective": "Query auth logs, identify automated credential abuse and draft a rate-based detection.",
+   "steps": [
+    {
+     "do": "Run a query counting failures per hour for the portal.",
+     "see": "Normal baseline about 200 per hour; peak 02:00 shows 9,400."
+    },
+    {
+     "do": "Group failures by source IP for 02:00-03:00.",
+     "see": "38 addresses in 203.0.113.0/24 each with 200 to 260 attempts."
+    },
+    {
+     "do": "Count distinct usernames per source IP.",
+     "see": "Each IP targets 3 to 5 accounts; 1,100 accounts overall, so many accounts, few tries each."
+    },
+    {
+     "do": "Check inter-request timing and user agent.",
+     "see": "Constant 1.2 second spacing and one identical user agent string."
+    },
+    {
+     "do": "Check for successes after failures from these IPs.",
+     "see": "41 accounts succeeded; list them for forced reset."
+    },
+    {
+     "do": "Write the rule: more than 100 failures in 5 minutes from one IP, or failure ratio above 50 percent across the portal.",
+     "see": "Rule preview fires on the attack window and 0 times on the previous day."
+    },
+    {
+     "do": "Add a response action and save.",
+     "see": "Rule saved with ticket creation, per-IP throttle and MFA enforcement note."
+    }
+   ],
+   "answer": "This is distributed credential stuffing or spraying: many accounts, few attempts each, uniform timing, shared user agent. Detect with a rate rule per source plus portal-wide failure ratio, reset the 41 compromised accounts, enforce MFA and throttle by account and IP range.",
+   "hint": "Look at distinct usernames per IP and the spacing between requests, not just total failures."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which generative model family removes noise step by step, guided by a prompt?",
+   "options": [
+    "GAN",
+    "Diffusion model",
+    "Decision tree",
+    "Autoencoder classifier"
+   ],
+   "a": 1,
+   "why": "Diffusion models generate by iterative denoising."
+  },
+  {
+   "q": "A live video caller glitches when turning to profile. What does it suggest?",
+   "options": [
+    "Normal network speed",
+    "A possible real-time face swap",
+    "A dead battery",
+    "Proof of identity"
+   ],
+   "a": 1,
+   "why": "Real-time swaps often fail at extreme angles; it is a cue, not proof."
+  },
+  {
+   "q": "What is the safest response to a voice request for an urgent new-payee wire?",
+   "options": [
+    "Comply if the voice sounds right",
+    "Call back using a directory number and follow dual approval",
+    "Reply by email asking for the account",
+    "Ask the caller to prove it"
+   ],
+   "a": 1,
+   "why": "Independent verification and approvals do not rely on trusting the voice."
+  },
+  {
+   "q": "Which factor makes caller ID unreliable for identification?",
+   "options": [
+    "It is encrypted",
+    "It can be spoofed",
+    "It is too slow",
+    "It needs MFA"
+   ],
+   "a": 1,
+   "why": "Caller ID values can be set by the caller, so they prove nothing."
+  },
+  {
+   "q": "Which statement about AI-written phishing is accurate?",
+   "options": [
+    "It always contains typos",
+    "It is fluent but still shows header, domain and link anomalies",
+    "It cannot be personalized",
+    "It bypasses DNS"
+   ],
+   "a": 1,
+   "why": "Text quality improves, but infrastructure signals remain."
+  },
+  {
+   "q": "What does DMARC enforcement with p=reject do?",
+   "options": [
+    "Encrypts email",
+    "Tells receivers to reject mail failing SPF or DKIM alignment",
+    "Scans attachments",
+    "Blocks all external mail"
+   ],
+   "a": 1,
+   "why": "DMARC applies the domain owner's policy to unauthenticated mail."
+  },
+  {
+   "q": "Why is behavior-based detection suited to polymorphic malware?",
+   "options": [
+    "Hashes always match",
+    "Actions like odd child processes persist across code variants",
+    "It needs no logs",
+    "Variants never run"
+   ],
+   "a": 1,
+   "why": "The code changes but its observable actions largely do not."
+  },
+  {
+   "q": "Many accounts, few attempts each, uniform timing from many IPs indicates:",
+   "options": [
+    "A server outage",
+    "Credential stuffing or spraying",
+    "Normal peak load",
+    "A DNS fault"
+   ],
+   "a": 1,
+   "why": "Distributed low-and-slow attempts across accounts is the classic pattern."
+  },
+  {
+   "q": "What does a valid C2PA signature NOT establish?",
+   "options": [
+    "Who signed the manifest",
+    "That the file was altered after signing",
+    "That the depicted event is true",
+    "The recorded edit history"
+   ],
+   "a": 2,
+   "why": "Provenance records origin and edits; it cannot verify that the scene itself is true."
+  },
+  {
+   "q": "Which combination best defends against deepfake-enabled payment fraud?",
+   "options": [
+    "Better lighting on video calls",
+    "Callback verification, dual approval and a blame-free reporting culture",
+    "Longer passwords only",
+    "Disabling email"
+   ],
+   "a": 1,
+   "why": "Layered process controls hold even when the fake is perfect."
+  }
+ ]
+}

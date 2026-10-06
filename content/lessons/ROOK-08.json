@@ -1,0 +1,800 @@
+{
+ "code": "ROOK-08",
+ "intro": "This module turns the Linux shell into an analysis and administration toolkit. You will search text with grep, chain commands with pipes and redirects, inspect and stop processes, keep software patched with apt, and check network state with ip, ping and ss. Together these let you rank attackers in a log, find a runaway or suspicious process, close known vulnerabilities and see which services are exposed. They are the everyday commands of system administrators and security analysts.",
+ "lessons": [
+  {
+   "title": "grep and Regular Patterns",
+   "why": "Logs are huge, and grep is the fastest way to pull out the few lines that matter.",
+   "sections": [
+    {
+     "h": "Basic grep",
+     "p": [
+      "The grep command prints lines that contain a pattern: grep 'Failed password' /var/log/auth.log shows every failed SSH login line. Quote patterns so the shell leaves them alone. By default matching is case sensitive and finds the pattern anywhere in a line. grep reads one or more files, or standard input, which is what allows it to sit in the middle of a pipeline. Its exit status is 0 when something matched and 1 when nothing did, which scripts use for decisions. Reading logs requires permission, so on many systems you need sudo for files under /var/log."
+     ]
+    },
+    {
+     "h": "Useful options",
+     "p": [
+      "Four options cover most daily use. -i ignores case, so grep -i error matches Error and ERROR. -n adds line numbers, helping you jump to the location in an editor. -r (or -R) searches recursively through a directory, as in grep -rn 'password' /etc/app, handy for hunting hardcoded secrets. -v inverts the match and prints lines that do not contain the pattern, so grep -v CRON removes noisy cron entries. Also useful are -c to count matching lines, -l to list only file names, -w for whole words and -A or -B to show lines after or before a match."
+     ]
+    },
+    {
+     "h": "Simple patterns",
+     "p": [
+      "Plain text is the simplest pattern, but grep also supports regular expressions. The caret ^ anchors to the start of a line and $ to the end, so grep '^Mar  3' selects lines starting with that date. A dot matches any one character, and .* matches any run. Brackets match one character from a set, like [0-9]. With -E you get extended expressions: grep -E 'Failed|Invalid' matches either word, and grep -E '[0-9]{1,3}(\\.[0-9]{1,3}){3}' matches the shape of an IPv4 address. Remember that regex symbols differ from shell wildcards, so always quote."
+     ]
+    },
+    {
+     "h": "Filtering logs",
+     "p": [
+      "Combine options to answer questions. grep -i 'invalid user' /var/log/auth.log finds attempts against nonexistent accounts. grep -c 'Failed password' counts failures. grep 'Accepted' shows successful logins, which you compare with expected users and times. To exclude your own address from results, use grep -v 192.0.2.10. A caution: grep matches text, not meaning, so a pattern such as 'fail' can also match a username containing those letters. Check a sample of matches before drawing conclusions, and widen with -A 2 to see context around an event."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ grep -n 'Failed password' /var/log/auth.log | head -n 2\n112:Mar  3 09:20:37 web01 sshd[2210]: Failed password for root from 203.0.113.9 port 51520 ssh2\n113:Mar  3 09:20:39 web01 sshd[2210]: Failed password for invalid user admin from 203.0.113.9 port 51522 ssh2\n$ grep -c 'Accepted' /var/log/auth.log\n3\n$ grep -rn 'password=' /etc/app"
+   },
+   "example": "On web01 an analyst wants to know whether anyone logged in successfully after the failed attempts. She runs grep 'Accepted' /var/log/auth.log and sees three lines, one from 198.51.100.7 at 09:25 using the user deploy. She then runs grep -n '198.51.100.7' to see everything that address did, and uses -A 3 to read context. grep reduced thousands of lines to a handful that told the story.",
+   "terms": [
+    {
+     "term": "grep",
+     "def": "Prints lines matching a pattern from files or standard input."
+    },
+    {
+     "term": "-v",
+     "def": "Inverts the match, printing lines without the pattern."
+    },
+    {
+     "term": "-r",
+     "def": "Searches directories recursively."
+    },
+    {
+     "term": "Anchor",
+     "def": "Regex symbols ^ and $ that match line start and end."
+    },
+    {
+     "term": "-E",
+     "def": "Enables extended regular expressions such as alternation with |."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which grep option ignores case?",
+     "options": [
+      "-i",
+      "-v",
+      "-n",
+      "-r"
+     ],
+     "a": 0,
+     "why": "-i is case insensitive."
+    },
+    {
+     "q": "What does grep -v CRON do?",
+     "options": [
+      "Counts CRON",
+      "Prints lines without CRON",
+      "Searches recursively",
+      "Colors CRON"
+     ],
+     "a": 1,
+     "why": "-v inverts the match."
+    },
+    {
+     "q": "Which option adds line numbers?",
+     "options": [
+      "-n",
+      "-l",
+      "-c",
+      "-w"
+     ],
+     "a": 0,
+     "why": "-n shows line numbers."
+    },
+    {
+     "q": "What does ^Mar match?",
+     "options": [
+      "Mar anywhere",
+      "Lines starting with Mar",
+      "Lines ending with Mar",
+      "Mar in file names"
+     ],
+     "a": 1,
+     "why": "The caret anchors to line start."
+    }
+   ],
+   "recap": [
+    "grep filters lines by pattern; quote your patterns.",
+    "-i, -n, -r, -v and -c cover most use.",
+    "Verify matches and use -A and -B for context."
+   ]
+  },
+  {
+   "title": "Pipes and Redirects",
+   "why": "Chaining small tools lets you answer questions like which IP failed most, without writing a program.",
+   "sections": [
+    {
+     "h": "Standard streams",
+     "p": [
+      "Every Linux command has three streams: standard input (stream 0), standard output (stream 1) and standard error (stream 2). Normally input comes from the keyboard and both outputs go to the terminal. Redirection and pipes change where they go. Understanding that errors are a separate stream explains why a command can print Permission denied even when you redirected output to a file. The special file /dev/null discards anything written to it, so 2>/dev/null hides error messages. This design is why the same small tools can be recombined in many ways."
+     ]
+    },
+    {
+     "h": "Redirects",
+     "p": [
+      "The operator > sends standard output to a file, creating it or overwriting it. The operator >> appends instead, which is how you keep adding to a log or notes file. The operator 2> redirects standard error, and 2>&1 sends errors to the same place as output. The operator < feeds a file into standard input. For example, grep 'Failed' auth.log > failed.txt saves matches, and find / -name '*.key' 2> errors.txt keeps the noise separate. Be careful: > on an existing file destroys its previous content immediately, even before the command finishes."
+     ]
+    },
+    {
+     "h": "Pipes",
+     "p": [
+      "A pipe, written |, connects the output of the left command to the input of the right command with no temporary file. Pipelines may be long: cat file | grep x | sort | uniq. Each stage does one job. Useful partners are sort to order lines, uniq -c to collapse adjacent duplicates and count them (so data must be sorted first), wc -l to count lines, cut -d' ' -f1 to pick a field, and head to keep the top rows. Because uniq only merges adjacent lines, the common pattern is sort | uniq -c | sort -nr to rank by count."
+     ]
+    },
+    {
+     "h": "A ranking example",
+     "p": [
+      "To find the noisiest attacker in an SSH log, extract the failed lines, isolate the address, then count: grep 'Failed password' auth.log | awk '{print $(NF-3)}' | sort | uniq -c | sort -nr | head. The awk step picks the IP field, which sits four from the end of the line in the standard format; check that on your own sample, because formats vary. The first sort groups identical addresses, uniq -c counts them, the second sort -nr orders numerically from high to low, and head shows the top results. Build such pipelines one stage at a time, inspecting output as you go."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ grep 'Failed password' auth.log | awk '{print $(NF-3)}' | sort | uniq -c | sort -nr | head -n 3\n    212 203.0.113.9\n     14 198.51.100.7\n      3 192.0.2.44\n$ wc -l auth.log\n1840 auth.log"
+   },
+   "example": "A small web host sees slow SSH. The administrator runs the ranking pipeline on auth.log and gets 212 failed attempts from 203.0.113.9, 14 from 198.51.100.7 and 3 from 192.0.2.44. She saves the result with > top_attackers.txt, then appends a timestamp with date >> top_attackers.txt. The top address is a candidate to block at the firewall, while the three-attempt address is probably a user mistyping a password.",
+   "terms": [
+    {
+     "term": "Pipe",
+     "def": "Connects one command's output to the next command's input."
+    },
+    {
+     "term": "Redirect >",
+     "def": "Writes output to a file, overwriting it."
+    },
+    {
+     "term": "Append >>",
+     "def": "Adds output to the end of a file."
+    },
+    {
+     "term": "stderr",
+     "def": "Standard error, stream 2, used for error messages."
+    },
+    {
+     "term": "uniq -c",
+     "def": "Counts adjacent duplicate lines."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which operator appends to a file?",
+     "options": [
+      ">",
+      ">>",
+      "2>",
+      "|"
+     ],
+     "a": 1,
+     "why": ">> appends."
+    },
+    {
+     "q": "Why sort before uniq -c?",
+     "options": [
+      "For color",
+      "uniq only collapses adjacent duplicates",
+      "sort is required by the shell",
+      "to hide errors"
+     ],
+     "a": 1,
+     "why": "uniq counts only neighboring identical lines."
+    },
+    {
+     "q": "What does 2>/dev/null do?",
+     "options": [
+      "Saves errors",
+      "Discards error messages",
+      "Appends output",
+      "Reads input"
+     ],
+     "a": 1,
+     "why": "Stream 2 is sent to the null device."
+    },
+    {
+     "q": "What does wc -l count?",
+     "options": [
+      "Words",
+      "Lines",
+      "Bytes",
+      "Files"
+     ],
+     "a": 1,
+     "why": "-l is lines."
+    }
+   ],
+   "recap": [
+    "Pipes pass output to input; redirects send streams to files.",
+    "> overwrites, >> appends, 2> handles errors.",
+    "sort | uniq -c | sort -nr ranks frequency."
+   ]
+  },
+  {
+   "title": "Processes: ps, top and kill",
+   "why": "Malware, cryptominers and runaway jobs all show up as processes, and you must know how to see and stop them safely.",
+   "sections": [
+    {
+     "h": "What a process is",
+     "p": [
+      "A process is a running program with a process ID (PID), a parent PID (PPID), an owner, a state and resource use. The first process, PID 1 (systemd on most modern systems), starts all others. Processes can be in states such as running (R), sleeping (S) or zombie (Z), a finished process waiting for its parent to collect it. Each runs as a user, and its privileges equal that user's, so a process running as root deserves more scrutiny. Seeing which processes exist, who owns them and where they came from is a basic detection skill."
+     ]
+    },
+    {
+     "h": "Listing with ps",
+     "p": [
+      "The ps command prints a snapshot. ps aux shows all processes with columns USER, PID, %CPU, %MEM, START, TIME and COMMAND. ps -ef shows the parent PID too, which helps trace what launched what. Combine with grep to find one program: ps aux | grep nginx. Be aware that the grep command itself appears in the results; the pattern [n]ginx avoids that. pgrep -a name prints PIDs and command lines directly. Suspicious signs include unfamiliar names, processes running from /tmp or a hidden directory, odd parents, and a name that mimics a system process with a small spelling change."
+     ]
+    },
+    {
+     "h": "Live view with top",
+     "p": [
+      "The top command refreshes continuously, showing load average, CPU and memory totals, and processes sorted by CPU by default. Inside top, press M to sort by memory, P to sort by CPU, k to kill a PID and q to quit. htop is a friendlier alternative if installed. A single process at 95 percent CPU for a long time can mean an infinite loop, a backup or a cryptominer. Check its owner, its command line and its start time, then use ls -l /proc/PID/exe to see which binary on disk it truly is."
+     ]
+    },
+    {
+     "h": "Signals and kill",
+     "p": [
+      "The kill command sends a signal to a process; despite its name it does not always kill. kill PID sends SIGTERM (15), a polite request that lets the program clean up. If it ignores the request, kill -9 PID sends SIGKILL, which the kernel enforces immediately with no cleanup, risking corrupted data. kill -1 (SIGHUP) often asks a daemon to reload its configuration, and Ctrl+C sends SIGINT. killall name and pkill name match by name, so use them carefully. You can only signal your own processes unless using sudo. Try SIGTERM first, escalate to SIGKILL only if needed, and preserve evidence before killing a suspected malicious process."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ ps aux --sort=-%cpu | head -n 3\nUSER   PID %CPU %MEM START TIME COMMAND\nsvc   4021 95.2  1.1 02:14 410:12 /tmp/.cache/miner --pool 198.51.100.50\nroot     1  0.0  0.1 Mar01 0:09 /sbin/init\n$ kill 4021\n$ kill -9 4021"
+   },
+   "example": "Monitoring on host app01 alerts on sustained CPU. The administrator runs top, sees PID 4021 at 95 percent, and ps shows it runs from /tmp/.cache under the svc account. She first records the command line and the binary hash for evidence, then sends kill 4021. The process survives, so she escalates to kill -9 4021. She then investigates how it arrived, since killing it does not remove the root cause.",
+   "terms": [
+    {
+     "term": "PID",
+     "def": "Numeric identifier of a process."
+    },
+    {
+     "term": "SIGTERM",
+     "def": "Signal 15, a graceful termination request; the default for kill."
+    },
+    {
+     "term": "SIGKILL",
+     "def": "Signal 9, forced termination that cannot be caught."
+    },
+    {
+     "term": "ps aux",
+     "def": "Snapshot listing of all processes with user and resource data."
+    },
+    {
+     "term": "Zombie",
+     "def": "A finished process whose exit status has not yet been collected."
+    }
+   ],
+   "check": [
+    {
+     "q": "What signal does plain kill send?",
+     "options": [
+      "SIGKILL",
+      "SIGTERM",
+      "SIGHUP",
+      "SIGSTOP"
+     ],
+     "a": 1,
+     "why": "Default is 15, SIGTERM."
+    },
+    {
+     "q": "Which command shows live CPU use?",
+     "options": [
+      "ps",
+      "top",
+      "ls",
+      "find"
+     ],
+     "a": 1,
+     "why": "top refreshes continuously."
+    },
+    {
+     "q": "Why try SIGTERM before SIGKILL?",
+     "options": [
+      "It is faster",
+      "It lets the program clean up",
+      "It needs no permission",
+      "It hides evidence"
+     ],
+     "a": 1,
+     "why": "Graceful stop avoids corruption."
+    },
+    {
+     "q": "Which clue suggests malware?",
+     "options": [
+      "Process running from /tmp with high CPU",
+      "systemd as PID 1",
+      "sshd run by root",
+      "cron"
+     ],
+     "a": 0,
+     "why": "Unusual location and heavy CPU are red flags."
+    }
+   ],
+   "recap": [
+    "ps gives snapshots; top gives a live view.",
+    "SIGTERM first, SIGKILL last.",
+    "Investigate location, owner and parent of odd processes."
+   ]
+  },
+  {
+   "title": "Package Management with apt",
+   "why": "Unpatched software is a leading cause of breaches, and apt is how Debian-family systems stay current.",
+   "sections": [
+    {
+     "h": "How apt works",
+     "p": [
+      "On Debian, Ubuntu and Kali, apt installs software from repositories listed in /etc/apt/sources.list and files in sources.list.d. Packages are signed, and apt verifies the signatures with trusted keys, which protects against tampered downloads. Package management also resolves dependencies, installing the libraries a program needs. The underlying tool is dpkg, which handles individual .deb files, while apt handles repositories and dependencies. Most commands need root, so they are prefixed with sudo. Red Hat-family systems use dnf or yum, and the ideas are the same."
+     ]
+    },
+    {
+     "h": "The daily commands",
+     "p": [
+      "The sequence is: sudo apt update refreshes the package index from repositories (it does not install anything), apt list --upgradable shows which installed packages have newer versions, and sudo apt upgrade installs those updates. sudo apt full-upgrade also allows removing or adding packages to satisfy changes. apt search keyword and apt show package find and describe software. sudo apt install nginx installs, sudo apt remove nginx removes it but keeps configuration, and sudo apt purge removes the configuration too. sudo apt autoremove clears orphaned dependencies. Always run update before install, or you may fetch outdated versions."
+     ]
+    },
+    {
+     "h": "Why patching reduces risk",
+     "p": [
+      "Attackers scan the internet for software with known vulnerabilities, identified by CVE numbers, and exploit them within days of publication. A vendor fix closes the hole; until you apply it, you are exposed. Security updates are often published in a dedicated security repository, and the Ubuntu unattended-upgrades package can install them automatically. Prioritize internet-facing services and anything with a critical or actively exploited CVE. Patching also applies to the kernel and libraries; services using an updated library may need a restart, and a kernel update needs a reboot to take effect."
+     ]
+    },
+    {
+     "h": "Safe habits",
+     "p": [
+      "Install only what you need, because every package is attack surface and future patch work. Use official repositories, and be cautious with third-party repositories and with curl piped to a shell, which bypass signature checks and review. Test updates on a staging system where possible, and keep a rollback plan or snapshot for critical servers. Read the apt output: held-back packages and errors matter. Check history in /var/log/apt/history.log to see what was installed and when, which is useful during incident response. Remove software you no longer use."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ sudo apt update\nGet:1 http://security.example.com/debian-security bookworm-security InRelease\nReading package lists... Done\n12 packages can be upgraded.\n$ apt list --upgradable\nopenssl/stable-security 3.0.15-1 amd64 [upgradable from: 3.0.11-1]\n$ sudo apt install --only-upgrade openssl"
+   },
+   "example": "The security team learns of a critical flaw in a library on srv01. The administrator runs sudo apt update, then apt list --upgradable and sees the library has a fixed version in the security repository. She installs it with sudo apt install --only-upgrade, restarts the dependent service, and confirms the new version with apt show. The window of exposure ends as soon as the fix is installed, so speed matters.",
+   "terms": [
+    {
+     "term": "apt update",
+     "def": "Refreshes the package index; installs nothing."
+    },
+    {
+     "term": "apt upgrade",
+     "def": "Installs available updates for installed packages."
+    },
+    {
+     "term": "Repository",
+     "def": "A signed source of packages that apt downloads from."
+    },
+    {
+     "term": "CVE",
+     "def": "A public identifier for a known vulnerability."
+    },
+    {
+     "term": "apt purge",
+     "def": "Removes a package and its configuration files."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does apt update do?",
+     "options": [
+      "Installs updates",
+      "Refreshes the package list",
+      "Removes packages",
+      "Reboots"
+     ],
+     "a": 1,
+     "why": "It only refreshes the index."
+    },
+    {
+     "q": "Which command installs available updates?",
+     "options": [
+      "apt upgrade",
+      "apt search",
+      "apt show",
+      "apt list"
+     ],
+     "a": 0,
+     "why": "apt upgrade applies them."
+    },
+    {
+     "q": "Why patch quickly?",
+     "options": [
+      "Attackers exploit known flaws soon after disclosure",
+      "Patches slow the system",
+      "It resets passwords",
+      "It is required by sudo"
+     ],
+     "a": 0,
+     "why": "Known CVEs are exploited quickly."
+    },
+    {
+     "q": "Why verify package signatures?",
+     "options": [
+      "Speed",
+      "To detect tampered packages",
+      "To save space",
+      "To hide history"
+     ],
+     "a": 1,
+     "why": "Signatures prove packages are from the repository."
+    }
+   ],
+   "recap": [
+    "update refreshes, upgrade installs, install adds packages.",
+    "Patching closes known CVEs and shrinks the exposure window.",
+    "Install less software, use trusted repositories."
+   ]
+  },
+  {
+   "title": "Network Checks: ip, ping and ss",
+   "why": "Before you can defend a host you must know its addresses, its route out and what is listening for connections.",
+   "sections": [
+    {
+     "h": "Addresses with ip a",
+     "p": [
+      "The command ip a (short for ip address show) lists each network interface, its state and its addresses. A line like inet 192.0.2.15/24 brd 192.0.2.255 scope global eth0 means the interface eth0 has IPv4 address 192.0.2.15 with a 24-bit prefix, so the network is 192.0.2.0/24. lo is the loopback interface with 127.0.0.1. inet6 lines show IPv6 addresses. The link/ether line shows the MAC address. Look for state UP, and for unexpected extra interfaces, such as an unknown tunnel or VPN, which can indicate a pivot or misconfiguration."
+     ]
+    },
+    {
+     "h": "Routes with ip route",
+     "p": [
+      "The command ip route shows the routing table. The line default via 192.0.2.1 dev eth0 means traffic to unknown destinations goes to the gateway at 192.0.2.1 through eth0, and lines like 192.0.2.0/24 dev eth0 mean that network is directly connected. If the default route is missing, the host cannot reach the internet. Changes to routes that you did not make are suspicious, as an attacker may redirect traffic. The older ifconfig and netstat tools still appear in tutorials, but ip and ss are their modern replacements."
+     ]
+    },
+    {
+     "h": "Reachability with ping",
+     "p": [
+      "The ping command sends ICMP echo requests and reports replies and round-trip times. Use ping -c 4 192.0.2.1 to send four packets and stop; without -c, Linux pings forever until Ctrl+C. Test in layers: ping 127.0.0.1 checks the local stack, then the gateway, then an outside address such as 203.0.113.10, then a name like example.com, which also tests DNS. A reply proves reachability, but silence does not prove a host is down, since firewalls often drop ICMP. Output also gives packet loss percentage and TTL, a hint about the operating system and hop count."
+     ]
+    },
+    {
+     "h": "Listening ports with ss",
+     "p": [
+      "The command ss -tulpn lists sockets: t for TCP, u for UDP, l for listening, p to show the process and n for numeric ports. Run it with sudo to see process names for all users. In the Local Address column, 127.0.0.1:5432 means only the local host can connect, while 0.0.0.0:22 or [::]:22 means every interface. Every listening service is part of your attack surface, so compare the list with what should be running. An unexpected service on 0.0.0.0, such as a database on 3306, is a finding. The PID in users:((\"name\",pid=N,fd=M)) lets you inspect the process with ps."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ ip -4 a show eth0\n2: eth0: <BROADCAST,MULTICAST,UP> state UP\n    inet 192.0.2.15/24 brd 192.0.2.255 scope global eth0\n$ ip route\ndefault via 192.0.2.1 dev eth0\n$ ping -c 2 192.0.2.1\n2 packets transmitted, 2 received, 0% packet loss\n$ sudo ss -tulpn\ntcp LISTEN 0 128 0.0.0.0:22   0.0.0.0:* users:((\"sshd\",pid=811,fd=3))\ntcp LISTEN 0 80  0.0.0.0:3306 0.0.0.0:* users:((\"mysqld\",pid=1450,fd=21))"
+   },
+   "example": "A new web server was supposed to expose only ports 22 and 443. The administrator runs sudo ss -tulpn and sees mysqld listening on 0.0.0.0:3306, reachable from every network. She notes the PID 1450, confirms with ps, and changes the database bind-address to 127.0.0.1 and restarts it. A second ss run shows 127.0.0.1:3306, so the database is now reachable only from the host itself.",
+   "terms": [
+    {
+     "term": "ip a",
+     "def": "Shows interfaces, addresses and link state."
+    },
+    {
+     "term": "ip route",
+     "def": "Shows the routing table including the default gateway."
+    },
+    {
+     "term": "ICMP echo",
+     "def": "The request type used by ping to test reachability."
+    },
+    {
+     "term": "ss -tulpn",
+     "def": "Lists listening TCP and UDP sockets with owning processes."
+    },
+    {
+     "term": "0.0.0.0",
+     "def": "A listening address meaning all IPv4 interfaces."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which command shows the default gateway?",
+     "options": [
+      "ip a",
+      "ip route",
+      "ping",
+      "ss"
+     ],
+     "a": 1,
+     "why": "ip route lists the default route."
+    },
+    {
+     "q": "What does ss -tulpn show?",
+     "options": [
+      "Disk usage",
+      "Listening ports and their processes",
+      "DNS records",
+      "Routing only"
+     ],
+     "a": 1,
+     "why": "It lists sockets with PIDs."
+    },
+    {
+     "q": "What does a listener on 127.0.0.1 mean?",
+     "options": [
+      "Open to the internet",
+      "Local connections only",
+      "Broken",
+      "IPv6 only"
+     ],
+     "a": 1,
+     "why": "Loopback is reachable only from the same host."
+    },
+    {
+     "q": "Why might ping get no reply from a live host?",
+     "options": [
+      "Firewall blocks ICMP",
+      "Host has no IP",
+      "ping is slow",
+      "TTL is high"
+     ],
+     "a": 0,
+     "why": "Many firewalls drop ICMP echo."
+    }
+   ],
+   "recap": [
+    "ip a and ip route show addresses and paths.",
+    "ping tests reachability but silence is not proof of down.",
+    "ss -tulpn reveals exposed services and their PIDs."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Failed Logins by IP",
+   "sim": "terminal",
+   "scenario": "A fictional web server web01 has an auth.log with many SSH failures. Management wants to know which source addresses are the worst offenders so they can be blocked. Use a pipeline, not manual counting.",
+   "objective": "Pipe grep, sort and uniq -c over an auth log to rank source IPs by failed attempts.",
+   "steps": [
+    {
+     "do": "Type grep 'Failed password' auth.log | head -n 2",
+     "see": "Mar  3 09:20:37 web01 sshd[2210]: Failed password for root from 203.0.113.9 port 51520 ssh2\nMar  3 09:20:39 web01 sshd[2210]: Failed password for invalid user admin from 203.0.113.9 port 51522 ssh2"
+    },
+    {
+     "do": "Add awk: ... | awk '{print $(NF-3)}'",
+     "see": "203.0.113.9\n203.0.113.9\n198.51.100.7\n..."
+    },
+    {
+     "do": "Add sort",
+     "see": "Identical addresses are grouped together."
+    },
+    {
+     "do": "Add uniq -c",
+     "see": "    212 203.0.113.9\n     14 198.51.100.7\n      3 192.0.2.44"
+    },
+    {
+     "do": "Add sort -nr | head -n 3",
+     "see": "212 203.0.113.9\n 14 198.51.100.7\n  3 192.0.2.44"
+    },
+    {
+     "do": "Save with > top_ips.txt",
+     "see": "(no output; file written)"
+    }
+   ],
+   "answer": "The top offender is 203.0.113.9 with 212 failed attempts, followed by 198.51.100.7 with 14 and 192.0.2.44 with 3. The full pipeline is grep, awk to extract the IP, sort, uniq -c and sort -nr.",
+   "hint": "uniq -c needs sorted input."
+  },
+  {
+   "title": "Runaway Process",
+   "sim": "terminal",
+   "scenario": "A fictional host app01 is sluggish. Monitoring shows one process using almost all CPU. You must identify it and stop it with the least forceful signal that works, and record what you did.",
+   "objective": "Use top and ps to find a process using 95 percent CPU and terminate it with the right signal.",
+   "steps": [
+    {
+     "do": "Type top",
+     "see": "PID 4021 svc 95.2 %CPU  /tmp/.cache/miner"
+    },
+    {
+     "do": "Press q, then type ps -fp 4021",
+     "see": "svc 4021 1 95 02:14 ? 07:12:03 /tmp/.cache/miner --pool 198.51.100.50"
+    },
+    {
+     "do": "Type ls -l /proc/4021/exe",
+     "see": "/proc/4021/exe -> /tmp/.cache/miner"
+    },
+    {
+     "do": "Type kill 4021",
+     "see": "(no output)"
+    },
+    {
+     "do": "Type ps -p 4021",
+     "see": "4021 ... still running"
+    },
+    {
+     "do": "Type kill -9 4021",
+     "see": "(no output)"
+    },
+    {
+     "do": "Type ps -p 4021",
+     "see": "PID not found: process ended"
+    }
+   ],
+   "answer": "PID 4021, running from /tmp/.cache as account svc, used 95 percent CPU. SIGTERM (kill 4021) was ignored, so SIGKILL (kill -9 4021) ended it. The suspicious path suggests a cryptominer and a compromise to investigate.",
+   "hint": "Try plain kill first, then -9."
+  },
+  {
+   "title": "Patch the Box",
+   "sim": "terminal",
+   "scenario": "A fictional server srv01 runs an outdated openssl package and a security advisory says it is fixed in a newer version. You have sudo. Refresh, review and install just the needed update, then verify it.",
+   "objective": "Run apt update, list upgradable packages and install a security update for a vulnerable package.",
+   "steps": [
+    {
+     "do": "Type sudo apt update",
+     "see": "Hit/Get lines... 12 packages can be upgraded."
+    },
+    {
+     "do": "Type apt list --upgradable",
+     "see": "openssl/stable-security 3.0.15-1 [upgradable from: 3.0.11-1]\n(+11 more)"
+    },
+    {
+     "do": "Type apt show openssl | head -n 5",
+     "see": "Package: openssl\nVersion: 3.0.15-1\nPriority: optional"
+    },
+    {
+     "do": "Type sudo apt install --only-upgrade openssl",
+     "see": "Setting up openssl (3.0.15-1) ..."
+    },
+    {
+     "do": "Type apt list --installed | grep openssl",
+     "see": "openssl/stable-security,now 3.0.15-1 amd64 [installed]"
+    },
+    {
+     "do": "Type sudo systemctl restart nginx",
+     "see": "(no output; service uses new library)"
+    }
+   ],
+   "answer": "openssl was upgraded from 3.0.11-1 to 3.0.15-1 from the security repository after apt update refreshed the index. Verification shows the new installed version, and the dependent service was restarted.",
+   "hint": "Run apt update before listing upgradable packages."
+  },
+  {
+   "title": "Who Is Listening?",
+   "sim": "terminal",
+   "scenario": "A fictional web server web02 should expose only SSH on 22 and HTTPS on 443. A scan shows an extra open port. Find the service, identify the process and decide what to change.",
+   "objective": "Run ss -tulpn and flag the unexpected service listening on 0.0.0.0, then trace its PID.",
+   "steps": [
+    {
+     "do": "Type sudo ss -tulpn",
+     "see": "tcp LISTEN 0.0.0.0:22 sshd pid=811\ntcp LISTEN 0.0.0.0:443 nginx pid=902\ntcp LISTEN 0.0.0.0:3306 mysqld pid=1450\ntcp LISTEN 127.0.0.1:631 cupsd pid=700"
+    },
+    {
+     "do": "Flag 0.0.0.0:3306",
+     "see": "Marked unexpected: database exposed on all interfaces."
+    },
+    {
+     "do": "Type ps -fp 1450",
+     "see": "mysql 1450 1 0 Mar01 ? mysqld"
+    },
+    {
+     "do": "Type ls -l /proc/1450/exe",
+     "see": "/proc/1450/exe -> /usr/sbin/mysqld"
+    },
+    {
+     "do": "Set bind-address = 127.0.0.1 and restart",
+     "see": "Config saved; service restarted"
+    },
+    {
+     "do": "Type sudo ss -tulpn | grep 3306",
+     "see": "tcp LISTEN 127.0.0.1:3306 mysqld pid=1451"
+    }
+   ],
+   "answer": "mysqld (PID 1450) listened on 0.0.0.0:3306, exposing the database. Binding it to 127.0.0.1 limits access to the host. The CUPS listener on 127.0.0.1:631 is local-only and not an exposure.",
+   "hint": "Look at the Local Address column for 0.0.0.0."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which grep option prints lines that do NOT match?",
+   "options": [
+    "-i",
+    "-v",
+    "-r",
+    "-n"
+   ],
+   "a": 1,
+   "why": "-v inverts."
+  },
+  {
+   "q": "What does >> do?",
+   "options": [
+    "Overwrites a file",
+    "Appends to a file",
+    "Pipes output",
+    "Discards errors"
+   ],
+   "a": 1,
+   "why": "It appends."
+  },
+  {
+   "q": "Why use sort before uniq -c?",
+   "options": [
+    "uniq only merges adjacent duplicates",
+    "To save disk",
+    "uniq needs root",
+    "To color output"
+   ],
+   "a": 0,
+   "why": "Duplicates must be adjacent."
+  },
+  {
+   "q": "What does 2> redirect?",
+   "options": [
+    "Standard output",
+    "Standard error",
+    "Standard input",
+    "Environment"
+   ],
+   "a": 1,
+   "why": "Stream 2 is stderr."
+  },
+  {
+   "q": "Which signal is the default for kill?",
+   "options": [
+    "SIGKILL",
+    "SIGTERM",
+    "SIGSTOP",
+    "SIGUSR1"
+   ],
+   "a": 1,
+   "why": "Default is 15 (SIGTERM)."
+  },
+  {
+   "q": "Which gives a live, continuously updating process view?",
+   "options": [
+    "ps aux",
+    "top",
+    "ls /proc",
+    "kill"
+   ],
+   "a": 1,
+   "why": "top refreshes."
+  },
+  {
+   "q": "What does apt update do?",
+   "options": [
+    "Upgrades all software",
+    "Refreshes the package index",
+    "Removes old kernels",
+    "Reboots"
+   ],
+   "a": 1,
+   "why": "It fetches package lists only."
+  },
+  {
+   "q": "Why does timely patching reduce risk?",
+   "options": [
+    "It closes known vulnerabilities",
+    "It deletes logs",
+    "It disables firewalls",
+    "It adds users"
+   ],
+   "a": 0,
+   "why": "Fixes remove known exploitable flaws."
+  },
+  {
+   "q": "In ss output, 0.0.0.0:3306 means:",
+   "options": [
+    "MySQL reachable on all interfaces",
+    "Local only",
+    "Closed port",
+    "IPv6 only"
+   ],
+   "a": 0,
+   "why": "0.0.0.0 is every interface."
+  },
+  {
+   "q": "Which command shows the default route?",
+   "options": [
+    "ip route",
+    "ip a",
+    "ping",
+    "ss -t"
+   ],
+   "a": 0,
+   "why": "ip route lists the routing table."
+  }
+ ]
+}

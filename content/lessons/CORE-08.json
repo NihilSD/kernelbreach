@@ -1,0 +1,832 @@
+{
+ "code": "CORE-08",
+ "intro": "Prevention starts on the individual machine. This module covers the habits that make a laptop, server or phone hard to compromise and quick to recover: hardening to a baseline, keeping software patched, using antivirus, EDR and allowlisting to catch or block malicious code, encrypting disks and managing mobile devices, and keeping backups that survive ransomware. Each topic is a layer. None is perfect alone, but together they reduce the number of successful attacks and limit the damage when one gets through.",
+ "lessons": [
+  {
+   "title": "System hardening basics",
+   "why": "A default installation is built for convenience, so every unused service and loose permission is extra attack surface that hardening removes.",
+   "sections": [
+    {
+     "h": "What hardening means",
+     "p": [
+      "Hardening is the process of reducing a system's attack surface by removing or disabling what is not needed and tightening what remains. A fresh operating system ships with many services, accounts and features enabled so that it works for the widest audience. Each running service is code that may contain a flaw, and each open port is a way in. The guiding ideas are simple: install the minimum, run services with the least privilege they need, change insecure defaults, and keep the result documented so it can be repeated. Hardening is done before a system goes into production and re-checked afterwards, because configurations drift as people make changes."
+     ]
+    },
+    {
+     "h": "Baselines and CIS Benchmarks",
+     "p": [
+      "You do not have to invent a hardening list from scratch. The Center for Internet Security publishes CIS Benchmarks, consensus-built configuration guides for operating systems such as Windows, Ubuntu and Red Hat, and for browsers, cloud platforms and databases. Many benchmarks have two profiles: Level 1 gives practical settings with little impact on usability, while Level 2 adds stricter settings for high-security environments. Other sources include DISA STIGs and vendor guides. A baseline is the approved configuration for a type of system. Tools such as OpenSCAP, Lynis and Microsoft security baselines can scan a host and report which recommendations pass or fail."
+     ]
+    },
+    {
+     "h": "Common hardening steps",
+     "p": [
+      "Typical actions include disabling unused services (for example telnet, FTP or the legacy SMBv1 protocol), closing ports with a host firewall, removing default accounts and passwords, and enforcing strong password and lockout policy. On SSH, disable password login and root login and use keys. Apply least privilege: users work as standard accounts and use sudo or administrative elevation only for specific tasks, and file permissions are as tight as the job allows. Turn on logging and time synchronization so events can be investigated later. Enable automatic security updates where appropriate, and remove software nobody uses, since uninstalled code cannot be exploited."
+     ]
+    },
+    {
+     "h": "Keeping the baseline true",
+     "p": [
+      "Hardening is not a one-time job. Configuration drift happens when administrators make quick changes, and new patches or applications may re-enable features. Use configuration management tools such as Ansible, Group Policy or Intune to push the baseline and correct deviations automatically. Build hardened golden images so new servers start secure. Record approved exceptions, with the reason and an owner, so a deliberately relaxed setting is not mistaken for a mistake. Re-scan on a schedule and after major changes, and track the pass rate over time. Always test a baseline in a lab first, since an overly strict setting can break an application and tempt people to abandon the whole policy."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Quick Linux checks (example host)",
+    "text": "systemctl list-unit-files --state=enabled\nss -tlnp\nsudo systemctl disable --now telnet.socket\nchmod 640 /etc/shadow\ngrep -E '^(PermitRootLogin|PasswordAuthentication)' /etc/ssh/sshd_config\n# desired:\n# PermitRootLogin no\n# PasswordAuthentication no"
+   },
+   "example": "An admin at the fictional firm Example Corp builds a web server for 192.0.2.20. The scan against the CIS Level 1 benchmark shows 14 failures: telnet is enabled, SSH allows passwords, and /etc/shadow is readable by group. She disables telnet, switches SSH to keys only, fixes the permission, and rescans to confirm all 14 now pass. She then saves the setup as a golden image, so every new server starts from the same hardened state.",
+   "terms": [
+    {
+     "term": "Attack surface",
+     "def": "The sum of services, ports, accounts and features an attacker could try to abuse."
+    },
+    {
+     "term": "CIS Benchmark",
+     "def": "A consensus configuration guide with Level 1 and Level 2 profiles for a given product."
+    },
+    {
+     "term": "Baseline",
+     "def": "The approved secure configuration that systems are expected to match."
+    },
+    {
+     "term": "Least privilege",
+     "def": "Giving an account or process only the access it needs for its task."
+    },
+    {
+     "term": "Configuration drift",
+     "def": "Gradual deviation of a system from its approved baseline."
+    },
+    {
+     "term": "Golden image",
+     "def": "A pre-hardened template used to build new systems."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which action best reduces a server's attack surface?",
+     "options": [
+      "Adding more monitoring agents",
+      "Disabling services and ports that are not needed",
+      "Renaming the server",
+      "Increasing disk size"
+     ],
+     "a": 1,
+     "why": "Fewer running services and open ports means fewer things to attack."
+    },
+    {
+     "q": "What is a CIS Level 2 profile typically intended for?",
+     "options": [
+      "Home users only",
+      "Stricter settings for high-security environments",
+      "Disabling all logging",
+      "Automatic backups"
+     ],
+     "a": 1,
+     "why": "Level 1 is a practical baseline; Level 2 is stricter and may affect usability."
+    },
+    {
+     "q": "Why do teams re-scan systems after the initial hardening?",
+     "options": [
+      "Configuration drift can undo the baseline",
+      "Scans make servers faster",
+      "Benchmarks expire daily",
+      "Hardening is illegal to leave unchecked"
+     ],
+     "a": 0,
+     "why": "Changes, updates and quick fixes cause drift from the baseline."
+    },
+    {
+     "q": "Which SSH change is a standard hardening step?",
+     "options": [
+      "Allow root password login",
+      "Use key-based login and disable password login",
+      "Move SSH to telnet",
+      "Disable logging"
+     ],
+     "a": 1,
+     "why": "Keys resist guessing and brute force far better than passwords."
+    }
+   ],
+   "recap": [
+    "Hardening removes unneeded services, tightens defaults and enforces least privilege.",
+    "Use a published baseline such as a CIS Benchmark and scan against it.",
+    "Automate and re-check, because configurations drift."
+   ]
+  },
+  {
+   "title": "Patch management",
+   "why": "Most successful attacks use flaws that already have a fix, so a disciplined patch process closes the easiest doors.",
+   "sections": [
+    {
+     "h": "The patch cycle",
+     "p": [
+      "Patch management is the repeatable process of finding, testing, deploying and verifying software updates. It begins with an accurate asset inventory, because you cannot patch what you do not know exists. Next, vulnerability sources such as vendor bulletins, the CVE list and the CISA Known Exploited Vulnerabilities catalog tell you what is affected. Updates are then prioritized by severity, using CVSS scores together with context: is the flaw being exploited in the wild, is the system internet-facing, and how valuable is the data? After testing and deployment, the final step is verification, using a scan or agent report to confirm the patch actually installed."
+     ]
+    },
+    {
+     "h": "Test rings and scheduling",
+     "p": [
+      "Deploying an untested update to every machine at once can cause outages. Organizations therefore use deployment rings. Ring 0 may be a small pilot group of IT staff and test systems, ring 1 a wider sample of ordinary users, and the final ring the rest of the estate and critical servers. Problems found early stop the rollout. Many vendors support a regular cadence, such as Microsoft's monthly Patch Tuesday on the second Tuesday, and organizations commonly set maintenance windows so servers reboot at agreed times. Tools such as WSUS, Intune, SCCM, Ansible and apt or dnf unattended upgrades automate the work."
+     ]
+    },
+    {
+     "h": "Emergency patches and exceptions",
+     "p": [
+      "Sometimes waiting for the normal cycle is too slow. When a vulnerability is under active attack, such as a remote code execution flaw in an internet-facing VPN or web server, an emergency process shortens testing and approvals and may deploy within hours. If a patch cannot be applied immediately because it breaks a legacy application, apply compensating controls: isolate the system on its own network segment, block the vulnerable port, use a virtual patch from a web application firewall or intrusion prevention system, and monitor closely. Document the exception, the owner and an end date so it does not become permanent."
+     ]
+    },
+    {
+     "h": "Unsupported software and common failures",
+     "p": [
+      "Software that has reached end of life no longer receives security fixes. Windows 7 and Windows Server 2008 are well-known examples, and running them leaves known flaws permanently open. The plan is to upgrade, replace or strictly isolate such systems. Do not overlook firmware, network devices, third-party applications, browsers, libraries inside applications and containers: attackers favor whatever is least often updated. Typical failures include missing inventory, patches that need a reboot that never happens, shadow IT, and measuring success by deployment sent rather than installed. Useful metrics are time to patch critical flaws and the percentage of systems compliant within the target window."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Patch status check (example)",
+    "text": "apt list --upgradable\nsudo apt update && sudo apt upgrade\nsudo unattended-upgrade --dry-run\nGet-HotFix | Sort InstalledOn -Desc | Select -First 5\nrpm -q --changelog openssl | head -n 5"
+   },
+   "example": "A vendor announces a critical remote code execution flaw in a VPN appliance at 198.51.100.7 and reports exploitation in the wild. The security team skips the normal monthly cycle. They patch one test unit within two hours, confirm that VPN logins still work, then update the production pair overnight and verify the new version number. Meanwhile they block the management interface from the internet. A forgotten lab device still on the old firmware is found by an inventory comparison and replaced.",
+   "terms": [
+    {
+     "term": "CVE",
+     "def": "A public identifier for a specific disclosed vulnerability."
+    },
+    {
+     "term": "CVSS",
+     "def": "A 0 to 10 scoring system for vulnerability severity."
+    },
+    {
+     "term": "Patch ring",
+     "def": "A staged group of systems that receives an update in sequence to limit risk."
+    },
+    {
+     "term": "Compensating control",
+     "def": "A safeguard used when the real fix cannot yet be applied."
+    },
+    {
+     "term": "End of life",
+     "def": "The date after which a vendor no longer issues security updates."
+    },
+    {
+     "term": "Virtual patching",
+     "def": "Blocking exploitation of a flaw with a firewall or IPS rule instead of changing the software."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why does a patch process begin with an asset inventory?",
+     "options": [
+      "It reduces licensing costs only",
+      "You cannot patch systems you do not know about",
+      "Inventory makes patches smaller",
+      "Vendors require it for downloads"
+     ],
+     "a": 1,
+     "why": "Unknown systems stay unpatched and become the weak point."
+    },
+    {
+     "q": "What is the purpose of deployment rings?",
+     "options": [
+      "To catch problems on a small group before a wide rollout",
+      "To skip testing entirely",
+      "To hide patches from users",
+      "To increase the number of reboots"
+     ],
+     "a": 0,
+     "why": "A pilot group limits the impact of a faulty update."
+    },
+    {
+     "q": "A legacy application breaks with a critical patch. What is the best interim step?",
+     "options": [
+      "Ignore the vulnerability",
+      "Apply compensating controls such as isolation and an IPS rule, with an end date",
+      "Disable all logging",
+      "Remove the firewall"
+     ],
+     "a": 1,
+     "why": "Compensating controls reduce risk while the exception is tracked."
+    },
+    {
+     "q": "What is the main risk of unsupported software?",
+     "options": [
+      "It runs slower",
+      "It receives no security fixes for new flaws",
+      "It cannot be backed up",
+      "It uses more memory"
+     ],
+     "a": 1,
+     "why": "After end of life, newly found vulnerabilities stay open permanently."
+    }
+   ],
+   "recap": [
+    "Patching is a cycle: inventory, prioritize, test, deploy, verify.",
+    "Use test rings, and shorten the process when a flaw is actively exploited.",
+    "Isolate or replace unsupported software and track exceptions."
+   ]
+  },
+  {
+   "title": "Antivirus, EDR and application allowlisting",
+   "why": "No single detection method catches everything, so you need to know what each tool sees and where it is blind.",
+   "sections": [
+    {
+     "h": "Signature, heuristic and behavior detection",
+     "p": [
+      "Traditional antivirus compares files against signatures, such as hashes or byte patterns of known malware. It is fast and accurate for known samples, but attackers change a file slightly to evade it, and brand-new malware has no signature. Heuristic analysis inspects a file's structure and code for suspicious traits, for example packed code or calls to dangerous functions, and can flag unknown variants with some false positives. Behavior-based detection watches what a program does at run time, such as encrypting many files quickly, injecting into another process or contacting a rare domain. Modern products combine all three plus reputation and machine learning models."
+     ]
+    },
+    {
+     "h": "EDR and its telemetry",
+     "p": [
+      "Endpoint detection and response goes beyond blocking. A lightweight agent records detailed telemetry: process creation with command lines and parent-child relationships, file and registry changes, network connections, logons and loaded modules. This data is sent to a central platform where analytics and threat intelligence generate alerts. Analysts can view a process tree, hunt across all endpoints for an indicator, and respond remotely by isolating a host from the network, killing a process or quarantining a file. XDR extends the idea by correlating endpoint data with email, identity and cloud signals. Managed detection and response services add human analysts around the clock."
+     ]
+    },
+    {
+     "h": "Application allowlisting",
+     "p": [
+      "Allowlisting inverts the model: instead of listing what is bad, it lists what is permitted, and everything else is denied by default. Microsoft AppLocker and Windows Defender Application Control on Windows, and tools such as fapolicyd on Linux, can allow software by publisher signature, file path or file hash. Publisher rules survive updates, hash rules are strict but need maintenance, and path rules are weak if users can write to the allowed folder. Allowlisting stops most unknown malware and unauthorized tools, but it takes effort to roll out. Start in audit mode, review what would have been blocked, then enforce."
+     ]
+    },
+    {
+     "h": "Limits and good practice",
+     "p": [
+      "Each control has gaps. Signature scanning misses novel samples, EDR depends on someone reviewing alerts and on tuning, and allowlisting can be bypassed through trusted tools that are allowed, a technique called living off the land. Fileless attacks that run in memory using PowerShell may escape file scanning but leave behavior traces. Keep agents updated and tamper-protected so malware cannot switch them off, enable cloud lookup, and exclude paths from scanning only with a documented reason. Investigate alerts using context, since the same process can be harmless or malicious depending on its parent, user and destination."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "EDR alert excerpt (fictional)",
+    "text": "host=WS-114 user=jdoe\nparent=winword.exe\nchild=powershell.exe -enc JABz...\ndest=203.0.113.50:443\nrule=Office spawns script interpreter\nseverity=high\naction=alert (host not isolated)"
+   },
+   "example": "An EDR alert on host WS-114 shows winword.exe starting powershell.exe with an encoded command, which then connects to 203.0.113.50. Antivirus saw nothing because no known-bad file exists. The analyst reads the process tree, sees that the user opened an emailed document minutes earlier, and isolates the host with one click. She then searches every endpoint for the same command line and finds no other victims, and resets the user's password as a precaution.",
+   "terms": [
+    {
+     "term": "Signature detection",
+     "def": "Matching files against known hashes or patterns of malware."
+    },
+    {
+     "term": "Heuristic detection",
+     "def": "Flagging files with suspicious structure or code traits, even if unknown."
+    },
+    {
+     "term": "EDR",
+     "def": "Endpoint tooling that records telemetry, raises alerts and allows remote response."
+    },
+    {
+     "term": "Allowlisting",
+     "def": "A default-deny approach that runs only approved software."
+    },
+    {
+     "term": "Isolation",
+     "def": "Cutting an endpoint off from the network while keeping the management connection."
+    },
+    {
+     "term": "Living off the land",
+     "def": "Abusing legitimate built-in tools to avoid detection."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the main weakness of signature-only antivirus?",
+     "options": [
+      "It cannot scan files",
+      "It misses new or modified malware with no signature",
+      "It slows the network",
+      "It needs no updates"
+     ],
+     "a": 1,
+     "why": "A signature exists only after a sample is known."
+    },
+    {
+     "q": "Which data does EDR typically collect?",
+     "options": [
+      "Only the file name of downloads",
+      "Process trees, command lines, file, registry and network events",
+      "Only emails",
+      "Only the monitor resolution"
+     ],
+     "a": 1,
+     "why": "Rich telemetry lets analysts reconstruct what happened."
+    },
+    {
+     "q": "Why start allowlisting in audit mode?",
+     "options": [
+      "To see what would be blocked before enforcing",
+      "Because audit mode is faster",
+      "To disable user accounts",
+      "To avoid using signatures"
+     ],
+     "a": 0,
+     "why": "Audit mode reveals legitimate software that would break."
+    },
+    {
+     "q": "Which AppLocker rule type survives software updates best?",
+     "options": [
+      "Path rule in a user-writable folder",
+      "Publisher rule based on the digital signature",
+      "A rule based on file size",
+      "A rule based on a desktop icon"
+     ],
+     "a": 1,
+     "why": "Publisher rules stay valid when a signed vendor ships a new version."
+    }
+   ],
+   "recap": [
+    "Antivirus combines signature, heuristic and behavior methods.",
+    "EDR adds telemetry, hunting and remote response such as isolation.",
+    "Allowlisting denies everything not approved; roll it out in audit mode first."
+   ]
+  },
+  {
+   "title": "Disk encryption and mobile device security",
+   "why": "A lost laptop or phone is a common breach, and encryption plus central management keeps the data private even when the device is gone.",
+   "sections": [
+    {
+     "h": "Full disk encryption",
+     "p": [
+      "Full disk encryption protects data at rest by encrypting the whole drive so that stolen hardware yields only unreadable bytes. BitLocker is built into Windows Pro and Enterprise, FileVault into macOS, and LUKS (the Linux Unified Key Setup, used with dm-crypt) into Linux. All typically use AES, with 128-bit or 256-bit keys. Encryption does not protect a running, unlocked machine, nor does it stop malware or a user with a valid session, so it complements and does not replace access control. Choose strong passphrases or PINs, because the encryption is only as strong as the unlock method protecting its key."
+     ]
+    },
+    {
+     "h": "TPM, recovery keys and key management",
+     "p": [
+      "A Trusted Platform Module is a hardware chip that stores keys and measures the boot process. BitLocker can seal its key to the TPM so the drive unlocks automatically only if the firmware and boot files are unchanged, and adding a PIN gives pre-boot authentication that resists some physical attacks. Every encrypted drive also needs a recovery key, a long code used if the TPM state changes or the password is forgotten. Store recovery keys centrally, for example in Active Directory, Entra ID or an MDM, and never on the same disk. Losing both the key and the recovery key means the data is gone for good."
+     ]
+    },
+    {
+     "h": "Mobile device management",
+     "p": [
+      "Phones and tablets hold email, files and authentication apps. Mobile device management, or MDM, enrolls devices so an organization can enforce a passcode, require encryption, push apps and settings, separate work and personal data, and remotely lock or wipe a lost device. Platforms include Microsoft Intune, Jamf and Workspace ONE. Both iOS and modern Android encrypt storage by default when a passcode is set. Bring-your-own-device programs often use app-level containers so only company data can be wiped. Combine MDM with conditional access so a device that is jailbroken, unpatched or unmanaged cannot reach company resources."
+     ]
+    },
+    {
+     "h": "Jailbreaking and app permissions",
+     "p": [
+      "Jailbreaking (iOS) and rooting (Android) remove the manufacturer's restrictions so the user or an app gains full control. This breaks the sandbox that isolates apps, disables protections, and can let malware read other apps' data, so MDM tools detect it and mark the device non-compliant. Sideloading apps from outside the official stores carries similar risk. Apps request permissions such as camera, microphone, location, contacts and storage, and the user should grant only what the function needs, preferring while-using access to always. Review permissions regularly, install apps only from official stores, keep the operating system updated, and be skeptical of apps that ask for accessibility or device administrator rights."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Check encryption status (example)",
+    "text": "manage-bde -status C:\nfdesetup status\nlsblk -f\ncryptsetup status cryptroot\n# MDM policy ideas:\n# passcode >= 6, auto-lock 2 min,\n# encryption required, wipe after 10 tries"
+   },
+   "example": "A salesperson at Example Corp leaves a company laptop on a train. It uses BitLocker with a TPM and a startup PIN, so the drive cannot be read without that PIN. IT sees the device in the MDM console, marks it lost, and issues a remote wipe. The recovery key is stored in the directory, not on the laptop. Her phone is also enrolled, so it must keep a six-digit passcode. The incident is logged as a lost asset, not a data breach.",
+   "terms": [
+    {
+     "term": "Data at rest",
+     "def": "Information stored on a device or disk, as opposed to in transit."
+    },
+    {
+     "term": "TPM",
+     "def": "A hardware chip that stores keys and verifies boot integrity."
+    },
+    {
+     "term": "Recovery key",
+     "def": "A backup code that unlocks an encrypted drive when normal methods fail."
+    },
+    {
+     "term": "MDM",
+     "def": "Central management of mobile devices, with enforcement and remote wipe."
+    },
+    {
+     "term": "Jailbreaking",
+     "def": "Removing OS restrictions on iOS, which weakens app isolation."
+    },
+    {
+     "term": "Sandbox",
+     "def": "A restricted environment that limits what an app can access."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does full disk encryption primarily protect against?",
+     "options": [
+      "Phishing emails",
+      "Data theft from a lost or stolen device",
+      "Network scanning",
+      "Software bugs"
+     ],
+     "a": 1,
+     "why": "It protects data at rest when someone has physical access to the drive."
+    },
+    {
+     "q": "Where should a BitLocker recovery key be stored?",
+     "options": [
+      "On the same encrypted drive",
+      "Centrally, such as in a directory or MDM",
+      "On a sticky note on the laptop",
+      "Nowhere"
+     ],
+     "a": 1,
+     "why": "A central, separate store allows recovery without exposing the key."
+    },
+    {
+     "q": "Why is a jailbroken phone considered risky?",
+     "options": [
+      "It has a shorter battery life",
+      "App sandbox protections are weakened",
+      "It cannot send email",
+      "It uses more storage"
+     ],
+     "a": 1,
+     "why": "Removing restrictions lets malware reach other apps' data."
+    },
+    {
+     "q": "Which MDM capability helps most when a phone is lost?",
+     "options": [
+      "Remote lock and wipe",
+      "Faster Wi-Fi",
+      "Larger screen",
+      "Automatic photo editing"
+     ],
+     "a": 0,
+     "why": "Remote wipe removes company data before it can be accessed."
+    }
+   ],
+   "recap": [
+    "BitLocker, FileVault and LUKS encrypt data at rest; a strong unlock method matters.",
+    "TPMs bind keys to hardware, and recovery keys must be stored safely and separately.",
+    "MDM enforces passcodes and wipe, and jailbroken devices should be blocked."
+   ]
+  },
+  {
+   "title": "Backups and recovery",
+   "why": "Backups are the last line of defense: when ransomware or a failure destroys data, a tested backup decides how fast you recover.",
+   "sections": [
+    {
+     "h": "The 3-2-1 rule",
+     "p": [
+      "The 3-2-1 rule is the classic guideline: keep at least three copies of your data, on two different types of media or storage systems, with one copy offsite. The production data counts as one copy. The rule guards against hardware failure, building disasters, theft and human error. Modern guidance extends it to 3-2-1-1-0: one copy offline or immutable, and zero errors after verification. Backups can be full, incremental (changes since the last backup of any kind) or differential (changes since the last full). Full backups restore fastest but take the most space, while incrementals are small but need a chain of files to restore."
+     ]
+    },
+    {
+     "h": "Ransomware and immutable backups",
+     "p": [
+      "Ransomware operators know that backups defeat their extortion, so they hunt for them. They delete shadow copies, encrypt network shares and use stolen administrator credentials to wipe backup servers. Defenses include offline or air-gapped copies, such as tapes taken out of the library, and immutable storage, which uses write-once-read-many features like object lock on cloud storage or hardened Linux repositories so that nobody, even an administrator, can alter or delete data until a retention period ends. Keep backup systems on a separate network, use separate credentials with multi-factor authentication, and do not join them to the main domain where practical."
+     ]
+    },
+    {
+     "h": "RPO and RTO",
+     "p": [
+      "Two numbers drive backup design. The recovery point objective, RPO, is the maximum acceptable amount of data loss measured in time. If the RPO is four hours, backups or replication must run at least every four hours. The recovery time objective, RTO, is the maximum acceptable downtime before service must be restored. A one-hour RTO for a database cannot be met by restoring slowly from distant tape. The business decides these values based on cost of downtime, and they set the technology: nightly backups suit a 24-hour RPO, while continuous replication suits near-zero. Critical systems get tighter targets and higher cost."
+     ]
+    },
+    {
+     "h": "Testing restores and protecting the backup",
+     "p": [
+      "A backup that has never been restored is only a hope. Schedule regular restore tests, for example monthly for sample files and at least annually for a full system recovery, and record how long it took so you can compare it with the RTO. Check that backup jobs succeed, that the data is complete and that it is not already infected. Encrypt backups in transit and at rest, and protect the keys separately. Keep a documented recovery plan with the order of restoration, since directory services and networking must return before applications. Retain several generations, because ransomware may sit unnoticed for weeks before it detonates."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Backup policy sketch (example)",
+    "text": "Source: file-server 192.0.2.30\nDaily incremental, weekly full\nCopy 1: local disk repository\nCopy 2: cloud bucket with object lock 30 days\nCopy 3: monthly offline tape, stored offsite\nRPO 4h (snapshot every 4h), RTO 8h\nRestore test: monthly, full recovery yearly"
+   },
+   "example": "A ransomware attack hits Example Corp's file server at 192.0.2.30. The attackers delete local snapshots and the on-site backup repository. However, a copy sits in cloud storage with a 30-day object lock, and a monthly tape is stored offsite. The team restores from the cloud copy, losing three hours of work, which is within the four-hour RPO. The full restore takes seven hours, within the eight-hour RTO they set, because they had rehearsed it.",
+   "terms": [
+    {
+     "term": "3-2-1 rule",
+     "def": "Three copies, two media types, one copy offsite."
+    },
+    {
+     "term": "Immutable backup",
+     "def": "A copy that cannot be changed or deleted until its retention period ends."
+    },
+    {
+     "term": "RPO",
+     "def": "Maximum tolerable data loss, measured in time."
+    },
+    {
+     "term": "RTO",
+     "def": "Maximum tolerable time to restore service."
+    },
+    {
+     "term": "Air gap",
+     "def": "Keeping a backup disconnected from networks so malware cannot reach it."
+    },
+    {
+     "term": "Restore test",
+     "def": "A planned exercise that proves backups can be recovered in the target time."
+    }
+   ],
+   "check": [
+    {
+     "q": "In the 3-2-1 rule, what does the 1 stand for?",
+     "options": [
+      "One encryption key",
+      "One copy kept offsite",
+      "One backup per year",
+      "One administrator"
+     ],
+     "a": 1,
+     "why": "One of the three copies should be stored in a different location."
+    },
+    {
+     "q": "Why do ransomware groups target backups?",
+     "options": [
+      "To free up disk space",
+      "To remove the victim's ability to recover without paying",
+      "To speed up the network",
+      "To update software"
+     ],
+     "a": 1,
+     "why": "Destroying backups increases pressure to pay."
+    },
+    {
+     "q": "An RPO of 4 hours means what?",
+     "options": [
+      "Systems must be restored within 4 hours",
+      "No more than about 4 hours of data may be lost",
+      "Backups are kept 4 hours",
+      "Restore tests happen every 4 hours"
+     ],
+     "a": 1,
+     "why": "RPO describes acceptable data loss; RTO describes acceptable downtime."
+    },
+    {
+     "q": "What makes a backup immutable?",
+     "options": [
+      "It is compressed",
+      "It cannot be altered or deleted during the retention period",
+      "It is stored on a laptop",
+      "It has a long file name"
+     ],
+     "a": 1,
+     "why": "Immutability, such as object lock, blocks tampering even by admins."
+    }
+   ],
+   "recap": [
+    "Follow 3-2-1, and add an offline or immutable copy.",
+    "RPO limits data loss and RTO limits downtime; they set the design.",
+    "Test restores regularly and keep backups separate from production credentials."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Harden a Linux server",
+   "sim": "terminal",
+   "scenario": "You are the administrator of a fictional web server at 192.0.2.20 for Example Corp. A scan against the CIS baseline lists three failures: the legacy telnet service is enabled, /etc/shadow has overly broad permissions, and SSH still allows password login for root. In the terminal simulator you will inspect the state of each setting, apply a fix, and confirm it with a second command before moving on to the next failure on the list.",
+   "objective": "Disable telnet, correct the shadow file permissions and set SSH to key-only login.",
+   "steps": [
+    {
+     "do": "Run systemctl list-unit-files --state=enabled.",
+     "see": "telnet.socket appears in the enabled list."
+    },
+    {
+     "do": "Run sudo systemctl disable --now telnet.socket.",
+     "see": "The unit is disabled and stopped."
+    },
+    {
+     "do": "Run ls -l /etc/shadow.",
+     "see": "Mode shows -rw-r--rw- or similar, too permissive."
+    },
+    {
+     "do": "Run sudo chmod 640 /etc/shadow.",
+     "see": "Command succeeds with no output."
+    },
+    {
+     "do": "Edit sshd_config: set PermitRootLogin no and PasswordAuthentication no.",
+     "see": "File saved with both values."
+    },
+    {
+     "do": "Run sudo systemctl reload sshd, then ss -tlnp.",
+     "see": "SSH reloaded; port 23 is no longer listening."
+    },
+    {
+     "do": "Click Rescan baseline.",
+     "see": "All three checks show PASS."
+    }
+   ],
+   "answer": "Disable telnet with systemctl disable --now telnet.socket, set /etc/shadow to mode 640 with chmod, and set PermitRootLogin no and PasswordAuthentication no in sshd_config, then reload sshd. Verify with ss and a rescan. Test key login in a second session before closing the first.",
+   "hint": "Fix one item at a time and verify each with a command before moving on."
+  },
+  {
+   "title": "Audit a Windows baseline",
+   "sim": "config-editor",
+   "scenario": "A fictional Windows file server at Example Corp has exported its policy settings, and you must compare them to the CIS baseline provided in the editor. Several lines are marked failing. Two stand out: the legacy SMBv1 protocol is still enabled, and the minimum password length is only 6 characters. You will edit the exported settings so each failing line matches the benchmark value, then run the comparison again to confirm every check passes.",
+   "objective": "Correct failing settings such as SMBv1 and password length to match the baseline.",
+   "steps": [
+    {
+     "do": "Open policy_export.inf beside baseline_cis.inf.",
+     "see": "Two panes show differences highlighted."
+    },
+    {
+     "do": "Find the SMB1 entry.",
+     "see": "SMB1 = 1 is flagged as failing."
+    },
+    {
+     "do": "Change SMB1 to 0.",
+     "see": "Line turns green."
+    },
+    {
+     "do": "Find MinimumPasswordLength.",
+     "see": "Value 6 is flagged."
+    },
+    {
+     "do": "Change it to 14.",
+     "see": "Line turns green."
+    },
+    {
+     "do": "Check LockoutBadCount.",
+     "see": "Value 0 means no lockout; it is flagged."
+    },
+    {
+     "do": "Set LockoutBadCount to 5 and click Compare.",
+     "see": "Summary shows 0 failing settings."
+    }
+   ],
+   "answer": "Set SMB1 to 0 to disable the legacy protocol, raise MinimumPasswordLength to 14 as per the baseline, and set an account lockout threshold such as 5 attempts. Compare again to confirm zero failures. Test changes in a lab first since stricter settings can affect applications.",
+   "hint": "Look for lines marked red and match each to the baseline value."
+  },
+  {
+   "title": "Triage an EDR detection",
+   "sim": "siem",
+   "scenario": "The fictional SIEM at Example Corp has raised a high-severity EDR alert on workstation WS-114. The rule says an Office program launched a script interpreter. You must review the alert details, inspect the process tree, check the destination address 203.0.113.50 in the context panel, and then decide whether to isolate the host or close the alert as benign. Use the evidence shown, not the severity label alone.",
+   "objective": "Review the alert and process tree, then choose to isolate or close.",
+   "steps": [
+    {
+     "do": "Open alert EDR-2041 in the queue.",
+     "see": "Alert shows host WS-114, user jdoe, high severity."
+    },
+    {
+     "do": "Open the process tree.",
+     "see": "winword.exe -> powershell.exe -enc ... is displayed."
+    },
+    {
+     "do": "Read the decoded command.",
+     "see": "It downloads a file from 203.0.113.50."
+    },
+    {
+     "do": "Check the destination in the context panel.",
+     "see": "The address has no prior history in the environment."
+    },
+    {
+     "do": "Check the user's recent email.",
+     "see": "A message with an attachment arrived 3 minutes earlier."
+    },
+    {
+     "do": "Click Isolate host.",
+     "see": "Host status changes to isolated; management link stays up."
+    },
+    {
+     "do": "Add notes and click Hunt for command line.",
+     "see": "Search returns no other affected hosts."
+    }
+   ],
+   "answer": "The alert is malicious: a document spawned an encoded PowerShell command that contacted a new external address right after a suspicious email. Isolate WS-114, hunt for the same command across endpoints, reset the user's credentials and record the indicators. Closing it as benign would be wrong.",
+   "hint": "A Word process launching PowerShell with an encoded command is rarely normal."
+  },
+  {
+   "title": "Plan backups for ransomware",
+   "sim": "scenario",
+   "scenario": "Example Corp has a file server holding project data. Management states a recovery point objective of 4 hours and a recovery time objective of 8 hours. A ransomware event last year deleted the only backup, which sat on the same network. In the scenario simulator you must choose backup types, locations and a restore test schedule from a menu of options so that the plan meets both targets and survives an attacker with administrator access.",
+   "objective": "Choose backup types, locations and tests that meet the RPO and RTO and resist ransomware.",
+   "steps": [
+    {
+     "do": "Review the stated RPO of 4 hours and RTO of 8 hours.",
+     "see": "Requirements are pinned at the top."
+    },
+    {
+     "do": "Select snapshot frequency.",
+     "see": "Choose every 4 hours; a nightly option fails the RPO."
+    },
+    {
+     "do": "Select copy 1 location.",
+     "see": "Pick local disk repository for fast restore."
+    },
+    {
+     "do": "Select copy 2 location.",
+     "see": "Pick cloud storage with object lock enabled for 30 days."
+    },
+    {
+     "do": "Select copy 3.",
+     "see": "Pick monthly offline tape stored offsite."
+    },
+    {
+     "do": "Set backup credentials.",
+     "see": "Choose separate accounts with MFA, not domain admin."
+    },
+    {
+     "do": "Set the test schedule and click Evaluate.",
+     "see": "Choose monthly file restores and a yearly full restore; score shows plan passes."
+    }
+   ],
+   "answer": "Use 4-hourly snapshots to meet the RPO, a local repository for speed, an immutable cloud copy and an offline offsite tape for the 3-2-1-1 pattern, with separate MFA-protected credentials. Test restores monthly and a full recovery yearly, timing against the 8-hour RTO.",
+   "hint": "Which copy could an attacker with admin rights still not delete?"
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which is the best definition of attack surface?",
+   "options": [
+    "The physical size of a server",
+    "All the services, ports and features an attacker could try to abuse",
+    "The number of employees",
+    "The age of the hardware"
+   ],
+   "a": 1,
+   "why": "Reducing attack surface is the main aim of hardening."
+  },
+  {
+   "q": "A system is scanned and fails 20 percent of a CIS Level 1 baseline. What is the best next action?",
+   "options": [
+    "Ignore it",
+    "Remediate failures or document approved exceptions, then rescan",
+    "Delete the benchmark",
+    "Disable the scanner"
+   ],
+   "a": 1,
+   "why": "Remediate or record exceptions, then verify."
+  },
+  {
+   "q": "Which step is first in the patch cycle?",
+   "options": [
+    "Deploy to everyone",
+    "Know what assets exist and what is vulnerable",
+    "Reboot all servers",
+    "Disable updates"
+   ],
+   "a": 1,
+   "why": "Inventory and vulnerability awareness come first."
+  },
+  {
+   "q": "What is a good use of deployment rings?",
+   "options": [
+    "Testing patches on a small pilot group before wide rollout",
+    "Hiding patches from IT",
+    "Installing patches slower for all",
+    "Avoiding rollback"
+   ],
+   "a": 0,
+   "why": "Rings limit the blast radius of a bad update."
+  },
+  {
+   "q": "Which detection method can spot ransomware encrypting many files quickly even with no known signature?",
+   "options": [
+    "Signature matching",
+    "Behavior-based detection",
+    "Manual file naming",
+    "Disk defragmentation"
+   ],
+   "a": 1,
+   "why": "Behavior analysis reacts to what the program does."
+  },
+  {
+   "q": "What can an EDR analyst do that classic antivirus usually cannot?",
+   "options": [
+    "Delete the operating system",
+    "Hunt for a command line across all endpoints and isolate a host",
+    "Increase CPU speed",
+    "Replace firewalls"
+   ],
+   "a": 1,
+   "why": "Telemetry, hunting and remote response define EDR."
+  },
+  {
+   "q": "Which control denies everything that is not explicitly approved?",
+   "options": [
+    "Application allowlisting",
+    "A screen saver",
+    "Disk defragmentation",
+    "A signature update"
+   ],
+   "a": 0,
+   "why": "Allowlisting is default-deny for software."
+  },
+  {
+   "q": "A stolen laptop used BitLocker with a TPM and PIN. What is the likely result?",
+   "options": [
+    "Data is easily read by the thief",
+    "Data remains protected without the PIN and keys",
+    "The laptop self-destructs",
+    "Backups are deleted"
+   ],
+   "a": 1,
+   "why": "Encryption at rest protects data when the device is lost."
+  },
+  {
+   "q": "Which statement about RPO and RTO is correct?",
+   "options": [
+    "RPO is acceptable downtime; RTO is acceptable data loss",
+    "RPO is acceptable data loss in time; RTO is acceptable downtime",
+    "They are the same",
+    "Both measure disk size"
+   ],
+   "a": 1,
+   "why": "RPO is about data loss; RTO is about recovery time."
+  },
+  {
+   "q": "Which backup design best resists ransomware that has stolen domain administrator credentials?",
+   "options": [
+    "A share mapped on the file server",
+    "An immutable or offline copy with separate credentials",
+    "Only a USB drive left plugged in",
+    "A copy in the same folder"
+   ],
+   "a": 1,
+   "why": "Offline or immutable copies cannot be altered with stolen credentials."
+  }
+ ]
+}

@@ -1,0 +1,818 @@
+{
+ "code": "ENG-11",
+ "intro": "Detection is only as good as the data behind it. This module shows how to choose log sources across identity, endpoint, network and cloud, design reliable collection pipelines, and parse and normalize events so searches work. You will write and tune detection rules mapped to MITRE ATT&CK, set retention and protect log integrity to meet regulatory needs, and measure the program with source health, detection time, false positive rate and coverage.",
+ "lessons": [
+  {
+   "title": "Log sources and pipeline design",
+   "why": "If an event is never collected, no rule can detect it. A deliberate pipeline design decides what is visible during an investigation and how much it costs.",
+   "sections": [
+    {
+     "h": "Choosing log sources by value",
+     "p": [
+      "Start from the questions you must answer during an incident: who logged in, from where, what ran, what was accessed, and where data went. Identity logs come first: Active Directory security events (4624 logon, 4625 failed logon, 4720 account created), identity provider sign-in logs and VPN. Next are endpoint telemetry from EDR and process creation (Windows 4688 or Sysmon event 1), network sources such as firewall, DNS, proxy and NetFlow, and cloud audit logs such as AWS CloudTrail, Azure Activity and Entra sign-ins, plus application and email logs."
+     ]
+    },
+    {
+     "h": "Collection methods",
+     "p": [
+      "Common collection methods are agents (Elastic Agent, Beats, Splunk Universal Forwarder, Windows Event Forwarding), syslog (UDP 514 or, preferably, TCP 514 or TLS on 6514), API pulls from cloud and SaaS services, and file or message-queue ingestion. Agents offer buffering, filtering and encryption, while syslog suits network devices that cannot run agents. Prefer reliable, encrypted transport. UDP syslog drops messages silently under load, which can hide exactly the burst of events you need most."
+     ]
+    },
+    {
+     "h": "Pipeline architecture",
+     "p": [
+      "A robust pipeline has stages: collectors at the edge, a buffering layer such as Kafka or a managed queue to absorb spikes, a processing layer such as Logstash, Fluentd, Vector or Cribl that parses, enriches and filters, and a storage and search platform, either a SIEM or a data lake. Design for failure with retries and back-pressure, for scale with horizontal workers, and for security with TLS and authenticated senders. Keep the original raw event alongside the parsed version so parsers can be fixed and data replayed."
+     ]
+    },
+    {
+     "h": "Filtering, cost and time",
+     "p": [
+      "Ingest volume drives cost, so decide per source what is useful. Drop known noise, such as successful health checks, at the pipeline, but never drop the only copy of security-relevant events. Route high-value events to the SIEM and bulk data to cheaper storage. Time matters too: every device should sync with NTP, log in UTC or record the time zone, and the pipeline should store both event time and ingest time. Without consistent clocks, correlating events across systems becomes unreliable.",
+      "A short inventory sheet listing each source, owner, format, volume per day, transport and retention helps keep the design honest and reviewable.",
+      "Review the design with the people who will use it. Ask incident responders which questions took longest to answer in the last incident, and check whether the planned pipeline would have captured that evidence. Revisit the source list every quarter as new systems, SaaS tools and cloud accounts appear, so visibility grows with the business instead of falling behind it."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Syslog line",
+    "text": "<134>1 2026-03-14T09:21:07Z fw01.example.com firewall - - - action=deny src=203.0.113.50 dst=192.0.2.10 dpt=3389 proto=tcp\n# transport: syslog over TLS, port 6514\n# pipeline: fw01 -> collector -> queue -> parser -> SIEM"
+   },
+   "example": "A company with 500 staff is designing logging for the first time. It starts with identity (domain controller security events and the cloud sign-in logs), EDR telemetry, DNS and firewall deny logs, and CloudTrail. Firewalls send syslog over TLS to a collector, servers use an agent, and cloud logs are pulled by API. Everything flows through a queue so a SIEM outage does not lose events, and the raw message is stored with the parsed fields.",
+   "terms": [
+    {
+     "term": "Log source",
+     "def": "A system or application that produces events useful for security monitoring."
+    },
+    {
+     "term": "Syslog",
+     "def": "A standard protocol and format for sending log messages over a network."
+    },
+    {
+     "term": "Agent",
+     "def": "Software on a host that collects and forwards logs."
+    },
+    {
+     "term": "Buffer/queue",
+     "def": "A layer such as Kafka that absorbs bursts and prevents data loss when downstream is slow."
+    },
+    {
+     "term": "NTP",
+     "def": "Network Time Protocol, used to keep clocks consistent across systems."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which log source best answers 'who logged in and from where'?",
+     "options": [
+      "Printer logs",
+      "Identity provider and domain controller logs",
+      "Disk SMART data",
+      "Screensaver logs"
+     ],
+     "a": 1,
+     "why": "Authentication logs record the account, time and source."
+    },
+    {
+     "q": "Why is UDP syslog risky for security data?",
+     "options": [
+      "It is encrypted",
+      "Messages can be dropped silently",
+      "It is too reliable",
+      "It needs agents"
+     ],
+     "a": 1,
+     "why": "UDP has no delivery guarantee."
+    },
+    {
+     "q": "What is the benefit of a queue between collectors and the SIEM?",
+     "options": [
+      "It deletes duplicates",
+      "It absorbs bursts and protects against data loss",
+      "It replaces parsing",
+      "It removes the need for NTP"
+     ],
+     "a": 1,
+     "why": "Buffering handles spikes and downstream outages."
+    },
+    {
+     "q": "Why store the raw event as well as parsed fields?",
+     "options": [
+      "To waste space",
+      "So parsers can be corrected and data replayed",
+      "Because SIEMs require it",
+      "To avoid time sync"
+     ],
+     "a": 1,
+     "why": "Raw data lets you re-parse after fixing mistakes."
+    }
+   ],
+   "recap": [
+    "Pick sources from the questions an investigator must answer: identity, endpoint, network, cloud.",
+    "Use agents, TLS syslog and APIs with a buffering layer.",
+    "Keep raw events, sync clocks and control volume without dropping critical data."
+   ]
+  },
+  {
+   "title": "SIEM engineering and parsing",
+   "why": "Parsing and normalization turn raw text into searchable fields. Broken parsers mean silent blind spots: the event exists but no rule can see its fields.",
+   "sections": [
+    {
+     "h": "Parsing raw events",
+     "p": [
+      "Raw logs arrive in many formats: key=value pairs, JSON, CSV, CEF, LEEF and free text. Parsers extract fields using methods such as Grok patterns, regular expressions, dissect or JSON decoding. A good parser names fields consistently, converts types (strings to integers, timestamps to dates), handles optional fields and survives format changes. Test parsers against a sample library that includes normal events, edge cases and malformed lines, and add a tag or error field for events that fail to parse so failures are visible."
+     ]
+    },
+    {
+     "h": "Normalization with common schemas",
+     "p": [
+      "Different vendors call the source address src, SourceIp, client_ip or sourceAddress. A common schema maps them to one name so a single rule works across products. Elastic Common Schema (ECS) uses fields such as source.ip, destination.ip, user.name, event.action, event.outcome and host.name. Splunk's Common Information Model (CIM) uses src, dest, user and action in data models. Other options include OCSF. Adopting a schema lets you reuse detection content and compare data from firewalls, proxies and cloud services consistently."
+     ]
+    },
+    {
+     "h": "Time, enrichment and reliability",
+     "p": [
+      "Parse the event timestamp and its time zone carefully; a parser that uses ingest time instead of event time misplaces events and breaks correlation. Enrich events with context: GeoIP for external addresses, asset inventory (owner, criticality), user directory attributes and threat intelligence. Enrichment at ingest speeds up searches but adds cost; enrichment at search time is flexible but slower. Monitor ingestion lag and parse failure rates, and keep parsers and mappings in version control with a review and rollback process."
+     ]
+    },
+    {
+     "h": "Field quality and common failures",
+     "p": [
+      "Typical failures include a vendor update that changes the log format, multiline events split into separate records, missing time zones, truncated messages and fields captured with extra whitespace or quotes. These do not generate errors; they just produce empty fields. Build checks that alert when a field that should always exist, such as source.ip in firewall logs, is suddenly null for more than a small percentage of events. Quality dashboards by source catch regressions before a missed detection reveals them.",
+      "Keep a small library of test events for every parser, including one valid sample, one with missing optional fields and one deliberately malformed line. Run these tests automatically whenever a parser or mapping changes, so that a well-meant edit for one data source does not break extraction for another source that shares the same pattern."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Parser config",
+    "text": "# raw\nMar 14 09:21:07 srv1 sshd[811]: Failed password for invalid user fake-admin from 203.0.113.50 port 51122 ssh2\n# grok\n%{SYSLOGTIMESTAMP:ts} %{HOSTNAME:host.name} sshd\\[%{INT}\\]: Failed password for (invalid user )?%{USERNAME:user.name} from %{IP:source.ip} port %{INT:source.port}\n# result: event.action=logon-failed user.name=fake-admin source.ip=203.0.113.50"
+   },
+   "example": "After a firewall firmware upgrade, a detection for port scans stops firing. Investigation shows the vendor changed src= to source= in the log, so the parser leaves source.ip empty. A field-quality dashboard would have shown the empty rate jump to 100 percent. The engineer updates the Grok pattern to accept both names, replays the stored raw logs from the week, and adds an alert for any critical field exceeding a 2 percent null rate.",
+   "terms": [
+    {
+     "term": "Parsing",
+     "def": "Extracting structured fields from raw log text."
+    },
+    {
+     "term": "Normalization",
+     "def": "Mapping vendor-specific field names to a common schema."
+    },
+    {
+     "term": "ECS",
+     "def": "Elastic Common Schema, a standard set of field names for events."
+    },
+    {
+     "term": "CIM",
+     "def": "Splunk Common Information Model, used to normalize data for shared searches."
+    },
+    {
+     "term": "Enrichment",
+     "def": "Adding context such as geolocation or asset owner to events."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the purpose of normalization?",
+     "options": [
+      "Reducing disk space only",
+      "Letting one rule work across data from different vendors",
+      "Encrypting logs",
+      "Deleting duplicates"
+     ],
+     "a": 1,
+     "why": "Common field names allow shared detections."
+    },
+    {
+     "q": "Which ECS field typically holds the source IP address?",
+     "options": [
+      "src_ip_text",
+      "source.ip",
+      "ip_from_log",
+      "addr1"
+     ],
+     "a": 1,
+     "why": "ECS uses source.ip."
+    },
+    {
+     "q": "Why monitor parse failures and null field rates?",
+     "options": [
+      "To find silent blind spots",
+      "To increase ingest",
+      "To avoid NTP",
+      "To disable rules"
+     ],
+     "a": 0,
+     "why": "Empty fields silently break detections."
+    },
+    {
+     "q": "Using ingest time instead of event time causes:",
+     "options": [
+      "Better correlation",
+      "Misplaced events and broken timelines",
+      "Faster searches",
+      "Smaller logs"
+     ],
+     "a": 1,
+     "why": "Event order and correlation depend on true event times."
+    }
+   ],
+   "recap": [
+    "Parse carefully with tests, and flag unparsed events.",
+    "Normalize to ECS, CIM or OCSF so content is reusable.",
+    "Fix time handling, enrich events and monitor field quality."
+   ]
+  },
+  {
+   "title": "Detection and alert design",
+   "why": "An alert is a request for a person's time. Well-designed detections catch real attacker behavior, carry context, and tell the responder what to do next.",
+   "sections": [
+    {
+     "h": "From behavior to rule",
+     "p": [
+      "Begin with a technique rather than an indicator. MITRE ATT&CK catalogs adversary tactics and techniques, such as T1110 Brute Force, T1078 Valid Accounts and T1059 Command and Scripting Interpreter. For each technique, identify the log evidence it leaves, express it as a query, and map the rule to the ATT&CK ID so coverage can be reported. Behavior-based rules last longer than indicator lists such as single IP addresses, which attackers change easily, though both have a place."
+     ]
+    },
+    {
+     "h": "Thresholds, correlation and severity",
+     "p": [
+      "Many events are only suspicious in aggregate or in sequence. A rule can count failed logons per account in a time window, such as 10 failures in 5 minutes, or correlate a burst of failures followed by a success from the same source, which suggests a guessed or sprayed password. Choose thresholds from baseline data, not guesses. Set severity from impact and confidence: a successful logon after failures on an administrator account is higher severity than failures on a service desk test account."
+     ]
+    },
+    {
+     "h": "Context and runbooks",
+     "p": [
+      "Every alert should include who, what, where and when, plus enrichment such as the asset owner, criticality and the user's usual locations. Attach a runbook: what the rule means, likely false positives, steps to validate, containment actions and who to escalate to. Write the rule description for a tired responder at 3 a.m. Alerts without a defined response should be reviewed, because an alert nobody can act on is noise and wastes analyst attention."
+     ]
+    },
+    {
+     "h": "Lifecycle and testing",
+     "p": [
+      "Treat detections as code: store them in version control, review changes, and test them against sample events and simulated activity, such as an Atomic Red Team test in a lab. Roll out in a low-severity or silent mode, review hits, then promote. Record each rule's owner, data source dependency, last review and measured precision. When a data source fails or a parser breaks, dependent rules go blind, so link detections to health checks of the sources they need.",
+      "Review detection quality in a regular meeting. Look at the five noisiest rules, the five rules that never fire, and any incident that was found by chance rather than by an alert. Each of those findings leads to a concrete action: tune a rule, test a rule with simulated activity, or write a new detection to cover the missed technique."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Query",
+    "text": "index=auth action=failure OR action=success\n| bin _time span=10m\n| stats count(eval(action=\"failure\")) AS fails count(eval(action=\"success\")) AS wins by user, src, _time\n| where fails >= 10 AND wins >= 1\n| eval technique=\"T1110\", severity=\"high\"\n# runbook: confirm with user, check MFA, reset password, block src"
+   },
+   "example": "A team writes a rule for password guessing. It counts failures per source IP and user over 10 minutes and alerts at 10 or more failures followed by a success. It is mapped to T1110 and carries a runbook: contact the user, check MFA prompts, reset the credential and block the source 203.0.113.50 if confirmed. After a week in silent mode, the team sees which accounts, such as a misconfigured scanner service, trigger it and refines the rule.",
+   "terms": [
+    {
+     "term": "MITRE ATT&CK",
+     "def": "A knowledge base of adversary tactics and techniques used to structure detection."
+    },
+    {
+     "term": "Threshold",
+     "def": "A count or rate that must be exceeded before an alert fires."
+    },
+    {
+     "term": "Correlation",
+     "def": "Combining multiple events or sources to reveal a pattern."
+    },
+    {
+     "term": "Runbook",
+     "def": "Documented steps for responding to a specific alert."
+    },
+    {
+     "term": "Detection as code",
+     "def": "Managing rules in version control with review and testing."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why map rules to ATT&CK techniques?",
+     "options": [
+      "To lower log volume",
+      "To report coverage and structure detections by behavior",
+      "To remove thresholds",
+      "To avoid testing"
+     ],
+     "a": 1,
+     "why": "Mapping shows what techniques are covered and which are gaps."
+    },
+    {
+     "q": "Which rule is best at suggesting a successful password guess?",
+     "options": [
+      "Single failed logon",
+      "Many failures followed by a success from the same source",
+      "One successful logon",
+      "DNS query count"
+     ],
+     "a": 1,
+     "why": "The sequence indicates guessing that eventually worked."
+    },
+    {
+     "q": "What should every alert include?",
+     "options": [
+      "Only a title",
+      "Context and a runbook for response",
+      "A random ID",
+      "No details"
+     ],
+     "a": 1,
+     "why": "Responders need context and next steps."
+    },
+    {
+     "q": "Why start new rules in silent or low-severity mode?",
+     "options": [
+      "To hide them from the team",
+      "To measure false positives before paging people",
+      "To avoid logging",
+      "To reduce parsing"
+     ],
+     "a": 1,
+     "why": "Observation reveals noise before it harms responders."
+    }
+   ],
+   "recap": [
+    "Build rules from attacker behavior and map them to ATT&CK.",
+    "Use baselines for thresholds and correlation, and set severity by impact and confidence.",
+    "Attach context and runbooks; manage detections as code."
+   ]
+  },
+  {
+   "title": "Retention, integrity and compliance",
+   "why": "Logs are evidence. How long you keep them, where, and how well they are protected decides whether you can investigate an old intrusion or satisfy an auditor.",
+   "sections": [
+    {
+     "h": "Hot, warm and cold tiers",
+     "p": [
+      "Storage tiers balance speed and cost. Hot storage on fast disks holds recent data, often 7 to 30 days, for quick searches and detections. Warm storage holds data for months at lower performance. Cold or archive storage, such as object storage with lifecycle rules, holds data for a year or more at low cost and is slower to restore. Index lifecycle management automates moving data between tiers. Many organizations keep raw logs in cheap storage and only selected, high-value data in the expensive searchable tier."
+     ]
+    },
+    {
+     "h": "Regulatory and business minimums",
+     "p": [
+      "Requirements vary by regulation and contract, so confirm with legal and compliance. PCI DSS requires retaining audit trail history for at least 12 months, with the most recent 3 months immediately available. HIPAA requires documentation retained for 6 years, and many organizations apply that to relevant audit records. Government frameworks and sector rules set other periods. Privacy laws such as GDPR add the opposite pressure: do not keep personal data longer than needed, so define retention per log type and justify it."
+     ]
+    },
+    {
+     "h": "Protecting log integrity",
+     "p": [
+      "Attackers who gain access often try to erase or alter logs. Defenses include forwarding logs off the host in near real time, write-once or immutable storage (object lock or WORM), restricted admin access with separation of duties so system administrators cannot delete security logs, hashing or signing log batches, and audit logging of the logging platform itself. Encrypt data in transit and at rest, and monitor for logging being stopped, such as Windows event 1102 for a cleared security log or CloudTrail StopLogging."
+     ]
+    },
+    {
+     "h": "Practical retention planning",
+     "p": [
+      "Create a retention schedule listing each log type, its purpose, regulatory driver, hot, warm and cold durations, and owner. Estimate daily volume and multiply by retention to forecast cost, then compare options such as compression, sampling of low-value data and tiering. Test restores from cold storage regularly, because an archive nobody can read is not retention. Define how legal holds suspend deletion, and document destruction at the end of the period so the process is defensible.",
+      "Be careful that privacy and security goals agree. Logs often contain usernames, IP addresses and sometimes sensitive values inside URLs or command lines. Mask or hash fields you do not need, restrict who can search the raw data, and record who accessed it. Doing so reduces legal exposure while keeping the data useful for investigations."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Policy table",
+    "text": "Type        Hot   Warm  Cold   Driver\nAuth/IdP    30d   90d   12mo   PCI, investigations\nFirewall    14d   60d   12mo   investigations\nEDR         30d   90d   12mo   threat hunting\nDNS         7d    30d   6mo    cost\nCloudTrail  30d   90d   7y     audit (object lock on)"
+   },
+   "example": "A retailer must meet PCI DSS and control cost. Authentication, EDR and cloud audit logs keep 30 days hot and 90 days warm, then move to object storage with lock enabled for a total of 12 months or more. High-volume DNS logs keep a shorter window. A quarterly exercise restores one month of cold data to confirm that it can be queried, and an alert fires if a host clears its event log or CloudTrail stops delivering.",
+   "terms": [
+    {
+     "term": "Hot storage",
+     "def": "Fast, expensive storage for recent, frequently searched data."
+    },
+    {
+     "term": "WORM",
+     "def": "Write once, read many storage that prevents alteration or deletion."
+    },
+    {
+     "term": "Retention schedule",
+     "def": "A documented list of how long each log type is kept and why."
+    },
+    {
+     "term": "Legal hold",
+     "def": "A requirement to preserve data relevant to a legal matter, overriding normal deletion."
+    },
+    {
+     "term": "Log integrity",
+     "def": "Assurance that logs are complete and have not been altered."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which control best protects logs from tampering by an attacker on the source host?",
+     "options": [
+      "Local storage only",
+      "Forwarding to a separate, immutable store",
+      "Disabling logging",
+      "Short retention"
+     ],
+     "a": 1,
+     "why": "Off-host immutable copies survive host compromise."
+    },
+    {
+     "q": "PCI DSS audit trail history requirement is at least:",
+     "options": [
+      "1 week",
+      "12 months",
+      "10 years",
+      "No requirement"
+     ],
+     "a": 1,
+     "why": "PCI DSS requires 12 months with 3 months immediately available."
+    },
+    {
+     "q": "Why test restores from cold storage?",
+     "options": [
+      "To increase costs",
+      "To confirm archived data is actually usable",
+      "To delete logs",
+      "To change schemas"
+     ],
+     "a": 1,
+     "why": "Unrestorable archives fail an investigation or audit."
+    },
+    {
+     "q": "Which event suggests an attacker may be hiding activity?",
+     "options": [
+      "A scheduled backup",
+      "Windows Security log cleared (1102)",
+      "User login",
+      "DHCP lease"
+     ],
+     "a": 1,
+     "why": "Clearing audit logs is a common defense-evasion step."
+    }
+   ],
+   "recap": [
+    "Use hot, warm and cold tiers matched to value and regulation.",
+    "Protect logs with off-host forwarding, immutability and separation of duties.",
+    "Document a retention schedule, test restores and honor legal holds."
+   ]
+  },
+  {
+   "title": "Metrics and detection coverage",
+   "why": "You cannot improve what you do not measure. Metrics show whether monitoring is actually working and where to invest next.",
+   "sections": [
+    {
+     "h": "Log source health",
+     "p": [
+      "The first metric is whether data is arriving. Track, per source, the last event time, events per hour against a baseline, ingestion lag and parse failure rate. A source that goes silent is a high-priority alert, because everything depending on it is blind. Maintain a coverage list of the expected population, such as all domain controllers or every EDR-enabled laptop, and compare it to who actually reported in the last 24 hours. Report the percentage of assets logging, and name the owners of the gaps."
+     ]
+    },
+    {
+     "h": "Time-based metrics: MTTD and MTTR",
+     "p": [
+      "Mean time to detect (MTTD) measures the gap between the start of malicious activity and its detection; mean time to respond or remediate (MTTR) measures the gap between detection and containment or resolution. Use medians as well as means, since a few long incidents skew averages. Track also time to acknowledge an alert and time to triage. Purple team exercises give reliable start times for measuring MTTD, because the exercise team knows exactly when each action occurred."
+     ]
+    },
+    {
+     "h": "Alert quality metrics",
+     "p": [
+      "The false positive rate is the share of alerts judged benign. Precision is the share of alerts that are true positives, and analysts' closure reasons feed these numbers. Also track alert volume per analyst per shift, the percentage of alerts closed without action, and rules producing the most noise. Be careful with a single target: pushing false positives to zero can hide real attacks through over-tuning. Review high-noise rules for tuning and low-fire rules for validation that they still work."
+     ]
+    },
+    {
+     "h": "ATT&CK coverage",
+     "p": [
+      "Map detections to ATT&CK techniques and visualize them with the ATT&CK Navigator. Coverage means a rule exists and its data source is healthy and tested, not merely that a rule is written. Prioritize techniques used by threat groups relevant to your sector and techniques that your own incidents or red team exercises show to be gaps. Present a dashboard with source health, MTTD, false positive rate and coverage, and use it in regular reviews to drive decisions rather than as a static report.",
+      "Share metrics with the right audience. Executives need a short trend of coverage and detection time, engineers need the list of silent sources and noisy rules, and auditors need evidence that controls operate continuously. Automating the report from the platform itself keeps the numbers honest and removes the monthly scramble to assemble slides."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Report excerpt",
+    "text": "Source          Expected  Reporting  Last event   Status\nDomain ctrls    4         4          09:20Z       OK\nEDR laptops     520       498        -            22 silent\nFirewalls       6         5          08:02Z       fw03 SILENT 75m\nMetric          Value\nMedian MTTD     38 min\nFalse pos rate  41% (target <30%)\nATT&CK covered  57 of 120 priority techniques"
+   },
+   "example": "A monthly review shows that firewall fw03 has been silent for 75 minutes and 22 laptops are not reporting EDR data. A rule that detects credential dumping has a 41 percent false positive rate, driven by one backup tool, so it is tuned with an allow-list. Coverage is 57 of 120 priority techniques, and the team picks the five techniques most relevant to recent threat reports for new detections, assigning owners and due dates.",
+   "terms": [
+    {
+     "term": "MTTD",
+     "def": "Mean time to detect: the average time between malicious activity starting and detection."
+    },
+    {
+     "term": "MTTR",
+     "def": "Mean time to respond or remediate after detection."
+    },
+    {
+     "term": "False positive rate",
+     "def": "The share of alerts that turn out to be benign."
+    },
+    {
+     "term": "ATT&CK Navigator",
+     "def": "A tool for visualizing coverage across ATT&CK techniques."
+    },
+    {
+     "term": "Silent source",
+     "def": "A log source that has stopped sending expected data."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the highest-priority log source health signal?",
+     "options": [
+      "A source going silent",
+      "A new field name",
+      "A weekend",
+      "A larger disk"
+     ],
+     "a": 0,
+     "why": "A silent source means blindness in anything that depends on it."
+    },
+    {
+     "q": "MTTD measures:",
+     "options": [
+      "Time from attack start to detection",
+      "Time to buy tools",
+      "Disk speed",
+      "Number of rules"
+     ],
+     "a": 0,
+     "why": "It is the delay before the attack is noticed."
+    },
+    {
+     "q": "Why is pushing the false positive rate to zero risky?",
+     "options": [
+      "It reduces coverage and can hide true attacks",
+      "It improves speed",
+      "It adds logs",
+      "It is impossible to measure"
+     ],
+     "a": 0,
+     "why": "Over-tuning may suppress real malicious activity."
+    },
+    {
+     "q": "Detection coverage should count a technique as covered only when:",
+     "options": [
+      "A rule exists",
+      "A tested rule exists and its data source is healthy",
+      "It is in a spreadsheet",
+      "A vendor says so"
+     ],
+     "a": 1,
+     "why": "A rule is useless if its data is missing or untested."
+    }
+   ],
+   "recap": [
+    "Monitor source health first: silence means blindness.",
+    "Track MTTD, MTTR, false positive rate and alert volume with medians.",
+    "Map detections to ATT&CK and verify data and tests before claiming coverage."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Fix a parser",
+   "sim": "log-viewer",
+   "scenario": "A new web proxy was onboarded, but the normalized events show empty source.ip and user.name fields, so detections do not fire. You have a log viewer showing raw lines and the parsed result, with a parser editor.",
+   "objective": "Correct the field extraction so the source IP and user appear in the normalized event.",
+   "steps": [
+    {
+     "do": "Open a raw event",
+     "see": "ts=2026-03-14T09:21:07Z client=203.0.113.50 usr=fake-user-c url=https://example.com/a status=200"
+    },
+    {
+     "do": "Open the parsed event",
+     "see": "source.ip: (empty), user.name: (empty), url.full: https://example.com/a, event.outcome: success"
+    },
+    {
+     "do": "Open the parser editor and view the current pattern",
+     "see": "Pattern expects: src=%{IP:source.ip} user=%{WORD:user.name}"
+    },
+    {
+     "do": "Change src= to client=",
+     "see": "Pattern updated: client=%{IP:source.ip}"
+    },
+    {
+     "do": "Change user= to usr= and use %{USERNAME:user.name}",
+     "see": "Pattern updated: usr=%{USERNAME:user.name} (accepts hyphens)"
+    },
+    {
+     "do": "Click Test on the sample event",
+     "see": "source.ip: 203.0.113.50, user.name: fake-user-c, url.full: https://example.com/a"
+    },
+    {
+     "do": "Click Replay last 24h raw events",
+     "see": "Replayed 18,422 events. Parse failure rate: 0.0%."
+    }
+   ],
+   "answer": "The parser looked for src= and user=, but the proxy writes client= and usr=. After changing the field names and allowing hyphens in the username, the normalized event shows source.ip 203.0.113.50 and user.name fake-user-c, and replaying stored raw events backfilled history.",
+   "hint": "Compare the raw key names with the names in the pattern."
+  },
+  {
+   "title": "Write a detection",
+   "sim": "siem",
+   "scenario": "You are building a rule to catch password guessing that eventually succeeds. The SIEM has an auth index with fields user, src, action and a 10-minute window available. Sample data contains one attack and some normal users.",
+   "objective": "Build a query for repeated failed logins followed by a success and set a threshold.",
+   "steps": [
+    {
+     "do": "Run: index=auth action=failure | stats count by user, src",
+     "see": "fake-user-a 203.0.113.50 47; fake-user-d 198.51.100.7 3; fake-user-e 192.0.2.44 2."
+    },
+    {
+     "do": "Pick a window: bin _time span=10m",
+     "see": "Window applied. 3 groups remain."
+    },
+    {
+     "do": "Add stats counting failures and successes per user and src",
+     "see": "fake-user-a 203.0.113.50 fails=47 wins=1; others wins=1 fails<=3."
+    },
+    {
+     "do": "Set threshold: where fails >= 10",
+     "see": "1 result: fake-user-a from 203.0.113.50."
+    },
+    {
+     "do": "Add: where wins >= 1",
+     "see": "1 result remains. This sequence suggests a guessed password."
+    },
+    {
+     "do": "Set severity high and tag technique T1110",
+     "see": "Rule saved with tag T1110, severity high."
+    },
+    {
+     "do": "Click Backtest on the last 7 days",
+     "see": "3 hits: 1 true positive, 2 benign (a mistyped password at start of shift). Estimated precision 33%."
+    }
+   ],
+   "answer": "The rule counts failures and successes per user and source in a 10-minute window and alerts when there are at least 10 failures and at least one success. It flags fake-user-a from 203.0.113.50, mapped to T1110. Backtesting shows some benign hits, so the threshold or context should be refined.",
+   "hint": "You need both counts in the same window: failures above the threshold and at least one success."
+  },
+  {
+   "title": "Tune a noisy alert",
+   "sim": "siem",
+   "scenario": "The rule 'Suspicious PowerShell Encoded Command' fires 200 times per day. Analysts close most as benign. You must reduce noise without losing real detections. You can view alert samples and edit the rule.",
+   "objective": "Reduce false positives with allow-lists and context while keeping true positives.",
+   "steps": [
+    {
+     "do": "Open 24h alert breakdown by host and parent process",
+     "see": "180 alerts: host mgmt01, parent=ccmclient.exe (software deployment). 15 alerts: various user laptops. 5 alerts: parent=winword.exe."
+    },
+    {
+     "do": "Inspect mgmt01 events",
+     "see": "Command line signed by the IT deployment tool, run by account svc-deploy on a fixed schedule."
+    },
+    {
+     "do": "Add allow-list: host=mgmt01 AND user=svc-deploy AND parent=ccmclient.exe",
+     "see": "Rule updated. Estimated alerts per day: 20."
+    },
+    {
+     "do": "Inspect the 5 winword.exe events",
+     "see": "Encoded command downloading from 203.0.113.80. Confirmed suspicious by analyst notes."
+    },
+    {
+     "do": "Add context: raise severity to critical when parent is an Office application",
+     "see": "Severity logic saved."
+    },
+    {
+     "do": "Run backtest on 7 days of data",
+     "see": "Hits: 138 -> 21. All 5 known true positives retained."
+    },
+    {
+     "do": "Set the allow-list entry to expire in 90 days with owner IT-Ops",
+     "see": "Expiry set. Reminder ticket created."
+    }
+   ],
+   "answer": "The noise came from an approved deployment tool on one host and account. A narrow allow-list on host, user and parent process removed about 90 percent of alerts, while a severity rule for Office-spawned PowerShell kept the five true positives. The allow-list has an owner and expiry so it is reviewed.",
+   "hint": "Allow-list the specific, verified behavior rather than the entire rule or host."
+  },
+  {
+   "title": "Plan retention",
+   "sim": "scenario",
+   "scenario": "A company must satisfy PCI DSS, keep investigation ability for a year, and cut its SIEM storage bill by 30 percent. You are given four log types with daily volumes and must set hot, warm and cold periods.",
+   "objective": "Assign retention periods to log types that meet compliance and cost goals.",
+   "steps": [
+    {
+     "do": "Review the table: Auth 5 GB/day, EDR 40 GB/day, DNS 60 GB/day, CloudTrail 8 GB/day",
+     "see": "Current plan: everything hot for 365 days. Cost index 100."
+    },
+    {
+     "do": "Set Auth: 30 hot, 90 warm, 12 months total",
+     "see": "Compliance check: PCI audit trail OK. Cost index 92."
+    },
+    {
+     "do": "Set CloudTrail: 30 hot, 90 warm, then cold with object lock for 7 years",
+     "see": "Compliance check: audit OK. Integrity: immutable."
+    },
+    {
+     "do": "Set EDR: 30 hot, 90 warm, 12 months total",
+     "see": "Cost index 70."
+    },
+    {
+     "do": "Set DNS: 7 hot, 30 warm, 6 months cold",
+     "see": "Warning: shorter than 12 months. Justification needed: low investigative value. Cost index 61."
+    },
+    {
+     "do": "Add control: restore test from cold every quarter",
+     "see": "Control recorded."
+    },
+    {
+     "do": "Click Evaluate plan",
+     "see": "Compliance: PASS. Cost reduction: 39% (target 30%). Note: document the DNS exception."
+    }
+   ],
+   "answer": "Keep authentication, EDR and cloud audit data for at least 12 months with short hot periods and immutable cold storage for audit logs, and keep only high-volume DNS for a shorter documented period. This meets the PCI requirement, exceeds the 30 percent saving, and includes quarterly restore tests.",
+   "hint": "Move most data to cheaper tiers quickly and shorten only low-value, high-volume sources with a documented reason."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which source type answers 'who authenticated'?",
+   "options": [
+    "Identity provider logs",
+    "Printer logs",
+    "Backup logs only",
+    "Disk logs"
+   ],
+   "a": 0,
+   "why": "Authentication events show accounts and sources."
+  },
+  {
+   "q": "Why prefer TCP or TLS syslog to UDP?",
+   "options": [
+    "It is slower",
+    "It reduces silent loss and can encrypt",
+    "It avoids parsing",
+    "It needs no network"
+   ],
+   "a": 1,
+   "why": "UDP can drop messages without notice."
+  },
+  {
+   "q": "Which ECS field name holds a source address?",
+   "options": [
+    "source.ip",
+    "ipSrc",
+    "srcAddrText",
+    "from"
+   ],
+   "a": 0,
+   "why": "ECS uses source.ip."
+  },
+  {
+   "q": "A parser silently outputs empty fields after a firmware upgrade. Best control?",
+   "options": [
+    "Ignore it",
+    "Alert on null rates for critical fields",
+    "Remove the source",
+    "Lower retention"
+   ],
+   "a": 1,
+   "why": "Field-quality monitoring catches silent regressions."
+  },
+  {
+   "q": "Which approach to rule design lasts longest against attackers?",
+   "options": [
+    "Single IP indicators only",
+    "Behavior-based rules mapped to techniques",
+    "Random keywords",
+    "Alerting on every event"
+   ],
+   "a": 1,
+   "why": "Behaviors are harder to change than indicators."
+  },
+  {
+   "q": "A good alert includes:",
+   "options": [
+    "Only a title",
+    "Context plus a runbook",
+    "No owner",
+    "A password"
+   ],
+   "a": 1,
+   "why": "Responders need context and next steps."
+  },
+  {
+   "q": "Which control best protects against log deletion by an admin on the source host?",
+   "options": [
+    "Off-host immutable storage",
+    "Longer hot retention",
+    "More parsers",
+    "Larger disks"
+   ],
+   "a": 0,
+   "why": "Immutable remote copies cannot be altered from the source."
+  },
+  {
+   "q": "PCI DSS audit history minimum is:",
+   "options": [
+    "30 days",
+    "12 months",
+    "5 years",
+    "Not specified"
+   ],
+   "a": 1,
+   "why": "PCI DSS requires at least 12 months."
+  },
+  {
+   "q": "What does a rising median MTTD indicate?",
+   "options": [
+    "Detection is getting faster",
+    "Detection is getting slower",
+    "More logs",
+    "Cheaper storage"
+   ],
+   "a": 1,
+   "why": "A larger MTTD means longer time before attacks are noticed."
+  },
+  {
+   "q": "Which counts as real ATT&CK coverage?",
+   "options": [
+    "A rule name in a spreadsheet",
+    "A tested rule with a healthy data source",
+    "A vendor logo",
+    "An untested query"
+   ],
+   "a": 1,
+   "why": "Coverage needs data and validated logic."
+  }
+ ]
+}

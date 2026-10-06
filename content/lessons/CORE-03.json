@@ -1,0 +1,836 @@
+{
+ "code": "CORE-03",
+ "intro": "Most attacks start with a person, not a program. This module explains the psychology behind social engineering, then covers phishing and its targeted forms, smishing, vishing and QR lures, business email compromise and the verification steps that stop it. You will learn to inspect headers, read SPF, DKIM and DMARC results, spot lookalike domains, and apply technical and human defenses so that a convincing message becomes a reported incident instead of a breach.",
+ "lessons": [
+  {
+   "title": "Social engineering principles",
+   "why": "Most breaches begin with a person being persuaded, not a machine being broken, so understanding persuasion is a core defensive skill.",
+   "sections": [
+    {
+     "h": "What social engineering is",
+     "p": [
+      "Social engineering manipulates people into giving up information, access or money. It works because humans are helpful, trusting and busy, and because organizations are built on cooperation. The attacker does not need a vulnerability in software; a convincing story is enough. Typical goals are credentials, a one-time code, a building entry, a wire transfer or the installation of malware.",
+      "It happens through email, phone, text, social media and in person. Techniques include phishing, pretexting, baiting (a USB stick left in a car park), tailgating (following someone through a secured door) and shoulder surfing."
+     ]
+    },
+    {
+     "h": "Psychological levers",
+     "p": [
+      "Attackers exploit predictable triggers. Authority: a message from the CEO or the tax office. Urgency: your account will close in one hour. Scarcity: only three places left. Trust and liking: a friendly voice who knows your manager's name. Social proof: everyone else has already complied. Reciprocity: a small favor creates a feeling of obligation. Fear and curiosity also work well.",
+      "The common thread is that these levers push you to act quickly and skip normal checks. A good habit is to treat any message that creates pressure, asks for secrecy or requests an unusual action as a signal to slow down and verify through another channel."
+     ]
+    },
+    {
+     "h": "The pretexting cycle",
+     "p": [
+      "Pretexting is inventing a believable scenario, such as an IT support technician, a new vendor or an auditor. The cycle starts with research, called open-source intelligence: company websites, social media profiles, job listings and data from earlier breaches reveal names, roles, tools and writing style. Next comes developing the pretext and building rapport, then exploitation, where the target performs the requested action, and finally exit without raising suspicion.",
+      "The more specific the details, the more convincing the story. This is why limiting what staff post publicly, such as badge photos or internal system names, reduces risk."
+     ]
+    },
+    {
+     "h": "Why defenses must be human and process based",
+     "p": [
+      "Technology helps, but people remain the last line, so organizations combine controls. Clear procedures remove the need to improvise: always call back on a known number, never share passwords or codes with anyone including IT, and require two-person approval for payments. Security awareness training with realistic simulations builds recognition, and a no-blame reporting channel encourages early alerts.",
+      "Physical measures include badge readers, visitor escorts, anti-tailgating policy and challenge-the-stranger culture. Importantly, a victim who reports quickly can often stop the damage, so reporting should be rewarded, never punished."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Red-flag checklist",
+    "text": "[ ] Unexpected request from authority\n[ ] Pressure to act now or keep it secret\n[ ] Asks for password, code or payment\n[ ] Contact details differ from known ones\n-> Stop. Verify through a known channel."
+   },
+   "example": "A caller says he is from the help desk and needs the employee's password because 'the server migration finishes in ten minutes'. He knows her manager's name, which he found on a professional networking site. Authority, urgency and rapport all appear. The employee refuses, hangs up and calls the help desk using the number on the intranet, which confirms no migration exists. She reports the call, and the security team warns colleagues to expect the same pretext.",
+   "terms": [
+    {
+     "term": "Social engineering",
+     "def": "Manipulating people to disclose information or perform actions that compromise security."
+    },
+    {
+     "term": "Pretexting",
+     "def": "Using a fabricated scenario to gain trust and obtain information or access."
+    },
+    {
+     "term": "Tailgating",
+     "def": "Following an authorized person into a restricted area without proper credentials."
+    },
+    {
+     "term": "Baiting",
+     "def": "Luring victims with something attractive such as an infected USB drive."
+    },
+    {
+     "term": "OSINT",
+     "def": "Open-source intelligence gathered from public information."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which is a psychological lever used by attackers?",
+     "options": [
+      "Packet fragmentation",
+      "Salting",
+      "Checksum",
+      "Urgency"
+     ],
+     "a": 3,
+     "why": "Urgency pushes victims to skip verification."
+    },
+    {
+     "q": "A caller you do not know asks for your password to fix your account. Best response:",
+     "options": [
+      "Send it by email",
+      "Share half of it",
+      "Give it if they know your name",
+      "Refuse and verify via a known number"
+     ],
+     "a": 3,
+     "why": "Verify through an independent channel and never share passwords."
+    },
+    {
+     "q": "Following an employee through a badge door is called:",
+     "options": [
+      "Sharding",
+      "Tailgating",
+      "Spoofing",
+      "Sniffing"
+     ],
+     "a": 1,
+     "why": "It bypasses access control by exploiting politeness."
+    },
+    {
+     "q": "Why reward quick reporting?",
+     "options": [
+      "It hides incidents",
+      "Early reports limit damage",
+      "It reduces training cost only",
+      "It replaces MFA"
+     ],
+     "a": 1,
+     "why": "Fast action can stop a compromise from spreading."
+    }
+   ],
+   "recap": [
+    "Attackers exploit authority, urgency, scarcity and trust.",
+    "Pretexting relies on research and a believable story.",
+    "Procedures and verification beat improvisation."
+   ]
+  },
+  {
+   "title": "Phishing, spear phishing and whaling",
+   "why": "Phishing is the most common initial access method, so recognizing its variants and payloads directly reduces breach risk.",
+   "sections": [
+    {
+     "h": "Mass phishing",
+     "p": [
+      "Mass phishing sends the same message to thousands of recipients, impersonating a bank, a delivery company or a cloud service. Quality varies and the goal is volume. Common themes are account suspension, unpaid invoices, parcel delivery problems and password expiry notices.",
+      "Defenders see these in spam filters and can block the sender domain, URLs and attachment types. Reports from users help tune filters. Even poor phishing works at scale because a tiny percentage of recipients respond."
+     ]
+    },
+    {
+     "h": "Spear phishing and whaling",
+     "p": [
+      "Spear phishing targets a specific person or group using personal details: name, role, projects, colleagues. The message may refer to a real meeting or vendor. Whaling targets senior executives, who have high privileges and public profiles, with themes such as legal notices, board documents or regulatory complaints.",
+      "Because messages are tailored they bypass generic filters and rely on human judgment. Controls include executive-specific training, stricter approval workflows, impersonation protection in email security gateways and limiting public exposure of organization charts."
+     ]
+    },
+    {
+     "h": "Credential harvesting and payloads",
+     "p": [
+      "Credential harvesting sends users to a fake login page that looks identical to the real one. Submitted credentials, and sometimes MFA codes, go to the attacker. Adversary-in-the-middle kits proxy the real site and steal the session cookie after MFA, so authentication succeeds for the attacker. Phishing-resistant methods such as FIDO2 security keys and passkeys bind authentication to the genuine domain and defeat this.",
+      "The other variant delivers a payload: Office documents with macros, ISO or ZIP archives, HTML attachments, PDFs with links, or links to download an installer. Mark-of-the-web flags and macro blocking policies reduce the risk from downloaded files."
+     ]
+    },
+    {
+     "h": "Indicators and response",
+     "p": [
+      "Look at the sender address versus display name, mismatched or lookalike domains, generic greetings, unusual urgency, links whose real destination differs from the text, unexpected attachments and requests for credentials. Remember that attackers can use compromised legitimate accounts, so a known sender is not proof.",
+      "If you suspect phishing do not click, report using the report button or the security mailbox, and if you already clicked, change the password and tell security immediately. Responders search mailboxes for the same message, block the URLs and sender, reset affected credentials, revoke sessions and review sign-in logs."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Message indicators",
+    "text": "From: \"IT Support\" <helpdesk@examp1e-support.net>\nSubject: Password expires in 2 hours\nLink text: https://portal.example.com/reset\nReal URL:  https://portal.example.com.verify-login.example.net/reset"
+   },
+   "example": "The finance director receives an email that names her real project and appears to come from the audit firm. It contains a link to 'view the draft report' that opens a Microsoft-style sign-in page on a domain she does not recognize. Hovering shows a different host. She reports it. Security finds it was sent to eight executives, blocks the domain, and checks sign-in logs: one executive had entered credentials, so the account is reset and sessions revoked before anything is accessed.",
+   "terms": [
+    {
+     "term": "Phishing",
+     "def": "Fraudulent messages that trick recipients into revealing data or running malware."
+    },
+    {
+     "term": "Spear phishing",
+     "def": "Phishing tailored to a specific individual or group."
+    },
+    {
+     "term": "Whaling",
+     "def": "Spear phishing aimed at senior executives."
+    },
+    {
+     "term": "Credential harvesting",
+     "def": "Capturing login details through a fake page."
+    },
+    {
+     "term": "AiTM phishing",
+     "def": "A proxy-based attack that steals session tokens after MFA is completed."
+    }
+   ],
+   "check": [
+    {
+     "q": "Phishing aimed at a CEO is called:",
+     "options": [
+      "Whaling",
+      "Smurfing",
+      "Tailgating",
+      "Bluejacking"
+     ],
+     "a": 0,
+     "why": "Whaling targets senior executives."
+    },
+    {
+     "q": "Which method best resists adversary-in-the-middle phishing?",
+     "options": [
+      "SMS codes",
+      "Longer passwords",
+      "Security questions",
+      "FIDO2 security keys"
+     ],
+     "a": 3,
+     "why": "FIDO2 binds authentication to the real site."
+    },
+    {
+     "q": "A link shows https://bank.example.com but hovering reveals a different host. This is:",
+     "options": [
+      "A DNS record",
+      "An HSTS header",
+      "A red flag",
+      "Normal behavior"
+     ],
+     "a": 2,
+     "why": "Displayed and real destinations should match."
+    },
+    {
+     "q": "After clicking a phishing link and entering a password you should:",
+     "options": [
+      "Wait a week",
+      "Forward the email widely",
+      "Change it and report immediately",
+      "Ignore it"
+     ],
+     "a": 2,
+     "why": "Fast reporting and resets limit damage."
+    }
+   ],
+   "recap": [
+    "Mass, spear and whaling phishing differ in targeting.",
+    "Fake login pages steal credentials; payloads install malware.",
+    "Report quickly and reset credentials if you clicked."
+   ]
+  },
+  {
+   "title": "Smishing, vishing and QR phishing",
+   "why": "Attackers move to channels with fewer filters, so you need to recognize their patterns on phones and in print as well as in email.",
+   "sections": [
+    {
+     "h": "Smishing",
+     "p": [
+      "Smishing is phishing by SMS or messaging apps. Typical lures: a parcel that cannot be delivered, a toll or fine payment, a bank fraud alert or a code needed for a refund. The links often lead to short-lived domains and the sender may be a random number or a spoofed alphanumeric sender ID. Mobile screens hide full URLs, which makes inspection harder.",
+      "Defenses: do not tap links in unexpected texts, go to the official app or type the website yourself, report to your carrier's spam number such as forwarding to 7726 in many countries, and use mobile threat defense on managed devices."
+     ]
+    },
+    {
+     "h": "Vishing and caller ID spoofing",
+     "p": [
+      "Vishing is voice phishing. The caller may pose as bank fraud staff, tax authority, IT help desk or a relative. Caller ID spoofing lets an attacker display any number, including the real number of your bank, so a number on the screen proves nothing. Scripts create urgency and keep you on the line so you cannot verify.",
+      "Tactics include asking you to read out a one-time passcode, install remote access software or move money to a safe account. Banks and IT teams do not ask for full passwords or codes. Hang up and call back on the number printed on your card or on the official site."
+     ]
+    },
+    {
+     "h": "QR phishing and MFA fatigue",
+     "p": [
+      "QR phishing, or quishing, hides a malicious link in a QR code placed on emails, posters, parking meters or fake parcel notes. Because the code is an image it can evade link scanners, and the user scans it with a phone that lacks corporate protection. Preview the decoded URL before opening and be suspicious of codes that ask for credentials or payment.",
+      "MFA fatigue, or push bombing, occurs after an attacker has a valid password. They trigger repeated push notifications until the user approves one from annoyance or confusion, sometimes followed by a call from fake IT telling them to accept. Number matching, where the user must type a code shown on the login screen, limits this, as do alerting on repeated prompts and phishing-resistant authentication."
+     ]
+    },
+    {
+     "h": "Putting it together",
+     "p": [
+      "All of these attacks share a pattern: unsolicited contact, an emotional push, and a request to act through a channel the attacker controls. The defender's counter is also constant: break contact, verify independently and report.",
+      "For organizations, add mobile device management, URL filtering on mobile, clear policies that IT will never ask for codes by phone, and awareness training with SMS and voice simulations. Track metrics such as report rate, not only click rate, to see whether staff trust the reporting process."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "MFA fatigue log (fictional)",
+    "text": "03:12:04 push sent user=erin result=DENIED\n03:12:41 push sent user=erin result=DENIED\n03:13:20 push sent user=erin result=DENIED\n03:14:02 push sent user=erin result=APPROVED src=203.0.113.88"
+   },
+   "example": "An employee gets a text claiming a parcel fee of 1.50 is due, with a link. At the same time the help desk phone rings, showing an internal extension, and the caller asks her to approve the 'test' sign-in request on her phone. She notices four prompts at night and does not accept. She reports both events. Security finds the extension was spoofed, resets her password, enables number matching and adds an alert on more than three prompts in ten minutes.",
+   "terms": [
+    {
+     "term": "Smishing",
+     "def": "Phishing delivered through SMS or messaging apps."
+    },
+    {
+     "term": "Vishing",
+     "def": "Voice phishing carried out by phone call."
+    },
+    {
+     "term": "Caller ID spoofing",
+     "def": "Falsifying the number shown to the call recipient."
+    },
+    {
+     "term": "Quishing",
+     "def": "Phishing that uses QR codes to deliver malicious links."
+    },
+    {
+     "term": "MFA fatigue",
+     "def": "Flooding a user with push prompts until one is approved."
+    }
+   ],
+   "check": [
+    {
+     "q": "Caller ID can be trusted as proof of identity.",
+     "options": [
+      "True for mobile only",
+      "True",
+      "False, it can be spoofed",
+      "True for banks only"
+     ],
+     "a": 2,
+     "why": "Numbers displayed can be forged."
+    },
+    {
+     "q": "Which control reduces MFA fatigue success?",
+     "options": [
+      "Number matching",
+      "Longer SMS",
+      "Weaker timeouts",
+      "Shared accounts"
+     ],
+     "a": 0,
+     "why": "The user must enter a code from the login screen."
+    },
+    {
+     "q": "QR phishing may evade email filters because:",
+     "options": [
+      "QR codes are encrypted with AES",
+      "They use IPv6",
+      "They need no phone",
+      "The link is hidden in an image"
+     ],
+     "a": 3,
+     "why": "Scanners often do not decode images."
+    },
+    {
+     "q": "A caller asks you to read a one-time passcode. You should:",
+     "options": [
+      "Read it slowly",
+      "Confirm only the last digits",
+      "Text it back",
+      "Refuse and hang up"
+     ],
+     "a": 3,
+     "why": "Nobody legitimate needs your passcode."
+    }
+   ],
+   "recap": [
+    "Attackers use SMS, phone and QR codes to avoid email filters.",
+    "Caller ID and sender names are easily spoofed.",
+    "Verify independently and report; use number matching."
+   ]
+  },
+  {
+   "title": "Business email compromise",
+   "why": "BEC causes some of the largest financial losses of any cybercrime and often involves no malware at all, only convincing messages and process gaps.",
+   "sections": [
+    {
+     "h": "What BEC is",
+     "p": [
+      "Business email compromise is fraud in which an attacker impersonates a trusted party by email to trick staff into sending money or sensitive data. The FBI's Internet Crime Complaint Center has consistently ranked it among the costliest crime types, with reported losses in the billions of dollars per year. There may be no attachment or link, so technical filters see nothing wrong.",
+      "Attackers obtain access in two ways: spoofing or lookalike domains, or taking over a real mailbox through phishing or password reuse. A real mailbox is especially dangerous because messages come from the genuine account and may be threaded into existing conversations."
+     ]
+    },
+    {
+     "h": "Common variants",
+     "p": [
+      "CEO fraud: a message that appears to come from a senior executive asks an employee to make an urgent confidential transfer or buy gift cards. Invoice fraud: the attacker, posing as a vendor or inserted into a real thread, announces new bank details so that the next payment goes to their account. Payroll diversion asks HR to change an employee's direct deposit account. Attorney impersonation uses legal pressure and secrecy. Data theft variants request tax forms or employee lists.",
+      "Mailbox rules that forward or hide messages, such as automatically moving mail containing the word invoice to a hidden folder, are a classic sign of takeover."
+     ]
+    },
+    {
+     "h": "Verification controls",
+     "p": [
+      "The strongest controls are procedural. Verify any change of bank details by calling a known number from your vendor records, not one in the email. Require dual approval and a waiting period for new payees and for payments above a threshold. Confirm executive requests in person or through a second channel. Maintain a vendor master list and limit who can edit it.",
+      "Technical measures include MFA on every mailbox, disabling legacy protocols, alerts for new inbox rules and external forwarding, banner warnings on external email, and DMARC enforcement to block spoofing of your domain."
+     ]
+    },
+    {
+     "h": "Response",
+     "p": [
+      "If a fraudulent transfer is made, speed matters. Contact the bank immediately and ask for a recall or freeze, notify law enforcement (in the United States, file with the IC3 and ask the bank to start the financial fraud kill chain process), preserve the emails and headers, and investigate whether a mailbox was compromised.",
+      "Afterwards reset passwords, revoke sessions, remove malicious inbox rules, check for other fraud and notify affected partners. Treat the incident as a process failure as well as an attack: which approval step would have caught it?"
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Suspicious inbox rule",
+    "text": "Rule name: .\nCondition: subject or body contains \"invoice\" OR \"payment\"\nAction: move to RSS Subscriptions, mark as read\nCreated: 2025-04-08 03:10 from 203.0.113.19"
+   },
+   "example": "Accounts payable gets an email from a long-time supplier, in an existing thread, saying its bank has changed and attaching new details. The reply-to domain differs by one letter. A clerk follows procedure: calls the supplier on the number stored in the vendor system, who confirms nothing changed. The 48,000 payment is not sent. Security finds the supplier's own mailbox was compromised, warns them, and adds a rule that any bank change requires two approvals.",
+   "terms": [
+    {
+     "term": "BEC",
+     "def": "Fraud using impersonated or compromised business email to redirect money or data."
+    },
+    {
+     "term": "CEO fraud",
+     "def": "BEC variant where the attacker poses as an executive demanding a transfer."
+    },
+    {
+     "term": "Invoice fraud",
+     "def": "Changing payment details on a legitimate invoice flow to the attacker's account."
+    },
+    {
+     "term": "Mailbox rule",
+     "def": "An email client rule that can be abused to hide or forward messages."
+    },
+    {
+     "term": "Out-of-band verification",
+     "def": "Confirming a request through a separate, trusted communication channel."
+    }
+   ],
+   "check": [
+    {
+     "q": "Best defense against fraudulent bank detail changes:",
+     "options": [
+      "Trust the signature",
+      "Wait a day",
+      "Call the vendor on a known number",
+      "Reply to the email"
+     ],
+     "a": 2,
+     "why": "Out-of-band verification defeats email-only fraud."
+    },
+    {
+     "q": "A hidden rule moving invoice emails suggests:",
+     "options": [
+      "Disk failure",
+      "Mailbox takeover",
+      "DNS failure",
+      "Printer error"
+     ],
+     "a": 1,
+     "why": "Attackers hide replies to stay undetected."
+    },
+    {
+     "q": "BEC often includes:",
+     "options": [
+      "No malware at all",
+      "A kernel exploit",
+      "A botnet only",
+      "USB drives"
+     ],
+     "a": 0,
+     "why": "The fraud relies on persuasion and process gaps."
+    },
+    {
+     "q": "Which process control reduces CEO fraud?",
+     "options": [
+      "Dual approval for payments",
+      "Longer email subjects",
+      "Larger attachments",
+      "Fewer meetings"
+     ],
+     "a": 0,
+     "why": "Two approvers make single-person deception much harder."
+    }
+   ],
+   "recap": [
+    "BEC is fraud by impersonation, often without malware.",
+    "Variants include CEO fraud, invoice fraud and payroll diversion.",
+    "Out-of-band verification and dual approval stop most of it."
+   ]
+  },
+  {
+   "title": "Spotting fakes and defending",
+   "why": "Reading email headers and URLs lets you prove a message is fake rather than guessing, and layered defenses make fakes harder to deliver.",
+   "sections": [
+    {
+     "h": "SPF, DKIM and DMARC",
+     "p": [
+      "Three DNS-based mechanisms authenticate email. SPF lists the servers allowed to send for a domain in a TXT record, for example v=spf1 ip4:192.0.2.25 -all. DKIM adds a cryptographic signature in the DKIM-Signature header, verified using a public key published in DNS. DMARC ties them together: it requires that SPF or DKIM pass and align with the visible From domain and tells receivers what to do on failure, with policies none, quarantine or reject, plus reporting addresses.",
+      "The Authentication-Results header shows the outcome, such as spf=pass dkim=pass dmarc=pass. Failure on all three for a message claiming to be from your own domain is strong evidence of spoofing."
+     ]
+    },
+    {
+     "h": "Reading headers",
+     "p": [
+      "Open the full headers. The Received lines record each server hop, read from bottom (origin) to top (your server). Compare the From, Reply-To and Return-Path fields; a mismatch is a flag. Check the originating IP in the earliest trusted Received line and the Message-ID domain. Display names are free text and prove nothing.",
+      "Remember that headers can be forged below the point where your own server added its line, so trust only the entries your own infrastructure wrote. Header review is a supporting technique used together with content analysis."
+     ]
+    },
+    {
+     "h": "Links and lookalike domains",
+     "p": [
+      "Hover over links to see the real destination, and read the domain from right to left up to the registered name: in login.example.com.verify.example.net the real domain is example.net. Watch for lookalikes: rn for m, a zero for o, extra words like -secure, different top-level domains, and homograph attacks that use look-alike Unicode characters shown as punycode beginning with xn--. Shortened links hide the destination; use a preview or sandbox service.",
+      "Redirect chains hop through several sites to hide the final page. Never enter credentials after following an email link; open the site yourself or use a password manager, which will not autofill on a fake domain."
+     ]
+    },
+    {
+     "h": "Organizational defenses",
+     "p": [
+      "Layer controls: email gateway filtering and sandboxing of attachments, DMARC at reject for your own domain, external sender banners, MFA (preferably phishing-resistant), disabling macros from the internet, DNS and web filtering, and endpoint protection. Provide a one-click report button and a clear process for analysts to triage reports.",
+      "Awareness is continuous: short training, realistic simulations, feedback instead of punishment, and measuring report rates and time to report. Phishing simulations that shame staff reduce reporting, so keep the tone supportive."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Authentication-Results",
+    "text": "Authentication-Results: mx.example.com;\n spf=fail smtp.mailfrom=billing@example.org (203.0.113.9 not permitted)\n dkim=none\n dmarc=fail header.from=example.org\nReceived: from unknown (HELO mail.bad.example) [203.0.113.9]"
+   },
+   "example": "A message says it is from payroll@example.org. Headers show Return-Path bounces@mailer.bad.example, SPF fails because 203.0.113.9 is not listed for example.org, no DKIM signature exists, and DMARC fails with a reject policy. The message should not have been delivered; the gateway shows the policy was set to none. The analyst proves spoofing, purges copies from mailboxes, and recommends moving the domain's DMARC policy to quarantine and then reject after reviewing reports.",
+   "terms": [
+    {
+     "term": "SPF",
+     "def": "DNS record listing servers authorized to send mail for a domain."
+    },
+    {
+     "term": "DKIM",
+     "def": "Cryptographic signing of email headers and body verified by a DNS-published key."
+    },
+    {
+     "term": "DMARC",
+     "def": "Policy tying SPF and DKIM to the From domain with reporting and enforcement."
+    },
+    {
+     "term": "Lookalike domain",
+     "def": "A domain visually similar to a legitimate one, used to deceive."
+    },
+    {
+     "term": "Punycode",
+     "def": "ASCII encoding of internationalized domain names, shown as xn--."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which header result proves SPF failure?",
+     "options": [
+      "dkim=pass",
+      "dmarc=none",
+      "tls=1.3",
+      "spf=fail"
+     ],
+     "a": 3,
+     "why": "spf=fail means the sending server is not authorized."
+    },
+    {
+     "q": "DMARC policy p=reject tells receivers to:",
+     "options": [
+      "Delete DNS",
+      "Scan ports",
+      "Reject failing mail",
+      "Deliver all mail"
+     ],
+     "a": 2,
+     "why": "Reject instructs refusal of messages failing DMARC."
+    },
+    {
+     "q": "The real registered domain in login.example.com.verify.example.net is:",
+     "options": [
+      "verify.example.com",
+      "example.net",
+      "example.com",
+      "login.example.com"
+     ],
+     "a": 1,
+     "why": "The registered domain is the rightmost part before the top-level domain."
+    },
+    {
+     "q": "Which Received line do you trust most?",
+     "options": [
+      "The bottom line always",
+      "Those added by your own servers",
+      "Any top line only",
+      "Lines with friendly names"
+     ],
+     "a": 1,
+     "why": "Lower lines can be forged by the sender."
+    }
+   ],
+   "recap": [
+    "Use Authentication-Results to check SPF, DKIM and DMARC.",
+    "Read headers bottom-up and trust your own servers' lines.",
+    "Combine technical filtering with training and easy reporting."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Triage a phishing inbox",
+   "sim": "scenario",
+   "scenario": "You work the shared inbox at Example Corp. Ten messages arrived overnight and the team needs them sorted before 9 a.m. For each message you must choose legitimate, phishing or BEC and name the single strongest indicator that supports your choice. The inbox viewer lets you open headers and hover links for each message. Every address uses documentation ranges or example domains, and no real organization is involved.",
+   "objective": "Classify ten emails and name the strongest indicator for each.",
+   "steps": [
+    {
+     "do": "Open email 1: 'Parcel fee due' from no-reply@parcel-track.example.net with a link",
+     "see": "Link preview shows http://203.0.113.45/pay."
+    },
+    {
+     "do": "Classify as Phishing, indicator: link to bare IP",
+     "see": "Correct."
+    },
+    {
+     "do": "Open email 2: HR notice from internal address with calendar invite for annual review",
+     "see": "Headers show spf=pass dkim=pass dmarc=pass."
+    },
+    {
+     "do": "Classify as Legitimate",
+     "see": "Correct; authentication passes and sender is known."
+    },
+    {
+     "do": "Open email 3: 'CEO' asks for urgent gift cards, reply-to is a free webmail address",
+     "see": "Display name matches executive, address does not."
+    },
+    {
+     "do": "Classify as BEC, indicator: reply-to mismatch and unusual request",
+     "see": "Correct."
+    },
+    {
+     "do": "Open email 4: vendor changes bank details, in existing thread",
+     "see": "Domain differs by one letter from the real vendor."
+    },
+    {
+     "do": "Classify as BEC and finish remaining six",
+     "see": "Score 10/10 after remaining messages classified."
+    }
+   ],
+   "answer": "Parcel fee message: phishing (bare IP link). HR calendar invite: legitimate (authenticated, expected). Gift card request: BEC (reply-to mismatch, urgency). Vendor bank change: BEC (one-letter lookalike domain plus payment change request). Use authentication results and the requested action as the strongest signals.",
+   "hint": "Check what the message wants you to do and where the reply goes."
+  },
+  {
+   "title": "Read email headers",
+   "sim": "log-viewer",
+   "scenario": "A message that claims to be from the finance department at example.com asked an employee to open a shared document. The employee reported it. The log viewer shows the full raw headers. Use them to decide whether the sender is spoofed and record the evidence for the incident ticket. The viewer includes a lookup panel for DNS TXT records and highlights each Received line when selected. All names and addresses are fictional.",
+   "objective": "Use the Received chain, Return-Path and SPF, DKIM and DMARC results to prove spoofing.",
+   "steps": [
+    {
+     "do": "Open raw headers and locate Authentication-Results",
+     "see": "Shows spf=fail, dkim=none, dmarc=fail header.from=example.com."
+    },
+    {
+     "do": "Read the Received chain from the bottom",
+     "see": "Bottom hop: from mail.bad.example [203.0.113.9]; next hop is our gateway 192.0.2.25."
+    },
+    {
+     "do": "Compare From and Return-Path",
+     "see": "From finance@example.com; Return-Path bounces@mailer.bad.example."
+    },
+    {
+     "do": "Check Reply-To",
+     "see": "Reply-To: finance.team@example-mail.net."
+    },
+    {
+     "do": "Query the SPF record for example.com in the lookup panel",
+     "see": "v=spf1 ip4:192.0.2.0/24 -all; 203.0.113.9 not included."
+    },
+    {
+     "do": "Mark 203.0.113.9 as the true origin",
+     "see": "Marker saved."
+    },
+    {
+     "do": "Choose verdict and recommended action",
+     "see": "Verdict Spoofed; action: block sender IP, purge message, move DMARC to reject."
+    }
+   ],
+   "answer": "The message is spoofed: SPF fails because 203.0.113.9 is not an authorized sender for example.com, no DKIM signature exists, DMARC fails, Return-Path and Reply-To point to unrelated domains. Purge the mail, block the origin and enforce DMARC reject.",
+   "hint": "Trust the lines added by your own gateway, not the sender's claims."
+  },
+  {
+   "title": "Dissect a malicious URL",
+   "sim": "web-proxy",
+   "scenario": "A user pasted a link from a text message into the helpdesk chat. It is shortened and obfuscated. In the isolated web proxy sandbox you can expand it, decode it and follow its redirects safely. Find the lookalike domain and the redirect chain, then decide how to block it. The sandbox never touches real sites. It replays recorded responses for the fictional domains, and it is safe to expand every hop.",
+   "objective": "Decode a shortened URL, find the lookalike domain and map the redirect chain.",
+   "steps": [
+    {
+     "do": "Paste the short link into the expander",
+     "see": "Resolves to https://secure-login.examp1e.com.verify-id.example.net/a?id=%68%65%6C%70."
+    },
+    {
+     "do": "Read the registered domain from the right",
+     "see": "Registered domain: verify-id.example.net; examp1e.com is only a subdomain label."
+    },
+    {
+     "do": "Decode the percent-encoded parameter",
+     "see": "%68%65%6C%70 decodes to help."
+    },
+    {
+     "do": "Follow redirects in the sandbox",
+     "see": "302 to https://cdn.example.net/land then 302 to 203.0.113.70/login.php."
+    },
+    {
+     "do": "Open the final page screenshot",
+     "see": "Fake sign-in form asking for email and password."
+    },
+    {
+     "do": "Check certificate and age of domain",
+     "see": "Certificate issued yesterday; domain registered 2 days ago."
+    },
+    {
+     "do": "Add domain and IP to the blocklist",
+     "see": "Blocklist updated; tag created: phish-credential-harvest."
+    }
+   ],
+   "answer": "The link is a credential-harvesting phish. The deceptive text examp1e.com (with the digit one) is just a subdomain; the real domain is verify-id.example.net, newly registered. It redirects through cdn.example.net to a fake login on 203.0.113.70. Block the domains and IP and warn users.",
+   "hint": "Find the last dot-separated pair before the first slash."
+  },
+  {
+   "title": "Handle a vishing call",
+   "sim": "chat-sim",
+   "scenario": "You are a help desk agent at Example Corp in a role-play simulation. A caller says he is the CFO traveling abroad, locked out, and needs a password reset immediately before a board call. Choose responses and verification steps that deny the attacker while still helping a real user. The chat panel shows the caller's lines and three answer choices per turn. Choices that leak information end the scenario with feedback so you can try again.",
+   "objective": "Choose responses that verify the caller by a trusted channel and refuse to reset on request alone.",
+   "steps": [
+    {
+     "do": "Caller: 'I am the CFO, reset my password now, it is urgent.' Choose response: 'I need to verify you first.'",
+     "see": "Caller pushes back: 'You know who I am. This costs the company money.'"
+    },
+    {
+     "do": "Select: 'Policy requires verification for everyone, I will call you back.'",
+     "see": "Caller: 'My phone is dead, call this number instead: +1 555 0100.'"
+    },
+    {
+     "do": "Refuse the alternate number and say you will use the directory number",
+     "see": "Caller becomes angry and mentions the CEO."
+    },
+    {
+     "do": "Look up the CFO in the directory and call the listed mobile",
+     "see": "Call goes to voicemail; real CFO is unreachable."
+    },
+    {
+     "do": "Offer in-person or manager-approved reset through the ticket process",
+     "see": "Caller hangs up."
+    },
+    {
+     "do": "Log the incident and notify security",
+     "see": "Ticket created; security notes the pretext and warns the team."
+    },
+    {
+     "do": "Review score",
+     "see": "Score 100: verification by known channel, no password disclosed."
+    }
+   ],
+   "answer": "The correct handling is to refuse the reset, verify through a known directory number or in-person with manager approval, ignore pressure and alternate numbers supplied by the caller, then log and report the attempt so colleagues are alerted.",
+   "hint": "Do not accept contact details offered by the caller."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which lever is exploited by 'your account closes in one hour'?",
+   "options": [
+    "Urgency",
+    "Salting",
+    "Hashing",
+    "Parity"
+   ],
+   "a": 0,
+   "why": "Time pressure discourages verification."
+  },
+  {
+   "q": "A tailored email to a finance manager mentioning real projects is:",
+   "options": [
+    "Mass phishing",
+    "Smishing",
+    "Quishing",
+    "Spear phishing"
+   ],
+   "a": 3,
+   "why": "Targeted details indicate spear phishing."
+  },
+  {
+   "q": "Phishing aimed at executives is called:",
+   "options": [
+    "Tailgating",
+    "Vishing",
+    "Whaling",
+    "Pharming"
+   ],
+   "a": 2,
+   "why": "Whaling targets senior staff."
+  },
+  {
+   "q": "QR code phishing is known as:",
+   "options": [
+    "Vishing",
+    "Spoofing",
+    "Quishing",
+    "Smishing"
+   ],
+   "a": 2,
+   "why": "Quishing uses QR codes."
+  },
+  {
+   "q": "MFA fatigue is best reduced by:",
+   "options": [
+    "Email codes only",
+    "Number matching",
+    "Longer prompts",
+    "Removing MFA"
+   ],
+   "a": 1,
+   "why": "Matching requires attention at the login screen."
+  },
+  {
+   "q": "The strongest single control against payment change fraud is:",
+   "options": [
+    "Calling the vendor on a known number",
+    "Checking the signature block",
+    "Replying to ask",
+    "Reading the logo"
+   ],
+   "a": 0,
+   "why": "Out-of-band verification confirms the request."
+  },
+  {
+   "q": "SPF verifies:",
+   "options": [
+    "The email body is encrypted",
+    "The user password",
+    "The recipient's address",
+    "Which servers may send for a domain"
+   ],
+   "a": 3,
+   "why": "SPF lists authorized sending IPs."
+  },
+  {
+   "q": "DMARC p=reject means:",
+   "options": [
+    "Messages are archived",
+    "Only SPF is checked",
+    "DKIM is optional",
+    "Failing messages should be refused"
+   ],
+   "a": 3,
+   "why": "Reject instructs receivers to refuse failing mail."
+  },
+  {
+   "q": "A suspicious inbox rule that hides invoice emails indicates:",
+   "options": [
+    "Disk cleanup",
+    "Spam filter update",
+    "Mailbox compromise",
+    "Normal organization"
+   ],
+   "a": 2,
+   "why": "Attackers hide replies from the owner."
+  },
+  {
+   "q": "Which is the safest action for a text message about an unpaid toll?",
+   "options": [
+    "Forward to a friend",
+    "Open the official site by typing it",
+    "Tap the link",
+    "Reply STOP and pay"
+   ],
+   "a": 1,
+   "why": "Go to the official source, not the link."
+  }
+ ]
+}

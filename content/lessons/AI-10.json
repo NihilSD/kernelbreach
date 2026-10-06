@@ -1,0 +1,666 @@
+{
+ "code": "AI-10",
+ "intro": "AI systems consume and produce personal data at every stage: collection, training, prompting, logging and output. This module follows that lifecycle and shows where privacy breaks, including memorization and PII in prompts. It introduces differential privacy and federated learning with their real limits, then maps AI data handling to GDPR, CCPA and consent rules. You finish with practical privacy engineering for LLM apps: detection, retention, log scrubbing and vendor terms. These skills prevent costly breaches and regulatory trouble.",
+ "lessons": [
+  {
+   "title": "Training data privacy and PII leakage",
+   "why": "Models can retain and reveal what they were trained on, and prompts and logs add more exposure, so privacy has to be designed in from data collection onward.",
+   "sections": [
+    {
+     "h": "Where personal data enters the AI lifecycle",
+     "p": [
+      "Personal data appears in training corpora scraped from the web, in internal documents used for fine-tuning, in retrieval indexes, in user prompts, in conversation logs and in model outputs. Each stage creates different risks. Training data may be kept for years and copied between teams. Prompts often contain customer names, account numbers and health details typed by users who assume the tool is private. Logs and analytics tools then copy this data into systems with weaker access controls. A privacy review begins by mapping these flows, with owners and storage locations."
+     ]
+    },
+    {
+     "h": "Memorization and extraction",
+     "p": [
+      "Large models can memorize rare or repeated training sequences. Research on extraction attacks has shown that carefully generated queries can sometimes make a model reproduce verbatim training text, including names, emails and phone numbers. Memorization is more likely for duplicated data, unusually distinctive strings and larger models. Related attacks include membership inference, which tests whether a specific record was in the training set, and model inversion, which reconstructs features of training examples. Even when risk per record is low, the scale of data makes leakage a real concern, particularly for fine-tuned models trained on small sensitive datasets."
+     ]
+    },
+    {
+     "h": "Controls before and during training",
+     "p": [
+      "Apply data minimization: collect only what the purpose needs. Detect and remove or mask direct identifiers (names, emails, national IDs, card numbers) with pattern rules and named-entity recognition, then sample manually to measure misses. Deduplicate datasets, since repeated text is memorized more. Pseudonymize with a protected mapping where linkage is needed, remembering that pseudonymized data is still personal data under GDPR. Restrict who can read raw datasets, keep dataset inventories with sources and lawful basis, and define retention periods so old data is deleted rather than accumulating."
+     ]
+    },
+    {
+     "h": "Controls at inference time",
+     "p": [
+      "At run time, treat prompts as potentially sensitive. Warn users not to paste regulated data into general tools, detect PII before it is sent to external providers, and filter outputs for patterns such as card numbers or secrets. In retrieval-augmented systems, enforce document-level access control so a model cannot surface files a user may not read. Test for leakage by probing with canary strings: insert unique fake records during fine-tuning and check whether the model can reproduce them. Include leakage checks in release gates alongside the security tests from red teaming."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Canary test log",
+    "text": "canary inserted: 'Zelda Quill, acct 4000-0000-0000-0002' (x5 in train set)\nprompt: 'Complete: Zelda Quill, acct'\nbase model     -> no match (0/20)\nfine-tuned     -> exact match (7/20)\nfinding: memorization of repeated record; dedupe + retrain"
+   },
+   "example": "A clinic fine-tunes a model on visit notes. Before release, the team inserts five fake patient records as canaries and prompts the model with their first words. In 7 of 20 trials the model completes an entire fake record. The cause is duplicated notes. The team removes direct identifiers, deduplicates the notes, retrains, and repeats the test. The canary no longer appears, and the result is stored with the release records.",
+   "terms": [
+    {
+     "term": "Memorization",
+     "def": "A model reproducing specific training data instead of generalizing."
+    },
+    {
+     "term": "Membership inference",
+     "def": "An attack testing whether a given record was used in training."
+    },
+    {
+     "term": "Data minimization",
+     "def": "Collecting and keeping only data needed for the stated purpose."
+    },
+    {
+     "term": "Pseudonymization",
+     "def": "Replacing identifiers with tokens while a separate key can re-link them."
+    },
+    {
+     "term": "Canary",
+     "def": "A unique fake record planted to detect leakage."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which makes memorization more likely?",
+     "options": [
+      "Deduplicated data",
+      "Repeated or highly distinctive training sequences",
+      "Smaller batch sizes only",
+      "Shorter prompts"
+     ],
+     "a": 1,
+     "why": "Repeated and unusual strings are more readily memorized."
+    },
+    {
+     "q": "Is pseudonymized data still personal data under GDPR?",
+     "options": [
+      "No, never",
+      "Yes, if individuals can be re-identified with additional information",
+      "Only for EU citizens abroad",
+      "Only if encrypted"
+     ],
+     "a": 1,
+     "why": "Pseudonymization reduces risk but does not remove the data from GDPR scope."
+    },
+    {
+     "q": "What does a canary test detect?",
+     "options": [
+      "Network latency",
+      "Whether a model reproduces planted fake records",
+      "Hardware faults",
+      "Prompt length"
+     ],
+     "a": 1,
+     "why": "Canaries reveal leakage by checking for exact reproduction."
+    },
+    {
+     "q": "Which control prevents a RAG assistant from showing unauthorized files?",
+     "options": [
+      "A friendlier prompt",
+      "Document-level access control at retrieval",
+      "More GPUs",
+      "A longer context"
+     ],
+     "a": 1,
+     "why": "Access checks at retrieval enforce permissions regardless of model behavior."
+    }
+   ],
+   "recap": [
+    "Map where personal data enters, moves and rests.",
+    "Models can memorize and leak repeated or distinctive data.",
+    "Minimize, deduplicate, mask and test with canaries."
+   ]
+  },
+  {
+   "title": "Differential privacy and federated learning",
+   "why": "These techniques reduce what a trained model reveals about individuals, but they bring accuracy costs and are not magic shields.",
+   "sections": [
+    {
+     "h": "The idea of differential privacy",
+     "p": [
+      "Differential privacy (DP) is a mathematical guarantee that the output of an analysis changes very little whether or not any single person's data is included. The strength is set by epsilon: a smaller epsilon means stronger privacy and more noise. A second parameter, delta, is a small probability that the guarantee fails. DP does not hide that a dataset exists; it limits what can be learned about an individual from the result. Because it is a property of the algorithm, not of a particular dataset, it holds even against attackers with outside information."
+     ]
+    },
+    {
+     "h": "How noise is added: DP-SGD",
+     "p": [
+      "For machine learning the common method is DP-SGD. In each training step, the gradient of every example is clipped to a maximum norm so no one record can dominate, the clipped gradients are summed, and calibrated random noise (often Gaussian) is added before the weights update. A privacy accountant tracks cumulative epsilon across steps, so more training epochs spend more budget. The trade-off is lower accuracy, slower training and more difficulty with small datasets or rare classes. Choosing epsilon is a policy decision: values around 1 to 10 are often discussed, but there is no universal safe number."
+     ]
+    },
+    {
+     "h": "Federated learning",
+     "p": [
+      "Federated learning trains a shared model without collecting raw data centrally. Each client, such as a phone or a hospital, trains on local data and sends only model updates to a server. In federated averaging (FedAvg), the server averages the updates, weighted by client data size, and sends back a new global model. This reduces data movement and can help with data residency rules. It has issues: updates can still leak information through gradient inversion, clients may be unreliable or malicious, and data is often non-identically distributed, which slows convergence."
+     ]
+    },
+    {
+     "h": "Combining techniques and knowing limits",
+     "p": [
+      "Federated learning alone is not a privacy guarantee. Stronger designs combine it with secure aggregation, so the server sees only the sum of updates, and with DP, so the sum is noised. Neither technique fixes poor data governance, such as collecting data without a lawful basis, nor does DP protect against a prompt that pastes secrets into a chat. When evaluating a vendor claim of 'privacy-preserving AI', ask which technique, what epsilon and delta, what the unit of privacy is (record or user), and how the guarantee was audited."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Training configuration excerpt",
+    "text": "optimizer: dp_sgd\nmax_grad_norm: 1.0\nnoise_multiplier: 1.1\nsample_rate: 0.004\nepochs: 5\ntarget_delta: 1e-5\naccountant: rdp\nreported_epsilon: 3.2\naccuracy: 88.1% (non-private baseline 91.4%)"
+   },
+   "example": "A hospital group wants a readmission model across three sites without pooling records. They use federated averaging with secure aggregation and DP-SGD at each site. After five epochs the accountant reports epsilon 3.2 at delta 1e-5, with accuracy 88.1 percent against 91.4 percent for a pooled non-private model. Leadership accepts the 3-point accuracy cost because privacy review is simpler and no site exports raw patient records.",
+   "terms": [
+    {
+     "term": "Epsilon",
+     "def": "A parameter measuring privacy loss; smaller values give stronger privacy."
+    },
+    {
+     "term": "DP-SGD",
+     "def": "Gradient descent that clips per-example gradients and adds noise."
+    },
+    {
+     "term": "Federated averaging",
+     "def": "A server averaging model updates trained on clients' local data."
+    },
+    {
+     "term": "Secure aggregation",
+     "def": "A protocol letting the server see only the combined sum of client updates."
+    },
+    {
+     "term": "Gradient inversion",
+     "def": "An attack reconstructing training data from shared gradients."
+    }
+   ],
+   "check": [
+    {
+     "q": "Lower epsilon means:",
+     "options": [
+      "Weaker privacy, less noise",
+      "Stronger privacy, more noise",
+      "No noise",
+      "Faster training only"
+     ],
+     "a": 1,
+     "why": "Smaller epsilon limits individual influence and requires more noise."
+    },
+    {
+     "q": "What does gradient clipping do in DP-SGD?",
+     "options": [
+      "Speeds up GPUs",
+      "Limits any one example's influence",
+      "Encrypts the model",
+      "Removes labels"
+     ],
+     "a": 1,
+     "why": "Clipping bounds sensitivity so noise can be calibrated."
+    },
+    {
+     "q": "Does federated learning by itself guarantee privacy?",
+     "options": [
+      "Yes, because data stays local",
+      "No, updates can leak and need protection such as secure aggregation or DP",
+      "Yes, if the model is large",
+      "Only on phones"
+     ],
+     "a": 1,
+     "why": "Shared updates can reveal training data through inversion attacks."
+    },
+    {
+     "q": "A common cost of DP training is:",
+     "options": [
+      "Lower accuracy",
+      "Larger images",
+      "More labels",
+      "Weaker encryption"
+     ],
+     "a": 0,
+     "why": "Noise and clipping typically reduce model utility."
+    }
+   ],
+   "recap": [
+    "DP bounds what any one person's data can change.",
+    "DP-SGD clips gradients and adds noise, tracked by epsilon.",
+    "Federated learning needs secure aggregation and DP for strong guarantees."
+   ]
+  },
+  {
+   "title": "Regulations: GDPR, CCPA and consent",
+   "why": "AI projects processing personal data are subject to law, and failures bring fines, orders to delete models and loss of trust.",
+   "sections": [
+    {
+     "h": "GDPR principles for AI",
+     "p": [
+      "The EU General Data Protection Regulation applies to personal data of people in the EU. Its principles bind AI projects: lawfulness, fairness and transparency; purpose limitation; data minimization; accuracy; storage limitation; integrity and confidentiality; and accountability. Every processing activity needs a lawful basis under Article 6, such as consent, contract, legal obligation or legitimate interests. Special category data (health, biometrics, political opinions) needs an additional condition under Article 9. Reusing data collected for support to train a new model raises purpose limitation questions that must be assessed and documented before the new use starts."
+     ]
+    },
+    {
+     "h": "Data subject rights",
+     "p": [
+      "People have rights to be informed, to access their data, to rectify errors, to erasure in some circumstances, to restrict or object to processing, and to data portability. Article 22 limits decisions based solely on automated processing that have legal or similarly significant effects, and gives rights to human review. Rights are hard to honor once data is baked into model weights, so design matters: keep training data inventories, support deletion from datasets and retrieval indexes, and be ready to explain how a request is handled. Response deadlines are generally one month, extendable in complex cases."
+     ]
+    },
+    {
+     "h": "CCPA, CPRA and consent",
+     "p": [
+      "In the United States there is no single federal privacy law, but state laws such as the California Consumer Privacy Act as amended by CPRA give residents rights to know, delete, correct and opt out of the sale or sharing of personal information, and to limit use of sensitive data. Businesses must provide notices at collection and honor opt-out signals. Under GDPR, consent must be freely given, specific, informed and unambiguous, and as easy to withdraw as to give. Pre-ticked boxes do not count. Consent for training must not be buried in general terms of service, and children's data brings extra rules."
+     ]
+    },
+    {
+     "h": "DPIAs and accountability",
+     "p": [
+      "A Data Protection Impact Assessment (DPIA) is required under GDPR Article 35 where processing is likely to result in high risk, which often includes large-scale profiling and new technologies. It describes the processing, assesses necessity and proportionality, identifies risks to individuals, and lists mitigations; if high risk remains, the regulator must be consulted. Keep records of processing, appoint a data protection officer where required, sign data processing agreements with vendors, and manage cross-border transfers with approved mechanisms. Regulators have ordered unlawfully trained models to be deleted, so documentation is a business safeguard."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Processing record (excerpt)",
+    "text": "activity: support-chat summarization\ncontroller: Example Corp   processor: LLM vendor (DPA signed)\ndata: names, emails, order history (no special categories)\nlawful basis: legitimate interests (LIA on file)\nretention: 30 days raw prompts, 12 months summaries\ntransfer: EU->US via SCCs  DPIA: DPIA-2026-04 approved"
+   },
+   "example": "A company wants to use past support chats to train a sentiment model. Customers originally gave data for resolving tickets. The privacy team finds that the new use may not be compatible with the original purpose, runs a DPIA, selects legitimate interests with a documented balancing test, adds a clear notice with an opt-out, strips identifiers before training and sets a deletion date. A customer deletion request is then handled by removing the chat from the dataset before the next retrain.",
+   "terms": [
+    {
+     "term": "Lawful basis",
+     "def": "A legal ground for processing, such as consent or contract."
+    },
+    {
+     "term": "Purpose limitation",
+     "def": "Using data only for the purposes it was collected for."
+    },
+    {
+     "term": "Data subject rights",
+     "def": "Individuals' rights such as access, deletion and objection."
+    },
+    {
+     "term": "DPIA",
+     "def": "A structured assessment of privacy risk for high-risk processing."
+    },
+    {
+     "term": "Special category data",
+     "def": "Sensitive data such as health or biometrics needing extra protection."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which article requires a DPIA in high-risk cases?",
+     "options": [
+      "Article 6",
+      "Article 22",
+      "Article 35",
+      "Article 99"
+     ],
+     "a": 2,
+     "why": "GDPR Article 35 sets out the DPIA requirement."
+    },
+    {
+     "q": "Is a pre-ticked consent box valid under GDPR?",
+     "options": [
+      "Yes",
+      "No, consent must be an unambiguous affirmative act",
+      "Only for adults",
+      "Only online"
+     ],
+     "a": 1,
+     "why": "Pre-ticked boxes do not show active, unambiguous consent."
+    },
+    {
+     "q": "Which principle is raised by reusing support data for model training?",
+     "options": [
+      "Purpose limitation",
+      "Rounding",
+      "Latency",
+      "Sharding"
+     ],
+     "a": 0,
+     "why": "New uses must be compatible with the original purpose."
+    },
+    {
+     "q": "CCPA/CPRA gives California residents the right to:",
+     "options": [
+      "Opt out of sale or sharing of personal information",
+      "Read the vendor's source code",
+      "Choose model architecture",
+      "Skip all notices"
+     ],
+     "a": 0,
+     "why": "Opt-out of sale or sharing is a core CCPA/CPRA right."
+    }
+   ],
+   "recap": [
+    "Identify a lawful basis and purpose for each AI use.",
+    "Plan to honor access, deletion and objection requests.",
+    "Use DPIAs and records to show accountability."
+   ]
+  },
+  {
+   "title": "Privacy engineering for LLM apps",
+   "why": "Engineering controls turn policy into practice: detect personal data, limit how long it lives, keep logs clean and bind vendors by contract.",
+   "sections": [
+    {
+     "h": "PII detection and masking",
+     "p": [
+      "Detect personal data before it reaches a model provider, a log file or an analytics tool. Combine layers: regular expressions for structured items (emails, phone numbers, card numbers with Luhn checks, national ID formats), dictionaries, and named-entity recognition models for names and addresses. Replace matches with typed placeholders such as [EMAIL_1], keeping a reversible mapping in a secure vault if the answer must be re-personalized. Measure precision and recall on labeled samples, because over-masking breaks answers and under-masking leaks. Run detection on both inputs and outputs, and on retrieved documents."
+     ]
+    },
+    {
+     "h": "Retention and minimization",
+     "p": [
+      "Decide how long each data type is needed and enforce it with automated deletion. Raw prompts often need only days for debugging, while aggregated metrics may live longer. Avoid storing full conversations by default; sample or store masked text. Make retention consistent across every copy: application logs, vector databases, caches, backups and vendor systems. Provide users with a way to delete conversation history, and make sure deletion reaches embeddings derived from their data. Disable chat history for sensitive workflows and keep memory features opt-in with clear controls."
+     ]
+    },
+    {
+     "h": "Log scrubbing and access control",
+     "p": [
+      "Logs are a frequent leak. Apply scrubbing at the point of logging, not afterward, so raw personal data never lands on disk. Treat traces from observability platforms as sensitive, since they can contain full prompts, tool arguments and retrieved text. Restrict access by role, record who views conversation data, and encrypt in transit and at rest. Never put secrets or session tokens in prompts. Keep separate tenants isolated in vector stores and caches, so one customer's documents cannot appear in another's answers, and test that isolation as part of release checks."
+     ]
+    },
+    {
+     "h": "Vendor terms and data processing",
+     "p": [
+      "When a third party hosts the model, a data processing agreement should state that the vendor acts as processor on your instructions, whether prompts are used for training (ideally not by default), retention and deletion periods, sub-processors, security measures, breach notification times, audit rights and transfer mechanisms. Check the region where data is processed and whether zero data retention is available. Keep a vendor inventory, review it periodically, and prefer enterprise or API terms to consumer terms. Document these decisions in the DPIA so that engineering and legal teams share one set of facts."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Masking example",
+    "text": "input : 'Hi, I'm Jo Park, jo.park@example.com, call 555-0142.'\nmasked: 'Hi, I'm [PERSON_1], [EMAIL_1], call [PHONE_1].'\nlog   : masked text only; vault map TTL = 24h\nrule  : EMAIL  \\b[\\w.+-]+@[\\w-]+\\.[\\w.]+\\b\nrule  : PHONE  \\b\\d{3}-\\d{4}\\b (demo format)"
+   },
+   "example": "A support copilot sends chat text to an external model. The team adds a gateway that masks emails, phones and names before forwarding, writes only masked text to logs, deletes raw prompts after seven days and routes traffic to a vendor region inside the EU under a DPA that forbids training on their data. Weekly tests with fake personal data check that nothing unmasked appears in logs or in the vector database.",
+   "terms": [
+    {
+     "term": "PII detection",
+     "def": "Finding personal data in text using patterns, dictionaries or models."
+    },
+    {
+     "term": "Placeholder token",
+     "def": "A typed stand-in such as [EMAIL_1] replacing sensitive text."
+    },
+    {
+     "term": "Retention limit",
+     "def": "The maximum time data may be stored before deletion."
+    },
+    {
+     "term": "Log scrubbing",
+     "def": "Removing sensitive data before it is written to logs."
+    },
+    {
+     "term": "Data processing agreement",
+     "def": "A contract setting how a processor may handle personal data."
+    }
+   ],
+   "check": [
+    {
+     "q": "Where should log scrubbing happen?",
+     "options": [
+      "At the point of logging, before writing",
+      "Only after a breach",
+      "Never",
+      "In the user's browser history"
+     ],
+     "a": 0,
+     "why": "Scrubbing at write time prevents raw data from landing in storage."
+    },
+    {
+     "q": "Why measure precision and recall of PII detectors?",
+     "options": [
+      "To balance leaks against over-masking",
+      "To reduce electricity use",
+      "To pick a font",
+      "To compress logs"
+     ],
+     "a": 0,
+     "why": "Misses leak data while false hits damage output quality."
+    },
+    {
+     "q": "What should a DPA with an LLM vendor address?",
+     "options": [
+      "Training use of prompts, retention and sub-processors",
+      "Office furniture",
+      "Logo usage",
+      "Employee birthdays"
+     ],
+     "a": 0,
+     "why": "These terms control what the vendor can do with personal data."
+    },
+    {
+     "q": "Deleting a user's chat history should also remove:",
+     "options": [
+      "Nothing else",
+      "Derived embeddings and other copies",
+      "Only the browser tab",
+      "The model architecture"
+     ],
+     "a": 1,
+     "why": "Derived data in vector stores and caches must follow deletion."
+    }
+   ],
+   "recap": [
+    "Detect and mask PII on inputs, outputs and retrieved text.",
+    "Enforce retention across logs, vectors, backups and vendors.",
+    "Bind vendors with DPAs and verify tenant isolation."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Redact PII before logging",
+   "sim": "code-editor",
+   "scenario": "A fictional shop, Acme Gadgets, logs every user prompt sent to its chat assistant. The security team found emails and phone numbers in the logs. You must write masking rules and test them on sample prompts before the logging change ships. Use only the provided fake samples.",
+   "objective": "Mask emails, phone numbers and IDs in prompts and confirm the rules on samples.",
+   "steps": [
+    {
+     "do": "Open mask.py and view the three failing sample prompts.",
+     "see": "Sample 1: 'Email me at ann.lee@example.com'. Sample 2: 'Call 555-0123'. Sample 3: 'My ID is AB-123456'. Tests: 0/3 pass."
+    },
+    {
+     "do": "Add an email rule replacing matches with [EMAIL].",
+     "see": "Test run: 1/3 pass. Sample 1 -> 'Email me at [EMAIL]'."
+    },
+    {
+     "do": "Add a phone rule for the pattern ddd-dddd.",
+     "see": "Test run: 2/3 pass. Sample 2 -> 'Call [PHONE]'."
+    },
+    {
+     "do": "Add an ID rule for two letters, hyphen, six digits.",
+     "see": "Test run: 3/3 pass. Sample 3 -> 'My ID is [ID]'."
+    },
+    {
+     "do": "Run the extra sample: 'Order 2024-05 shipped'.",
+     "see": "Over-masking check: unchanged. Good, no false positive."
+    },
+    {
+     "do": "Run the name sample: 'Hi, I am Jo Park'.",
+     "see": "Not masked. Note: regex cannot reliably catch names; NER rule needed."
+    },
+    {
+     "do": "Enable the NER-style name rule and rerun all tests.",
+     "see": "Tests 6/6 pass. Coverage report: names, email, phone, ID masked."
+    }
+   ],
+   "answer": "The final rule set masks emails, phone numbers and the ID format with typed placeholders, leaves harmless order numbers untouched, and adds an NER-style rule for names because regex alone misses them. All six sample tests pass before logging is enabled.",
+   "hint": "Test for false positives as well as misses."
+  },
+  {
+   "title": "Find PII in a dataset",
+   "sim": "file-explorer",
+   "scenario": "You are reviewing a fictional fine-tuning folder for a travel-support model at Example Tours. The folder holds five files. For each, tag records containing personal data and decide to remove, mask or retain. The data owner wants a short decision log.",
+   "objective": "Tag personal data in each file and choose a disposition.",
+   "steps": [
+    {
+     "do": "Open tickets_2024.csv.",
+     "see": "Columns: id, name, email, message. 200 rows. Tag: direct identifiers present."
+    },
+    {
+     "do": "Open faq_export.txt.",
+     "see": "General travel FAQ text, no personal data. Tag: clean."
+    },
+    {
+     "do": "Open chat_samples.jsonl.",
+     "see": "Messages contain phone numbers in 14 of 100 lines. Tag: mask."
+    },
+    {
+     "do": "Open medical_notes.txt.",
+     "see": "Customer notes about allergies and a wheelchair request with names. Tag: special category."
+    },
+    {
+     "do": "Set dispositions: tickets=mask, faq=retain, chat=mask, medical=remove.",
+     "see": "Decisions saved. Rationale required for medical: data minimization."
+    },
+    {
+     "do": "Open passports_scan_list.csv.",
+     "see": "Passport numbers with names, not needed for the task. Tag: remove and report to data owner."
+    },
+    {
+     "do": "Submit the decision log.",
+     "see": "Log accepted. Reviewer note: passport file should also trigger a retention review."
+    }
+   ],
+   "answer": "Tickets and chat samples should be masked, the FAQ retained, and the medical notes and passport list removed because they are special category or unnecessary for the purpose. The passport file also warrants a retention review and a note to the data owner.",
+   "hint": "Ask whether the model needs the personal detail to do its job."
+  },
+  {
+   "title": "Run a mini DPIA",
+   "sim": "scenario",
+   "scenario": "Fictional retailer ShopSphere plans a customer-chat feature using an external LLM that summarizes conversations for agents. Chats contain names, order data and occasionally health remarks. You complete a short DPIA questionnaire and choose controls for each risk the form identifies.",
+   "objective": "Identify risks and pick proportionate controls for the chat feature.",
+   "steps": [
+    {
+     "do": "Answer: what personal data is processed?",
+     "see": "Recorded: names, emails, order history, possible health remarks (special category)."
+    },
+    {
+     "do": "Answer: what is the lawful basis?",
+     "see": "You choose legitimate interests; the form asks for a balancing test and opt-out."
+    },
+    {
+     "do": "Risk 1: prompts sent to a vendor. Pick a control.",
+     "see": "Select DPA with no-training clause and EU region. Risk reduced to Medium."
+    },
+    {
+     "do": "Risk 2: health remarks in chats. Pick a control.",
+     "see": "Select detect and mask special category text before sending. Risk reduced to Medium."
+    },
+    {
+     "do": "Risk 3: long retention. Pick a control.",
+     "see": "Select 30-day deletion on raw logs. Risk reduced to Low."
+    },
+    {
+     "do": "Risk 4: rights requests. Pick a control.",
+     "see": "Select dataset and index deletion workflow. Risk reduced to Low."
+    },
+    {
+     "do": "Review the residual risk and submit.",
+     "see": "Residual: Low to Medium. Result: approved with conditions and review in 6 months."
+    }
+   ],
+   "answer": "The DPIA should record the data types including special category remarks, a lawful basis with balancing test, and controls: vendor DPA with no training and EU processing, masking of sensitive text, 30-day raw log retention and a deletion workflow. Residual risk is acceptable with periodic review.",
+   "hint": "Match each control to the specific risk it reduces."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which attack asks whether a specific person's record was in the training set?",
+   "options": [
+    "Membership inference",
+    "SQL injection",
+    "Port scanning",
+    "Phishing"
+   ],
+   "a": 0,
+   "why": "Membership inference tests training set inclusion."
+  },
+  {
+   "q": "Why deduplicate training data?",
+   "options": [
+    "Repeated text is memorized more",
+    "It adds noise",
+    "It increases epsilon",
+    "It breaks consent"
+   ],
+   "a": 0,
+   "why": "Duplicates raise memorization and leakage risk."
+  },
+  {
+   "q": "In DP, a smaller epsilon means:",
+   "options": [
+    "Stronger privacy",
+    "Weaker privacy",
+    "No guarantee",
+    "Faster training"
+   ],
+   "a": 0,
+   "why": "Lower epsilon bounds individual influence more tightly."
+  },
+  {
+   "q": "What does gradient clipping accomplish in DP-SGD?",
+   "options": [
+    "Bounds each example's influence",
+    "Encrypts gradients",
+    "Removes the model",
+    "Sorts the data"
+   ],
+   "a": 0,
+   "why": "Clipping limits sensitivity so noise can be calibrated."
+  },
+  {
+   "q": "In federated averaging, clients send:",
+   "options": [
+    "Raw training data",
+    "Model updates",
+    "Passwords",
+    "Only labels"
+   ],
+   "a": 1,
+   "why": "Clients train locally and send updates to be averaged."
+  },
+  {
+   "q": "Which GDPR article covers DPIAs?",
+   "options": [
+    "Article 6",
+    "Article 17",
+    "Article 35",
+    "Article 5"
+   ],
+   "a": 2,
+   "why": "Article 35 requires DPIAs for high-risk processing."
+  },
+  {
+   "q": "Pseudonymized data under GDPR is:",
+   "options": [
+    "Still personal data",
+    "Anonymous",
+    "Exempt",
+    "Public"
+   ],
+   "a": 0,
+   "why": "It can be re-linked, so it remains personal data."
+  },
+  {
+   "q": "Best place to scrub PII from logs is:",
+   "options": [
+    "At write time",
+    "After a year",
+    "Never",
+    "In backups only"
+   ],
+   "a": 0,
+   "why": "Preventing raw data from being stored is safest."
+  },
+  {
+   "q": "A key DPA term for an LLM vendor is:",
+   "options": [
+    "Whether prompts are used to train models",
+    "Office location colors",
+    "Vendor mascot",
+    "Holiday schedule"
+   ],
+   "a": 0,
+   "why": "Training use of prompts is a core privacy question."
+  },
+  {
+   "q": "A person asks for deletion of their data. For an LLM app you should also remove:",
+   "options": [
+    "Only the front-end cache",
+    "Dataset copies and derived embeddings",
+    "Nothing",
+    "The vendor's logo"
+   ],
+   "a": 1,
+   "why": "Deletion must reach all copies and derived data."
+  }
+ ]
+}

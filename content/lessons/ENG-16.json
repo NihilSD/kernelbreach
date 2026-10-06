@@ -1,0 +1,1046 @@
+{
+ "code": "ENG-16",
+ "intro": "Governance, risk and compliance can look like paperwork, but it is how an organization proves that security is deliberate. This module teaches you to assess risk with likelihood, impact and annualized loss expectancy, to separate policies from standards and procedures, to map one control across frameworks, and to understand ISO/IEC 27001, SOC 2, PCI DSS and NIST SP 800-53 and the CSF. You will also learn to gather audit evidence efficiently and to respond calmly to findings.",
+ "lessons": [
+  {
+   "title": "Risk assessment methods",
+   "why": "Security budgets are finite; risk assessment tells you which problems deserve money first and which can be accepted.",
+   "sections": [
+    {
+     "h": "Likelihood, impact and the register",
+     "p": [
+      "Risk is the chance that a threat exploits a vulnerability to harm an asset. A common formula is risk = likelihood x impact. A risk assessment identifies assets, threats and vulnerabilities, estimates both factors, and records each risk in a risk register with an owner, a score, a treatment decision and a review date. Likelihood considers threat capability, exposure and existing controls; impact considers financial loss, downtime, legal penalties, safety and reputation. Inherent risk is before controls and residual risk is what remains after them."
+     ]
+    },
+    {
+     "h": "Qualitative versus quantitative",
+     "p": [
+      "Qualitative methods rate risks on scales, for example likelihood 1 to 5 and impact 1 to 5, plotted on a heat map. They are quick and easy to explain but subjective. Quantitative methods use money. Single loss expectancy (SLE) equals asset value times exposure factor; annualized rate of occurrence (ARO) is how often per year the loss is expected; annualized loss expectancy is ALE = SLE x ARO. If a database worth 400,000 would lose 50 percent in a breach expected once every four years, SLE is 200,000, ARO is 0.25 and ALE is 50,000."
+     ]
+    },
+    {
+     "h": "Treatment options",
+     "p": [
+      "Four standard responses exist. Mitigate (treat) by adding or improving controls. Transfer or share by buying insurance or contracting a provider, although legal responsibility often stays with you. Avoid by stopping the risky activity, for example retiring a legacy service. Accept when the residual risk is within appetite, with documented approval from someone who has the authority. A control is cost justified when its annual cost is lower than the reduction in ALE it delivers."
+     ]
+    },
+    {
+     "h": "Making assessments credible",
+     "p": [
+      "Use consistent scales with written definitions, such as 'impact 4 means loss above 1 million or a regulatory fine'. Involve asset owners, use incident history and threat intelligence where possible, and avoid false precision, since an ALE built on guesses is still a guess. Frameworks such as ISO/IEC 27005, NIST SP 800-30 and FAIR give structure. Reassess after major changes and at least yearly, and report trends so that leadership sees whether risk is going up or down."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Risk register row",
+    "text": "ID: R-07  Asset: customer DB   Threat: ransomware\nLikelihood: 4  Impact: 5  Inherent: 20\nControls: immutable backups, EDR   Residual: 12\nSLE 200000  ARO 0.25  ALE 50000\nTreatment: mitigate (add MFA on admin)  Owner: CIO  Review: 2026-12-01"
+   },
+   "example": "A company values its customer database at 400,000 and estimates that a breach would destroy half of that value, with such a breach likely once every four years. ALE is 50,000. A proposed control costs 15,000 per year and would cut breach likelihood in half, reducing ALE to 25,000. The saving of 25,000 exceeds the 15,000 cost, so mitigation is justified. The risk owner records the decision and the expected residual risk in the register.",
+   "terms": [
+    {
+     "term": "Risk register",
+     "def": "A maintained list of risks with scores, owners and treatments."
+    },
+    {
+     "term": "Residual risk",
+     "def": "The risk that remains after controls are applied."
+    },
+    {
+     "term": "ALE",
+     "def": "Annualized loss expectancy, SLE multiplied by ARO."
+    },
+    {
+     "term": "Risk appetite",
+     "def": "The level of risk an organization is willing to accept."
+    },
+    {
+     "term": "Risk transfer",
+     "def": "Shifting financial impact to another party, such as an insurer."
+    }
+   ],
+   "check": [
+    {
+     "q": "ALE equals...",
+     "options": [
+      "SLE x ARO",
+      "ARO / SLE",
+      "Impact + likelihood",
+      "Cost / value"
+     ],
+     "a": 0,
+     "why": "Annualized loss expectancy multiplies loss per event by yearly frequency."
+    },
+    {
+     "q": "Which treatment is buying cyber insurance?",
+     "options": [
+      "Transfer",
+      "Avoid",
+      "Accept",
+      "Ignore"
+     ],
+     "a": 0,
+     "why": "Insurance shifts financial impact."
+    },
+    {
+     "q": "A control is worth it when...",
+     "options": [
+      "Its cost is below the ALE reduction",
+      "It is new",
+      "It is expensive",
+      "It is popular"
+     ],
+     "a": 0,
+     "why": "Compare cost with risk reduction."
+    },
+    {
+     "q": "What is a qualitative weakness?",
+     "options": [
+      "Needs money",
+      "Subjectivity",
+      "Needs math",
+      "Too precise"
+     ],
+     "a": 1,
+     "why": "Scales rely on judgment."
+    }
+   ],
+   "recap": [
+    "Risk is likelihood times impact, tracked in a register.",
+    "Quantify with SLE, ARO and ALE where data allows.",
+    "Choose mitigate, transfer, avoid or accept and document owners."
+   ]
+  },
+  {
+   "title": "Policies, standards and control mapping",
+   "why": "Without a clear hierarchy of documents, rules become inconsistent; without mapping, teams repeat the same audit work for every framework.",
+   "sections": [
+    {
+     "h": "The document hierarchy",
+     "p": [
+      "A policy is a short, high level statement of management intent, approved by leadership, for example 'Access to systems is granted on a need-to-know basis'. A standard sets mandatory, measurable requirements that implement the policy, such as 'Administrator accounts require phishing-resistant MFA and 12 character minimum passwords elsewhere'. A procedure describes the steps to carry out a task, and a guideline offers non-binding advice. Policies change rarely; procedures change often. Each document has an owner, version, approval date and review cycle."
+     ]
+    },
+    {
+     "h": "Controls and their types",
+     "p": [
+      "A control is a safeguard that reduces risk. By function they are preventive, detective, corrective, deterrent or compensating; by nature they are administrative, technical or physical. A well written control states what must happen, how often and who is responsible, so it can be tested: 'Quarterly, the IT manager reviews all privileged accounts and removes unneeded access, with evidence stored in the ticket system'. Vague controls such as 'access is managed appropriately' cannot be audited."
+     ]
+    },
+    {
+     "h": "Mapping one control to many frameworks",
+     "p": [
+      "Frameworks overlap heavily. A single quarterly access review can satisfy ISO/IEC 27001 Annex A control 5.18 on access rights, SOC 2 criterion CC6.2 and CC6.3 on access provisioning and removal, and PCI DSS requirement 7 on restricting access by business need. Build a unified control set, a table in which each internal control is linked to the requirements it supports. This lets teams do the work once, collect evidence once and reuse it across audits."
+     ]
+    },
+    {
+     "h": "Keeping mappings honest",
+     "p": [
+      "Mappings are judgments, not exact equivalents; a control may satisfy part of a requirement but not all of it, so note gaps. Use official crosswalks, such as published mappings between NIST SP 800-53 and ISO 27001, as a starting point and review them with auditors. Store the control library in a GRC tool or a controlled spreadsheet, record the owner, frequency and evidence source for each, and update the mapping when a framework releases a new version, for example PCI DSS 4.0 replacing 3.2.1."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Control mapping",
+    "text": "Internal control AC-04: Quarterly privileged access review\n  ISO/IEC 27001:2022  A.5.18 Access rights\n  SOC 2               CC6.2, CC6.3\n  PCI DSS 4.0         7.2.4 (review of user accounts)\n  NIST SP 800-53      AC-2(j)\n  Owner: IT Manager   Evidence: review ticket + export"
+   },
+   "example": "Example Corp used to run three separate access reviews, one each for ISO, SOC 2 and PCI auditors. The GRC analyst creates one internal control, AC-04, a quarterly review of privileged accounts, and maps it to all three frameworks. The IT manager performs the review once, saves the export and approval ticket, and the same evidence is supplied to each auditor. The company saves several days of work per audit cycle and removes inconsistent answers.",
+   "terms": [
+    {
+     "term": "Policy",
+     "def": "A high level statement of management intent."
+    },
+    {
+     "term": "Standard",
+     "def": "A mandatory, specific requirement supporting a policy."
+    },
+    {
+     "term": "Procedure",
+     "def": "Step by step instructions for a task."
+    },
+    {
+     "term": "Compensating control",
+     "def": "An alternative safeguard used when a requirement cannot be met directly."
+    },
+    {
+     "term": "Crosswalk",
+     "def": "A table relating requirements of one framework to another."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which document sets mandatory, measurable requirements?",
+     "options": [
+      "Memo",
+      "Poster",
+      "Guideline",
+      "Standard"
+     ],
+     "a": 3,
+     "why": "Standards specify requirements."
+    },
+    {
+     "q": "Why map controls across frameworks?",
+     "options": [
+      "Increase cost",
+      "Avoid audits",
+      "Do work and evidence collection once",
+      "More paperwork"
+     ],
+     "a": 2,
+     "why": "Overlap reduces duplicate effort."
+    },
+    {
+     "q": "What makes a control auditable?",
+     "options": [
+      "Clear action, frequency, owner",
+      "Length",
+      "Secrecy",
+      "Vague wording"
+     ],
+     "a": 0,
+     "why": "Testers need something specific."
+    },
+    {
+     "q": "A detective control example is...",
+     "options": [
+      "Firewall block",
+      "Training poster",
+      "Lock",
+      "Log monitoring alert"
+     ],
+     "a": 3,
+     "why": "Detective controls find events after they occur."
+    }
+   ],
+   "recap": [
+    "Policy, standard, procedure and guideline have different roles.",
+    "Write controls that are specific, owned and testable.",
+    "Map each control to several frameworks and note any gaps."
+   ]
+  },
+  {
+   "title": "ISO/IEC 27001",
+   "why": "ISO/IEC 27001 is the best known international standard for an information security management system and is often required by customers.",
+   "sections": [
+    {
+     "h": "The ISMS and clauses 4 to 10",
+     "p": [
+      "ISO/IEC 27001 specifies requirements for an information security management system (ISMS), a managed, continually improving set of policies, processes and controls. Its mandatory clauses 4 to 10 cover the context of the organization and scope, leadership and policy, planning including risk assessment and treatment, support such as resources and awareness, operation, performance evaluation through monitoring, internal audit and management review, and improvement through corrective action. The standard follows the plan, do, check, act idea and is risk-based, so the controls you need depend on your own risks."
+     ]
+    },
+    {
+     "h": "Annex A and the Statement of Applicability",
+     "p": [
+      "Annex A of the 2022 edition lists 93 controls in four themes: organizational (37), people (8), physical (14) and technological (34). Supporting guidance is in ISO/IEC 27002. After the risk assessment you produce a Statement of Applicability (SoA) that lists every Annex A control, whether it is applicable, whether it is implemented, and the justification for including or excluding it. The SoA is a key audit document, and excluded controls need a sound reason tied to risk or scope, not convenience."
+     ]
+    },
+    {
+     "h": "Certification audits",
+     "p": [
+      "Certification is performed by an accredited certification body. Stage 1 reviews documentation and readiness; stage 2 tests whether the ISMS is implemented and effective. Certificates last three years with annual surveillance audits and a recertification audit at the end of the cycle. Findings are classed as major nonconformities, which block certification until fixed, and minor ones, which need a corrective action plan. Auditors sample records, interview staff and look for evidence of internal audits and management review."
+     ]
+    },
+    {
+     "h": "Running an ISMS well",
+     "p": [
+      "Define scope carefully, since it determines cost and what the certificate means; a certificate for 'the cloud platform and supporting offices' tells customers more than a vague scope. Keep the risk treatment plan and SoA current, run internal audits by independent staff, hold management reviews with real decisions and minutes, and track corrective actions to closure. The 2022 revision of the standard moved from 114 to 93 controls and reorganized them, and organizations certified to the 2013 version had a transition period to update."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "SoA row",
+    "text": "Control: A.8.13 Information backup\nApplicable: Yes\nImplemented: Yes\nJustification: Risk R-07 (ransomware) treatment\nEvidence: backup policy, restore test log\n\nControl: A.7.4 Physical security monitoring\nApplicable: Yes (office), No (cloud, covered by provider)"
+   },
+   "example": "Example Corp wants ISO 27001 certification for its SaaS product. It scopes the ISMS to the platform team and the two offices, runs a risk assessment, and builds an SoA covering all 93 Annex A controls with justifications. Stage 1 finds the internal audit missing, a major gap, so the company performs one and holds a management review before stage 2. The auditors then sample access reviews and backup tests, find no major issues, and the certificate is issued for three years with yearly surveillance.",
+   "terms": [
+    {
+     "term": "ISMS",
+     "def": "A management system for planning, operating and improving information security."
+    },
+    {
+     "term": "Statement of Applicability",
+     "def": "A document listing Annex A controls with applicability and justification."
+    },
+    {
+     "term": "Surveillance audit",
+     "def": "A yearly audit during the certification cycle."
+    },
+    {
+     "term": "Nonconformity",
+     "def": "A failure to meet a requirement, rated major or minor."
+    },
+    {
+     "term": "ISO/IEC 27002",
+     "def": "The guidance document explaining the Annex A controls."
+    }
+   ],
+   "check": [
+    {
+     "q": "How many controls are in Annex A of ISO 27001:2022?",
+     "options": [
+      "114",
+      "14",
+      "200",
+      "93"
+     ],
+     "a": 3,
+     "why": "The 2022 edition has 93 controls in four themes."
+    },
+    {
+     "q": "What does the SoA document?",
+     "options": [
+      "Network maps",
+      "Staff salaries",
+      "Control applicability and justification",
+      "Passwords"
+     ],
+     "a": 2,
+     "why": "It records which controls apply and why."
+    },
+    {
+     "q": "How long does an ISO certificate usually last?",
+     "options": [
+      "3 years",
+      "1 year",
+      "10 years",
+      "Forever"
+     ],
+     "a": 0,
+     "why": "Three years with annual surveillance."
+    },
+    {
+     "q": "A major nonconformity means...",
+     "options": [
+      "Certification is blocked until fixed",
+      "A cheaper audit",
+      "Praise",
+      "Ignore"
+     ],
+     "a": 0,
+     "why": "Major findings must be resolved."
+    }
+   ],
+   "recap": [
+    "An ISMS is a risk-based management system with clauses 4 to 10.",
+    "Annex A lists 93 controls, with applicability recorded in the SoA.",
+    "Certification involves stage 1, stage 2 and annual surveillance."
+   ]
+  },
+  {
+   "title": "SOC 2",
+   "why": "SOC 2 reports are the standard way SaaS and service companies prove their controls to customers in North America and beyond.",
+   "sections": [
+    {
+     "h": "Trust Services Criteria",
+     "p": [
+      "SOC 2 is an attestation framework from the AICPA, performed by a licensed CPA firm. It evaluates controls against the Trust Services Criteria: Security, which is mandatory and called the common criteria (CC series), plus optional Availability, Processing Integrity, Confidentiality and Privacy. The company chooses which criteria are in scope based on its services and customer promises. The report describes the system, management's assertion and the auditor's opinion on whether controls are suitably designed and, for Type II, operating effectively."
+     ]
+    },
+    {
+     "h": "Type I versus Type II",
+     "p": [
+      "A Type I report examines the design of controls at a single point in time. A Type II report examines both design and operating effectiveness over a period, commonly three to twelve months. Customers usually prefer Type II because it shows controls working consistently, not just existing on paper. Many companies start with a Type I to establish a baseline, then run a Type II observation window. The report is restricted to customers and prospects under NDA, unlike a public certificate."
+     ]
+    },
+    {
+     "h": "Common control tests",
+     "p": [
+      "Auditors test samples of the population. Typical tests include whether new hires received background checks and security training, whether terminated users lost access within a defined time, whether changes were peer reviewed and approved before production, whether vulnerability scans ran and critical findings were fixed within the SLA, whether backups were restored, whether incidents were logged and handled, and whether vendors were reviewed. For each control the auditor samples items from the period, for example 25 closed tickets, and looks for exceptions."
+     ]
+    },
+    {
+     "h": "Preparing and handling exceptions",
+     "p": [
+      "Start with a readiness assessment against the criteria, fix gaps, and begin collecting evidence automatically so the observation window is clean. Define each control precisely, because auditors test what you say you do. If a sample fails, for example one leaver kept access for ten days against a 24 hour rule, the report notes an exception with management's response; one exception is not necessarily a qualified opinion, but patterns are. Complementary user entity controls describe what customers must do themselves, and subservice organizations such as the cloud provider are carved out or included."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Sample test result",
+    "text": "Control CC6.3: Access removed within 24h of termination\nPopulation: 41 leavers in period   Sample: 25\nResult: 24 pass, 1 exception (removed after 10 days)\nManagement response: offboarding ticket now auto-creates\n  revocation tasks; confirmed on 3 later leavers"
+   },
+   "example": "Example Corp sells a fictional analytics service. After a three month Type I, it opens a six month Type II window covering Security and Availability. In the audit, 25 of 41 leavers are sampled, and one account stayed active ten days. The auditor lists an exception with management's remediation, and the opinion remains unqualified because the control otherwise operated. Customers read the report, see the exception and fix, and gain confidence from the honest disclosure.",
+   "terms": [
+    {
+     "term": "Trust Services Criteria",
+     "def": "The AICPA criteria categories used in SOC 2."
+    },
+    {
+     "term": "Type II",
+     "def": "A report on control design and operating effectiveness over a period."
+    },
+    {
+     "term": "Common criteria",
+     "def": "The mandatory Security criteria in SOC 2."
+    },
+    {
+     "term": "Exception",
+     "def": "A sampled instance where a control did not operate as stated."
+    },
+    {
+     "term": "Attestation",
+     "def": "An independent auditor's opinion on a subject matter."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which criterion is mandatory in SOC 2?",
+     "options": [
+      "Security",
+      "Availability",
+      "Privacy",
+      "Confidentiality"
+     ],
+     "a": 0,
+     "why": "Security (common criteria) is always included."
+    },
+    {
+     "q": "What does Type II add over Type I?",
+     "options": [
+      "Public posting",
+      "Operating effectiveness over a period",
+      "A logo",
+      "Price"
+     ],
+     "a": 1,
+     "why": "Type II tests effectiveness across time."
+    },
+    {
+     "q": "Who performs SOC 2?",
+     "options": [
+      "NIST",
+      "A licensed CPA firm",
+      "A vendor",
+      "Any employee"
+     ],
+     "a": 1,
+     "why": "It is an AICPA attestation."
+    },
+    {
+     "q": "What is a sample exception?",
+     "options": [
+      "A tool",
+      "A new rule",
+      "A tested item where the control failed",
+      "A holiday"
+     ],
+     "a": 2,
+     "why": "It records a deviation from the control."
+    }
+   ],
+   "recap": [
+    "SOC 2 is tested against Trust Services Criteria with Security mandatory.",
+    "Type I tests design at a date; Type II tests operation over time.",
+    "Auditors sample evidence; exceptions are disclosed with responses."
+   ]
+  },
+  {
+   "title": "PCI DSS",
+   "why": "Any organization that stores, processes or transmits payment card data must meet PCI DSS, and good scoping drastically reduces cost and risk.",
+   "sections": [
+    {
+     "h": "Cardholder data and scope",
+     "p": [
+      "The Payment Card Industry Data Security Standard is maintained by the PCI Security Standards Council and enforced through card brands and acquiring banks. It protects cardholder data, which includes the primary account number (PAN), cardholder name, expiry date and service code, and sensitive authentication data such as the full track, CVV and PIN, which must never be stored after authorization. The cardholder data environment (CDE) is made up of systems that store, process or transmit that data, and systems that can affect its security are also in scope."
+     ]
+    },
+    {
+     "h": "Segmentation and scope reduction",
+     "p": [
+      "Network segmentation, using firewalls and VLANs or cloud security groups, isolates the CDE so unrelated systems fall out of scope, but it must be tested, for example by annual penetration tests of segmentation controls. Tokenization replaces the PAN with a token, point-to-point encryption protects data from the card reader, and hosted payment pages sent to a PCI compliant provider keep card numbers away from your servers entirely. Reducing scope is usually cheaper and safer than securing a sprawling environment."
+     ]
+    },
+    {
+     "h": "The twelve requirements",
+     "p": [
+      "PCI DSS has twelve principal requirements in six goals: build and maintain a secure network with firewalls and secure configuration; protect account data with storage minimization and strong cryptography and encrypt transmission over public networks; maintain a vulnerability management program with anti-malware and secure development; implement strong access control through need-to-know, unique IDs and MFA, and restrict physical access; monitor and test networks with logging and regular scanning; and maintain an information security policy. Version 4.0 became mandatory, with future-dated requirements, in 2025, and v4.0.1 is the current edition."
+     ]
+    },
+    {
+     "h": "Validation and compensating controls",
+     "p": [
+      "Validation depends on volume and role: large merchants and service providers use a Qualified Security Assessor and a Report on Compliance, while smaller ones complete a Self-Assessment Questionnaire. Quarterly external vulnerability scans come from an Approved Scanning Vendor. When a requirement cannot be met as written, a compensating control may be used if it meets the intent, goes beyond other controls, and is documented in a worksheet and approved by the assessor. It is a temporary or exceptional measure, not a shortcut."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Data element rules",
+    "text": "Element                  Store allowed?   Must be protected?\nPAN                      Yes              Render unreadable (encrypt, token)\nCardholder name          Yes              Protect with PAN\nExpiry date              Yes              Protect with PAN\nCVV / CVC                NO after auth    Never store\nFull track data, PIN     NO after auth    Never store"
+   },
+   "example": "Example Shop, a fictional retailer, finds its web servers, billing database and internal wiki all in scope because the network is flat. It moves card entry to a hosted payment page from a compliant provider, stores only tokens, and segments the remaining order system into its own VLAN. A segmentation penetration test confirms the wiki cannot reach the card systems. The number of in-scope systems drops from 120 to 9, cutting audit effort and the impact of a future breach.",
+   "terms": [
+    {
+     "term": "PAN",
+     "def": "The primary account number on a payment card."
+    },
+    {
+     "term": "CDE",
+     "def": "The cardholder data environment of in-scope systems and processes."
+    },
+    {
+     "term": "Tokenization",
+     "def": "Replacing a PAN with a surrogate value that has no exploitable meaning."
+    },
+    {
+     "term": "QSA",
+     "def": "A Qualified Security Assessor authorized to perform PCI assessments."
+    },
+    {
+     "term": "Compensating control",
+     "def": "An approved alternative control that meets a requirement's intent."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which data may never be stored after authorization?",
+     "options": [
+      "Cardholder name",
+      "PAN",
+      "Expiry date",
+      "CVV"
+     ],
+     "a": 3,
+     "why": "Sensitive authentication data must not be kept."
+    },
+    {
+     "q": "What defines the CDE?",
+     "options": [
+      "Only the website",
+      "Only databases",
+      "All servers",
+      "Systems that store, process or transmit card data and those that affect their security"
+     ],
+     "a": 3,
+     "why": "Connected systems also fall in scope."
+    },
+    {
+     "q": "What reduces PCI scope?",
+     "options": [
+      "More users",
+      "Longer passwords only",
+      "Segmentation, tokenization and hosted payment pages",
+      "More servers"
+     ],
+     "a": 2,
+     "why": "Less card data in fewer systems."
+    },
+    {
+     "q": "Who performs quarterly external scans?",
+     "options": [
+      "Any developer",
+      "An Approved Scanning Vendor",
+      "A QSA only",
+      "The bank manager"
+     ],
+     "a": 1,
+     "why": "ASV scans are required quarterly."
+    }
+   ],
+   "recap": [
+    "Know which card data may be stored and which may not.",
+    "Scope is the CDE plus systems that could affect it.",
+    "Reduce scope with segmentation, tokens and hosted payment pages."
+   ]
+  },
+  {
+   "title": "NIST SP 800-53 and CSF",
+   "why": "NIST publications give a detailed control catalog and a simple outcome framework that together can structure an entire security program.",
+   "sections": [
+    {
+     "h": "800-53 families and controls",
+     "p": [
+      "NIST SP 800-53 Revision 5 is a catalog of security and privacy controls for federal systems, widely used in industry. Controls are grouped into 20 families, each with a two letter ID, such as AC (Access Control), AU (Audit and Accountability), CM (Configuration Management), IA (Identification and Authentication), IR (Incident Response), RA (Risk Assessment), SC (System and Communications Protection) and SI (System and Information Integrity). A control such as AC-2 Account Management has a base statement, supplemental guidance and optional enhancements like AC-2(1)."
+     ]
+    },
+    {
+     "h": "Baselines and tailoring",
+     "p": [
+      "SP 800-53B defines baselines, pre-selected sets of controls for low, moderate and high impact systems, determined by categorizing the system under FIPS 199 for confidentiality, integrity and availability. Organizations then tailor: scope the baseline to the system, apply compensating controls, and add overlays for special cases. This feeds the Risk Management Framework in SP 800-37: prepare, categorize, select, implement, assess, authorize and monitor. FedRAMP is a well known program that builds on these baselines for cloud services."
+     ]
+    },
+    {
+     "h": "The Cybersecurity Framework",
+     "p": [
+      "The NIST Cybersecurity Framework 2.0, released in 2024, has six functions: Govern, Identify, Protect, Detect, Respond and Recover. The new Govern function covers strategy, roles, policy and supply chain risk. The framework is outcome based and does not list detailed controls; instead it uses categories and subcategories such as 'PR.AA: identity management and authentication', with informative references to catalogs such as 800-53. Organization profiles describe the current state and a target state, and implementation tiers describe how rigorous risk management practices are."
+     ]
+    },
+    {
+     "h": "Using them together",
+     "p": [
+      "A practical pattern is to use the CSF as the shared language with executives and to measure maturity, then use 800-53 or another catalog for the specific controls behind each outcome. Perform a gap analysis by scoring each subcategory today versus the target profile, turn the largest gaps into a roadmap, and report progress by function. Because both are free and widely mapped to ISO 27001, SOC 2 and CIS Controls, they lower the cost of switching between audits and give a defensible structure when the board asks how risk is managed."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "CSF profile gap",
+    "text": "Function  Subcategory                 Current  Target\nGOVERN    GV.RM risk strategy          2        3\nIDENTIFY  ID.AM asset inventory        2        4\nPROTECT   PR.AA identity and access    3        4\nDETECT    DE.CM continuous monitoring  3        4\nRESPOND   RS.MA incident management    2        3\nRECOVER   RC.RP recovery plan          1        3"
+   },
+   "example": "A fictional hospital assesses itself against the CSF and finds the lowest score in Recover, where backups exist but nobody has tested restoration. Using a gap analysis, it targets a score of 3 in twelve months, picks 800-53 controls CP-4 (contingency plan testing) and CP-9 (system backup) as the detailed requirements, and adds them to the roadmap. The CISO reports progress to the board by function rather than by tool, so directors can follow the story.",
+   "terms": [
+    {
+     "term": "Control family",
+     "def": "A group of related controls in 800-53 identified by a two letter prefix."
+    },
+    {
+     "term": "Baseline",
+     "def": "A predefined set of controls for low, moderate or high impact systems."
+    },
+    {
+     "term": "Overlay",
+     "def": "A tailored set of control adjustments for a specific community or technology."
+    },
+    {
+     "term": "CSF Profile",
+     "def": "A description of current or target cybersecurity outcomes."
+    },
+    {
+     "term": "Govern",
+     "def": "The CSF 2.0 function covering strategy, roles and oversight."
+    }
+   ],
+   "check": [
+    {
+     "q": "How many functions does CSF 2.0 have?",
+     "options": [
+      "Five",
+      "Six",
+      "Twelve",
+      "Seven"
+     ],
+     "a": 1,
+     "why": "Govern was added to the original five."
+    },
+    {
+     "q": "What does AC mean in 800-53?",
+     "options": [
+      "Asset Catalog",
+      "Authentication Code",
+      "Access Control",
+      "Audit Controls"
+     ],
+     "a": 2,
+     "why": "AC is the Access Control family."
+    },
+    {
+     "q": "What sets which 800-53B baseline applies?",
+     "options": [
+      "Age",
+      "System impact level under FIPS 199",
+      "Company size",
+      "Budget"
+     ],
+     "a": 1,
+     "why": "Low, moderate or high impact guides selection."
+    },
+    {
+     "q": "The CSF is mainly...",
+     "options": [
+      "An outcome based framework",
+      "A scanner",
+      "A control catalog",
+      "A law"
+     ],
+     "a": 0,
+     "why": "It lists outcomes, with references to catalogs."
+    }
+   ],
+   "recap": [
+    "800-53 offers 20 families of detailed controls with baselines.",
+    "CSF 2.0 has Govern, Identify, Protect, Detect, Respond and Recover.",
+    "Use profiles and gap analysis to build a roadmap."
+   ]
+  },
+  {
+   "title": "Audits and evidence collection",
+   "why": "Audits go smoothly or painfully depending on how well evidence has been prepared; automation turns a scramble into routine reporting.",
+   "sections": [
+    {
+     "h": "Types of audit and the audit lifecycle",
+     "p": [
+      "Audits may be internal, external by a customer or regulator (a second-party audit), or third-party by an independent firm. The lifecycle is planning and scoping, requesting evidence, testing and sampling, interviews, drafting findings, management response and a final report. Preparation starts months earlier: know the scope, name an audit coordinator, understand what each control owner must provide and keep a calendar of recurring activities such as quarterly reviews. Auditors judge what is documented and evidenced, so an undocumented control is treated as non-existent."
+     ]
+    },
+    {
+     "h": "What good evidence looks like",
+     "p": [
+      "Good evidence is relevant, complete, authentic and dated. Examples include system generated reports with timestamps, configuration exports, screenshots showing the user and date, tickets with approvals, signed policies with version history, meeting minutes and log samples. Evidence should show the control operating during the whole period, not only on the day of the audit. Avoid editing exports, and record who produced them and how, so an auditor can trust provenance. Never share secrets or unnecessary personal data; redact what the auditor does not need."
+     ]
+    },
+    {
+     "h": "Automating collection and sampling",
+     "p": [
+      "Automation reduces effort and error: scripts or GRC platforms can pull IAM user lists, MFA status, cloud configuration snapshots, vulnerability scan results and ticket data on a schedule and store them in a controlled evidence repository. Auditors choose samples from a population, for example 25 of 300 changes, so be ready to supply the full population listing quickly and consistent artifacts for each item. Continuous controls monitoring tests controls daily and alerts when a control drifts, so exceptions are fixed before the audit period ends."
+     ]
+    },
+    {
+     "h": "Handling findings",
+     "p": [
+      "Findings are classed by severity, commonly observation, minor and major, or deficiency, significant deficiency and material weakness in financial audits. Respond by confirming facts, agreeing the root cause, and proposing a corrective action plan with an owner and a realistic date, instead of arguing or over-promising. Track actions to completion, provide evidence of closure, and look for similar issues elsewhere. A calm, factual relationship with auditors, and honesty about gaps, builds credibility, and repeated findings are treated more severely than new ones."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Evidence request",
+    "text": "Request R-12: Show MFA enforced for all admins (CC6.1)\nProvided: iam_users_2026-09-30.csv (export, 14 admins)\n  column mfa_enabled = true for 14 of 14\nProvided: policy_mfa_v3.2.pdf (approved 2026-03-14)\nProvider: J. Rivera (IT), pulled by script evidence_pull.py"
+   },
+   "example": "An auditor asks Example Corp for proof that all administrators use multi-factor authentication. Instead of screenshots, the security engineer runs the evidence script, which exports the identity provider's admin list with the MFA status column and a timestamp, and attaches the approved MFA policy. The export shows 14 of 14 admins enrolled. Because the script also ran quarterly, the engineer supplies the earlier three exports to show the control worked throughout the period.",
+   "terms": [
+    {
+     "term": "Evidence",
+     "def": "Records that demonstrate a control exists and operated."
+    },
+    {
+     "term": "Population",
+     "def": "The full set of items from which an auditor draws a sample."
+    },
+    {
+     "term": "Corrective action plan",
+     "def": "An agreed set of tasks, owners and dates that fixes a finding."
+    },
+    {
+     "term": "Continuous controls monitoring",
+     "def": "Automated, frequent testing of controls."
+    },
+    {
+     "term": "Provenance",
+     "def": "The documented origin and handling of an evidence item."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which evidence is strongest?",
+     "options": [
+      "An old email",
+      "A rumor",
+      "Verbal claim",
+      "A dated system export"
+     ],
+     "a": 3,
+     "why": "System generated, dated, complete."
+    },
+    {
+     "q": "What is a sampling population?",
+     "options": [
+      "All items a sample is drawn from",
+      "Customers",
+      "The company staff",
+      "Auditors"
+     ],
+     "a": 0,
+     "why": "The sample is a subset of the population."
+    },
+    {
+     "q": "When responding to a finding you should...",
+     "options": [
+      "Delete evidence",
+      "Hide it",
+      "Argue",
+      "Agree root cause and give owner and date"
+     ],
+     "a": 3,
+     "why": "A corrective plan shows control."
+    },
+    {
+     "q": "Why automate evidence collection?",
+     "options": [
+      "It removes controls",
+      "It avoids audits",
+      "Consistency, lower effort, and continuous coverage",
+      "Looks modern"
+     ],
+     "a": 2,
+     "why": "Scheduled pulls show operation across the period."
+    }
+   ],
+   "recap": [
+    "Evidence must be relevant, complete, authentic and dated.",
+    "Automate collection and keep populations ready for sampling.",
+    "Answer findings with root cause, owner and date."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Score a risk register",
+   "sim": "scenario",
+   "scenario": "You are the analyst at Example Corp reviewing six risks: unpatched VPN appliance, lost laptop, phishing of finance staff, cloud storage bucket misconfiguration, legacy FTP server, and supplier outage. For each you rate likelihood and impact on a 1 to 5 scale and choose treat, transfer, accept or avoid.",
+   "objective": "Rate six risks and assign a sensible treatment to each.",
+   "steps": [
+    {
+     "do": "Rate the unpatched VPN appliance",
+     "see": "Likelihood 4, impact 5, score 20. Treatment: treat (patch and restrict). Feedback: correct."
+    },
+    {
+     "do": "Rate the lost laptop",
+     "see": "Likelihood 4, impact 2 with disk encryption, score 8. Treatment: accept or treat with MDM wipe. Feedback: acceptable."
+    },
+    {
+     "do": "Rate phishing of finance staff",
+     "see": "Likelihood 5, impact 4, score 20. Treatment: treat (MFA, mail filtering, training). Feedback: correct."
+    },
+    {
+     "do": "Rate the public cloud bucket",
+     "see": "Likelihood 3, impact 5, score 15. Treatment: treat (block public access, policy). Feedback: correct."
+    },
+    {
+     "do": "Rate the legacy FTP server",
+     "see": "Likelihood 4, impact 3, score 12. Treatment: avoid (retire service). Feedback: correct, unneeded."
+    },
+    {
+     "do": "Rate the supplier outage",
+     "see": "Likelihood 2, impact 4, score 8. Treatment: transfer (contract SLA, insurance). Feedback: correct."
+    }
+   ],
+   "answer": "Highest risks are the VPN appliance and phishing at 20 each, then the bucket at 15. Treat the top three, avoid the legacy FTP server by retiring it, transfer supplier outage risk through contract and insurance, and accept or lightly treat the encrypted laptop risk.",
+   "hint": "Multiply likelihood by impact, then match the response to cost and whether the activity is still needed."
+  },
+  {
+   "title": "Map controls",
+   "sim": "diagram-builder",
+   "scenario": "Example Corp is preparing for ISO 27001, SOC 2 and PCI DSS audits at the same time. The team has one control: quarterly review of privileged user accounts. Connect the control to the requirements it supports so evidence can be reused.",
+   "objective": "Link one control to ISO, SOC 2 and PCI requirements to cut duplicate work.",
+   "steps": [
+    {
+     "do": "Place control AC-04 Quarterly privileged access review on the canvas",
+     "see": "Node created, owner IT Manager"
+    },
+    {
+     "do": "Connect it to the ISO/IEC 27001 control list",
+     "see": "Suggested: A.5.18 Access rights. Accepted."
+    },
+    {
+     "do": "Connect it to the SOC 2 criteria",
+     "see": "Suggested: CC6.2 and CC6.3. Accepted."
+    },
+    {
+     "do": "Connect it to PCI DSS requirements",
+     "see": "Suggested: 7.2.4 account review. Accepted."
+    },
+    {
+     "do": "Try connecting it to PCI Requirement 3 (stored account data)",
+     "see": "Rejected: not related, dotted line removed."
+    },
+    {
+     "do": "Attach one evidence node: review ticket and account export",
+     "see": "Validation: one evidence set serves 3 frameworks"
+    }
+   ],
+   "answer": "AC-04 maps to ISO 27001 A.5.18, SOC 2 CC6.2 and CC6.3, and PCI DSS 7.2.4. One review and one evidence set satisfy all three; mapping it to PCI Requirement 3 is wrong because that is about stored data.",
+   "hint": "Choose requirements about access rights, not about data storage or encryption."
+  },
+  {
+   "title": "Define PCI scope",
+   "sim": "diagram-builder",
+   "scenario": "Example Shop has a web store, a payment page, an order database that stores tokens and PANs, an internal wiki, a reporting server connected to the order database, and a marketing site. Classify each system as in scope, connected-to (in scope for security impact), or out of scope.",
+   "objective": "Mark systems correctly for the cardholder data environment.",
+   "steps": [
+    {
+     "do": "Mark the order database storing PANs",
+     "see": "Marked: in scope (CDE)"
+    },
+    {
+     "do": "Mark the payment page that receives card numbers",
+     "see": "Marked: in scope (CDE)"
+    },
+    {
+     "do": "Mark the reporting server with network access to the database",
+     "see": "Marked: connected-to, in scope for security"
+    },
+    {
+     "do": "Mark the internal wiki on a separate VLAN with no route to the CDE",
+     "see": "Marked: out of scope, segmentation validated"
+    },
+    {
+     "do": "Mark the marketing site with no card data",
+     "see": "Marked: out of scope"
+    },
+    {
+     "do": "Check scope summary",
+     "see": "3 in scope or connected, 2 out of scope. Reminder: test segmentation annually."
+    }
+   ],
+   "answer": "In scope: order database and payment page. Connected, so security-impacting: reporting server. Out of scope: wiki and marketing site, provided segmentation is verified and no route exists to the CDE.",
+   "hint": "Ask whether the system touches card data or can reach or affect those that do."
+  },
+  {
+   "title": "Gather evidence",
+   "sim": "file-explorer",
+   "scenario": "An SOC 2 auditor sends five control requests to Example Corp: access removal for leavers, change approval, vulnerability remediation, backup restore, and security training completion. The evidence share holds many files, some correct and some distractors such as outdated drafts. Choose the right artifact for each request.",
+   "objective": "Pick appropriate evidence artifacts for five SOC 2 control requests.",
+   "steps": [
+    {
+     "do": "Request 1: leavers lost access. Open /evidence/hr/",
+     "see": "Pick terminations_Q3.csv with removal timestamps. Rejected: org_chart.pdf"
+    },
+    {
+     "do": "Request 2: changes approved. Open /evidence/change/",
+     "see": "Pick change_tickets_export_Q3.csv with approver column. Rejected: change_policy_draft.docx"
+    },
+    {
+     "do": "Request 3: vulns fixed within SLA. Open /evidence/vuln/",
+     "see": "Pick scan_results_and_ticket_aging_Q3.xlsx. Rejected: scanner_marketing_brochure.pdf"
+    },
+    {
+     "do": "Request 4: backup restore. Open /evidence/backup/",
+     "see": "Pick restore_test_report_2026-08.pdf signed. Rejected: backup_job_status.png"
+    },
+    {
+     "do": "Request 5: training done. Open /evidence/training/",
+     "see": "Pick lms_completion_export.csv (97 percent). Rejected: training_slides.pptx"
+    },
+    {
+     "do": "Submit package",
+     "see": "5 of 5 accepted: system generated, dated, within period"
+    }
+   ],
+   "answer": "Correct artifacts are the terminations export with removal timestamps, the change ticket export with approvers, the scan and ticket aging report, the signed restore test report, and the LMS completion export. Policies and drafts do not prove operation.",
+   "hint": "Prefer dated system exports over policies, slides or screenshots without context."
+  },
+  {
+   "title": "Respond to an audit finding",
+   "sim": "chat-sim",
+   "scenario": "An external auditor reports that 3 of 25 sampled leavers kept access to the ticketing system for 6 to 10 days, against your 24 hour policy. You chat with the auditor to confirm the facts, state the root cause and agree on a remediation plan with a date.",
+   "objective": "Agree factual findings and a credible remediation plan and date.",
+   "steps": [
+    {
+     "do": "Ask the auditor to confirm sample details",
+     "see": "Auditor: users e1, e2, e3, removed 6, 8 and 10 days after termination."
+    },
+    {
+     "do": "Verify and acknowledge the facts",
+     "see": "Auditor: thank you, I will record the exception as stated."
+    },
+    {
+     "do": "State the root cause: HR notifications did not trigger the ticketing system deprovisioning",
+     "see": "Auditor: understood. What will you change?"
+    },
+    {
+     "do": "Propose: automate deprovisioning via the identity provider and add a weekly leaver reconciliation",
+     "see": "Auditor: reasonable. What date?"
+    },
+    {
+     "do": "Commit to a date: automation live by 2026-11-15, reconciliation starting next week",
+     "see": "Auditor: acceptable. I will need closure evidence."
+    },
+    {
+     "do": "Agree to provide evidence: configuration export and three leaver samples after the change",
+     "see": "Auditor: recorded as corrective action CA-03, owner IT Manager"
+    }
+   ],
+   "answer": "Acknowledge the exception, give the root cause (missing deprovisioning link), propose automated removal and weekly reconciliation, commit to a dated plan of 2026-11-15, and agree to supply a configuration export and post-fix samples as closure evidence.",
+   "hint": "Be factual, give root cause, owner and date, and offer closure evidence."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "A 2 million asset with 25 percent exposure has SLE of...",
+   "options": [
+    "500000",
+    "250000",
+    "2000000",
+    "25000"
+   ],
+   "a": 0,
+   "why": "SLE = value x exposure factor = 500000."
+  },
+  {
+   "q": "If ARO is 0.5 and SLE is 100000, ALE is...",
+   "options": [
+    "500000",
+    "100000",
+    "200000",
+    "50000"
+   ],
+   "a": 3,
+   "why": "ALE = SLE x ARO."
+  },
+  {
+   "q": "Which treatment retires a risky legacy service?",
+   "options": [
+    "Accept",
+    "Ignore",
+    "Avoid",
+    "Transfer"
+   ],
+   "a": 2,
+   "why": "Avoid removes the activity."
+  },
+  {
+   "q": "Which document sets mandatory measurable requirements?",
+   "options": [
+    "Standard",
+    "Email",
+    "Guideline",
+    "Poster"
+   ],
+   "a": 0,
+   "why": "Standards define required specifics."
+  },
+  {
+   "q": "ISO 27001:2022 Annex A has how many controls?",
+   "options": [
+    "93",
+    "20",
+    "12",
+    "114"
+   ],
+   "a": 0,
+   "why": "Four themes, 93 controls."
+  },
+  {
+   "q": "SOC 2 Type II reports on...",
+   "options": [
+    "Price",
+    "Design only at a date",
+    "Design and operating effectiveness over a period",
+    "Tokens"
+   ],
+   "a": 2,
+   "why": "Type II tests operation over time."
+  },
+  {
+   "q": "Which is never stored after card authorization?",
+   "options": [
+    "Name",
+    "Token",
+    "CVV",
+    "Expiry date"
+   ],
+   "a": 2,
+   "why": "Sensitive authentication data is prohibited."
+  },
+  {
+   "q": "How many functions does NIST CSF 2.0 have?",
+   "options": [
+    "5",
+    "8",
+    "6",
+    "20"
+   ],
+   "a": 2,
+   "why": "Govern plus the original five."
+  },
+  {
+   "q": "A single control mapped to several frameworks helps...",
+   "options": [
+    "Avoid evidence entirely",
+    "Skip audits",
+    "Hide gaps",
+    "Reuse work and evidence"
+   ],
+   "a": 3,
+   "why": "Mapping reduces duplication."
+  },
+  {
+   "q": "Best response to an audit finding?",
+   "options": [
+    "Delay",
+    "Root cause, owner, date and closure evidence",
+    "Dispute everything",
+    "Delete logs"
+   ],
+   "a": 1,
+   "why": "A concrete corrective action plan is expected."
+  }
+ ]
+}

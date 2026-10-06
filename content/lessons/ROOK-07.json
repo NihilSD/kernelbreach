@@ -1,0 +1,804 @@
+{
+ "code": "ROOK-07",
+ "intro": "Linux decides who may read, change or run every file using users, groups and permission bits. This module teaches you to read account files, decode ls -l output, set modes with chmod in symbolic and octal form, change owners with chown and chgrp, and understand setuid, setgid and the sticky bit. You will also learn sudo and least privilege. Misconfigured permissions are one of the most common causes of privilege escalation and data exposure, so this is core defensive knowledge.",
+ "lessons": [
+  {
+   "title": "Users, Groups and /etc/passwd",
+   "why": "Permissions only make sense once you know who the users and groups are, and account files are a standard audit target.",
+   "sections": [
+    {
+     "h": "Accounts and UIDs",
+     "p": [
+      "Every process and file in Linux is tied to numbers, not names. A user has a user ID (UID), and the kernel uses the number for access checks. UID 0 is root, the superuser with unrestricted power. System and service accounts such as www-data or daemon usually have low UIDs, commonly below 1000, while regular people typically start at 1000. A user also has a primary group ID (GID) and may belong to supplementary groups. Because the kernel only cares about numbers, a second account with UID 0 is just as powerful as root, even if it is named something innocent."
+     ]
+    },
+    {
+     "h": "The /etc/passwd file",
+     "p": [
+      "The file /etc/passwd lists accounts, one per line, with seven colon-separated fields: username, password placeholder, UID, GID, comment (GECOS), home directory and login shell. For example, alice:x:1001:1001:Alice Example:/home/alice:/bin/bash. The x means the password hash lives elsewhere. A shell of /usr/sbin/nologin or /bin/false means the account cannot log in interactively, which is the right setting for service accounts. The file must be world-readable so programs can map UIDs to names, so it holds no secrets, but changes to it are security relevant."
+     ]
+    },
+    {
+     "h": "/etc/shadow and /etc/group",
+     "p": [
+      "The file /etc/shadow stores password hashes and aging information, and is readable only by root and the shadow group, typically mode 640 or 600. A hash field that starts with $y$ or $6$ indicates a modern hashing scheme, while ! or * means the password is locked. The file /etc/group lists groups in the form name:x:GID:members. Splitting hashes into shadow was done so ordinary users cannot copy them and attempt offline cracking. If shadow is readable by everyone, that is a serious finding because it exposes every account to password guessing."
+     ]
+    },
+    {
+     "h": "id, whoami and groups",
+     "p": [
+      "Three commands answer who am I. whoami prints the effective username. id prints the UID, GID and every group, for example uid=1001(alice) gid=1001(alice) groups=1001(alice),27(sudo). The groups command lists group names alone, and id bob shows another user. Membership in groups such as sudo or adm grants extra rights, so reviewing it is a routine audit. Use getent passwd to include accounts from directory services, and awk -F: '$3==0' /etc/passwd to list every UID 0 account, a quick check for a hidden root-equivalent user."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ whoami\nalice\n$ id\nuid=1001(alice) gid=1001(alice) groups=1001(alice),27(sudo)\n$ grep alice /etc/passwd\nalice:x:1001:1001:Alice Example:/home/alice:/bin/bash\n$ awk -F: '$3==0 {print $1}' /etc/passwd\nroot"
+   },
+   "example": "During an audit of host srv01, an analyst runs awk -F: '$3==0 {print $1}' /etc/passwd and gets two names: root and support. The second account has UID 0, so it is a second superuser even though its name looks harmless. She also notes its shell is /bin/bash while genuine service accounts use nologin. She records it as a high-severity finding and recommends checking when it was added and who created it.",
+   "terms": [
+    {
+     "term": "UID",
+     "def": "The numeric identifier the kernel uses for a user; 0 is root."
+    },
+    {
+     "term": "GID",
+     "def": "The numeric identifier of a group."
+    },
+    {
+     "term": "/etc/shadow",
+     "def": "Root-only file holding password hashes and aging data."
+    },
+    {
+     "term": "Shell field",
+     "def": "The last passwd field; nologin blocks interactive logins."
+    },
+    {
+     "term": "Supplementary group",
+     "def": "An extra group a user belongs to beyond the primary group."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which UID is the superuser?",
+     "options": [
+      "1",
+      "0",
+      "1000",
+      "65534"
+     ],
+     "a": 1,
+     "why": "UID 0 is root."
+    },
+    {
+     "q": "How many fields does a passwd line have?",
+     "options": [
+      "5",
+      "6",
+      "7",
+      "9"
+     ],
+     "a": 2,
+     "why": "Seven colon-separated fields."
+    },
+    {
+     "q": "Where are password hashes kept?",
+     "options": [
+      "/etc/passwd",
+      "/etc/shadow",
+      "/etc/hosts",
+      "/var/log/auth.log"
+     ],
+     "a": 1,
+     "why": "Hashes are in the restricted shadow file."
+    },
+    {
+     "q": "Which command lists your groups and UID?",
+     "options": [
+      "whoami",
+      "id",
+      "pwd",
+      "uname"
+     ],
+     "a": 1,
+     "why": "id shows uid, gid and groups."
+    }
+   ],
+   "recap": [
+    "Access is decided by UID and GID numbers.",
+    "/etc/passwd is readable and has seven fields; hashes are in /etc/shadow.",
+    "Any extra UID 0 account is a root-equivalent backdoor."
+   ]
+  },
+  {
+   "title": "Reading ls -l Output",
+   "why": "Every permission audit starts with decoding the ten-character mode string and owner fields.",
+   "sections": [
+    {
+     "h": "The anatomy of a line",
+     "p": [
+      "A long listing line looks like -rw-r--r-- 1 alice staff 2048 Mar 3 09:10 notes.txt. Reading left to right: the first character is the file type, then nine permission characters, then the link count, the owner, the group, the size in bytes, the modification date and time, and the name. Use ls -lh for human-readable sizes and ls -la to include hidden files. Directories show a total line first. Learning to scan this line quickly lets you spot a risky file in seconds."
+     ]
+    },
+    {
+     "h": "The type character",
+     "p": [
+      "The first character tells you what kind of object it is. A dash means a regular file, d is a directory, l is a symbolic link (with an arrow to its target), c is a character device, b is a block device, s is a socket and p is a named pipe. Links matter for security because a symlink can point somewhere unexpected, so a world-writable directory containing links deserves attention. Devices live under /dev. When you see a d, remember the permission bits mean something slightly different, as the next section explains."
+     ]
+    },
+    {
+     "h": "Owner, group and others triplets",
+     "p": [
+      "The nine permission characters form three triplets: owner (user), group, and others. Each triplet is r for read, w for write and x for execute, with a dash when absent. In -rwxr-x--- the owner has rwx, the group has r-x, and others have nothing. The kernel checks in order: if you are the owner, owner bits apply; otherwise if you are in the file's group, group bits apply; otherwise others apply. For directories, r lets you list names, w lets you create or delete entries, and x lets you enter and access items inside."
+     ]
+    },
+    {
+     "h": "What to look for",
+     "p": [
+      "Red flags include world-writable files (others have w), such as -rw-rw-rw-, scripts run by root that others can edit, private keys with group or other access, and an s in place of x, which means setuid or setgid. A trailing + after the mode means an extra ACL exists. Compare against expectations: /etc/shadow should not be world-readable, SSH private keys should be 600, and home directories are commonly 750 or 700. Use stat file to see the same information in octal along with all timestamps."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ ls -l\n-rw-r--r-- 1 alice staff 2048 Mar  3 09:10 notes.txt\ndrwxr-x--- 2 alice staff 4096 Mar  3 09:11 private\n-rwxrwxrwx 1 root  root   312 Mar  2 17:40 backup.sh\nlrwxrwxrwx 1 root  root     9 Mar  1 08:00 log -> /var/log\n$ stat -c '%a %U %n' backup.sh\n777 root backup.sh"
+   },
+   "example": "The line -rwxrwxrwx 1 root root 312 Mar 2 17:40 backup.sh shows a regular file owned by root, executable and writable by everyone. If cron runs it as root, any local user could append a command and gain root. The analyst reads the owner triplet, group triplet and others triplet separately, notes all three are rwx, and recommends mode 750 or 700 plus a review of what the script contains.",
+   "terms": [
+    {
+     "term": "Mode string",
+     "def": "The ten-character field with file type and permission bits."
+    },
+    {
+     "term": "Triplet",
+     "def": "One group of three r, w, x flags for owner, group or others."
+    },
+    {
+     "term": "Link count",
+     "def": "Number of hard links to the inode; for directories it reflects subdirectories."
+    },
+    {
+     "term": "Symlink",
+     "def": "A file of type l that points to another path."
+    },
+    {
+     "term": "ACL",
+     "def": "An extended access control list shown by a + after the mode."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does the first character d mean?",
+     "options": [
+      "Deleted",
+      "Directory",
+      "Device only",
+      "Data file"
+     ],
+     "a": 1,
+     "why": "d marks a directory."
+    },
+    {
+     "q": "In -rwxr-x--- who can write?",
+     "options": [
+      "Everyone",
+      "Owner only",
+      "Owner and group",
+      "Group only"
+     ],
+     "a": 1,
+     "why": "Only the owner triplet has w."
+    },
+    {
+     "q": "What does w mean on a directory?",
+     "options": [
+      "Edit file contents",
+      "Create or delete entries in it",
+      "Search inside",
+      "Rename the disk"
+     ],
+     "a": 1,
+     "why": "Directory write governs entries."
+    },
+    {
+     "q": "Which is a red flag?",
+     "options": [
+      "-rw-r--r-- on notes.txt",
+      "-rw-rw-rw- on a root cron script",
+      "drwx------ on ~/.ssh",
+      "-rw------- on a key"
+     ],
+     "a": 1,
+     "why": "World-writable script run by root allows takeover."
+    }
+   ],
+   "recap": [
+    "Read type, then owner, group and others triplets in order.",
+    "Directory r, w, x mean list, modify entries and enter.",
+    "World-writable and setuid files deserve scrutiny."
+   ]
+  },
+  {
+   "title": "chmod: Symbolic and Octal Modes",
+   "why": "chmod is how you fix or break access, and octal math is a common exam and audit skill.",
+   "sections": [
+    {
+     "h": "Symbolic mode",
+     "p": [
+      "Symbolic mode names who, an operator and the permissions. Who is u for user (owner), g for group, o for others and a for all. The operators are + to add, - to remove and = to set exactly. So chmod u+x script.sh adds execute for the owner, chmod go-w file removes write from group and others, and chmod a=r file makes it read-only for everyone. You can combine clauses with commas: chmod u=rwx,g=rx,o= tool. Symbolic mode changes only what you name, which makes it safer for small adjustments than retyping a full number."
+     ]
+    },
+    {
+     "h": "Octal mode",
+     "p": [
+      "Each permission has a value: read is 4, write is 2 and execute is 1. Add them per triplet to build one digit, then write three digits for owner, group and others. So rwx is 7, rw- is 6, r-x is 5, r-- is 4 and --- is 0. Thus 755 is rwxr-xr-x, 644 is rw-r--r--, 640 is rw-r-----, 600 is rw------- and 777 is everyone full control. chmod 640 report.txt gives the owner read and write, the group read, and others nothing. Memorizing these few common values is worth the effort."
+     ]
+    },
+    {
+     "h": "Directories, umask and recursion",
+     "p": [
+      "Directories need x to be entered, so typical modes are 755 or 750, not 644. New files start from a base of 666 and directories from 777, then the umask removes bits; with umask 022 files become 644 and directories 755, and with umask 077 they become 600 and 700. The -R flag applies a change recursively, and beware that chmod -R 644 on a tree removes execute from directories, breaking access. Use find with -type f and -type d to set files and directories separately, such as find . -type d -exec chmod 750 {} +."
+     ]
+    },
+    {
+     "h": "Choosing safe modes",
+     "p": [
+      "Start from least access and add only what is required. Scripts that someone runs need x for that person; data files rarely need x at all. Secrets such as API keys, private keys and password files should be 600 or 640 with a restricted group. Web content typically is readable by the web server but not writable by it. Never solve a permission denied message with chmod 777, because it opens the file to every local user and any compromised service account. Always confirm with ls -l after the change, and remember you can only chmod files you own, unless you are root."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ ls -l deploy.sh\n-rw-r--r-- 1 alice alice 120 Mar  3 10:00 deploy.sh\n$ chmod u+x deploy.sh\n$ chmod 750 deploy.sh\n$ ls -l deploy.sh\n-rwxr-x--- 1 alice alice 120 Mar  3 10:00 deploy.sh"
+   },
+   "example": "A script deploy.sh shows -rw-r--r-- and fails with Permission denied. The owner needs to run it, the team group needs to run but not edit it, and strangers must not see it. Using octal: owner rwx is 7, group r-x is 5, others none is 0, so chmod 750 deploy.sh. The learner verifies with ls -l and sees -rwxr-x---. A symbolic equivalent would be chmod u=rwx,g=rx,o= deploy.sh.",
+   "terms": [
+    {
+     "term": "chmod",
+     "def": "Command that changes the permission bits of files."
+    },
+    {
+     "term": "Octal mode",
+     "def": "Numeric notation where r=4, w=2, x=1 summed per triplet."
+    },
+    {
+     "term": "Symbolic mode",
+     "def": "Notation such as u+x or go-w that adds, removes or sets bits."
+    },
+    {
+     "term": "umask",
+     "def": "Mask that removes permission bits from newly created files and directories."
+    },
+    {
+     "term": "-R",
+     "def": "Option that applies a change recursively through a directory tree."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does chmod 640 give the group?",
+     "options": [
+      "Nothing",
+      "Read",
+      "Read and write",
+      "Execute"
+     ],
+     "a": 1,
+     "why": "6 is for owner, 4 for group is read only."
+    },
+    {
+     "q": "Octal for rwxr-xr-x?",
+     "options": [
+      "644",
+      "755",
+      "775",
+      "700"
+     ],
+     "a": 1,
+     "why": "7,5,5."
+    },
+    {
+     "q": "What does chmod go-w file do?",
+     "options": [
+      "Adds write for all",
+      "Removes write from group and others",
+      "Sets mode 000",
+      "Makes owner read only"
+     ],
+     "a": 1,
+     "why": "The - operator removes bits for g and o."
+    },
+    {
+     "q": "With umask 022 a new file is?",
+     "options": [
+      "666",
+      "644",
+      "600",
+      "755"
+     ],
+     "a": 1,
+     "why": "666 minus 022 gives 644."
+    }
+   ],
+   "recap": [
+    "Octal digits add r=4, w=2, x=1 for each of owner, group, others.",
+    "Symbolic mode changes only the bits you name.",
+    "Use least permissions, and never 777 to fix errors."
+   ]
+  },
+  {
+   "title": "chown, chgrp and Special Bits",
+   "why": "Ownership decides who controls a file, and special bits can hand out elevated rights, so they are frequent privilege-escalation targets.",
+   "sections": [
+    {
+     "h": "chown and chgrp",
+     "p": [
+      "The chown command changes a file's owner and, optionally, group: chown alice file sets the owner, chown alice:developers file sets both, and chown :developers file sets only the group, equivalent to chgrp developers file. The -R option recurses through directories. On Linux only root can give a file away to another owner, so ordinary users run these commands through sudo. A typical use is giving a service account ownership of its data, such as sudo chown -R svc-app:svc-app /var/lib/app, so the service can run without root and other accounts cannot touch the data."
+     ]
+    },
+    {
+     "h": "Setuid and setgid",
+     "p": [
+      "A setuid program runs with the privileges of its owner instead of the caller. It shows as s in the owner execute position, such as -rwsr-xr-x, and has octal value 4000. The classic example is /usr/bin/passwd, which is owned by root so ordinary users can update the protected shadow file. Setgid, value 2000, runs with the file's group, and on a directory it makes new files inherit the directory's group, which is useful for shared project folders. Because a bug in a root-owned setuid program can give an attacker root, the list should be short and reviewed."
+     ]
+    },
+    {
+     "h": "The sticky bit",
+     "p": [
+      "The sticky bit, value 1000, appears as t in the others execute position. On a directory it means that files inside can be deleted or renamed only by the file's owner, the directory's owner or root, even if the directory is world-writable. This is why /tmp is mode 1777, shown as drwxrwxrwt: everyone can create files there, but users cannot delete each other's files. Without it, any user could remove another user's temporary files or swap them for malicious ones. Set it with chmod +t dir or chmod 1777 dir."
+     ]
+    },
+    {
+     "h": "Auditing special bits",
+     "p": [
+      "Defenders enumerate setuid and setgid files regularly with find / -perm -4000 -type f 2>/dev/null and find / -perm -2000 -type f. Compare the list with a known baseline: new entries, or setuid on a shell, an editor or a copy of an interpreter, indicate possible compromise or misconfiguration. Capital S or T in a listing means the bit is set but execute is not, which is usually a mistake. Remove unneeded bits with chmod u-s file. Mounting user-writable file systems with the nosuid option also prevents setuid from taking effect there."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ sudo chown svc-app:svc-app /var/lib/app/data.db\n$ ls -ld /tmp\ndrwxrwxrwt 18 root root 4096 Mar  3 10:30 /tmp\n$ ls -l /usr/bin/passwd\n-rwsr-xr-x 1 root root 59976 Feb  6 2024 /usr/bin/passwd\n$ find / -perm -4000 -type f 2>/dev/null | head -n 3"
+   },
+   "example": "A weekly audit of host srv01 lists setuid files and compares them to last week's baseline. One new entry appears: /usr/local/bin/vim.tiny with -rwsr-xr-x owned by root. A setuid editor lets any user open and overwrite protected files such as /etc/shadow. The analyst removes the bit with chmod u-s, notes the time from stat for the incident log, and checks who installed the file.",
+   "terms": [
+    {
+     "term": "chown",
+     "def": "Changes the owner and optionally the group of a file."
+    },
+    {
+     "term": "Setuid",
+     "def": "Bit (4000) that runs a program as its file owner."
+    },
+    {
+     "term": "Setgid",
+     "def": "Bit (2000) that runs as the file group or makes a directory inherit its group."
+    },
+    {
+     "term": "Sticky bit",
+     "def": "Bit (1000) that restricts deletion in a shared directory to the owner."
+    },
+    {
+     "term": "nosuid",
+     "def": "Mount option that ignores setuid and setgid bits."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why does /tmp have the sticky bit?",
+     "options": [
+      "To make it faster",
+      "So users cannot delete others' files",
+      "To hide it",
+      "To allow setuid"
+     ],
+     "a": 1,
+     "why": "Sticky limits deletion to owners."
+    },
+    {
+     "q": "What does an s in -rwsr-xr-x mean?",
+     "options": [
+      "Setuid is set",
+      "Sticky is set",
+      "Symlink",
+      "Secure"
+     ],
+     "a": 0,
+     "why": "s in the owner execute slot is setuid."
+    },
+    {
+     "q": "Who can normally change a file's owner on Linux?",
+     "options": [
+      "Any user",
+      "Only root",
+      "The group",
+      "Nobody"
+     ],
+     "a": 1,
+     "why": "Giving files away requires root."
+    },
+    {
+     "q": "Which command finds setuid files?",
+     "options": [
+      "find / -perm -4000 -type f",
+      "ls -s",
+      "chmod 4000",
+      "stat /"
+     ],
+     "a": 0,
+     "why": "-perm -4000 matches the setuid bit."
+    }
+   ],
+   "recap": [
+    "chown and chgrp set ownership; recursion needs -R.",
+    "Setuid and setgid run with the file's owner or group privileges.",
+    "Audit setuid files and use nosuid where users can write."
+   ]
+  },
+  {
+   "title": "sudo and Least Privilege",
+   "why": "Working as root all the time turns small mistakes and malware into total compromise; sudo gives controlled, logged elevation.",
+   "sections": [
+    {
+     "h": "What sudo does",
+     "p": [
+      "The sudo command runs a single command as another user, by default root, after checking policy and typically asking for the caller's own password. Unlike su, it does not share the root password, and each use is recorded in the log, usually /var/log/auth.log or the journal, with the user, working directory and command. This gives accountability. sudo -l lists what you are allowed to run, and sudo -u svc-app command runs as a particular user. Members of the sudo group on Debian-style systems or the wheel group on Red Hat-style systems are normally granted full rights."
+     ]
+    },
+    {
+     "h": "Editing sudoers safely",
+     "p": [
+      "Policy lives in /etc/sudoers and drop-in files under /etc/sudoers.d. Always edit with visudo, which locks the file and checks syntax, because a broken sudoers file can lock everyone out of elevation. A rule has the form user host=(runas) commands, for example alice ALL=(ALL) ALL, which gives full rights, versus bob ALL=(root) /usr/bin/systemctl restart nginx, which allows exactly one command. NOPASSWD removes the password prompt and should be limited to specific tasks. Wildcards and commands that open shells or editors, like vi or less, can be abused to escape the restriction."
+     ]
+    },
+    {
+     "h": "Why root is risky",
+     "p": [
+      "Root bypasses normal permission checks, so any program running as root can read or change anything. If a web server runs as root and is compromised, the attacker is root. Everyday work such as browsing, editing documents or reading mail should happen as an unprivileged user. Many distributions disable direct root login over SSH with PermitRootLogin no, forcing attackers to compromise a user first and then escalate, which creates extra events to detect. Services should run under dedicated accounts with only the files they need."
+     ]
+    },
+    {
+     "h": "Least privilege and 777",
+     "p": [
+      "The principle of least privilege says each user, process and file should have only the access needed for its job. Applied to files, that means narrow modes and owners; applied to sudo, narrow command lists. A mode of 777 is a vulnerability because any local user, and any compromised service, can read, change or replace the file, and if it is a script or directory used by a privileged process, can escalate to root. Fix permission errors by correcting the owner or group instead. Review sudoers and group membership regularly, remove unused accounts, and log elevation."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Config excerpt",
+    "text": "# /etc/sudoers.d/ops  (edit with visudo)\nalice ALL=(ALL) ALL\nbob   ALL=(root) /usr/bin/systemctl restart nginx\n# risky rule:\n%contractors ALL=(ALL) NOPASSWD: ALL"
+   },
+   "example": "A contractor group has the rule %contractors ALL=(ALL) NOPASSWD: ALL, so any member can become root without a password. During review, the administrator replaces it with a rule that allows only /usr/bin/systemctl restart nginx for the group, edits through visudo, and tests with sudo -l -U carol. The change keeps the job doable while limiting damage if a contractor password is stolen.",
+   "terms": [
+    {
+     "term": "sudo",
+     "def": "Runs a command with elevated privileges according to policy and logs it."
+    },
+    {
+     "term": "visudo",
+     "def": "Safe editor for sudoers that validates syntax."
+    },
+    {
+     "term": "NOPASSWD",
+     "def": "Sudoers tag that skips the password prompt."
+    },
+    {
+     "term": "Least privilege",
+     "def": "Granting only the access needed to do a task."
+    },
+    {
+     "term": "PermitRootLogin",
+     "def": "SSH setting; no blocks direct root logins."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why use visudo?",
+     "options": [
+      "It is faster",
+      "It validates syntax and locks the file",
+      "It hides rules",
+      "It grants root"
+     ],
+     "a": 1,
+     "why": "A syntax error could break sudo entirely."
+    },
+    {
+     "q": "What does sudo -l show?",
+     "options": [
+      "Log entries",
+      "Commands you may run",
+      "Logged in users",
+      "Locked accounts"
+     ],
+     "a": 1,
+     "why": "-l lists allowed commands."
+    },
+    {
+     "q": "Why is chmod 777 harmful?",
+     "options": [
+      "Slows disk",
+      "Lets any user modify the file",
+      "Hides the file",
+      "Removes owner"
+     ],
+     "a": 1,
+     "why": "All users get write access."
+    },
+    {
+     "q": "Which rule is broadest?",
+     "options": [
+      "bob ALL=(root) /usr/bin/systemctl restart nginx",
+      "alice ALL=(ALL) NOPASSWD: ALL",
+      "carol ALL=(www-data) /usr/bin/id",
+      "dave ALL=(root) /bin/ls /var/log"
+     ],
+     "a": 1,
+     "why": "NOPASSWD: ALL gives unrestricted root without a password."
+    }
+   ],
+   "recap": [
+    "sudo gives logged, policy-controlled elevation; edit policy with visudo.",
+    "Avoid working or running services as root.",
+    "Fix access with owners and groups, not 777."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Decode the Permissions",
+   "sim": "scenario",
+   "scenario": "You review ten lines of ls -l output from a fictional file server fs01. For each file you must state who can read, write and execute, and flag unsafe ones. The files include notes, scripts, a key, a shared folder and a config.",
+   "objective": "Read ten ls -l lines and state who can read, write and execute each file.",
+   "steps": [
+    {
+     "do": "Open line 1: -rw-r--r-- 1 alice staff 2048 notes.txt",
+     "see": "Prompt: who can write? Choose owner, group, others."
+    },
+    {
+     "do": "Answer: owner only",
+     "see": "Correct. Group and others have read only."
+    },
+    {
+     "do": "Open line 2: -rwxrwxrwx 1 root root 312 backup.sh",
+     "see": "Prompt: risk level?"
+    },
+    {
+     "do": "Answer: high",
+     "see": "Correct. All users can edit a root-owned script."
+    },
+    {
+     "do": "Open line 3: -rw-r----- 1 root shadow 1180 /etc/shadow",
+     "see": "Prompt: is this expected?"
+    },
+    {
+     "do": "Answer: yes",
+     "see": "Correct. Only root and the shadow group can read."
+    },
+    {
+     "do": "Open line 4: -rw-rw-r-- 1 bob bob 1679 id_rsa",
+     "see": "Prompt: private key mode?"
+    },
+    {
+     "do": "Answer: too open",
+     "see": "Correct. Should be 600."
+    }
+   ],
+   "answer": "Owner-only write on notes.txt is normal. backup.sh at 777 and an id_rsa at 664 are findings. shadow at 640 root:shadow is correct. The rest should be classified by reading owner, group and others triplets in order.",
+   "hint": "Read the three triplets separately, left to right."
+  },
+  {
+   "title": "Fix the Broken Script",
+   "sim": "terminal",
+   "scenario": "A fictional script run_report.sh in /home/student/tools fails with Permission denied when its owner runs ./run_report.sh. Other users must not be able to run or edit it, and group members should have no access.",
+   "objective": "Apply chmod to make a script executable by its owner only and verify with ls -l.",
+   "steps": [
+    {
+     "do": "Type ls -l run_report.sh",
+     "see": "-rw-r--r-- 1 student student 85 Mar  3 11:00 run_report.sh"
+    },
+    {
+     "do": "Type ./run_report.sh",
+     "see": "bash: ./run_report.sh: Permission denied"
+    },
+    {
+     "do": "Type chmod 700 run_report.sh",
+     "see": "(no output)"
+    },
+    {
+     "do": "Type ls -l run_report.sh",
+     "see": "-rwx------ 1 student student 85 Mar  3 11:00 run_report.sh"
+    },
+    {
+     "do": "Type ./run_report.sh",
+     "see": "Report generated: report_2024-03-03.txt"
+    },
+    {
+     "do": "Type chmod 777 run_report.sh (trap)",
+     "see": "Simulator warns: world-writable executable, rejected by checker."
+    }
+   ],
+   "answer": "chmod 700 (or u+x with go-rwx) leaves rwx------: only the owner can read, write and execute. Verification with ls -l shows the mode and the script then runs.",
+   "hint": "Octal 7 for the owner and 0 for the others."
+  },
+  {
+   "title": "Lock Down a Secrets File",
+   "sim": "terminal",
+   "scenario": "A fictional API key file /etc/app/api.key is owned by root and readable by everyone. The service account svc-app must read it, and nobody else should. You have sudo on host app01.",
+   "objective": "Use chown and chmod 600 so only the service account can read an API key file.",
+   "steps": [
+    {
+     "do": "Type ls -l /etc/app/api.key",
+     "see": "-rw-r--r-- 1 root root 41 Mar  3 11:20 /etc/app/api.key"
+    },
+    {
+     "do": "Type sudo chown svc-app:svc-app /etc/app/api.key",
+     "see": "(no output)"
+    },
+    {
+     "do": "Type sudo chmod 600 /etc/app/api.key",
+     "see": "(no output)"
+    },
+    {
+     "do": "Type ls -l /etc/app/api.key",
+     "see": "-rw------- 1 svc-app svc-app 41 Mar  3 11:20 /etc/app/api.key"
+    },
+    {
+     "do": "Type sudo -u svc-app cat /etc/app/api.key",
+     "see": "FAKE-API-KEY-0000"
+    },
+    {
+     "do": "Type cat /etc/app/api.key as student",
+     "see": "cat: /etc/app/api.key: Permission denied"
+    }
+   ],
+   "answer": "Owner svc-app, group svc-app, mode 600. The service account can read the key and any other user is denied, which meets least privilege.",
+   "hint": "Change ownership first, then restrict the mode."
+  },
+  {
+   "title": "Audit sudoers and Accounts",
+   "sim": "config-editor",
+   "scenario": "You are given excerpts of /etc/passwd and /etc/sudoers.d/ files from a fictional server srv01. One account has UID 0 besides root, and one sudo rule gives a group unrestricted rights without a password. Find both and propose a fix.",
+   "objective": "Review /etc/passwd and sudoers entries to find an extra UID 0 user and an unrestricted sudo rule.",
+   "steps": [
+    {
+     "do": "Open /etc/passwd",
+     "see": "root:x:0:0:root:/root:/bin/bash\nsupport:x:0:0::/home/support:/bin/bash\nalice:x:1001:1001::/home/alice:/bin/bash\nwww-data:x:33:33::/var/www:/usr/sbin/nologin"
+    },
+    {
+     "do": "Select the suspicious line",
+     "see": "Highlight support: UID 0 and a login shell."
+    },
+    {
+     "do": "Open /etc/sudoers.d/contractors",
+     "see": "%contractors ALL=(ALL) NOPASSWD: ALL"
+    },
+    {
+     "do": "Mark the risky rule",
+     "see": "Rule flagged: unrestricted, no password."
+    },
+    {
+     "do": "Edit the rule to: %contractors ALL=(root) /usr/bin/systemctl restart nginx",
+     "see": "Checker: syntax valid, privilege reduced."
+    },
+    {
+     "do": "Change support UID to 1002 or remove account",
+     "see": "Checker: no extra UID 0 accounts remain."
+    }
+   ],
+   "answer": "The account support has UID 0 and is a hidden root-equivalent user; the rule %contractors ALL=(ALL) NOPASSWD: ALL gives unrestricted root. Remove or renumber support after investigation, and limit the sudo rule to specific commands.",
+   "hint": "Check the third passwd field for 0."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "What does UID 0 represent?",
+   "options": [
+    "A guest",
+    "The superuser root",
+    "A service",
+    "A group"
+   ],
+   "a": 1,
+   "why": "UID 0 has unrestricted power."
+  },
+  {
+   "q": "How many characters make up the permission section of ls -l (excluding type)?",
+   "options": [
+    "3",
+    "6",
+    "9",
+    "12"
+   ],
+   "a": 2,
+   "why": "Three triplets of three."
+  },
+  {
+   "q": "What octal is rw-r-----?",
+   "options": [
+    "640",
+    "604",
+    "750",
+    "600"
+   ],
+   "a": 0,
+   "why": "6,4,0."
+  },
+  {
+   "q": "What does chmod u+x do?",
+   "options": [
+    "Adds execute for the owner",
+    "Removes execute for all",
+    "Sets 777",
+    "Changes owner"
+   ],
+   "a": 0,
+   "why": "u is the owner, + adds."
+  },
+  {
+   "q": "Which bit makes a program run as its owner?",
+   "options": [
+    "Sticky",
+    "Setuid",
+    "Setgid only",
+    "noexec"
+   ],
+   "a": 1,
+   "why": "Setuid 4000."
+  },
+  {
+   "q": "Why does /tmp use the sticky bit?",
+   "options": [
+    "Prevent users deleting others' files",
+    "Make it executable",
+    "Hide files",
+    "Enable setgid"
+   ],
+   "a": 0,
+   "why": "Sticky restricts deletion."
+  },
+  {
+   "q": "Safest tool for editing sudo policy?",
+   "options": [
+    "nano /etc/sudoers",
+    "visudo",
+    "echo >>",
+    "chmod"
+   ],
+   "a": 1,
+   "why": "visudo validates syntax."
+  },
+  {
+   "q": "Why is 777 a vulnerability?",
+   "options": [
+    "Too slow",
+    "Any user can modify the file",
+    "Needs a reboot",
+    "It removes the owner"
+   ],
+   "a": 1,
+   "why": "Everyone gets write access."
+  },
+  {
+   "q": "Command to find setuid files?",
+   "options": [
+    "find / -perm -4000",
+    "ls -u",
+    "chmod -4000",
+    "id -s"
+   ],
+   "a": 0,
+   "why": "-perm -4000 matches setuid."
+  },
+  {
+   "q": "A service needs to read one key file. Best approach?",
+   "options": [
+    "chmod 777",
+    "Own it by the service account with mode 600",
+    "Run service as root",
+    "Put it in /tmp"
+   ],
+   "a": 1,
+   "why": "Narrow ownership and mode follow least privilege."
+  }
+ ]
+}

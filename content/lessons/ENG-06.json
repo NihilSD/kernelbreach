@@ -1,0 +1,1196 @@
+{
+ "code": "ENG-06",
+ "intro": "This module teaches how to build and test software that resists common attacks. You will connect security to every phase of the SDLC, write code that validates input, encodes output and controls access correctly, and review code with a checklist. You will then use SAST, DAST and software composition analysis, triage their output, and set up a champions program with remediation SLAs. These skills address the OWASP Top 10 flaws that cause most real application breaches.",
+ "lessons": [
+  {
+   "title": "Secure SDLC and requirements",
+   "why": "Fixing a design flaw after release costs many times more than catching it in requirements, so security has to be built into every phase.",
+   "sections": [
+    {
+     "h": "Security in each phase",
+     "p": [
+      "A secure software development lifecycle adds security activities to each phase rather than a single test at the end. In requirements, define security and privacy requirements, abuse cases and compliance needs. In design, perform threat modeling and choose proven components. In implementation, follow coding standards, use linters and peer review. In testing, run SAST, DAST, software composition analysis and targeted penetration tests. In release and operations, harden configuration, monitor, and have a vulnerability response process. Each phase produces evidence that auditors and customers can review."
+     ]
+    },
+    {
+     "h": "Security requirements",
+     "p": [
+      "Good security requirements are specific and testable. Instead of 'the app must be secure', write 'all passwords are stored with Argon2id', 'every endpoint enforces authorization server-side' or 'sessions expire after 15 minutes of inactivity'. The OWASP Application Security Verification Standard (ASVS) offers a ready catalogue in three levels, where level 1 suits low-risk apps and level 3 suits high-value systems such as banking. Abuse cases, written as 'as an attacker I want to...', help teams think about misuse beside normal user stories."
+     ]
+    },
+    {
+     "h": "Maturity models",
+     "p": [
+      "OWASP SAMM and BSIMM help organizations measure and improve their program. SAMM is a prescriptive model with five business functions (governance, design, implementation, verification, operations), each with security practices scored from 0 to 3. BSIMM is descriptive: it reports what real firms do across more than a hundred measured activities, allowing comparison to peers. Microsoft SDL and NIST SSDF (SP 800-218) are further reference frameworks. Choose one, assess where you are, and pick a few improvements per quarter instead of attempting everything at once."
+     ]
+    },
+    {
+     "h": "Making it stick",
+     "p": [
+      "Adoption depends on integrating security into tools developers already use. Provide secure templates, definitions of done that include security tasks, and automated checks in pull requests. Classify applications by risk so that a public payment service receives deeper review than an internal wiki. Track measurable outcomes such as the share of apps with threat models, median time to fix high severity bugs and the count of findings escaping to production.",
+      "Governance matters too. Name an owner for each application, set a policy for exceptions with expiry dates and report metrics to leadership each quarter. When security teams act as enablers who supply guardrails and paved roads, developers cooperate. When they act only as gatekeepers at the end, teams route around them and late findings cause conflict and release delays. Review the program each year against your chosen model, retire activities that produce little value and add new ones as the threat landscape and technology stack change."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Requirement example",
+    "text": "REQ-AUTH-07: Passwords are hashed with Argon2id (m=64MiB, t=3, p=1) and a unique 16-byte salt.\nTest: unit test reads stored hash prefix; DAST confirms lockout after 10 failed attempts.\nSource: ASVS v4 2.4.1\nOwner: identity team\nPhase: design review, SAST rule"
+   },
+   "example": "A team plans a customer portal for example.com. During requirements they classify it as high risk because it holds personal data, choose ASVS level 2, and write abuse cases such as 'a user views another customer's invoice'. Threat modeling in design leads to a requirement for object-level authorization checks. Pull requests run SAST, and a release gate needs no open high findings. A SAMM assessment later shows verification as the weakest area, so the team funds automated DAST next.",
+   "terms": [
+    {
+     "term": "SDLC",
+     "def": "The sequence of phases used to plan, build, test and operate software."
+    },
+    {
+     "term": "ASVS",
+     "def": "The OWASP Application Security Verification Standard, a list of testable security requirements."
+    },
+    {
+     "term": "Abuse case",
+     "def": "A scenario describing how an attacker could misuse a feature."
+    },
+    {
+     "term": "SAMM",
+     "def": "The OWASP Software Assurance Maturity Model for measuring a security program."
+    },
+    {
+     "term": "BSIMM",
+     "def": "A descriptive study of software security activities in real organizations."
+    }
+   ],
+   "check": [
+    {
+     "q": "What makes a security requirement good?",
+     "options": [
+      "It is vague and broad",
+      "It is specific and testable",
+      "It is written after release",
+      "It only mentions firewalls"
+     ],
+     "a": 1,
+     "why": "Testable requirements can be verified in design reviews and tests."
+    },
+    {
+     "q": "Which model is descriptive and based on observed practices of real firms?",
+     "options": [
+      "ASVS",
+      "CVSS",
+      "STIX",
+      "BSIMM"
+     ],
+     "a": 3,
+     "why": "BSIMM reports what participating organizations actually do."
+    },
+    {
+     "q": "When is threat modeling most cost effective?",
+     "options": [
+      "Only at penetration test",
+      "Never",
+      "After production incidents",
+      "During design"
+     ],
+     "a": 3,
+     "why": "Design-time findings are cheapest to fix."
+    },
+    {
+     "q": "What is the purpose of risk-classifying applications?",
+     "options": [
+      "To change programming language",
+      "To skip testing",
+      "To match security depth to the application's risk",
+      "To avoid documentation"
+     ],
+     "a": 2,
+     "why": "High-risk apps get deeper controls and reviews."
+    }
+   ],
+   "recap": [
+    "Add a security activity to every SDLC phase.",
+    "Write specific, testable requirements, using ASVS as a catalogue.",
+    "Use SAMM or BSIMM to measure progress and choose improvements."
+   ]
+  },
+  {
+   "title": "Input validation and output encoding",
+   "why": "Injection and cross-site scripting remain among the most common web flaws, and both come from mixing untrusted data with code.",
+   "sections": [
+    {
+     "h": "Treat all input as untrusted",
+     "p": [
+      "Any data crossing a trust boundary can be hostile: form fields, query strings, headers, cookies, uploaded files, JSON bodies and even data read from a database or third-party API. Validate on the server, because client-side checks are only a usability aid. Prefer allow-list validation, which defines what is valid (type, length, range, format, enumerated values) and rejects everything else, over block-lists that attackers bypass with encodings. Canonicalize input before validating it, and validate the whole value, such as using a full-match regular expression with anchors."
+     ]
+    },
+    {
+     "h": "Parameterized queries",
+     "p": [
+      "SQL injection happens when user input is concatenated into a query string and changes its structure. The fix is parameterized queries, also called prepared statements, where the SQL text and the data travel separately and the database never parses data as code. In Python this is cursor.execute('SELECT * FROM users WHERE id = %s', (uid,)); in Java it is PreparedStatement. ORMs usually parameterize for you, but raw query features can still be injectable. For parts that cannot be parameterized, such as column names, map user choices to an allow-list of constants. Apply the same approach to LDAP, OS commands and NoSQL queries, and avoid shell calls entirely when a library function exists."
+     ]
+    },
+    {
+     "h": "Context-aware output encoding",
+     "p": [
+      "Cross-site scripting occurs when untrusted data is rendered as active content in a page. The defense is encoding at output time, matched to the context: HTML body, HTML attribute, JavaScript, URL and CSS each need a different encoder. Modern template engines such as Jinja2, React and Razor encode HTML by default, so the main risk lies in escape hatches such as innerHTML, dangerouslySetInnerHTML or the safe filter. When rich HTML must be accepted, sanitize it with a maintained library such as DOMPurify rather than writing regular expressions."
+     ]
+    },
+    {
+     "h": "Defense in depth",
+     "p": [
+      "Add layers behind the primary fix. A Content Security Policy such as default-src 'self'; script-src 'self' limits what injected scripts can do. Mark session cookies HttpOnly so scripts cannot read them. Run database accounts with least privilege so an injection cannot drop tables. Return generic error messages so attackers learn nothing about queries.",
+      "Other input risks deserve attention: path traversal in file names, unrestricted file upload, XML external entities, server-side request forgery and unsafe deserialization. Each has the same cause, trusting input, and the same shape of fix: constrain input to a known-good set, avoid interpreting it as code, and give the process the minimum permissions it needs. Build shared helper libraries for validation and encoding so teams reuse tested code, and add unit tests with hostile strings such as quotes, angle brackets, null bytes and very long values to catch regressions quickly. Document which layer owns each check so that validation is neither forgotten nor duplicated inconsistently across services. Re-test whenever a framework is upgraded, because default behaviors can change between versions."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Code comparison",
+    "text": "# vulnerable\nq = \"SELECT * FROM users WHERE name = '\" + name + \"'\"\n# safe\ncur.execute(\"SELECT * FROM users WHERE name = %s\", (name,))\n# template: autoescaped output\n<p>Hello {{ user_name }}</p>"
+   },
+   "example": "A search page builds SQL by joining the search term. Test input of a single quote causes a database error, which signals injection. The developer changes the query to a prepared statement, restricts the sort column to the values name or date, and limits the term to 50 characters using an allow-list pattern. The results page also printed the term unescaped, so the template is changed to autoescape and a CSP header is added. Retesting shows the quote is handled as plain text.",
+   "terms": [
+    {
+     "term": "Allow-list",
+     "def": "Validation that accepts only values known to be good."
+    },
+    {
+     "term": "Parameterized query",
+     "def": "A query where the SQL structure and the values are sent separately."
+    },
+    {
+     "term": "Output encoding",
+     "def": "Converting special characters so data renders as text in a given context."
+    },
+    {
+     "term": "XSS",
+     "def": "Cross-site scripting, where untrusted data runs as script in a victim's browser."
+    },
+    {
+     "term": "CSP",
+     "def": "Content Security Policy, a header restricting sources of scripts and other content."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the primary defense against SQL injection?",
+     "options": [
+      "Client-side validation",
+      "Parameterized queries",
+      "Hiding error pages",
+      "Longer passwords"
+     ],
+     "a": 1,
+     "why": "Separating code and data stops input changing the query."
+    },
+    {
+     "q": "Why is allow-list validation preferred over block-lists?",
+     "options": [
+      "It rejects everything not explicitly valid, resisting encoding tricks",
+      "It encrypts data",
+      "It removes the need for encoding",
+      "It is faster to write"
+     ],
+     "a": 0,
+     "why": "Block-lists miss variants that attackers craft."
+    },
+    {
+     "q": "Which action best prevents stored XSS in a comment display?",
+     "options": [
+      "Using GET not POST",
+      "Limiting length to 5",
+      "Context-aware output encoding",
+      "Hashing the comment"
+     ],
+     "a": 2,
+     "why": "Encoding at output renders data as inert text."
+    },
+    {
+     "q": "Where must validation be enforced?",
+     "options": [
+      "In CSS",
+      "Only in the browser",
+      "On the server",
+      "Only in the database"
+     ],
+     "a": 2,
+     "why": "Clients can be bypassed, so servers must validate."
+    }
+   ],
+   "recap": [
+    "Validate with allow-lists on the server.",
+    "Use parameterized queries for every database call.",
+    "Encode output for its context and add CSP as a backup."
+   ]
+  },
+  {
+   "title": "Authentication and session handling",
+   "why": "Weak credential storage or session handling lets attackers take over accounts at scale, even when the rest of the application is sound.",
+   "sections": [
+    {
+     "h": "Password storage and policy",
+     "p": [
+      "Store passwords only as salted hashes made by a slow, memory-hard function: Argon2id first choice, then scrypt or bcrypt (work factor at least 10, with its 72-byte input limit in mind). Never encrypt passwords reversibly or use a fast hash. NIST SP 800-63B advises long passphrases (minimum 8, allow at least 64 characters), screening against breached-password lists, no forced periodic rotation and no composition rules. Rate-limit login attempts per account and per source, add lockout or delay, and respond with identical messages for unknown users and wrong passwords to avoid account enumeration."
+     ]
+    },
+    {
+     "h": "Multi-factor and recovery",
+     "p": [
+      "Support multi-factor authentication through TOTP apps, hardware keys or passkeys (WebAuthn/FIDO2), which resist phishing far better than SMS codes. Password reset and account recovery are frequent weak points: use single-use, high-entropy tokens that expire in minutes, are stored hashed, and are sent to the verified channel only. Notify users of security events, and require re-authentication before sensitive actions such as changing email or adding a payment method. Log successes and failures with user ID and source address for detection."
+     ]
+    },
+    {
+     "h": "Session cookies",
+     "p": [
+      "After login, generate a new session identifier from a CSPRNG (at least 128 bits of entropy) to prevent session fixation, and keep it server-side or in a signed, validated token. Set cookie flags: Secure so it travels only over HTTPS, HttpOnly so scripts cannot read it, and SameSite=Lax or Strict to limit cross-site sending. Use the __Host- prefix where possible. Apply idle and absolute timeouts, invalidate the session on logout and on password change, and never place session IDs in URLs."
+     ]
+    },
+    {
+     "h": "CSRF defenses",
+     "p": [
+      "Cross-site request forgery tricks a logged-in browser into sending a state-changing request. Defend with anti-CSRF tokens that are unpredictable and tied to the session, checked on every POST, PUT, PATCH and DELETE; SameSite cookies as a second layer; and verification of Origin or Referer headers. Never change state with GET. For APIs using bearer tokens in an Authorization header rather than cookies, CSRF is much less of a concern, but CORS must still be configured narrowly.",
+      "Check also for session-related flaws in single sign-on code: validate the OIDC state and nonce, check token signature, issuer and audience, and prefer a maintained identity provider or library rather than building authentication yourself. Test the flow end to end with a proxy: confirm cookie flags in responses, try replaying an old session after logout, submit a form without the token, and verify that repeated failures trigger throttling. Document the results as part of the release checklist so that later refactors do not silently remove these protections. Review third-party identity components regularly, since a library update can change defaults such as token lifetimes."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "HTTP response header",
+    "text": "Set-Cookie: __Host-sid=Zm9vYmFyRXhhbXBsZQ; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=900\nCache-Control: no-store"
+   },
+   "example": "A login endpoint is reviewed. It stores unsalted SHA-256 hashes, issues the same session ID before and after login, and sets a cookie without flags. The fix migrates to Argon2id by rehashing at the next successful login, regenerates the session ID on authentication, sets Secure, HttpOnly and SameSite=Lax, adds a CSRF token to the profile form, and applies a rate limit of ten attempts per account per fifteen minutes. A DAST scan then confirms the cookie flags are present.",
+   "terms": [
+    {
+     "term": "Argon2id",
+     "def": "A memory-hard password hashing function resistant to GPU cracking."
+    },
+    {
+     "term": "Session fixation",
+     "def": "An attack where the victim is made to use an attacker-chosen session ID."
+    },
+    {
+     "term": "HttpOnly",
+     "def": "A cookie flag that blocks JavaScript access to the cookie."
+    },
+    {
+     "term": "SameSite",
+     "def": "A cookie attribute limiting when cookies are sent on cross-site requests."
+    },
+    {
+     "term": "CSRF token",
+     "def": "A secret per-session value that proves a request came from the real site."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which cookie flag stops JavaScript from reading the session cookie?",
+     "options": [
+      "Secure",
+      "HttpOnly",
+      "SameSite",
+      "Path"
+     ],
+     "a": 1,
+     "why": "HttpOnly hides the cookie from document.cookie."
+    },
+    {
+     "q": "What should happen to the session ID at login?",
+     "options": [
+      "It is regenerated",
+      "It is put in the URL",
+      "It is shortened",
+      "It stays the same"
+     ],
+     "a": 0,
+     "why": "Regeneration prevents session fixation."
+    },
+    {
+     "q": "Which factor is most phishing resistant?",
+     "options": [
+      "Security questions",
+      "Email link",
+      "SMS code",
+      "Passkey or FIDO2 key"
+     ],
+     "a": 3,
+     "why": "WebAuthn binds credentials to the genuine origin."
+    },
+    {
+     "q": "What does a CSRF token protect against?",
+     "options": [
+      "Directory listing",
+      "SQL injection",
+      "Forged cross-site state-changing requests",
+      "Weak passwords"
+     ],
+     "a": 2,
+     "why": "The attacker's site cannot know the token value."
+    }
+   ],
+   "recap": [
+    "Hash passwords with Argon2id, bcrypt or scrypt and rate-limit login.",
+    "Regenerate sessions at login and set Secure, HttpOnly and SameSite.",
+    "Use CSRF tokens and phishing-resistant MFA."
+   ]
+  },
+  {
+   "title": "Access control and API security",
+   "why": "Broken access control is the top risk in the OWASP Top 10, and it is invisible to scanners that cannot know who should see what.",
+   "sections": [
+    {
+     "h": "Server-side authorization",
+     "p": [
+      "Authentication proves who you are; authorization decides what you may do. Enforce it on the server for every request, by default deny, using a central mechanism such as middleware, policy engine or framework annotations rather than scattered if statements. Hiding a button in the user interface is not a control. Check both the function (may this role call this endpoint) and the object (may this user access this record). Log denials, and write automated tests that attempt access as other users and roles."
+     ]
+    },
+    {
+     "h": "IDOR and object-level checks",
+     "p": [
+      "Insecure direct object reference, called broken object-level authorization (BOLA) in the OWASP API Top 10, occurs when a request such as GET /api/invoices/1042 returns the record without verifying that it belongs to the caller. Attackers simply change the number. Fix by scoping queries to the authenticated principal (WHERE id = ? AND owner_id = ?), or by calling an authorization check on every load. Unpredictable identifiers such as UUIDs help reduce guessing but do not replace the check."
+     ]
+    },
+    {
+     "h": "Mass assignment and function-level access",
+     "p": [
+      "Mass assignment occurs when a framework binds all request fields to a model, letting an attacker add role=admin or price=0 to a JSON body. Use allow-listed data transfer objects, mark sensitive fields as non-bindable, and never trust client-supplied roles. Broken function-level authorization appears when administrative endpoints such as /api/admin/users are reachable by ordinary users because only the menu was hidden. Deny by default, map each route to required roles, and review any endpoint that is undocumented or deprecated, since old API versions often lack new checks."
+     ]
+    },
+    {
+     "h": "Wider API hardening",
+     "p": [
+      "Beyond authorization, authenticate with short-lived OAuth 2.0 tokens, validate scopes, and enforce rate limits and quotas to resist scraping and abuse. Validate request bodies against a schema (OpenAPI), cap payload size, and return only the fields needed, to avoid excessive data exposure. Keep an inventory of every API and version, since shadow and zombie endpoints are common. Use TLS, set strict CORS rules, and log request IDs for tracing.",
+      "The OWASP API Security Top 10 is a good checklist for design reviews, and it maps to automated tests: run a suite that logs in as user A and tries every request against user B's resources and expects 403 or 404. Add a policy matrix listing each role and endpoint, then generate tests from it, so a new route without a rule fails the build. Review logs for repeated 403 and 404 responses on sequential IDs, which signal enumeration attempts, and alert on them. Teach developers to ask the question 'what stops another user from sending this request?' during every design discussion and code review."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Request and response",
+    "text": "GET /api/invoices/1042 HTTP/1.1\nAuthorization: Bearer eyJ...(user-2201)\n\nHTTP/1.1 200 OK    <- vulnerable: invoice belongs to user-3307\nHTTP/1.1 404 Not Found    <- fixed: query scoped to owner_id"
+   },
+   "example": "During testing on a staging site, user alice (id 2201) opens her invoice 1042, then changes the URL to 1043 and sees another customer's invoice. The code loads by ID only. The fix is to query by both invoice ID and the caller's account, returning 404 if no row exists. A second finding shows PATCH /api/profile accepts an isAdmin field; the team replaces the model binding with a DTO listing name and email only, then adds automated cross-user tests.",
+   "terms": [
+    {
+     "term": "IDOR/BOLA",
+     "def": "Accessing another user's object by changing an identifier because no ownership check exists."
+    },
+    {
+     "term": "Mass assignment",
+     "def": "Binding unintended request fields to internal model properties."
+    },
+    {
+     "term": "Deny by default",
+     "def": "Access is refused unless a rule explicitly allows it."
+    },
+    {
+     "term": "Function-level authorization",
+     "def": "Checking that a caller's role permits invoking a particular operation."
+    },
+    {
+     "term": "Scope",
+     "def": "An OAuth permission limiting what a token may do."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the correct fix for an IDOR?",
+     "options": [
+      "Use longer URLs",
+      "Verify object ownership on the server for each request",
+      "Hide the ID in the UI",
+      "Block GET"
+     ],
+     "a": 1,
+     "why": "The server must check the caller is allowed to access that record."
+    },
+    {
+     "q": "What is mass assignment?",
+     "options": [
+      "Binding all request fields to a model including sensitive ones",
+      "Bulk encryption",
+      "Assigning many roles",
+      "Sending many requests"
+     ],
+     "a": 0,
+     "why": "Attackers add fields like role=admin to the body."
+    },
+    {
+     "q": "Why is hiding an admin menu item not a control?",
+     "options": [
+      "Browsers cache menus",
+      "Admins dislike it",
+      "Menus load slowly",
+      "The endpoint can still be called directly"
+     ],
+     "a": 3,
+     "why": "Authorization must be enforced at the endpoint."
+    },
+    {
+     "q": "Which test detects broken object-level authorization?",
+     "options": [
+      "Measuring latency",
+      "Logging in as user A and requesting user B's objects",
+      "Port scanning",
+      "Checking TLS ciphers"
+     ],
+     "a": 1,
+     "why": "Cross-user requests show whether ownership is enforced."
+    }
+   ],
+   "recap": [
+    "Authorize every request on the server with default deny.",
+    "Scope object lookups to the caller to stop IDOR.",
+    "Use DTOs and role mapping to prevent mass assignment and function-level gaps."
+   ]
+  },
+  {
+   "title": "Secure code review",
+   "why": "Review finds logic and design flaws that tools miss, and a checklist makes it consistent across reviewers and teams.",
+   "sections": [
+    {
+     "h": "Review approach",
+     "p": [
+      "Start from risk. Read the change description, identify entry points that handle untrusted data, and trace data from source (request, file, queue) to sink (database, command, HTML, outbound call). Prioritize authentication, authorization, cryptography, input handling and error paths. Review small changes of a few hundred lines at a time, as defect detection falls with size. Combine tool output from linters and SAST with human reasoning, and keep notes about what was checked so gaps are visible. Authors should explain the security intent in the pull request."
+     ]
+    },
+    {
+     "h": "Checklist: injection and authorization",
+     "p": [
+      "For injection, look for string concatenation in SQL, shell calls, template rendering with raw output, file path joins, XML parsers with external entities enabled and deserialization of untrusted data such as Java ObjectInputStream or Python pickle. For authorization, ask on every endpoint: who is the caller, where is the check, is it on the object as well as the function, and does the default deny? Watch for TODO comments that disable checks, debug backdoors and role values taken from request bodies."
+     ]
+    },
+    {
+     "h": "Checklist: crypto, secrets and errors",
+     "p": [
+      "Look for hardcoded credentials, weak algorithms (MD5, SHA-1, ECB, DES), non-secure random number use, disabled certificate validation and homemade crypto. For errors and logging, check that exceptions do not leak stack traces or SQL to users, that failures deny access rather than allow it (fail closed), that sensitive values such as passwords, tokens and card numbers are not logged, and that security events are recorded. Verify resource limits, such as timeouts and file size caps, to avoid denial of service."
+     ]
+    },
+    {
+     "h": "Culture and process",
+     "p": [
+      "Make review part of the merge process: require approval from a second person, and from a security champion or code owner for sensitive paths such as authentication and payments. Keep feedback specific, explain why it matters, and suggest a fix. Track recurring findings and turn them into Semgrep rules, training topics or library helpers so they cannot reappear.",
+      "Reviewers should also look for what is missing: a test for the failure path, a check after a refactor that removed a middleware, or a new dependency added without review. Measure review coverage and time to merge so the process does not become a bottleneck; fast, focused reviews are followed, slow ones are bypassed. Rotate reviewers occasionally so fresh eyes catch blind spots, and keep a library of real examples from past findings. New developers learn faster from concrete before and after diffs than from abstract guidelines. Ask the author to mark risky areas in the description so reviewers know where to spend limited time."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Diff excerpt",
+    "text": "- if (user.canView(doc)) { return doc; }\n+ return docRepo.findById(req.params.id);   // authz check removed\n+ log.info(\"login\", username, password);   // secret logged\n+ String q = \"SELECT * FROM t WHERE c='\" + c + \"'\";"
+   },
+   "example": "A reviewer opens a pull request adding document sharing. Tracing the id parameter from the controller to the repository, she notices the old canView check was removed during refactoring, so any logged-in user can fetch any document. She also spots a log line that records the password on failed login. She comments with the line numbers, proposes restoring the check in a service method, and asks for a test where a second user receives 403. The author fixes both and the merge proceeds.",
+   "terms": [
+    {
+     "term": "Source and sink",
+     "def": "The point where untrusted data enters and the dangerous operation where it is used."
+    },
+    {
+     "term": "Fail closed",
+     "def": "On error, the system denies access rather than granting it."
+    },
+    {
+     "term": "Code owner",
+     "def": "A person or team who must approve changes to specified files."
+    },
+    {
+     "term": "Deserialization",
+     "def": "Rebuilding objects from bytes, risky when the data is untrusted."
+    },
+    {
+     "term": "Secure code review checklist",
+     "def": "A list of security questions applied to each change."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does a reviewer trace to find injection?",
+     "options": [
+      "Commit timestamps",
+      "Data from untrusted source to dangerous sink",
+      "File sizes",
+      "Variable names"
+     ],
+     "a": 1,
+     "why": "Taint flow shows where input reaches a risky operation."
+    },
+    {
+     "q": "Which behavior is fail closed?",
+     "options": [
+      "Deny request if auth service errors",
+      "Skip checks in debug",
+      "Log and continue",
+      "Allow request if auth service errors"
+     ],
+     "a": 0,
+     "why": "Failures should deny access."
+    },
+    {
+     "q": "Which finding is most serious in a diff?",
+     "options": [
+      "A renamed variable",
+      "An extra blank line",
+      "A comment typo",
+      "A removed authorization check"
+     ],
+     "a": 3,
+     "why": "Removing the check exposes data to any user."
+    },
+    {
+     "q": "How can recurring review findings be prevented?",
+     "options": [
+      "Disable linting",
+      "Ignore them",
+      "Convert them into automated rules and training",
+      "Increase PR size"
+     ],
+     "a": 2,
+     "why": "Automation makes the fix permanent across the codebase."
+    }
+   ],
+   "recap": [
+    "Trace untrusted data from source to sink.",
+    "Use a checklist for injection, authz, crypto and error handling.",
+    "Feed recurring findings into rules, libraries and training."
+   ]
+  },
+  {
+   "title": "SAST and DAST",
+   "why": "Automated testing scales security checks across thousands of builds, but only if results are tuned so developers trust them.",
+   "sections": [
+    {
+     "h": "SAST",
+     "p": [
+      "Static application security testing analyzes source code or bytecode without running it. Tools such as Semgrep (pattern-based rules that look like the code), CodeQL (queries over a code database that track data flow) and SonarQube find injection, unsafe functions, hardcoded secrets and misconfigurations early, in the IDE or pull request. Strengths: line-level locations, early feedback and full code coverage. Weaknesses: false positives, limited insight into runtime configuration and business logic, and difficulty with frameworks they do not model. Language and framework support varies, so verify coverage."
+     ]
+    },
+    {
+     "h": "DAST",
+     "p": [
+      "Dynamic application security testing probes a running application from the outside, like an attacker. OWASP ZAP and Burp Suite crawl pages, fuzz parameters and check for reflected XSS, injection symptoms, missing headers and weak cookies. DAST sees the deployed configuration and has fewer false positives for reachable flaws, but it finds issues late, needs a working environment and test accounts, and may miss paths it cannot crawl. Run it against staging or an isolated test instance, never against systems you are not authorized to test, with authenticated scans for realistic coverage."
+     ]
+    },
+    {
+     "h": "Tuning and triage",
+     "p": [
+      "Untuned tools bury teams in noise. Start with a small high-confidence ruleset and widen it gradually. For each finding decide: true positive (fix), false positive (suppress with a documented reason, ideally a code comment or baseline file), or risk accepted (with owner and expiry). Write custom Semgrep rules for in-house frameworks, mark sanitizers so data flow tools stop flagging safe paths, and set the pipeline to fail only on new high severity findings, not on existing debt. Review suppressions regularly."
+     ]
+    },
+    {
+     "h": "Pipeline placement",
+     "p": [
+      "Place checks where they give fast feedback: SAST and secret scanning on every pull request, SCA on every build, DAST nightly or on release candidates, and manual testing for high-risk features. Output results in SARIF format so they appear in the code host as annotations. Track metrics: mean time to remediate, false positive rate, and percentage of findings fixed within SLA.",
+      "Remember that tools complement but do not replace design review and testing. IAST agents and fuzzers add runtime insight, and bug bounty programs add outside perspective. Combine several methods because each finds different classes of defects. Revisit the setup quarterly. Check that new repositories are onboarded automatically, that scan times stay short enough for pull requests, and that scanner versions and rule packs are updated. Compare findings from different tools, since overlap builds confidence while differences reveal coverage gaps, and use bug reports from testers to write new custom rules for future scans."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Tool output",
+    "text": "$ semgrep --config p/owasp-top-ten src/\nsrc/orders.py\n  python.django.security.injection.sql.sql-injection\n  line 42: cursor.execute(\"SELECT ... \" + order_id)\nFindings: 1 (1 blocking)  Ran 312 rules on 58 files"
+   },
+   "example": "A team enables Semgrep and sees 240 findings. They set the gate to block only new high-confidence findings, then triage the backlog: twelve are real SQL injections, forty are test files and are excluded by path, and the rest are false positives from a custom sanitizer, for which a rule is added. A nightly ZAP scan on the staging copy of the app finds a missing Content-Security-Policy header and a session cookie without the Secure flag. Both are fixed and verified in the next run.",
+   "terms": [
+    {
+     "term": "SAST",
+     "def": "Analysis of source code without executing it."
+    },
+    {
+     "term": "DAST",
+     "def": "Testing a running application from the outside."
+    },
+    {
+     "term": "False positive",
+     "def": "A reported issue that is not a real vulnerability."
+    },
+    {
+     "term": "SARIF",
+     "def": "A standard JSON format for static analysis results."
+    },
+    {
+     "term": "Baseline",
+     "def": "A recorded set of existing findings so only new ones fail a build."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which is a strength of SAST?",
+     "options": [
+      "Finds issues with exact code locations early",
+      "Sees deployed server config",
+      "Needs no source",
+      "Never reports false positives"
+     ],
+     "a": 0,
+     "why": "SAST works on code and points to lines."
+    },
+    {
+     "q": "Which tool is a typical DAST scanner?",
+     "options": [
+      "CodeQL",
+      "Grype",
+      "gitleaks",
+      "OWASP ZAP"
+     ],
+     "a": 3,
+     "why": "ZAP tests running web applications."
+    },
+    {
+     "q": "What is a good way to reduce noise from a new SAST rollout?",
+     "options": [
+      "Raise every finding to critical",
+      "Scan only once a year",
+      "Disable it",
+      "Block only new high-confidence findings and tune rules"
+     ],
+     "a": 3,
+     "why": "Gradual gates keep trust while debt is reduced."
+    },
+    {
+     "q": "Where should a documented suppression of a false positive be kept?",
+     "options": [
+      "In the production database",
+      "In a chat",
+      "Near the code or in a reviewed baseline file with a reason",
+      "Nowhere"
+     ],
+     "a": 2,
+     "why": "Reasoned, reviewed suppressions are auditable."
+    }
+   ],
+   "recap": [
+    "SAST reads code; DAST probes a running app; use both.",
+    "Tune rules, baseline old findings and gate on new high severity issues.",
+    "Track false positives and fix times to keep tools trusted."
+   ]
+  },
+  {
+   "title": "SCA and dependency risk",
+   "why": "Most application code is third-party, so a vulnerable library can expose an application that has no flaws of its own.",
+   "sections": [
+    {
+     "h": "What SCA does",
+     "p": [
+      "Software composition analysis identifies the open source components in an application and matches them against vulnerability databases such as the National Vulnerability Database (CVE IDs), GitHub Advisory Database and OSV. Tools include OWASP Dependency-Check, Dependabot, Renovate, Snyk, Trivy and Grype. They read lockfiles and manifests (package-lock.json, poetry.lock, pom.xml) and report vulnerable versions, license issues and sometimes abandoned packages. A software bill of materials lists all components in a standard format such as CycloneDX or SPDX."
+     ]
+    },
+    {
+     "h": "Reading the data",
+     "p": [
+      "A CVE entry gives a description, affected version ranges and a CVSS score. CVSS describes severity, not risk: ask whether the vulnerable function is reachable, whether the component is exposed to untrusted input and whether a fix exists. The EPSS score estimates the probability of exploitation, and CISA's Known Exploited Vulnerabilities catalog lists flaws seen in active attacks, which should be fixed first. Reachability analysis and VEX statements can mark a CVE as not affected when the vulnerable code is never called."
+     ]
+    },
+    {
+     "h": "Transitive risk and pinning",
+     "p": [
+      "Your direct dependency pulls in many others, and a flaw in a deep transitive package still affects you, as the Log4Shell case (CVE-2021-44228) showed. Use commands such as npm ls, pip show or mvn dependency:tree to find which direct package brings it in, then upgrade the parent or override the version. Commit lockfiles and pin exact versions with integrity hashes so builds are repeatable and a malicious new release is not pulled in automatically, while keeping update bots running so pinning does not mean stagnation."
+     ]
+    },
+    {
+     "h": "Policy and process",
+     "p": [
+      "Set a policy: block builds on known exploited or critical reachable flaws, set remediation SLAs by severity, and approve new dependencies with checks on maintenance, popularity, license and typosquatting. Prefer fewer, well-maintained libraries and remove unused ones. Automate update pull requests and run the test suite on them so upgrades are low effort.",
+      "When no fix exists, use mitigations: disable the vulnerable feature, add a WAF rule, restrict network exposure, replace the library, or document an accepted risk with an expiry date. Subscribe to advisories for your key components and keep an inventory so you can answer the question 'where do we use this package?' within minutes. Include build tools, container base images and infrastructure modules in the inventory, since they also bring vulnerable code. Re-scan deployed artifacts regularly, because new CVEs appear after release and a build that was clean last month may be vulnerable today. Keep a record of exceptions and their review dates."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ grype dir:. --only-fixed\nNAME      INSTALLED  FIXED-IN  TYPE    VULNERABILITY   SEVERITY\nlodash    4.17.15    4.17.21   npm     CVE-2021-23337  High\nexpress   4.16.0     4.19.2    npm     CVE-2024-29041  Medium\nPackages scanned: 214  Findings: 2"
+   },
+   "example": "A scan flags a High finding in the transitive package minimist, brought in by an old build tool. npm ls shows the path. The tool is a dev dependency used only in CI, so runtime risk is low, but the team upgrades the parent package anyway, regenerates the lockfile and reruns the scan, which now reports zero findings. For a second CVE with no fix, they document that the vulnerable function is never called and record a VEX statement with a review date.",
+   "terms": [
+    {
+     "term": "SCA",
+     "def": "Identification of third-party components and their known vulnerabilities."
+    },
+    {
+     "term": "Transitive dependency",
+     "def": "A package required indirectly through another dependency."
+    },
+    {
+     "term": "Lockfile",
+     "def": "A file recording exact dependency versions and hashes."
+    },
+    {
+     "term": "EPSS",
+     "def": "A score estimating the likelihood that a CVE will be exploited."
+    },
+    {
+     "term": "KEV",
+     "def": "CISA's catalog of vulnerabilities known to be exploited."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why can CVSS alone mislead prioritization?",
+     "options": [
+      "It measures severity, not exposure or reachability",
+      "It is always zero",
+      "It lists patches",
+      "It encrypts packages"
+     ],
+     "a": 0,
+     "why": "Risk also depends on reachability, exposure and exploitation."
+    },
+    {
+     "q": "What is a transitive dependency?",
+     "options": [
+      "A package you wrote",
+      "A test file",
+      "A license",
+      "A package your dependency requires"
+     ],
+     "a": 3,
+     "why": "It is indirectly included through another package."
+    },
+    {
+     "q": "Why commit lockfiles?",
+     "options": [
+      "To reduce testing",
+      "To disable updates",
+      "To hide versions",
+      "To make builds repeatable with exact versions"
+     ],
+     "a": 3,
+     "why": "Locked versions avoid surprise upgrades."
+    },
+    {
+     "q": "Which catalog identifies vulnerabilities seen in real attacks?",
+     "options": [
+      "PEP index",
+      "CISA KEV",
+      "Alexa list",
+      "RFC index"
+     ],
+     "a": 1,
+     "why": "KEV lists exploited vulnerabilities to patch first."
+    }
+   ],
+   "recap": [
+    "Scan dependencies and generate SBOMs every build.",
+    "Prioritize by reachability, exposure, EPSS and KEV, not CVSS alone.",
+    "Pin versions, commit lockfiles and keep update automation running."
+   ]
+  },
+  {
+   "title": "Security champions program",
+   "why": "Security teams cannot review every change, so trained developers inside each team multiply their reach and keep practices alive.",
+   "sections": [
+    {
+     "h": "Why champions",
+     "p": [
+      "A security champion is a developer or tester who volunteers to be the first point of contact for security within their team, in addition to their normal job. The role scales a small central team: champions triage tool findings, run quick design discussions, remind peers of standards and bring issues upward. They are not a replacement for the security team or the person who fixes everything. Executive sponsorship and explicit time allocation, often 10 to 20 percent, determine whether the program survives beyond the first enthusiasm."
+     ]
+    },
+    {
+     "h": "Building the network",
+     "p": [
+      "Pick volunteers from every product team and aim for roughly one per eight to ten developers. Hold a regular community meeting every two to four weeks, run a chat channel, and share new threats, post-incident learning and tool updates. Offer progressive training: secure coding labs on the OWASP Top 10, threat modeling workshops, capture-the-flag events and certifications. Recognize contributions through career credit, badges and visibility to management, since non-monetary rewards sustain participation."
+     ]
+    },
+    {
+     "h": "Threat model reviews and tooling",
+     "p": [
+      "Champions lead lightweight threat modeling in design sessions using STRIDE and a data flow diagram, and bring complex cases to the central team. They own the backlog of security findings for their team, check that SAST and SCA results are triaged, and review pull requests touching authentication, authorization and crypto. Give them templates, checklists and dashboards so the work is quick and consistent, and security tools configured with team-level views."
+     ]
+    },
+    {
+     "h": "Vulnerability SLAs and metrics",
+     "p": [
+      "Agree service level targets for fixing vulnerabilities by severity, for example critical in 7 days, high in 30, medium in 90, with shorter times for known exploited issues, and define the exception process with expiry dates. Report metrics such as findings by age, SLA compliance, training completion, threat models completed and champion coverage by team. Review them in leadership meetings.",
+      "Watch for failure modes: champions becoming bottlenecks, burnout from unpaid extra work, and loss of momentum when sponsors change. Rotate duties, refresh the roster each year, and tie the program to the secure SDLC maturity goals so its value is visible in measurable improvement. Start small with a pilot of two or three teams, learn what works, and publish a short charter describing responsibilities, time commitment and escalation paths before expanding to the whole organization. Collect feedback from champions and their managers each quarter and adjust the program, because success depends on the role being useful to developers and not merely another compliance task."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "SLA policy excerpt",
+    "text": "Severity   Fix within   Escalate at\nCritical   7 days       day 3 (CISO)\nHigh       30 days      day 20 (Eng director)\nMedium     90 days      day 60 (Team lead)\nKEV-listed 48 hours     immediately"
+   },
+   "example": "A company with twelve product teams recruits one champion per team and gives each four hours a week. The first quarter includes a threat modeling workshop and a secure coding lab. Champions then run a one-hour STRIDE session for each new feature. The security team publishes a dashboard showing that high severity findings fixed within 30 days rose from 55 to 82 percent after six months, and the champion roster is presented at the engineering all-hands.",
+   "terms": [
+    {
+     "term": "Security champion",
+     "def": "A team member who acts as the local security advocate and liaison."
+    },
+    {
+     "term": "Threat model",
+     "def": "A structured analysis of what can go wrong in a design."
+    },
+    {
+     "term": "STRIDE",
+     "def": "A threat classification: spoofing, tampering, repudiation, information disclosure, denial of service, elevation of privilege."
+    },
+    {
+     "term": "SLA",
+     "def": "An agreed time limit for fixing issues of a given severity."
+    },
+    {
+     "term": "Sponsor",
+     "def": "An executive who supplies backing and time for the program."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the main purpose of a champions program?",
+     "options": [
+      "Replace the security team",
+      "Scale security knowledge into development teams",
+      "Eliminate testing",
+      "Reduce headcount"
+     ],
+     "a": 1,
+     "why": "Champions extend reach and keep practices consistent."
+    },
+    {
+     "q": "Which element most sustains a champions program?",
+     "options": [
+      "Secrecy",
+      "No training",
+      "Random assignment",
+      "Sponsor support and allocated time"
+     ],
+     "a": 3,
+     "why": "Without time and backing, volunteers burn out."
+    },
+    {
+     "q": "What does STRIDE help with?",
+     "options": [
+      "Scanning ports",
+      "Packaging code",
+      "Classifying threats during design",
+      "Hashing passwords"
+     ],
+     "a": 2,
+     "why": "It gives categories for what could go wrong."
+    },
+    {
+     "q": "Why define vulnerability SLAs?",
+     "options": [
+      "To change CVSS",
+      "To set expected remediation times and escalation",
+      "To hide issues",
+      "To rename CVEs"
+     ],
+     "a": 1,
+     "why": "Clear deadlines drive accountability."
+    }
+   ],
+   "recap": [
+    "Recruit and train champions with sponsor backing and time.",
+    "Use champions for threat models, triage and review of sensitive code.",
+    "Set SLAs and report metrics to keep the program credible."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Fix SQL injection",
+   "sim": "code-editor",
+   "scenario": "The orders service for example.com builds a SQL query by joining a customer-supplied search term. A tester sent a single quote and received a raw database error from a staging server at 192.0.2.30. Fix the function, then replay the attack input to prove that the weakness is closed. The release goes out tomorrow, and the product owner wants proof that the issue is closed. Use the sandbox tests and the static scan results as evidence for the change ticket, and keep the fix small so it can be reviewed quickly by a second developer.",
+   "objective": "Replace string-built SQL with a parameterized statement and confirm the attack fails.",
+   "steps": [
+    {
+     "do": "Open orders.py and read find_orders(name).",
+     "see": "query = \"SELECT id,total FROM orders WHERE customer='\" + name + \"'\""
+    },
+    {
+     "do": "Run the test input: ' OR '1'='1",
+     "see": "Result: 3,412 rows returned. Test status: VULNERABLE."
+    },
+    {
+     "do": "Rewrite the call as cursor.execute(\"SELECT id,total FROM orders WHERE customer = %s\", (name,)).",
+     "see": "Editor: syntax OK. Static check: sql-concat rule cleared."
+    },
+    {
+     "do": "Add an allow-list check: name must match ^[A-Za-z .'-]{1,50}$.",
+     "see": "Validator: input constraint present."
+    },
+    {
+     "do": "Replay ' OR '1'='1 against the fixed code.",
+     "see": "Result: 0 rows. The input is treated as a literal customer name."
+    },
+    {
+     "do": "Run the unit tests and static scan.",
+     "see": "12/12 tests pass. Scan: 0 high findings."
+    }
+   ],
+   "answer": "The function uses a parameterized query with the value passed separately, plus a length and character allow-list. The injection payload now returns zero rows because it is treated as data, and the SAST rule no longer flags the code.",
+   "hint": "Keep the SQL text constant and pass the variable as a parameter."
+  },
+  {
+   "title": "Fix XSS output",
+   "sim": "code-editor",
+   "scenario": "A profile page template prints the user's display name and a bio inside HTML, an attribute and an inline script. A tester stored a script tag in the bio and it executed in another user's browser. You must apply the correct encoder in each context and add a CSP header. The page serves several thousand users, so the fix must not break legitimate formatting such as plain paragraphs. The security team will retest the stored payload after your change, and the CSP must not block the site's own bundled scripts.",
+   "objective": "Remove the XSS by context-aware encoding and add a Content-Security-Policy.",
+   "steps": [
+    {
+     "do": "Open profile.html and find the three output points.",
+     "see": "1: <p>{{ bio|safe }}</p>  2: <input value=\"{{ name }}\">  3: <script>var n='{{ name }}';</script>"
+    },
+    {
+     "do": "Remove the safe filter so the bio is HTML-escaped.",
+     "see": "Preview: <script> now displays as text."
+    },
+    {
+     "do": "Ensure the attribute uses quoted autoescaped output.",
+     "see": "Linter: attribute context OK."
+    },
+    {
+     "do": "Replace the inline script with data attribute plus JSON via tojson filter, or move it to an external file.",
+     "see": "Linter: no raw output inside script context."
+    },
+    {
+     "do": "Add header Content-Security-Policy: default-src 'self'; script-src 'self'.",
+     "see": "Header present. Inline scripts blocked in browser test."
+    },
+    {
+     "do": "Replay the stored payload.",
+     "see": "Result: payload displayed as harmless text, no alert. Console: no CSP violations from legitimate scripts."
+    }
+   ],
+   "answer": "HTML body output is autoescaped, the attribute is quoted and escaped, the script context no longer receives raw input, and a CSP of default-src 'self'; script-src 'self' blocks inline scripts. The stored payload no longer executes.",
+   "hint": "Different contexts need different encoders; the safe filter is the usual culprit."
+  },
+  {
+   "title": "Review a pull request",
+   "sim": "code-editor",
+   "scenario": "A colleague opened a pull request adding a document export feature to the internal portal. You are the reviewer and have a checklist for authorization and deserialization. Annotate the diff with the issues you find and request specific changes before approving. The author is a new team member, so comments should be specific and constructive, with a clear explanation of each risk and the expected fix. Use the review checklist for injection, authorization, cryptography and error handling, and block the merge only for real findings.",
+   "objective": "Identify missing authorization and unsafe deserialization in the diff and annotate them.",
+   "steps": [
+    {
+     "do": "Open the diff for ExportController.java and read the new endpoint.",
+     "see": "@GetMapping(\"/export/{docId}\") returns docService.load(docId)"
+    },
+    {
+     "do": "Check whether the endpoint verifies the caller owns the document.",
+     "see": "No ownership or role check found. Annotation slot opened."
+    },
+    {
+     "do": "Add comment: Missing object-level authorization; require owner or role check.",
+     "see": "Comment saved on line 18, severity High."
+    },
+    {
+     "do": "Open ImportService.java and find the readObject call.",
+     "see": "ObjectInputStream.readObject() on uploaded file bytes"
+    },
+    {
+     "do": "Add comment: Unsafe deserialization of untrusted data; use JSON with a schema or an allow-list filter.",
+     "see": "Comment saved on line 44, severity High."
+    },
+    {
+     "do": "Click Request changes.",
+     "see": "Review submitted: 2 blocking findings. Author notified."
+    }
+   ],
+   "answer": "Two blocking findings: the export endpoint lacks an ownership check (broken object-level authorization), and the import service deserializes uploaded bytes with ObjectInputStream (unsafe deserialization). Requested fixes are an authorization check on every load and a safe data format such as validated JSON.",
+   "hint": "Look for what happens to the id parameter and where uploaded bytes end up."
+  },
+  {
+   "title": "Triage SAST findings",
+   "sim": "scenario",
+   "scenario": "A nightly Semgrep scan of the billing service reports eight findings. You are on call for the product team and must classify each as true positive, false positive or risk accepted, with a short reason, before the release meeting. Consider reachability, test-only code and compensating controls. Each decision will be recorded in the findings tracker and reviewed by the security champion. Suppress only with a written reason, and make sure that any accepted risk has a named owner and an expiry date so it will be revisited rather than forgotten.",
+   "objective": "Classify each finding correctly with a documented reason.",
+   "steps": [
+    {
+     "do": "Open finding 1: SQL concat in invoices.py line 88, input from request.",
+     "see": "Context: user-controlled param reaches query. Classify as TRUE POSITIVE, high."
+    },
+    {
+     "do": "Open finding 2: hardcoded password in tests/fixtures.py.",
+     "see": "Context: dummy value used only by unit tests. Classify as FALSE POSITIVE with reason 'test fixture'."
+    },
+    {
+     "do": "Open finding 3: use of MD5 for cache key naming.",
+     "see": "Context: no security purpose. Classify as FALSE POSITIVE with reason 'non-security hash'."
+    },
+    {
+     "do": "Open finding 4: yaml.load without SafeLoader on config file read at startup from a locked directory.",
+     "see": "Context: file not user controlled. Classify as RISK ACCEPTED, owner platform team, expires in 90 days."
+    },
+    {
+     "do": "Open finding 5: missing CSRF token on POST /api/refund.",
+     "see": "Context: cookie session auth, no token. Classify as TRUE POSITIVE, high."
+    },
+    {
+     "do": "Submit classifications.",
+     "see": "Saved. 2 true positives (fix before release), 2 false positives (suppressed with reasons), 1 risk accepted (expiry set). Remaining 3 queued."
+    }
+   ],
+   "answer": "The SQL concatenation and the missing CSRF protection are true positives to fix before release. The hardcoded test password and MD5 cache key are false positives suppressed with reasons. The unsafe YAML load on a locked config file is risk accepted with an owner and expiry date.",
+   "hint": "Ask whether untrusted input can reach the code and whether it has a security purpose."
+  },
+  {
+   "title": "Exploit an IDOR in sandbox",
+   "sim": "web-proxy",
+   "scenario": "In an authorized training sandbox at shop.example.com, you are logged in as user alice. Using the intercepting proxy, test whether the order lookup endpoint checks ownership. Then write down the fix. Only the sandbox application is in scope and all data is fictional. Treat the exercise as a professional test: stay inside the agreed scope, record each request you send, and do not store or share any data you see. The goal is a clear report that developers can act on, including the exact fix.",
+   "objective": "Confirm an IDOR by changing an object ID, then specify the server-side fix.",
+   "steps": [
+    {
+     "do": "Open the proxy history and select GET /api/orders/5001 (your order).",
+     "see": "200 OK {\"id\":5001,\"owner\":\"alice\",\"total\":42.00}"
+    },
+    {
+     "do": "Send the request to Repeater and change the ID to 5002.",
+     "see": "Request edited."
+    },
+    {
+     "do": "Click Send.",
+     "see": "200 OK {\"id\":5002,\"owner\":\"bob\",\"total\":310.50,\"address\":\"1 Sample St\"}"
+    },
+    {
+     "do": "Try IDs 5003 and 5004.",
+     "see": "Both return 200 with other users' orders. Finding: broken object-level authorization."
+    },
+    {
+     "do": "Record the fix: scope the query by owner and return 404 when not found.",
+     "see": "Notes saved: WHERE id=? AND owner_id=session.user_id"
+    },
+    {
+     "do": "Apply the fix in the sandbox and resend ID 5002.",
+     "see": "404 Not Found. Own order 5001 still returns 200."
+    }
+   ],
+   "answer": "Changing the order ID returns other users' data, which proves an IDOR (BOLA). The fix is a server-side check that the order belongs to the authenticated user, implemented by adding the owner to the query, returning 404 for others, and adding automated cross-user tests.",
+   "hint": "Only the ID changes in the request, so the server must compare the record owner to the caller."
+  },
+  {
+   "title": "Dependency audit",
+   "sim": "terminal",
+   "scenario": "A Node.js service for the example.com web store has a package-lock.json. Before release, the security team requires an SCA scan and upgrade plan. Run the scanner, read the results and choose the least disruptive upgrade for each vulnerable package, noting transitive dependencies. The release manager needs a short list of changes with their risk. Avoid major version jumps unless required, run the tests after every change, and note any package that cannot be upgraded so a mitigation or exception can be recorded.",
+   "objective": "Scan a lockfile and choose upgrade paths for the vulnerable packages.",
+   "steps": [
+    {
+     "do": "Run: grype dir:. --only-fixed",
+     "see": "3 findings: lodash 4.17.15 (High, fixed 4.17.21); minimist 1.2.0 (Critical, fixed 1.2.6); express 4.16.0 (Medium, fixed 4.19.2)"
+    },
+    {
+     "do": "Run: npm ls minimist",
+     "see": "app@1.0.0 -> mkdirp-tool@0.5.1 -> minimist@1.2.0 (transitive)"
+    },
+    {
+     "do": "Run: npm ls lodash",
+     "see": "app@1.0.0 -> lodash@4.17.15 (direct)"
+    },
+    {
+     "do": "Run: npm install lodash@4.17.21 express@4.19.2",
+     "see": "Updated 2 packages. Lockfile rewritten."
+    },
+    {
+     "do": "Add an overrides entry forcing minimist to 1.2.6, then npm install.",
+     "see": "Resolved minimist@1.2.6 for mkdirp-tool."
+    },
+    {
+     "do": "Rerun grype and the test suite.",
+     "see": "0 findings. 48/48 tests pass."
+    }
+   ],
+   "answer": "Upgrade the direct dependencies lodash and express, and use an override for the transitive minimist so it resolves to 1.2.6 or later. Commit the updated lockfile, rerun the scan and tests, and keep update automation enabled for future advisories.",
+   "hint": "Find which direct package pulls in the transitive one with npm ls."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which SDLC activity should occur during design?",
+   "options": [
+    "Threat modeling",
+    "Penetration test of production only",
+    "Patching after release",
+    "Log deletion"
+   ],
+   "a": 0,
+   "why": "Threat modeling finds flaws before code exists."
+  },
+  {
+   "q": "What is the best defense against SQL injection?",
+   "options": [
+    "Client-side checks",
+    "Hiding error text",
+    "Using GET",
+    "Parameterized queries"
+   ],
+   "a": 3,
+   "why": "Parameters separate data from code."
+  },
+  {
+   "q": "Which cookie attribute limits cross-site sending?",
+   "options": [
+    "Domain",
+    "Expires",
+    "SameSite",
+    "Path"
+   ],
+   "a": 2,
+   "why": "SameSite controls whether cookies are sent cross-site."
+  },
+  {
+   "q": "A user changes /api/orders/5001 to 5002 and sees another customer's order. What is this?",
+   "options": [
+    "SSRF",
+    "IDOR/BOLA",
+    "XSS",
+    "CSRF"
+   ],
+   "a": 1,
+   "why": "Missing object-level authorization."
+  },
+  {
+   "q": "What is mass assignment?",
+   "options": [
+    "Binding unintended request fields to a model",
+    "Mass emailing",
+    "Bulk hashing",
+    "A DDoS"
+   ],
+   "a": 0,
+   "why": "Attackers add fields such as role."
+  },
+  {
+   "q": "Which is true for DAST?",
+   "options": [
+    "Reads source only",
+    "Only scans dependencies",
+    "Cannot find XSS",
+    "Tests a running application from outside"
+   ],
+   "a": 3,
+   "why": "DAST works against deployed behavior."
+  },
+  {
+   "q": "What should you do with a SAST finding in test-only fixture code?",
+   "options": [
+    "Ignore without record",
+    "Raise to critical",
+    "Classify as false positive with a documented reason",
+    "Delete the tool"
+   ],
+   "a": 2,
+   "why": "Document and suppress with reasoning."
+  },
+  {
+   "q": "Why is CVSS alone not enough to prioritize dependency fixes?",
+   "options": [
+    "It lists fixes",
+    "It ignores reachability and exposure",
+    "It is secret",
+    "It is always low"
+   ],
+   "a": 1,
+   "why": "Context determines real risk."
+  },
+  {
+   "q": "Which password storage approach is correct?",
+   "options": [
+    "Argon2id with unique salt",
+    "Plain SHA-256",
+    "Reversible encryption",
+    "MD5"
+   ],
+   "a": 0,
+   "why": "Slow salted hashes resist cracking."
+  },
+  {
+   "q": "What keeps a security champions program sustained?",
+   "options": [
+    "Surprise audits",
+    "No metrics",
+    "Removing training",
+    "Sponsor backing, time and recognition"
+   ],
+   "a": 3,
+   "why": "Time and support prevent burnout."
+  }
+ ]
+}

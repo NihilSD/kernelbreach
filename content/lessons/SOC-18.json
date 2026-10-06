@@ -1,0 +1,536 @@
+{
+ "code": "SOC-18",
+ "intro": "This capstone brings the whole SOC path together. You will work a simulated alert queue the way a real analyst does: prioritize by risk, group related alerts, open a case with hypotheses, then pivot across SIEM logs, a packet capture and a phishing email to build an ATT&CK-mapped timeline. You finish by choosing containment, writing the incident report and manager summary, and identifying the detection gaps that the incident exposed.",
+ "lessons": [
+  {
+   "title": "Alert queue triage and initial scoping",
+   "why": "A real shift starts with many alerts and little time; deciding what to look at first and what belongs together is what separates signal from noise.",
+   "sections": [
+    {
+     "h": "Prioritizing by risk",
+     "p": [
+      "A queue rarely arrives in a helpful order. Prioritize by combining severity, asset value, confidence and exposure. An alert on a domain controller or a finance server outranks the same alert on a lab laptop. A high-confidence detection of credential dumping outranks a noisy low-confidence port scan. Consider whether the activity is ongoing, whether the account is privileged and whether the host faces the internet. Many teams score alerts with a simple matrix of impact times likelihood. Also weigh time sensitivity: ransomware precursors and active data transfer cannot wait, while a policy violation can. Prioritization is a judgment you must be able to explain in one sentence."
+     ]
+    },
+    {
+     "h": "Deciding what is related",
+     "p": [
+      "Look for shared entities across alerts: the same user, host, IP address, file hash, domain or time window. Three apparently unrelated alerts, such as a suspicious email, a PowerShell warning on one workstation and an outbound connection to 203.0.113.50, may be one intrusion seen through three tools. Group them into one case to avoid triple work and to see the whole story. Be careful about false grouping: a shared IP behind NAT or a common CDN domain proves little. Test links with a pivot: does the same process, account or timestamp appear in both? Keep unrelated alerts separate, but note why you separated them."
+     ]
+    },
+    {
+     "h": "Opening a case and initial scoping",
+     "p": [
+      "Once you choose a lead alert, open a case with a clear title, severity, assigned owner and the alert links. Scoping asks: which hosts, accounts and data might be involved, and over what period? Start with the known entities and search outward in the SIEM, for example all events for the user over the previous 24 hours. Record what you checked and the results, including negative ones, since 'no other hosts contacted this IP' is valuable. Decide whether immediate containment is justified before the picture is complete, balancing business disruption against the risk of spread, and follow the playbook for your alert type."
+     ]
+    },
+    {
+     "h": "Initial hypotheses",
+     "p": [
+      "A hypothesis is a testable explanation: 'Phishing delivered a malicious attachment that gave the attacker a foothold on WS-114.' State two or three competing hypotheses, including a benign one such as a legitimate admin script, and list the evidence that would confirm or refute each. This guards against confirmation bias, where analysts see only evidence supporting their first idea. Map hypotheses to MITRE ATT&CK tactics to predict next steps: after initial access (TA0001) and execution (TA0002), look for persistence, credential access and lateral movement. Revise as evidence arrives and document why a hypothesis was dropped."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Queue triage (fictional)",
+    "text": "#1 High  DC01  Credential dumping tool   conf: high  -> investigate now\n#2 Med   WS-114 PowerShell from Word     conf: med   -> link to #4\n#3 Low   WS-020 Port scan from LAN       conf: low   -> defer\n#4 Med   Mail  Attachment, user alice    conf: med   -> link to #2\n#5 Med   FW    Outbound to 203.0.113.50  conf: med   -> link to #2\nCase INC-4100 = #2 + #4 + #5 (shared host WS-114, user alice)"
+   },
+   "example": "At the start of a shift an analyst sees five alerts. The credential dumping alert on a domain controller goes first because of asset value and confidence. Three others share the user alice, the host WS-114 and a 40-minute window, so she groups them into one case with the hypothesis that phishing led to execution and command and control. A competing benign hypothesis, a software update script, is noted and tested by checking the file's signature. The low-confidence port scan is deferred with a note explaining why.",
+   "terms": [
+    {
+     "term": "Triage",
+     "def": "Sorting and prioritizing alerts by risk and urgency."
+    },
+    {
+     "term": "Pivot",
+     "def": "Moving from one data point to related data in another source."
+    },
+    {
+     "term": "Scoping",
+     "def": "Determining which systems, accounts, data and time range an incident touches."
+    },
+    {
+     "term": "Hypothesis",
+     "def": "A testable explanation of what happened, used to guide investigation."
+    },
+    {
+     "term": "Confirmation bias",
+     "def": "Tendency to favor evidence that supports an existing belief."
+    },
+    {
+     "term": "Entity",
+     "def": "A user, host, IP, domain or file that links events together."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which alert should usually be investigated first?",
+     "options": [
+      "Low-confidence scan on a lab laptop",
+      "High-confidence credential dumping on a domain controller",
+      "Policy warning on a guest device",
+      "Duplicate alert already closed"
+     ],
+     "a": 1,
+     "why": "High asset value and confidence mean greater risk and urgency."
+    },
+    {
+     "q": "What is the best evidence that two alerts are related?",
+     "options": [
+      "They fired on the same day",
+      "They share a user, host and short time window",
+      "Both are medium severity",
+      "Both came from the SIEM"
+     ],
+     "a": 1,
+     "why": "Shared entities and timing give a defensible link."
+    },
+    {
+     "q": "Why include a benign hypothesis?",
+     "options": [
+      "To close alerts faster",
+      "To reduce confirmation bias by testing alternatives",
+      "Because policy requires it",
+      "To avoid a ticket"
+     ],
+     "a": 1,
+     "why": "Competing explanations keep the analysis honest."
+    },
+    {
+     "q": "What belongs in initial scoping notes?",
+     "options": [
+      "Only positive findings",
+      "Checks performed, including negative results",
+      "Only the alert title",
+      "Personal opinions"
+     ],
+     "a": 1,
+     "why": "Negative results narrow scope and prevent repeated work."
+    }
+   ],
+   "recap": [
+    "Prioritize by asset value, confidence, exposure and urgency.",
+    "Group alerts by shared entities and time, but test links before trusting them.",
+    "State competing hypotheses and the evidence that confirms or refutes each."
+   ]
+  },
+  {
+   "title": "Cross-source investigation",
+   "why": "Real attacks leave traces in many places; no single log tells the whole story, so you must pivot between sources and tie each finding to ATT&CK.",
+   "sections": [
+    {
+     "h": "Why multiple sources",
+     "p": [
+      "Each source has a blind spot. Email gateway logs show delivery but not execution. Endpoint telemetry shows process trees but not what crossed the network. Proxy and DNS logs show destinations but not which process asked. A PCAP shows the actual bytes but is large and often unavailable for the whole period. Combining them creates a chain of evidence. The investigator's loop is: take an indicator, search for it elsewhere, add new indicators, repeat. Normalized fields such as src_ip, user, host and file_hash in the SIEM make pivoting practical, and time synchronization (NTP) is what keeps the events in the right order."
+     ]
+    },
+    {
+     "h": "Pivoting from the phishing email",
+     "p": [
+      "Start from the message: sender, Return-Path, Received headers, Message-ID, subject, attachment name and SHA-256 hash, and any URLs. Check SPF, DKIM and DMARC results in the Authentication-Results header. Search the mail gateway for other recipients of the same sender, subject or hash, since one phish is usually a campaign. Then pivot to the endpoint: did a recipient open the file? EDR may show winword.exe launching powershell.exe, mapped to execution via a user-opened file (T1204.002) and PowerShell (T1059.001). Pivot to the proxy for the URL or domain and to the SIEM for the user's logons around that time."
+     ]
+    },
+    {
+     "h": "Reading the PCAP and logs",
+     "p": [
+      "In a packet capture, filter by the suspect host and the external address, for example ip.addr == 203.0.113.50 in Wireshark. Look for DNS queries for the domain, the TLS handshake and its SNI, the HTTP request and User-Agent, and periodic connections at fixed intervals, which suggest beaconing (T1071.001 for web protocols). Check the volume sent out compared with received, which may indicate exfiltration (T1041). In authentication logs, Windows event 4624 type 3 or 10 from the workstation to other hosts suggests lateral movement, and 4625 bursts suggest guessing. Record each observable and where it came from."
+     ]
+    },
+    {
+     "h": "Mapping to ATT&CK and building the story",
+     "p": [
+      "ATT&CK is a knowledge base of adversary tactics and techniques. Mapping each finding gives a shared language and exposes gaps: Initial Access T1566.001 (spearphishing attachment), Execution T1204.002 and T1059.001, Command and Control T1071.001, Credential Access T1003, Lateral Movement T1021. Place each finding on the UTC timeline with its source and a fact or inference label. Gaps in the timeline become new questions: how did the attacker get from the workstation to the server? Stop pivoting when scope is stable and each phase has support. Unsupported links stay hypotheses in the report."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Pivot trail (fictional)",
+    "text": "Email: from billing@example.net, SHA-256 9f2c...e1, SPF=fail\nSIEM : same hash delivered to 4 users, opened by alice only\nEDR  : WS-114 winword.exe -> powershell.exe (T1204.002, T1059.001)\nProxy: WS-114 -> 203.0.113.50:443 every 60 s (T1071.001)\nPCAP : TLS SNI cdn.example.com, 1.2 MB out vs 40 KB in\nAuth : 4624 type 3 alice -> FILESRV-02 at 10:20Z (T1021)"
+   },
+   "example": "The analyst opens the phishing email and sees SPF failed and an attachment hash. A SIEM search shows four recipients, but only alice's host ran the file. EDR gives the process tree. The proxy shows connections to 203.0.113.50 every 60 seconds, and the PCAP confirms regular small TLS sessions followed by a larger upload. Authentication logs then show alice's account reaching FILESRV-02 twenty minutes later. Each finding is tagged with an ATT&CK technique and placed on a UTC timeline, producing a coherent five-stage story with two items still marked as inference.",
+   "terms": [
+    {
+     "term": "Beaconing",
+     "def": "Regular, periodic callbacks from a compromised host to a control server."
+    },
+    {
+     "term": "SNI",
+     "def": "Server Name Indication, the hostname sent in a TLS handshake."
+    },
+    {
+     "term": "ATT&CK",
+     "def": "MITRE knowledge base of adversary tactics, techniques and procedures."
+    },
+    {
+     "term": "Message-ID",
+     "def": "Unique identifier of an email, useful for finding copies and related mail."
+    },
+    {
+     "term": "Lateral movement",
+     "def": "Using access on one system to reach others in the network."
+    },
+    {
+     "term": "Chain of evidence",
+     "def": "Linked sources that together support a conclusion."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why combine email, endpoint, proxy and PCAP data?",
+     "options": [
+      "Each has blind spots; together they show the full chain",
+      "To create more alerts",
+      "Because logs are identical",
+      "To avoid timelines"
+     ],
+     "a": 0,
+     "why": "Different sources cover different parts of the attack."
+    },
+    {
+     "q": "A host connects to the same IP every 60 seconds. This suggests:",
+     "options": [
+      "Normal DNS",
+      "Beaconing to command and control",
+      "Printer discovery",
+      "Time synchronization"
+     ],
+     "a": 1,
+     "why": "Fixed-interval callbacks are a classic beaconing pattern."
+    },
+    {
+     "q": "winword.exe launching powershell.exe most closely maps to:",
+     "options": [
+      "T1204.002 and T1059.001",
+      "T1566.002 only",
+      "T1003",
+      "T1486"
+     ],
+     "a": 0,
+     "why": "User execution of a file and PowerShell command interpreter use."
+    },
+    {
+     "q": "When should you stop pivoting?",
+     "options": [
+      "After the first indicator",
+      "When scope is stable and each phase has supporting evidence",
+      "After one hour no matter what",
+      "When the alert closes automatically"
+     ],
+     "a": 1,
+     "why": "You stop when additional pivots add no new scope and the story is supported."
+    }
+   ],
+   "recap": [
+    "Pivot from indicator to indicator across email, endpoint, network and authentication data.",
+    "In a PCAP look for DNS, SNI, beaconing intervals and outbound volume.",
+    "Map every finding to ATT&CK and place it on a UTC timeline with a fact or inference label."
+   ]
+  },
+  {
+   "title": "Response, report and review",
+   "why": "The investigation ends only when the threat is contained, the story is written down and the lessons improve detection.",
+   "sections": [
+    {
+     "h": "Choosing containment",
+     "p": [
+      "Containment limits damage while preserving evidence. Match actions to findings: isolate the infected host with EDR network containment, disable or reset the compromised account and revoke its sessions and tokens, block the malicious IP and domain at the firewall, proxy or DNS, and purge the phishing email from all mailboxes. Prefer reversible, targeted actions over broad ones, and weigh business impact, such as a server needed for payroll. Get approval where the playbook requires it. Do not power off a machine casually, since volatile memory holds evidence. Record each action with a UTC time and who performed it."
+     ]
+    },
+    {
+     "h": "Eradication and recovery",
+     "p": [
+      "After containment comes eradication: remove persistence such as scheduled tasks, services, run keys and new accounts, delete malicious files, and patch or reconfigure the weakness. Rebuild from a known good image when you cannot prove a system is clean. Recovery returns systems to service with enhanced monitoring, and passwords for all possibly exposed accounts are rotated. Validate with searches for the indicators across the estate to confirm no other hosts are affected. NIST SP 800-61 treats containment, eradication and recovery as one phase, but the work is sequential: stop the spread first, then clean, then restore."
+     ]
+    },
+    {
+     "h": "Writing the final report",
+     "p": [
+      "Use the structure from the reporting module: summary, scope, UTC timeline, evidence, ATT&CK mapping, root cause, impact, actions taken and recommendations. For the capstone, write a short manager summary in plain language: what happened, which user and systems were affected, whether data left the network, what was done and what is needed next. Be honest about unknowns and confidence. Keep facts and inferences separate. Include indicators of compromise in defanged form so other teams can block them, and link the ticket and evidence."
+     ]
+    },
+    {
+     "h": "Review and detection gaps",
+     "p": [
+      "A post-incident review asks what worked, what failed and what to change. Compute time to detect and time to contain from the timeline. Identify gaps: was the phishing mail not blocked, did EDR only alert after execution, was outbound beaconing unmonitored, were there no alerts on new service logons? Turn each gap into an action: a new detection rule, a tuned threshold, an email filter change, mandatory MFA, or user awareness training. Test new detections against the captured data. Assign owners and dates, and track completion. This closes the loop between response and prevention."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Response log (fictional)",
+    "text": "10:31Z  Isolate WS-114 (EDR network containment)      analyst\n10:40Z  Disable alice, revoke sessions, reset password  IAM\n10:52Z  Block 203.0.113.50 and cdn.example.com         NetSec\n11:05Z  Purge hash 9f2c...e1 from 4 mailboxes          Mail admin\n13:30Z  IOC sweep: no other hosts. Rebuild WS-114      IT\nGAPS: no alert on beaconing; macro policy; no MFA on mail"
+   },
+   "example": "Finishing the capstone, the analyst isolates WS-114, disables alice's account and blocks the C2 address and domain. The malicious email is purged from four mailboxes and an indicator sweep finds no other infected hosts. The report shows detection 28 minutes after first execution and containment at 44 minutes. Gaps are listed: no beaconing detection, macros allowed, no MFA. Her manager summary reads: one workstation was compromised through a phishing attachment, no evidence that data left, the system has been rebuilt, three improvements are being tracked.",
+   "terms": [
+    {
+     "term": "Containment",
+     "def": "Actions that stop an incident from spreading while preserving evidence."
+    },
+    {
+     "term": "Eradication",
+     "def": "Removing the attacker's access, persistence and malicious files."
+    },
+    {
+     "term": "IOC",
+     "def": "Indicator of compromise, such as a hash, IP or domain linked to malicious activity."
+    },
+    {
+     "term": "Time to contain",
+     "def": "Elapsed time from detection or first activity to containment."
+    },
+    {
+     "term": "Detection gap",
+     "def": "A stage of the attack that existing controls failed to notice or prevent."
+    },
+    {
+     "term": "Post-incident review",
+     "def": "Structured discussion of what happened and what should change."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which containment action fits a workstation running a beacon?",
+     "options": [
+      "Delete all logs",
+      "EDR network isolation",
+      "Format the SIEM",
+      "Ignore until Monday"
+     ],
+     "a": 1,
+     "why": "Isolation stops C2 and spread while keeping evidence."
+    },
+    {
+     "q": "Why avoid powering off an infected machine immediately?",
+     "options": [
+      "It is illegal",
+      "Volatile memory evidence would be lost",
+      "It speeds up malware",
+      "The SIEM stops"
+     ],
+     "a": 1,
+     "why": "RAM contains processes, connections and keys useful for analysis."
+    },
+    {
+     "q": "Which is a detection gap?",
+     "options": [
+      "The ticket had an owner",
+      "Outbound beaconing generated no alert",
+      "The report had a summary",
+      "The host was isolated"
+     ],
+     "a": 1,
+     "why": "A missing alert on an attack stage is a gap to fix."
+    },
+    {
+     "q": "What should the manager summary avoid?",
+     "options": [
+      "Plain language",
+      "Unlabeled assumptions presented as fact",
+      "Impact and status",
+      "Next steps"
+     ],
+     "a": 1,
+     "why": "Managers act on what you say, so uncertainty must be labeled."
+    }
+   ],
+   "recap": [
+    "Contain with targeted, reversible actions and record each one in UTC.",
+    "Eradicate persistence, recover from a known good state and sweep for IOCs.",
+    "Report, measure detection and containment times, and convert gaps into owned improvements."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Capstone investigation",
+   "sim": "scenario",
+   "scenario": "You are on shift at the fictional Example Corp SOC. The simulator provides an alert queue of six items, SIEM logs, a short PCAP of host WS-114 and a phishing email with an attachment hash. Your task is to decide priority, link related items, pivot across all three sources and assemble a UTC attack timeline mapped to ATT&CK, using only the provided evidence.",
+   "objective": "Triage the queue, pivot across logs, PCAP and email, and build the full attack timeline.",
+   "steps": [
+    {
+     "do": "Rank the six alerts by asset value, confidence and urgency.",
+     "see": "The simulator accepts a ranking with the domain controller alert and the WS-114 cluster first."
+    },
+    {
+     "do": "Group alerts that share user alice or host WS-114.",
+     "see": "Three alerts merge into case INC-4100; two are deferred."
+    },
+    {
+     "do": "Open the phishing email and record sender, Message-ID, SPF result and SHA-256.",
+     "see": "SPF fail and the hash are added to observables."
+    },
+    {
+     "do": "Search the SIEM for the hash and the recipients.",
+     "see": "Four recipients; only alice executed the file."
+    },
+    {
+     "do": "Open the PCAP and filter on 203.0.113.50.",
+     "see": "Regular 60-second TLS sessions with SNI cdn.example.com and a larger upload."
+    },
+    {
+     "do": "Check authentication logs for alice after execution.",
+     "see": "A type 3 logon to FILESRV-02 appears at 10:20Z."
+    },
+    {
+     "do": "Place each finding on the UTC timeline and tag it with ATT&CK.",
+     "see": "T1566.001, T1204.002, T1059.001, T1071.001, T1021 accepted."
+    },
+    {
+     "do": "Mark any unsupported link as an inference.",
+     "see": "Exfiltration is flagged as suspected, not confirmed."
+    }
+   ],
+   "answer": "Timeline: phishing delivery (T1566.001), attachment opened and PowerShell run (T1204.002, T1059.001), beaconing every 60 seconds to 203.0.113.50 (T1071.001), larger outbound upload suspected, lateral logon to FILESRV-02 (T1021). Five stages, each sourced to email, EDR, proxy, PCAP or authentication logs.",
+   "hint": "Start from the email hash, then follow the host and account through each source."
+  },
+  {
+   "title": "Capstone report and response",
+   "sim": "chat-sim",
+   "scenario": "The investigation is complete. A chat-based reviewer, acting as the incident manager at Example Corp, asks you to submit your containment actions, ATT&CK mapping and a short summary for a non-technical manager, then asks follow-up review questions about scope, confidence and detection gaps. You must keep facts separate from assumptions, justify each action in plain language, and avoid unnecessary jargon throughout.",
+   "objective": "Submit containment, an ATT&CK mapping and a manager summary, then answer review questions.",
+   "steps": [
+    {
+     "do": "Select containment: isolate WS-114, disable alice, block the IP and domain, purge the email.",
+     "see": "Each action is accepted with its UTC time field."
+    },
+    {
+     "do": "Reject powering off the host and deleting logs.",
+     "see": "The reviewer notes that evidence must be preserved."
+    },
+    {
+     "do": "Enter the ATT&CK mapping for each phase.",
+     "see": "Mappings are checked against the evidence."
+    },
+    {
+     "do": "Write a five-sentence manager summary with impact and status.",
+     "see": "Reviewer flags any jargon and asks for revision."
+    },
+    {
+     "do": "Answer the review question on data loss: state confirmed, suspected and unknown.",
+     "see": "Exfiltration is accepted as suspected, volume unknown."
+    },
+    {
+     "do": "List detection gaps and owners.",
+     "see": "Beaconing detection, macro policy and MFA are recorded."
+    },
+    {
+     "do": "Submit the final report.",
+     "see": "Score and written feedback are displayed."
+    }
+   ],
+   "answer": "Containment: isolate WS-114, disable and reset alice, block 203.0.113.50 and cdn.example.com, purge the email, sweep for IOCs. Summary: one workstation compromised via phishing, possible data upload unconfirmed, system rebuilt, three improvements tracked. Gaps: beaconing alert, macro policy, MFA.",
+   "hint": "Keep the summary in plain language and label what you did not confirm."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Two alerts share user alice, host WS-114 and a 40-minute window. What is the best action?",
+   "options": [
+    "Close both",
+    "Group them into one case and test the link",
+    "Ignore the second",
+    "Assign to different teams"
+   ],
+   "a": 1,
+   "why": "Shared entities and timing justify grouping, with verification."
+  },
+  {
+   "q": "Which alert is normally highest priority?",
+   "options": [
+    "Low-confidence scan on a lab laptop",
+    "Credential dumping on a domain controller",
+    "Duplicate alert",
+    "Informational login"
+   ],
+   "a": 1,
+   "why": "High-value asset with high-confidence malicious behavior."
+  },
+  {
+   "q": "A competing benign hypothesis is useful because it:",
+   "options": [
+    "Delays the case",
+    "Reduces confirmation bias",
+    "Replaces evidence",
+    "Is required by ATT&CK"
+   ],
+   "a": 1,
+   "why": "It forces testing of alternative explanations."
+  },
+  {
+   "q": "Which header results help judge email authenticity?",
+   "options": [
+    "TTL and MTU",
+    "SPF, DKIM and DMARC",
+    "HTTP status",
+    "DNS TTL"
+   ],
+   "a": 1,
+   "why": "Authentication-Results reports SPF, DKIM and DMARC outcomes."
+  },
+  {
+   "q": "Fixed 60-second connections to one external IP indicate:",
+   "options": [
+    "Beaconing",
+    "Time sync",
+    "Software licensing",
+    "Backups only"
+   ],
+   "a": 0,
+   "why": "Periodic callbacks are typical of C2 beacons."
+  },
+  {
+   "q": "Spearphishing attachment maps to which ATT&CK ID?",
+   "options": [
+    "T1566.001",
+    "T1003",
+    "T1021",
+    "T1486"
+   ],
+   "a": 0,
+   "why": "T1566.001 is Phishing: Spearphishing Attachment."
+  },
+  {
+   "q": "Which is the best first containment action for a beaconing workstation?",
+   "options": [
+    "Power it off and discard",
+    "Isolate it with EDR network containment",
+    "Wait for backups",
+    "Rename the host"
+   ],
+   "a": 1,
+   "why": "Isolation stops C2 and spread, and preserves evidence."
+  },
+  {
+   "q": "Why sweep for IOCs after cleanup?",
+   "options": [
+    "To confirm no other hosts are affected",
+    "To lengthen the report",
+    "To delete the ticket",
+    "To disable the SIEM"
+   ],
+   "a": 0,
+   "why": "A sweep tests whether the incident is wider than known."
+  },
+  {
+   "q": "Which belongs in a manager summary?",
+   "options": [
+    "Registry paths",
+    "Business impact, status, unknowns and next steps",
+    "Raw packets",
+    "Rule syntax"
+   ],
+   "a": 1,
+   "why": "Managers need impact and decisions in plain language."
+  },
+  {
+   "q": "What should you do with a detection gap found in review?",
+   "options": [
+    "Ignore it",
+    "Create an owned, dated action such as a new rule or control",
+    "Delete the logs",
+    "Blame the user"
+   ],
+   "a": 1,
+   "why": "Gaps become tracked improvements."
+  }
+ ]
+}

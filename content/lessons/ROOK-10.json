@@ -1,0 +1,892 @@
+{
+ "code": "ROOK-10",
+ "intro": "Scripting turns repetitive security chores into repeatable tools. This module introduces Bash and Python side by side: variables and data types, conditions, loops, functions and arguments, reading files, and regular expressions. You finish by building a small log analyzer that counts failed logins and writes a report. These skills let you sweep a range of addresses, extract indicators from logs and automate checks, and they are the base for nearly every later security task.",
+ "lessons": [
+  {
+   "title": "Variables and Data Types",
+   "why": "Variables hold the data every script works on, and understanding types prevents the most common beginner bugs.",
+   "sections": [
+    {
+     "h": "Variables in Bash",
+     "p": [
+      "In Bash a variable is set with name=value and no spaces around the equals sign: host=192.0.2.10. You read it with a dollar sign, as in echo $host, and quoting it as \"$host\" is the safe habit, because unquoted values containing spaces or wildcards get split and expanded. Bash treats nearly everything as a string, and arithmetic uses $(( )), for example count=$((count + 1)). Command output is captured with $( ), as in today=$(date +%F). Variables are local to the shell unless exported with export. By convention, uppercase names are used for environment variables such as PATH and HOME."
+     ]
+    },
+    {
+     "h": "Variables in Python",
+     "p": [
+      "Python variables are created by assignment and have a type determined by the value: host = '192.0.2.10', port = 22, ratio = 0.75, active = True. Spaces around = are fine. Python is dynamically typed but strongly typed, so '22' + 1 raises an error rather than guessing. The main built-in types are str, int, float, bool, list, tuple, dict and set. Use type(x) to inspect a value and int('22') or str(22) to convert. Names are case sensitive, should be lowercase with underscores, and cannot start with a digit. Comments begin with #, just as in Bash."
+     ]
+    },
+    {
+     "h": "Strings, integers, lists and dictionaries",
+     "p": [
+      "Strings hold text and can be sliced: host[0:3] gives the first three characters, and f-strings such as f'{host}:{port}' build text. Integers support arithmetic and comparison. A list is an ordered, changeable collection: ports = [22, 80, 443], with ports[0] being 22 and ports.append(8080) adding an item. A dictionary maps keys to values: user = {'name': 'alice', 'uid': 1001}, read with user['name']. Counting events per IP is a natural dictionary use. Bash has arrays, ports=(22 80 443) with ${ports[0]}, and associative arrays declared with declare -A, though Python is usually easier for structured data."
+     ]
+    },
+    {
+     "h": "Good habits and security notes",
+     "p": [
+      "Pick descriptive names such as failed_count rather than x. Never hard-code passwords or API keys in scripts; read them from environment variables or a protected file, because scripts get shared and committed to repositories. Treat values from outside the script, like arguments and file contents, as untrusted data: in Bash, an unquoted variable inside a command can lead to unexpected word splitting or command injection. Add set -u to Bash scripts to fail on unset variables. Test small pieces in an interactive session, python3 or bash, before assembling them into a program."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Code",
+    "text": "# Bash\nhost=192.0.2.10\nports=(22 80 443)\necho \"Scanning $host on ${#ports[@]} ports\"\n# Python\nhost = '192.0.2.10'\nports = [22, 80, 443]\nattempts = {'203.0.113.9': 212}\nprint(f'Scanning {host} on {len(ports)} ports')"
+   },
+   "example": "A learner wants to track failed logins per address. In Python she creates an empty dictionary, attempts = {}, then for each address she writes attempts[ip] = attempts.get(ip, 0) + 1. After processing, attempts holds {'203.0.113.9': 212, '198.51.100.7': 14}. A list of ports and a string for the host cover the rest. Choosing a dictionary meant each address was a key and each count a value, avoiding two parallel lists.",
+   "terms": [
+    {
+     "term": "Variable",
+     "def": "A named storage location for a value."
+    },
+    {
+     "term": "String",
+     "def": "A sequence of text characters."
+    },
+    {
+     "term": "List",
+     "def": "An ordered, changeable collection of items."
+    },
+    {
+     "term": "Dictionary",
+     "def": "A collection of key and value pairs."
+    },
+    {
+     "term": "Command substitution",
+     "def": "$( ) syntax that captures a command's output in Bash."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which Bash assignment is correct?",
+     "options": [
+      "host = 1",
+      "host=1",
+      "$host=1",
+      "set host 1"
+     ],
+     "a": 1,
+     "why": "No spaces around = in Bash."
+    },
+    {
+     "q": "Which Python type maps keys to values?",
+     "options": [
+      "list",
+      "dict",
+      "tuple",
+      "str"
+     ],
+     "a": 1,
+     "why": "dict stores key and value pairs."
+    },
+    {
+     "q": "How do you read a Bash variable?",
+     "options": [
+      "host",
+      "$host",
+      "@host",
+      "%host%"
+     ],
+     "a": 1,
+     "why": "A dollar sign expands it."
+    },
+    {
+     "q": "Why avoid hard-coded passwords in scripts?",
+     "options": [
+      "Python forbids them",
+      "Scripts are shared and committed",
+      "They slow the script",
+      "They change types"
+     ],
+     "a": 1,
+     "why": "Secrets in code leak easily."
+    }
+   ],
+   "recap": [
+    "Bash uses name=value with no spaces; quote expansions.",
+    "Python types include str, int, list and dict.",
+    "Keep secrets out of scripts and treat inputs as untrusted."
+   ]
+  },
+  {
+   "title": "Conditions and Comparisons",
+   "why": "Branching lets a script react to what it finds, such as a host that is up or a file that is missing.",
+   "sections": [
+    {
+     "h": "if in Python",
+     "p": [
+      "In Python a condition is an if, optional elif and else, each ending in a colon, with the body indented. Comparison operators are ==, !=, <, >, <=, >=, and the boolean operators are and, or, not. For example: if failed > 100: print('block') elif failed > 10: print('watch') else: print('ok'). Indentation, usually four spaces, defines blocks, so a wrong indent is a syntax error. A common mistake is using = (assignment) where == (comparison) is needed. Membership tests with in are handy: if '22' in ports. Empty strings, zero and empty lists count as false."
+     ]
+    },
+    {
+     "h": "if in Bash",
+     "p": [
+      "Bash uses if, then, elif, else and fi. The test goes in [ ] or the safer [[ ]]: if [[ $count -gt 100 ]]; then echo block; fi. Numeric comparisons use -eq, -ne, -gt, -ge, -lt and -le, while strings use == and !=. File tests include -f for a regular file, -d for a directory and -r for readable. Spaces inside the brackets are required. Using string operators on numbers or numeric operators on strings gives wrong results or errors, a very frequent beginner trap. Quote variables inside tests so an empty value does not break the syntax."
+     ]
+    },
+    {
+     "h": "Exit codes",
+     "p": [
+      "Every Unix command ends with an exit status: 0 means success and any other number means failure. The variable $? holds the status of the last command. You can branch on a command directly: if grep -q 'Failed password' auth.log; then echo found; fi, where -q suppresses output and only the status matters. Your own scripts should end with exit 0 on success and exit 1 or another code on failure so that other tools, such as cron or CI systems, know what happened. In Python, sys.exit(1) does the same and subprocess results expose returncode."
+     ]
+    },
+    {
+     "h": "Combining and testing logic",
+     "p": [
+      "Combine tests with && and || in Bash or and and or in Python, and group with parentheses to control order. Build tests for the edge cases: zero events, one event, a missing file and unexpected input. For example, check that the file exists before reading it, and check that an argument was supplied before using it. Off-by-one errors with greater-than versus greater-or-equal are common, and so is comparing numbers stored as text. Print values while debugging, then remove the extra output. Simple, explicit conditions are easier to review and safer than clever one-liners."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Code",
+    "text": "# Python\nif failed > 100:\n    print('block')\nelif failed > 10:\n    print('watch')\nelse:\n    print('ok')\n# Bash\nif [[ $failed -gt 100 ]]; then echo block; fi\nif grep -q 'Failed' auth.log; then echo found; fi"
+   },
+   "example": "A script must decide what to do with an address. It counts 212 failures for 203.0.113.9. With the thresholds above, 212 is greater than 100, so it prints block. For 14 failures, the first test fails and the elif for greater than 10 succeeds, printing watch. A learner who wrote failed = 100 in the condition would overwrite the count and cause a syntax error, a reminder that == compares and = assigns.",
+   "terms": [
+    {
+     "term": "Condition",
+     "def": "An expression that is true or false and controls the flow."
+    },
+    {
+     "term": "Exit status",
+     "def": "A number returned by a command; 0 means success."
+    },
+    {
+     "term": "elif",
+     "def": "Python keyword for an additional condition after if."
+    },
+    {
+     "term": "-gt",
+     "def": "Bash numeric comparison for greater than."
+    },
+    {
+     "term": "Indentation",
+     "def": "Leading whitespace that defines blocks in Python."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which Bash operator tests numeric greater than?",
+     "options": [
+      "-gt",
+      ">>",
+      "gt",
+      "=>"
+     ],
+     "a": 0,
+     "why": "-gt is numeric greater than."
+    },
+    {
+     "q": "What exit status means success?",
+     "options": [
+      "0",
+      "1",
+      "-1",
+      "255"
+     ],
+     "a": 0,
+     "why": "Zero is success."
+    },
+    {
+     "q": "Which Python line is a valid comparison?",
+     "options": [
+      "if x = 5:",
+      "if x == 5:",
+      "if x := = 5",
+      "if (x) = 5"
+     ],
+     "a": 1,
+     "why": "== compares."
+    },
+    {
+     "q": "What does grep -q do in an if test?",
+     "options": [
+      "Prints more",
+      "Suppresses output and returns status",
+      "Counts lines",
+      "Quits the shell"
+     ],
+     "a": 1,
+     "why": "-q is quiet and sets exit code."
+    }
+   ],
+   "recap": [
+    "Python uses if/elif/else with colons and indentation; Bash uses then and fi.",
+    "Bash has separate numeric and string operators.",
+    "Exit status 0 means success and drives branching."
+   ]
+  },
+  {
+   "title": "Loops",
+   "why": "Loops apply the same action to many items, such as every host in a range or every line of a log.",
+   "sections": [
+    {
+     "h": "for loops in Python",
+     "p": [
+      "A for loop in Python walks over any sequence: for port in [22, 80, 443]: print(port). The range function generates numbers: range(1, 6) gives 1 to 5, since the end is excluded, and range(5) starts at 0. You can iterate over dictionary items with for ip, count in attempts.items(). Use enumerate when you also need the position, and break to leave early or continue to skip to the next item. The loop body is indented. Looping over a collection is cleaner and safer than managing a counter yourself."
+     ]
+    },
+    {
+     "h": "for loops in Bash",
+     "p": [
+      "Bash for loops look like for host in web01 db01 app01; do ping -c 1 $host; done. Brace expansion generates ranges, such as for i in {1..10}, and the C-style form for ((i=1; i<=10; i++)) also works. A ping sweep of a fictional network is for i in {1..254}; do ping -c 1 -W 1 192.0.2.$i > /dev/null && echo 192.0.2.$i is up; done. The && means the echo runs only if ping succeeded, and the output redirect hides the noise. Only scan networks you own or are authorized to test, since sweeping other people's networks may be illegal."
+     ]
+    },
+    {
+     "h": "while loops",
+     "p": [
+      "A while loop repeats as long as a condition is true. In Python: while attempts < 3: ... attempts += 1. In Bash: while read -r line; do echo \"$line\"; done < auth.log, which reads a file one line at a time through input redirection. The -r option stops backslashes being interpreted. A loop must change something so its condition eventually becomes false, or it runs forever, which can be intended for a monitor but must then include a sleep to avoid burning CPU. Stop a runaway script with Ctrl+C."
+     ]
+    },
+    {
+     "h": "Looping over file lines",
+     "p": [
+      "Reading a log line by line is the core of many tools. In Python, with open('auth.log') as f: for line in f: ... opens the file safely, closes it automatically and does not load the entire file into memory. Strip the trailing newline with line.strip(). In Bash, use while read -r line, and avoid for line in $(cat file), which splits on every space. Inside the loop test each line, extract fields and update counters. Keep the loop small and push complex work into functions, which also makes the script easier to test on a few sample lines first."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Code",
+    "text": "# Bash ping sweep (fictional lab range)\nfor i in {1..5}; do\n  ping -c 1 -W 1 192.0.2.$i > /dev/null && echo \"192.0.2.$i up\"\ndone\n# Python\nwith open('auth.log') as f:\n    for line in f:\n        if 'Failed' in line:\n            print(line.strip())"
+   },
+   "example": "An analyst wants a list of the live addresses in the lab range 192.0.2.1 to 192.0.2.20. She uses a for loop over {1..20}, pings each with one packet and a one-second timeout, and prints only those that answer. The output lists 192.0.2.1, .5 and .12. The same logic in Python would use range(1, 21) and the subprocess module. The loop replaced twenty manual commands with one.",
+   "terms": [
+    {
+     "term": "for loop",
+     "def": "Repeats a block for each item in a sequence."
+    },
+    {
+     "term": "while loop",
+     "def": "Repeats a block while a condition remains true."
+    },
+    {
+     "term": "range()",
+     "def": "Python function that generates a sequence of integers."
+    },
+    {
+     "term": "break",
+     "def": "Statement that exits a loop early."
+    },
+    {
+     "term": "Brace range",
+     "def": "Bash {1..10} expansion producing a number sequence."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does range(1, 4) produce in Python?",
+     "options": [
+      "1,2,3,4",
+      "1,2,3",
+      "0,1,2,3",
+      "2,3,4"
+     ],
+     "a": 1,
+     "why": "The end value is excluded."
+    },
+    {
+     "q": "Which Bash loop reads a file line by line safely?",
+     "options": [
+      "for l in $(cat f)",
+      "while read -r line; do ... done < f",
+      "until f",
+      "loop f"
+     ],
+     "a": 1,
+     "why": "while read handles whole lines."
+    },
+    {
+     "q": "What does && do after ping?",
+     "options": [
+      "Runs the next command only if ping succeeds",
+      "Runs in the background",
+      "Pipes output",
+      "Repeats ping"
+     ],
+     "a": 0,
+     "why": "&& chains on success."
+    },
+    {
+     "q": "Why use with open() in Python?",
+     "options": [
+      "It auto-closes the file",
+      "It makes it faster",
+      "It encrypts",
+      "It sorts lines"
+     ],
+     "a": 0,
+     "why": "The context manager closes the file."
+    }
+   ],
+   "recap": [
+    "for iterates over items; while repeats on a condition.",
+    "Read files line by line rather than loading everything.",
+    "Only sweep networks you are authorized to test."
+   ]
+  },
+  {
+   "title": "Functions and Arguments",
+   "why": "Functions let you name and reuse logic, and arguments make a script flexible instead of hard-coded.",
+   "sections": [
+    {
+     "h": "Defining Python functions",
+     "p": [
+      "A Python function is defined with def, a name, parameters in parentheses, a colon and an indented body: def is_private(ip): ... return True. return sends a value back to the caller; without it the function returns None. Call it by name with arguments, such as is_private('192.0.2.5'). Parameters can have defaults, def top(items, n=5), and may be passed by keyword. Variables created inside a function are local to it. Small functions that do one thing are easier to test, reuse and understand, and a docstring in triple quotes documents what they do."
+     ]
+    },
+    {
+     "h": "Functions in Bash",
+     "p": [
+      "Bash defines a function as name() { commands; }. Inside it the arguments are $1, $2 and so on, with $# giving the count and \"$@\" giving all of them. A function's return value is a numeric exit status, 0 to 255, set with return; to pass back text, print it with echo and capture it using $( ). Variables are global by default, so declare them local to avoid surprises. Example: check_host() { ping -c 1 -W 1 \"$1\" > /dev/null; } lets you write if check_host 192.0.2.7; then ... fi."
+     ]
+    },
+    {
+     "h": "Script arguments",
+     "p": [
+      "Scripts receive command-line arguments just like functions. In Bash the script name is $0, the first argument is $1, and $# is the count, so run it as ./scan.sh 192.0.2.10 and check [[ $# -lt 1 ]] to print a usage message and exit 1. In Python, import sys and read sys.argv, a list where sys.argv[0] is the script name and sys.argv[1] is the first argument; the argparse module adds flags, help text and type checks. Always validate arguments: check the count, check that a file exists, and never pass raw input into a command line without quoting."
+     ]
+    },
+    {
+     "h": "Structuring a script",
+     "p": [
+      "A tidy script has a short header comment, constants at the top, functions in the middle and a main section at the bottom. In Python, wrap the entry point in if __name__ == '__main__': main() so the file can also be imported and tested. Return values and print only at the edges, so the logic stays reusable. Handle errors clearly, with messages to standard error and nonzero exit codes. Avoid copy-pasting blocks of code; if you repeat something twice, make it a function. These habits let a security team trust and maintain tools written months earlier."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Code",
+    "text": "# Bash\ncheck_host() { ping -c 1 -W 1 \"$1\" > /dev/null; }\n[[ $# -lt 1 ]] && { echo \"usage: $0 host\"; exit 1; }\ncheck_host \"$1\" && echo \"$1 is up\"\n# Python\nimport sys\ndef top(counts, n=5):\n    return sorted(counts.items(), key=lambda kv: kv[1], reverse=True)[:n]\nprint(top({'a': 3, 'b': 9}, 1))"
+   },
+   "example": "A teammate keeps editing the address in a script. The learner changes it to read the address from the command line: Bash uses $1, and Python uses sys.argv[1]. She adds a check that prints usage and exits with code 1 when no argument is supplied. She then wraps the ping command in a function check_host so the same code is used for a single host and for a loop. The tool now works for any address and fails clearly when misused.",
+   "terms": [
+    {
+     "term": "Function",
+     "def": "A named, reusable block of code."
+    },
+    {
+     "term": "Parameter",
+     "def": "A variable in a function definition that receives an argument."
+    },
+    {
+     "term": "$1",
+     "def": "The first positional argument in Bash."
+    },
+    {
+     "term": "sys.argv",
+     "def": "Python list holding command-line arguments."
+    },
+    {
+     "term": "return",
+     "def": "Statement that ends a function and gives back a value."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which Bash variable holds the first argument?",
+     "options": [
+      "$0",
+      "$1",
+      "$#",
+      "$@"
+     ],
+     "a": 1,
+     "why": "$1 is the first argument."
+    },
+    {
+     "q": "What is sys.argv[0] in Python?",
+     "options": [
+      "First argument",
+      "The script name",
+      "Number of arguments",
+      "The interpreter"
+     ],
+     "a": 1,
+     "why": "Index 0 is the script name."
+    },
+    {
+     "q": "What does $# contain in Bash?",
+     "options": [
+      "Process ID",
+      "Argument count",
+      "Exit status",
+      "Script name"
+     ],
+     "a": 1,
+     "why": "$# is the number of arguments."
+    },
+    {
+     "q": "What does a Python function return if there is no return statement?",
+     "options": [
+      "0",
+      "None",
+      "False",
+      "An error"
+     ],
+     "a": 1,
+     "why": "It returns None."
+    }
+   ],
+   "recap": [
+    "Functions name reusable logic; Python uses def and return.",
+    "Bash functions use $1, $2 and exit status.",
+    "Validate arguments and print usage on bad input."
+   ]
+  },
+  {
+   "title": "Reading Files and Regex",
+   "why": "Security data is mostly text in logs, and regular expressions let you pull out the IPs, emails and timestamps that matter.",
+   "sections": [
+    {
+     "h": "Reading files",
+     "p": [
+      "In Python, open a file with with open(path) as f: and iterate for line in f:. Use f.read() for the whole content, f.readlines() for a list, and the mode 'w' or 'a' to write or append. Catch FileNotFoundError and PermissionError to fail gracefully. In Bash, redirect with < or use while read -r. Specify encoding='utf-8' and errors='replace' for logs that may contain odd bytes. Logs can be very large, so process them line by line. Check that the file path is what you expect, since a script reading a file chosen by a user should not follow input into sensitive locations."
+     ]
+    },
+    {
+     "h": "Regular expression building blocks",
+     "p": [
+      "A regular expression, or regex, describes a text pattern. Literal characters match themselves. A dot matches any character, \\d matches a digit, \\w a word character and \\s whitespace. Quantifiers say how many: * zero or more, + one or more, ? optional, {3} exactly three and {1,3} one to three. Brackets define sets, like [A-Za-z], and parentheses capture groups. The anchors ^ and $ match start and end of a line, and the pipe means or. A backslash makes a special character literal, so a literal dot is \\. in the pattern. Use raw strings in Python, r'\\d+', to avoid doubled backslashes."
+     ]
+    },
+    {
+     "h": "Matching IPs, emails and timestamps",
+     "p": [
+      "A practical IPv4 pattern is r'\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b'. It finds the shape of an address but also accepts 999.1.1.1, so validate ranges afterwards with the ipaddress module. A simple email pattern is r'[\\w.+-]+@[\\w-]+\\.[\\w.-]+'. A syslog timestamp such as Mar  3 09:20:37 matches r'[A-Z][a-z]{2}\\s+\\d{1,2} \\d{2}:\\d{2}:\\d{2}'. In Python use re.search for the first match, re.findall for all matches and re.compile to reuse a pattern. In Bash, grep -oE prints only the matching part."
+     ]
+    },
+    {
+     "h": "Pitfalls and testing",
+     "p": [
+      "Regex is powerful but easy to get wrong. Greedy quantifiers match as much as possible, so .* can swallow too much; use .*? for the shortest match. Test patterns on sample lines, including ones that should not match, with a tool or a small script. Avoid patterns with nested quantifiers on untrusted input, which can cause catastrophic backtracking and a denial of service. Do not try to parse complex formats like HTML with regex, and prefer a JSON or CSV library when data is structured. Regex finds candidates; verify them. Remember that extracted indicators, such as IPs, may be spoofed or shared hosts."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Code",
+    "text": "import re\nip_re = re.compile(r'\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b')\nline = 'Mar  3 09:20:37 web01 sshd[2210]: Failed password for root from 203.0.113.9 port 51520'\nprint(ip_re.findall(line))\n# ['203.0.113.9']\n# Bash\ngrep -oE '([0-9]{1,3}\\.){3}[0-9]{1,3}' auth.log | sort -u"
+   },
+   "example": "A learner has a sample log with lines from 203.0.113.9, 198.51.100.7 and 203.0.113.9 again. She compiles the IPv4 pattern, runs findall on each line and adds each result to a set, which stores only unique values. The set ends with two addresses. She then tests the pattern against a line containing the text version 1.2.3, to make sure the pattern does not wrongly report a three-part number as an address.",
+   "terms": [
+    {
+     "term": "Regex",
+     "def": "A pattern language for matching text."
+    },
+    {
+     "term": "Quantifier",
+     "def": "A symbol like *, + or {n} that says how many times to match."
+    },
+    {
+     "term": "Capture group",
+     "def": "Part of a pattern in parentheses whose match is extracted."
+    },
+    {
+     "term": "Raw string",
+     "def": "Python r'' string where backslashes are literal."
+    },
+    {
+     "term": "Greedy match",
+     "def": "A match that takes as much text as possible."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does \\d match?",
+     "options": [
+      "A digit",
+      "A dot",
+      "Any letter",
+      "Whitespace"
+     ],
+     "a": 0,
+     "why": "\\d is a digit."
+    },
+    {
+     "q": "What is the safest way to write a literal dot in regex?",
+     "options": [
+      ".",
+      "\\.",
+      "*",
+      "?"
+     ],
+     "a": 1,
+     "why": "Escape the dot."
+    },
+    {
+     "q": "Which function returns all matches in Python's re?",
+     "options": [
+      "re.search",
+      "re.findall",
+      "re.sub",
+      "re.split"
+     ],
+     "a": 1,
+     "why": "findall returns a list of matches."
+    },
+    {
+     "q": "Why validate matches from an IPv4 regex?",
+     "options": [
+      "Pattern also matches invalid numbers like 999.1.1.1",
+      "It is too slow",
+      "Regex cannot match digits",
+      "IPs are secret"
+     ],
+     "a": 0,
+     "why": "The pattern checks shape, not range."
+    }
+   ],
+   "recap": [
+    "Read files line by line using with open or while read.",
+    "Regex uses classes, quantifiers, anchors and groups.",
+    "Test patterns, validate results and avoid greedy surprises."
+   ]
+  },
+  {
+   "title": "Automating a Small Task",
+   "why": "Putting loops, conditions, functions and regex together shows how scripting saves hours and produces consistent reports.",
+   "sections": [
+    {
+     "h": "Plan before coding",
+     "p": [
+      "Start by stating the task in one sentence: read auth.log, count failed SSH logins per source address, print the top five and save a report. Then list the inputs (a file path), the processing (find failed lines, extract addresses, count) and outputs (a text report and an exit code). Sketch the steps as functions: parse_line, count_failures, write_report. Try each step by hand on a few sample lines before scripting them. Planning avoids the common problem of a long script that no one, including its author, can debug."
+     ]
+    },
+    {
+     "h": "Parsing and counting",
+     "p": [
+      "The core is a loop that reads lines, filters, extracts and counts. In Python: for line in f: if 'Failed password' in line: m = ip_re.search(line); if m: counts[m.group()] = counts.get(m.group(), 0) + 1. Counter from the collections module simplifies this: counts = Counter(); counts.update([ip]). Sorting by count uses counts.most_common(5). The Bash equivalent is the pipeline grep 'Failed password' auth.log | grep -oE '([0-9]{1,3}\\.){3}[0-9]{1,3}' | sort | uniq -c | sort -nr | head -n 5. Both give the same result; choose Python when you need more logic."
+     ]
+    },
+    {
+     "h": "Writing the report",
+     "p": [
+      "A good report states what was analyzed and when, and presents the results clearly. Write it with open('report.txt', 'w'), including a header with the file name and date, the total number of failed attempts and one line per top address. Using the datetime module adds a timestamp. Use append mode only if you intend to keep history. Choose a sensible output location and permissions, because a report with attacker data and usernames is sensitive; set the file mode to 640 or 600. Add a nonzero exit code if a threshold is exceeded so that a scheduler can alert someone."
+     ]
+    },
+    {
+     "h": "Running and maintaining it",
+     "p": [
+      "Test with a small sample file whose answer you know, an empty file and a missing file. Add error handling for each. Then schedule it with cron, for example 0 6 * * * /usr/local/bin/failed_report.sh, writing output to a log. Document usage in a comment header and keep the script in version control. Review it as you would any code, since automation that runs with high privileges is itself a target. When requirements grow, such as new log formats, extend the parsing function rather than rewriting. Always keep the original logs untouched; the script should only read them."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Code",
+    "text": "from collections import Counter\nimport re\nip_re = re.compile(r'\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b')\ncounts = Counter()\nwith open('auth.log') as f:\n    for line in f:\n        if 'Failed password' in line:\n            m = ip_re.search(line)\n            if m: counts[m.group()] += 1\nfor ip, n in counts.most_common(5):\n    print(f'{n:5d} {ip}')"
+   },
+   "example": "A small company wants a daily summary of SSH failures. The learner writes the Counter-based script above, tests it on a ten-line sample where she knows the answer, then adds a header with the date and a total. The script writes report.txt with mode 640 and exits with code 2 if any address exceeds 100 attempts. Cron runs it at 06:00, and an alert system watches for exit code 2. Her manual twenty-minute task now takes seconds.",
+   "terms": [
+    {
+     "term": "Automation",
+     "def": "Using scripts to perform repetitive tasks without manual steps."
+    },
+    {
+     "term": "Counter",
+     "def": "A Python collections class that counts items."
+    },
+    {
+     "term": "most_common",
+     "def": "Counter method that returns items ordered by count."
+    },
+    {
+     "term": "cron",
+     "def": "Linux scheduler that runs commands at set times."
+    },
+    {
+     "term": "Sample data",
+     "def": "Small known input used to test a script."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which Python class counts occurrences easily?",
+     "options": [
+      "Counter",
+      "List",
+      "Tuple",
+      "Pipe"
+     ],
+     "a": 0,
+     "why": "collections.Counter counts items."
+    },
+    {
+     "q": "Which scheduler runs scripts at set times on Linux?",
+     "options": [
+      "cron",
+      "grep",
+      "sudo",
+      "ping"
+     ],
+     "a": 0,
+     "why": "cron schedules jobs."
+    },
+    {
+     "q": "Why test with a sample file whose answer you know?",
+     "options": [
+      "To verify correctness",
+      "To speed it up",
+      "To encrypt data",
+      "To avoid functions"
+     ],
+     "a": 0,
+     "why": "A known answer proves the logic."
+    },
+    {
+     "q": "Should the script modify the original log?",
+     "options": [
+      "Yes, to tidy it",
+      "No, only read it",
+      "Only on Fridays",
+      "Always delete it"
+     ],
+     "a": 1,
+     "why": "Preserve original evidence."
+    }
+   ],
+   "recap": [
+    "Plan the inputs, steps and outputs, then script each step.",
+    "Combine loop, regex and a counter to summarize a log.",
+    "Test with samples, protect the report and schedule with cron."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Fix the Script",
+   "sim": "code-editor",
+   "scenario": "A fictional Python script is meant to flag any host with more than 10 failed logins, but it has a syntax error and a wrong comparison. The editor runs tests after each change.",
+   "objective": "Repair a Python script with a syntax error and a wrong comparison until it passes the tests.",
+   "steps": [
+    {
+     "do": "Run the tests on the original code",
+     "see": "SyntaxError: expected ':' at line 3  (if failed > 10)"
+    },
+    {
+     "do": "Add the missing colon after the if condition",
+     "see": "Syntax OK. Test 2 failed: host with 10 failures was flagged."
+    },
+    {
+     "do": "Read the condition: if failed >= 10",
+     "see": "Spot the off-by-one: threshold is 'more than 10'."
+    },
+    {
+     "do": "Change >= to >",
+     "see": "Test 2 passes."
+    },
+    {
+     "do": "Run all tests",
+     "see": "3/3 tests passed. flag(12)=True, flag(10)=False, flag(0)=False."
+    }
+   ],
+   "answer": "The fixes were adding the missing colon after the if line and changing >= to > so that exactly 10 failures is not flagged. All three tests then pass.",
+   "hint": "Read the error line number and check the comparison operator."
+  },
+  {
+   "title": "Ping Sweep Loop",
+   "sim": "code-editor",
+   "scenario": "In a fictional lab you must finish a Bash loop that tests addresses 192.0.2.1 to 192.0.2.10 and prints only those that reply. The simulator provides canned ping replies for hosts .1, .4 and .7. Only test authorized lab ranges.",
+   "objective": "Complete a Bash for loop that pings a host range and prints only the live addresses.",
+   "steps": [
+    {
+     "do": "Open the starter: for i in ___; do ... done",
+     "see": "Blank for the range."
+    },
+    {
+     "do": "Fill in {1..10}",
+     "see": "Loop header valid."
+    },
+    {
+     "do": "Add ping -c 1 -W 1 192.0.2.$i > /dev/null",
+     "see": "Runs, but output prints nothing yet."
+    },
+    {
+     "do": "Add && echo \"192.0.2.$i up\"",
+     "see": "Output: 192.0.2.1 up, 192.0.2.4 up, 192.0.2.7 up"
+    },
+    {
+     "do": "Run tests",
+     "see": "Pass: only live hosts printed, no ping noise."
+    }
+   ],
+   "answer": "The completed loop is for i in {1..10}; do ping -c 1 -W 1 192.0.2.$i > /dev/null && echo \"192.0.2.$i up\"; done, which prints 192.0.2.1, .4 and .7 as live hosts.",
+   "hint": "Use && so echo runs only if ping succeeds."
+  },
+  {
+   "title": "Regex IP Extractor",
+   "sim": "code-editor",
+   "scenario": "A fictional log sample contains several lines with IPv4 addresses, some repeated. Write a regex to extract every address and count the unique ones. The sample includes the text version 1.2.3, which must not match.",
+   "objective": "Write a regex that extracts every IPv4 address from a sample log and count unique matches.",
+   "steps": [
+    {
+     "do": "Open the sample log",
+     "see": "6 lines; addresses 203.0.113.9 (3 times), 198.51.100.7, 192.0.2.44; a line says 'version 1.2.3'"
+    },
+    {
+     "do": "Enter pattern \\d+\\.\\d+\\.\\d+\\.\\d+",
+     "see": "Matches 7 items but check the version string."
+    },
+    {
+     "do": "Refine to \\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b",
+     "see": "Matches 5 items; version 1.2.3 excluded."
+    },
+    {
+     "do": "Use findall and put results in a set",
+     "see": "Set size: 3"
+    },
+    {
+     "do": "Print sorted(set)",
+     "see": "['192.0.2.44', '198.51.100.7', '203.0.113.9']"
+    }
+   ],
+   "answer": "The pattern \\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b finds five matches in the sample and three unique addresses: 192.0.2.44, 198.51.100.7 and 203.0.113.9. The three-part version number is correctly ignored.",
+   "hint": "Require exactly four numeric groups separated by dots."
+  },
+  {
+   "title": "Log Summary Tool",
+   "sim": "code-editor",
+   "scenario": "A fictional auth log lists failed logins for usernames. Finish a Python function top_failed(path, n) that returns the n usernames with the most failures. A test file holds known data, and the editor runs unit checks.",
+   "objective": "Finish a Python function that reads a log and prints the top five failed-login usernames.",
+   "steps": [
+    {
+     "do": "Open the starter code",
+     "see": "def top_failed(path, n=5): counts = Counter(); # TODO"
+    },
+    {
+     "do": "Add a loop: with open(path) as f: for line in f:",
+     "see": "Syntax OK."
+    },
+    {
+     "do": "Filter: if 'Failed password' in line:",
+     "see": "Lines reduced to failures."
+    },
+    {
+     "do": "Extract the user: m = re.search(r'for (?:invalid user )?(\\S+) from', line)",
+     "see": "Group 1 holds the username."
+    },
+    {
+     "do": "Count and return: counts[m.group(1)] += 1 ... return counts.most_common(n)",
+     "see": "Test output: [('root', 40), ('admin', 22), ('test', 9), ('oracle', 5), ('guest', 3)]"
+    },
+    {
+     "do": "Run tests",
+     "see": "4/4 passed, including empty file."
+    }
+   ],
+   "answer": "The function reads each line, keeps lines with Failed password, extracts the username with a regex, counts with Counter and returns most_common(n). On the test file the top names are root 40, admin 22, test 9, oracle 5 and guest 3.",
+   "hint": "Handle both 'for root' and 'for invalid user admin' forms."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which Bash line sets a variable correctly?",
+   "options": [
+    "name = alice",
+    "name=alice",
+    "$name=alice",
+    "let name alice"
+   ],
+   "a": 1,
+   "why": "No spaces around = in Bash."
+  },
+  {
+   "q": "Which Python structure maps IPs to counts?",
+   "options": [
+    "list",
+    "dict",
+    "str",
+    "bool"
+   ],
+   "a": 1,
+   "why": "A dict maps keys to values."
+  },
+  {
+   "q": "What does exit status 0 mean?",
+   "options": [
+    "Failure",
+    "Success",
+    "Warning",
+    "Timeout"
+   ],
+   "a": 1,
+   "why": "Zero is success."
+  },
+  {
+   "q": "Which is a Python comparison?",
+   "options": [
+    "a = b",
+    "a == b",
+    "a := b only",
+    "a =! b"
+   ],
+   "a": 1,
+   "why": "== compares values."
+  },
+  {
+   "q": "What does range(5) give in Python?",
+   "options": [
+    "1 to 5",
+    "0 to 4",
+    "0 to 5",
+    "5 only"
+   ],
+   "a": 1,
+   "why": "It starts at 0 and excludes 5."
+  },
+  {
+   "q": "Which Bash form reads a file line by line?",
+   "options": [
+    "for l in $(cat f)",
+    "while read -r line; do ...; done < f",
+    "cat f | for",
+    "loop f"
+   ],
+   "a": 1,
+   "why": "while read handles lines intact."
+  },
+  {
+   "q": "In Bash, $1 refers to:",
+   "options": [
+    "The script name",
+    "The first argument",
+    "The exit code",
+    "The PID"
+   ],
+   "a": 1,
+   "why": "$1 is argument one."
+  },
+  {
+   "q": "What is sys.argv[1]?",
+   "options": [
+    "Script name",
+    "First command-line argument",
+    "Python version",
+    "Exit code"
+   ],
+   "a": 1,
+   "why": "Index 1 is first argument."
+  },
+  {
+   "q": "Which regex matches one or more digits?",
+   "options": [
+    "\\d+",
+    "\\w?",
+    "\\s*",
+    "[a-z]"
+   ],
+   "a": 0,
+   "why": "\\d+ is one or more digits."
+  },
+  {
+   "q": "Why validate IPs after a regex match?",
+   "options": [
+    "Regex only checks shape, not numeric range",
+    "Regex cannot match digits",
+    "IPs are secret",
+    "Validation is faster"
+   ],
+   "a": 0,
+   "why": "999.1.1.1 matches the shape."
+  }
+ ]
+}

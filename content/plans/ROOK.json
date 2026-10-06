@@ -1,0 +1,640 @@
+{
+ "key": "ROOK",
+ "capstone": {
+  "title": "Secure the Small Office Workstation",
+  "desc": "Multi-step simulated engagement: map the office network, harden a Linux and a Windows host, triage logs for a brute-force attempt, script a report and rank the risks."
+ },
+ "cert_note": "Supports foundations for CompTIA ITF+ and Network+ topics (OSI, ports, DNS). Guide only, not an official prep.",
+ "modules": [
+  {
+   "code": "ROOK-01",
+   "can_do": [
+    "Define cybersecurity and distinguish red, blue and purple team work",
+    "Match common job roles to their daily tasks",
+    "Apply basic legal and ethical rules to security testing"
+   ],
+   "lessons": [
+    {
+     "title": "What Cybersecurity Is and Why It Matters",
+     "goal": "Define cybersecurity and explain its goals of protecting systems, data and people from misuse."
+    },
+    {
+     "title": "Red, Blue and Purple Teams, Job Roles",
+     "goal": "Contrast offensive, defensive and collaborative teams and map SOC, pentest and GRC roles."
+    },
+    {
+     "title": "Famous Breaches: Target, Equifax, SolarWinds",
+     "goal": "Explain root causes of three major breaches and the controls that would have limited each."
+    },
+    {
+     "title": "Ethics, the Law and How to Study",
+     "goal": "Describe authorization, scope, CFAA-style laws and responsible disclosure, and plan a study routine."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Sort the Job Roles",
+     "sim": "scenario",
+     "task": "Read six short job tasks and assign each to the correct role: SOC analyst, pentester, GRC, or incident responder."
+    },
+    {
+     "title": "Breach Timeline Triage",
+     "sim": "log-viewer",
+     "task": "Review a breach timeline and mark the initial access, lateral movement and detection gap events."
+    },
+    {
+     "title": "Authorized or Not?",
+     "sim": "chat-sim",
+     "task": "Answer client requests and decide which are in scope, need written authorization, or must be refused."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Team colors, role responsibilities, breach root causes, authorization and legal boundaries"
+   }
+  },
+  {
+   "code": "ROOK-02",
+   "can_do": [
+    "Convert between binary, decimal, hex and ASCII",
+    "Identify the roles of CPU, RAM, storage and the OS kernel",
+    "Describe processes, file types and virtual machine isolation"
+   ],
+   "lessons": [
+    {
+     "title": "CPU, RAM and Storage",
+     "goal": "Explain how the CPU, volatile RAM and persistent storage (HDD, SSD) cooperate to run a program."
+    },
+    {
+     "title": "Operating Systems and the Kernel",
+     "goal": "Describe kernel vs user space, drivers, system calls and the main OS families."
+    },
+    {
+     "title": "Binary, Hex and ASCII",
+     "goal": "Convert values between binary, decimal and hex and decode ASCII text by hand."
+    },
+    {
+     "title": "Files, Extensions and Processes",
+     "goal": "Explain file signatures (magic bytes), process vs program, PID, and parent-child relationships."
+    },
+    {
+     "title": "Virtual Machines and Hypervisors",
+     "goal": "Explain Type 1 vs Type 2 hypervisors, snapshots, and why VMs are used for safe analysis."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Binary and Hex Converter Drill",
+     "sim": "scenario",
+     "task": "Convert ten values among binary, decimal and hex, then decode a short ASCII string byte by byte."
+    },
+    {
+     "title": "Spot the Fake Extension",
+     "sim": "file-explorer",
+     "task": "Inspect file headers and identify which files have extensions that do not match their magic bytes."
+    },
+    {
+     "title": "Process Tree Walkthrough",
+     "sim": "terminal",
+     "task": "Run ps to list processes, find a parent PID, and identify the process that owns a given file."
+    },
+    {
+     "title": "Design a Safe Analysis Lab",
+     "sim": "diagram-builder",
+     "task": "Place a VM, host-only network and snapshot on a canvas so malware samples cannot reach the host network."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Number bases, ASCII, hardware roles, process basics, hypervisor types and VM isolation"
+   }
+  },
+  {
+   "code": "ROOK-03",
+   "can_do": [
+    "Calculate subnets and distinguish IP from MAC addressing",
+    "Trace a packet through the OSI and TCP/IP layers",
+    "Troubleshoot connectivity using ping, traceroute and DNS tools"
+   ],
+   "lessons": [
+    {
+     "title": "IPv4, IPv6 and MAC Addresses",
+     "goal": "Read IPv4 and IPv6 addresses, private ranges (RFC 1918) and MAC addresses with OUI prefixes."
+    },
+    {
+     "title": "Subnet Masks and CIDR",
+     "goal": "Calculate network, broadcast and host range for a CIDR block such as 192.168.1.0/26."
+    },
+    {
+     "title": "OSI and TCP/IP Models",
+     "goal": "Map protocols and devices to the seven OSI layers and the four TCP/IP layers."
+    },
+    {
+     "title": "TCP vs UDP and the Three-Way Handshake",
+     "goal": "Explain SYN, SYN-ACK, ACK, flags, reliability and when UDP is chosen over TCP."
+    },
+    {
+     "title": "Ports and Common Services",
+     "goal": "Recall well-known ports (22, 53, 80, 443, 3389) and explain sockets and listening states."
+    },
+    {
+     "title": "DNS, DHCP and NAT",
+     "goal": "Describe DNS record types, the DHCP DORA exchange and how NAT/PAT shares one public IP."
+    },
+    {
+     "title": "Routers, Switches and Wi-Fi",
+     "goal": "Explain switch CAM tables, router tables, VLAN basics, and Wi-Fi standards, SSIDs and WPA2/WPA3."
+    },
+    {
+     "title": "ping, traceroute, nslookup and ARP",
+     "goal": "Use ICMP tools to locate a fault and read TTL, hop latency and ARP cache output."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Subnet Calculator Practice",
+     "sim": "scenario",
+     "task": "Given six CIDR blocks, enter network address, broadcast address and usable host count."
+    },
+    {
+     "title": "Read the Handshake",
+     "sim": "packet-viewer",
+     "task": "Open a capture and label the SYN, SYN-ACK and ACK packets, then find the server port."
+    },
+    {
+     "title": "Layer the Packet",
+     "sim": "diagram-builder",
+     "task": "Drag headers into place to build an Ethernet, IP, TCP and HTTP frame in the correct order."
+    },
+    {
+     "title": "DNS Lookup Troubleshoot",
+     "sim": "terminal",
+     "task": "Run nslookup and dig for A, MX and NS records and find why one hostname fails to resolve."
+    },
+    {
+     "title": "DHCP Lease Debug",
+     "sim": "log-viewer",
+     "task": "Read DHCP logs to find a client stuck on a 169.254.x.x address and identify the missing step."
+    },
+    {
+     "title": "Where Does the Packet Die?",
+     "sim": "terminal",
+     "task": "Run ping and traceroute on a simulated network and locate the hop that drops traffic."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Subnetting, OSI layers, TCP vs UDP, common ports, DNS/DHCP/NAT roles, ICMP tool output"
+   }
+  },
+  {
+   "code": "ROOK-04",
+   "can_do": [
+    "Break down a URL and read an HTTP request and response",
+    "Explain cookies, sessions and the front-end stack",
+    "Write basic SQL SELECT queries and read JSON from an API"
+   ],
+   "lessons": [
+    {
+     "title": "URLs and the Request Lifecycle",
+     "goal": "Parse a URL into scheme, host, port, path, query and fragment and trace a page load through DNS and TCP."
+    },
+    {
+     "title": "HTTP Methods, Headers and Status Codes",
+     "goal": "Interpret GET, POST, PUT, DELETE, key headers and 2xx, 3xx, 4xx and 5xx status codes."
+    },
+    {
+     "title": "Cookies, Sessions and HTTPS",
+     "goal": "Explain Set-Cookie flags (HttpOnly, Secure, SameSite), session IDs and TLS in transit."
+    },
+    {
+     "title": "HTML, CSS and JavaScript Basics",
+     "goal": "Describe the DOM, how forms submit data and what client-side JavaScript can and cannot be trusted with."
+    },
+    {
+     "title": "APIs, REST and JSON",
+     "goal": "Read a REST endpoint, a JSON body and an API key or bearer token header."
+    },
+    {
+     "title": "Databases and SQL Basics",
+     "goal": "Write SELECT, WHERE, INSERT and JOIN statements and explain why user input must be parameterized."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Inspect a Request",
+     "sim": "web-proxy",
+     "task": "Intercept a login request in the proxy and identify the method, headers, cookie and body parameters."
+    },
+    {
+     "title": "Status Code Detective",
+     "sim": "log-viewer",
+     "task": "Read web server logs and explain what each 301, 403, 404 and 500 line means for the user."
+    },
+    {
+     "title": "Cookie Flag Audit",
+     "sim": "web-proxy",
+     "task": "Check three responses and note which cookies miss HttpOnly, Secure or SameSite."
+    },
+    {
+     "title": "Query the Customers Table",
+     "sim": "terminal",
+     "task": "Run SELECT queries with WHERE and ORDER BY on a sample database to answer four lookup questions."
+    }
+   ],
+   "checkpoint": {
+    "focus": "HTTP anatomy, status codes, cookie attributes, DOM and JS basics, JSON, SQL SELECT syntax"
+   }
+  },
+  {
+   "code": "ROOK-05",
+   "can_do": [
+    "Navigate the Linux file system with pwd, ls and cd",
+    "Use absolute and relative paths correctly",
+    "Look up command options with man and --help"
+   ],
+   "lessons": [
+    {
+     "title": "What Linux Is: Kernel, Distros, Shells",
+     "goal": "Explain the Linux kernel, distributions such as Debian and Ubuntu, and bash as a shell."
+    },
+    {
+     "title": "The Prompt and Command Anatomy",
+     "goal": "Read a prompt and break a command into program, options and arguments."
+    },
+    {
+     "title": "pwd, ls and cd",
+     "goal": "Move around and list directories using ls -l, -a and -h and cd shortcuts like ~ and -."
+    },
+    {
+     "title": "The Filesystem Hierarchy and Paths",
+     "goal": "Distinguish absolute from relative paths and know /etc, /var, /home, /tmp and /bin."
+    },
+    {
+     "title": "man Pages and Getting Help",
+     "goal": "Search man pages, read the synopsis and flags, and use --help and apropos."
+    }
+   ],
+   "labs": [
+    {
+     "title": "First Terminal Session",
+     "sim": "terminal",
+     "task": "Run pwd, ls and cd to reach a hidden project folder and report its full path."
+    },
+    {
+     "title": "Path Puzzle",
+     "sim": "terminal",
+     "task": "Reach five target directories using only relative paths, then repeat with absolute paths."
+    },
+    {
+     "title": "Find Where Logs Live",
+     "sim": "file-explorer",
+     "task": "Browse /var/log and /etc in the explorer and match each file to its purpose."
+    },
+    {
+     "title": "Decode the Flags",
+     "sim": "terminal",
+     "task": "Use man to find which ls option sorts by time, shows sizes and lists hidden files, then run it."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Prompt anatomy, pwd/ls/cd, absolute vs relative paths, FHS directories, man usage"
+   }
+  },
+  {
+   "code": "ROOK-06",
+   "can_do": [
+    "Create, copy, move and delete files and directories safely",
+    "Read files with cat, less, head and tail",
+    "Locate files using wildcards and find"
+   ],
+   "lessons": [
+    {
+     "title": "mkdir and touch",
+     "goal": "Create directories (mkdir -p) and empty files and understand timestamps."
+    },
+    {
+     "title": "cp, mv and rm",
+     "goal": "Copy, rename, move and delete with -r and -i flags and explain why rm has no recycle bin."
+    },
+    {
+     "title": "Reading Files: cat, less, head, tail",
+     "goal": "Choose the right viewer and follow a growing log with tail -f."
+    },
+    {
+     "title": "Wildcards and Globbing",
+     "goal": "Use *, ? and [a-z] patterns to act on groups of files and predict what a glob matches."
+    },
+    {
+     "title": "Hidden Files and find",
+     "goal": "Find files by name, type, size and mtime with find and reveal dotfiles such as .bashrc."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Build a Project Tree",
+     "sim": "terminal",
+     "task": "Create a nested directory layout with mkdir -p and touch, then verify it with ls -R."
+    },
+    {
+     "title": "Safe Cleanup",
+     "sim": "terminal",
+     "task": "Copy and move report files, then delete only the .tmp files using wildcards and rm -i."
+    },
+    {
+     "title": "Follow the Log",
+     "sim": "log-viewer",
+     "task": "Use tail and head on a simulated auth log to find the most recent failed login lines."
+    },
+    {
+     "title": "Hunt the Large File",
+     "sim": "terminal",
+     "task": "Use find with -name, -size and -mtime to locate a 50 MB file modified in the last day."
+    }
+   ],
+   "checkpoint": {
+    "focus": "File manipulation commands, rm risks, viewer choice, glob patterns, find options"
+   }
+  },
+  {
+   "code": "ROOK-07",
+   "can_do": [
+    "Interpret ls -l output and numeric permissions",
+    "Change ownership and modes with chown and chmod",
+    "Apply sudo and least privilege correctly"
+   ],
+   "lessons": [
+    {
+     "title": "Users, Groups and /etc/passwd",
+     "goal": "Read /etc/passwd, /etc/shadow and /etc/group and use id, whoami and groups."
+    },
+    {
+     "title": "Reading ls -l Output",
+     "goal": "Decode the type bit, owner, group, others, links, size and date fields in ls -l."
+    },
+    {
+     "title": "chmod: Symbolic and Octal Modes",
+     "goal": "Set permissions with u+x style and numeric modes such as 640 and 755."
+    },
+    {
+     "title": "chown, chgrp and Special Bits",
+     "goal": "Change owners and groups and explain setuid, setgid and the sticky bit on /tmp."
+    },
+    {
+     "title": "sudo and Least Privilege",
+     "goal": "Use sudo and sudoers safely, explain root risks and why 777 is a vulnerability."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Decode the Permissions",
+     "sim": "scenario",
+     "task": "Read ten ls -l lines and state who can read, write and execute each file."
+    },
+    {
+     "title": "Fix the Broken Script",
+     "sim": "terminal",
+     "task": "Apply chmod to make a script executable by its owner only and verify with ls -l."
+    },
+    {
+     "title": "Lock Down a Secrets File",
+     "sim": "terminal",
+     "task": "Use chown and chmod 600 so only the service account can read an API key file."
+    },
+    {
+     "title": "Audit sudoers and Accounts",
+     "sim": "config-editor",
+     "task": "Review /etc/passwd and sudoers entries to find an extra UID 0 user and an unrestricted sudo rule."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Permission bits, octal math, chown/chmod usage, setuid risk, sudo and least privilege"
+   }
+  },
+  {
+   "code": "ROOK-08",
+   "can_do": [
+    "Search and transform text with grep, pipes and redirects",
+    "Inspect and stop processes with ps, top and kill",
+    "Check updates and network state with apt, ip, ping and ss"
+   ],
+   "lessons": [
+    {
+     "title": "grep and Regular Patterns",
+     "goal": "Search with grep -i, -r, -n and -v and combine simple patterns to filter logs."
+    },
+    {
+     "title": "Pipes and Redirects",
+     "goal": "Chain commands with |, redirect with >, >> and 2>, and use sort, uniq -c and wc."
+    },
+    {
+     "title": "Processes: ps, top and kill",
+     "goal": "List processes, read CPU and memory use and end them with kill, kill -9 and signals."
+    },
+    {
+     "title": "Package Management with apt",
+     "goal": "Update and upgrade with apt, search and install packages and explain why patching reduces risk."
+    },
+    {
+     "title": "Network Checks: ip, ping and ss",
+     "goal": "Read ip a and ip route, test reachability with ping, and list listening ports with ss -tulpn."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Failed Logins by IP",
+     "sim": "terminal",
+     "task": "Pipe grep, sort and uniq -c over an auth log to rank source IPs by failed attempts."
+    },
+    {
+     "title": "Runaway Process",
+     "sim": "terminal",
+     "task": "Use top and ps to find a process using 95 percent CPU and terminate it with the right signal."
+    },
+    {
+     "title": "Patch the Box",
+     "sim": "terminal",
+     "task": "Run apt update, list upgradable packages and install a security update for a vulnerable package."
+    },
+    {
+     "title": "Who Is Listening?",
+     "sim": "terminal",
+     "task": "Run ss -tulpn and flag the unexpected service listening on 0.0.0.0, then trace its PID."
+    }
+   ],
+   "checkpoint": {
+    "focus": "grep options, pipes vs redirects, process signals, apt workflow, ip and ss output"
+   }
+  },
+  {
+   "code": "ROOK-09",
+   "can_do": [
+    "Navigate the Windows file system, registry and services",
+    "Use Task Manager, cmd and PowerShell for basic inspection",
+    "Explain UAC, Active Directory basics, Defender and the firewall"
+   ],
+   "lessons": [
+    {
+     "title": "Windows File System and NTFS",
+     "goal": "Describe C:\\Windows, Users, Program Files, NTFS permissions and alternate data streams."
+    },
+    {
+     "title": "Users, Groups and UAC",
+     "goal": "Explain local users, the Administrators group, SIDs and how UAC prompts limit elevation."
+    },
+    {
+     "title": "The Registry and Services",
+     "goal": "Navigate HKLM and HKCU hives, Run keys and the Services console, and note persistence locations."
+    },
+    {
+     "title": "Task Manager, cmd and PowerShell",
+     "goal": "Use tasklist, ipconfig, netstat and PowerShell cmdlets like Get-Process and Get-Service."
+    },
+    {
+     "title": "Active Directory Introduction",
+     "goal": "Explain domains, domain controllers, OUs, group policy and Kerberos login at a high level."
+    },
+    {
+     "title": "Windows Defender and Firewall",
+     "goal": "Configure Defender scans, real-time protection and inbound firewall rules for profiles."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Find the Autorun Entry",
+     "sim": "config-editor",
+     "task": "Browse registry Run keys and flag the entry that launches an unknown executable at login."
+    },
+    {
+     "title": "PowerShell Inspection",
+     "sim": "terminal",
+     "task": "Run Get-Process, Get-Service and Get-LocalUser to list stopped services and unexpected local accounts."
+    },
+    {
+     "title": "Firewall Rule Fix",
+     "sim": "config-editor",
+     "task": "Create an inbound rule that allows only RDP from one subnet and disable a risky open rule."
+    },
+    {
+     "title": "Active Directory Tree",
+     "sim": "diagram-builder",
+     "task": "Build a domain with OUs, users and groups and attach a group policy to the correct OU."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Windows paths, UAC, registry persistence keys, PowerShell cmdlets, AD terms, firewall rules"
+   }
+  },
+  {
+   "code": "ROOK-10",
+   "can_do": [
+    "Write Bash and Python scripts using variables, conditions and loops",
+    "Read files and extract data with regex",
+    "Automate small repetitive tasks with functions"
+   ],
+   "lessons": [
+    {
+     "title": "Variables and Data Types",
+     "goal": "Declare variables in Bash and Python and use strings, integers, lists and dictionaries."
+    },
+    {
+     "title": "Conditions and Comparisons",
+     "goal": "Use if/elif/else, test operators and exit codes to branch in Bash and Python."
+    },
+    {
+     "title": "Loops",
+     "goal": "Iterate with for and while loops over lists, ranges and lines of a file."
+    },
+    {
+     "title": "Functions and Arguments",
+     "goal": "Define functions, pass arguments such as $1 and sys.argv and return values."
+    },
+    {
+     "title": "Reading Files and Regex",
+     "goal": "Read files line by line and match IPs, emails and timestamps with regular expressions."
+    },
+    {
+     "title": "Automating a Small Task",
+     "goal": "Build a script that parses a log, counts events and writes a summary report."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Fix the Script",
+     "sim": "code-editor",
+     "task": "Repair a Python script with a syntax error and a wrong comparison until it passes the tests."
+    },
+    {
+     "title": "Ping Sweep Loop",
+     "sim": "code-editor",
+     "task": "Complete a Bash for loop that pings a host range and prints only the live addresses."
+    },
+    {
+     "title": "Regex IP Extractor",
+     "sim": "code-editor",
+     "task": "Write a regex that extracts every IPv4 address from a sample log and count unique matches."
+    },
+    {
+     "title": "Log Summary Tool",
+     "sim": "code-editor",
+     "task": "Finish a Python function that reads a log and prints the top five failed-login usernames."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Syntax of variables, conditions and loops, function arguments, file reading, regex basics"
+   }
+  },
+  {
+   "code": "ROOK-11",
+   "can_do": [
+    "Apply the CIA triad to classify security failures",
+    "Rank risks using threat, vulnerability and impact",
+    "Choose layered controls and write basic policy statements"
+   ],
+   "lessons": [
+    {
+     "title": "The CIA Triad and Beyond",
+     "goal": "Define confidentiality, integrity and availability and add authenticity and non-repudiation."
+    },
+    {
+     "title": "Threats, Vulnerabilities and Risk",
+     "goal": "Distinguish threat, vulnerability, exploit and risk and compute likelihood times impact."
+    },
+    {
+     "title": "Attack Surface and Threat Actors",
+     "goal": "Identify exposed entry points and describe actors from script kiddies to nation states."
+    },
+    {
+     "title": "Defense in Depth and Least Privilege",
+     "goal": "Layer preventive, detective and corrective controls and apply least privilege and separation of duties."
+    },
+    {
+     "title": "Security Policies and Frameworks",
+     "goal": "Explain policies, standards, procedures and frameworks like NIST CSF and ISO 27001."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Classify the Incident",
+     "sim": "scenario",
+     "task": "Read eight incidents and label each as a confidentiality, integrity or availability failure."
+    },
+    {
+     "title": "Build a Risk Register",
+     "sim": "scenario",
+     "task": "Score five findings by likelihood and impact and sort them into a prioritized risk register."
+    },
+    {
+     "title": "Layer the Defenses",
+     "sim": "diagram-builder",
+     "task": "Place firewall, EDR, MFA, backups and logging on a diagram to cover a given attack path."
+    },
+    {
+     "title": "Shrink the Attack Surface",
+     "sim": "config-editor",
+     "task": "Review a server config, disable unneeded services and ports, and apply a minimal-privilege account."
+    }
+   ],
+   "checkpoint": {
+    "focus": "CIA classification, risk terms and scoring, attack surface, layered controls, policy vs standard"
+   }
+  }
+ ]
+}

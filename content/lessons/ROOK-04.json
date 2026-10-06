@@ -1,0 +1,920 @@
+{
+ "code": "ROOK-04",
+ "intro": "Most attacks you will study target web applications, so you need to know how the web works before you can see how it fails. This module follows a page load from the URL through DNS, TCP and TLS, then reads HTTP requests, headers, methods and status codes. You will learn how cookies and sessions keep users logged in, what HTML, CSS and JavaScript do in the browser, how APIs exchange JSON, and how databases answer SQL queries safely.",
+ "lessons": [
+  {
+   "title": "URLs and the Request Lifecycle",
+   "why": "Every web attack begins with a request, and reading a URL correctly tells you what the browser is asking for and from whom.",
+   "sections": [
+    {
+     "h": "Anatomy of a URL",
+     "p": [
+      "A Uniform Resource Locator names a resource and how to reach it. Take https://shop.example.com:8443/products/list?cat=books&page=2#reviews. The scheme, https, selects the protocol. The host, shop.example.com, names the server. The port, 8443, overrides the default, which is 80 for http and 443 for https. The path, /products/list, selects the resource. The query string after the question mark holds name and value pairs separated by ampersands. The fragment after the hash, reviews, is used only by the browser to jump within the page and is never sent to the server. Optional user information before the host is legacy and often abused in phishing."
+     ]
+    },
+    {
+     "h": "From click to connection",
+     "p": [
+      "When you press enter, the browser first checks its cache and then asks DNS to turn the host into an IP address, for example 198.51.100.5. It opens a TCP connection to that address on the correct port using the three-way handshake. For https, a TLS handshake follows, in which the server presents a certificate, the browser verifies it and both sides agree on encryption keys. Only then does the browser send the HTTP request. Each stage can fail separately: a DNS error, a connection timeout, a certificate warning or an HTTP error. Knowing the stage tells you where to look."
+     ]
+    },
+    {
+     "h": "Request and response",
+     "p": [
+      "HTTP is a request and response protocol. The browser sends a request with a method, a path, headers and sometimes a body. The server replies with a status code, headers and a body, which for a page is HTML. The page references further resources such as stylesheets, scripts and images, and the browser sends a separate request for each. A single page may trigger dozens of requests to several hosts, including advertising and analytics domains. HTTP itself is stateless, meaning each request is independent, which is why cookies were invented. Every one of these requests is a place where input can be tampered with."
+     ]
+    },
+    {
+     "h": "Security view of URLs",
+     "p": [
+      "Because the query string is visible in browser history, proxy logs and referrer headers, secrets such as passwords or tokens should never be placed in a URL. Attackers craft deceptive links, for example https://example.com.login.invalid, where the real host is everything between the scheme and the first single slash, and its registered domain is at the right-hand end, not the familiar name at the start. Hover over links and read the host from right to left. URL parameters are also user-controlled input, so servers must validate them. Defenders read URLs in web logs to spot scanning, injection attempts and unusual paths."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "URL breakdown",
+    "text": "https://shop.example.com:8443/products/list?cat=books&page=2#reviews\nscheme   https\nhost     shop.example.com\nport     8443\npath     /products/list\nquery    cat=books&page=2\nfragment reviews (client only)"
+   },
+   "example": "A user clicks a link in an email: https://secure-login.example.net.invalid/example.com/account. A careful reader splits it. The scheme is https, the host is secure-login.example.net.invalid, and example.com appears only in the path, so the link does not go to example.com at all. The page load would involve a DNS lookup for the lookalike host, a TCP connection to port 443 and a TLS certificate for that attacker domain. The https padlock only says the connection is encrypted, not that the site is trustworthy. The user deletes the email and reports it.",
+   "terms": [
+    {
+     "term": "URL",
+     "def": "A string that names a resource and how to reach it."
+    },
+    {
+     "term": "Query string",
+     "def": "Name and value pairs after the question mark in a URL."
+    },
+    {
+     "term": "Fragment",
+     "def": "The part after # used only by the browser."
+    },
+    {
+     "term": "TLS",
+     "def": "The protocol that encrypts and authenticates HTTPS connections."
+    },
+    {
+     "term": "Stateless",
+     "def": "Treating every request independently, with no memory of earlier ones."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which URL part is never sent to the server?",
+     "options": [
+      "Path",
+      "Query",
+      "Fragment",
+      "Host"
+     ],
+     "a": 2,
+     "why": "The fragment is handled by the browser only."
+    },
+    {
+     "q": "What is the default port for https?",
+     "options": [
+      "80",
+      "443",
+      "8080",
+      "22"
+     ],
+     "a": 1,
+     "why": "HTTPS defaults to 443."
+    },
+    {
+     "q": "In https://a.example.com/x?id=5, what is the host?",
+     "options": [
+      "a.example.com",
+      "/x",
+      "id=5",
+      "https"
+     ],
+     "a": 0,
+     "why": "The host follows the scheme and precedes the path."
+    },
+    {
+     "q": "Why avoid putting secrets in URLs?",
+     "options": [
+      "They are slower",
+      "URLs appear in logs and history",
+      "They are encrypted twice",
+      "They break DNS"
+     ],
+     "a": 1,
+     "why": "URLs are logged and shown in many places."
+    }
+   ],
+   "recap": [
+    "A URL has scheme, host, port, path, query and fragment.",
+    "A page load involves DNS, TCP, TLS and then HTTP.",
+    "Read hosts carefully to spot deceptive links."
+   ]
+  },
+  {
+   "title": "HTTP Methods, Headers and Status Codes",
+   "why": "Reading raw HTTP is the core skill for web testing and for understanding web server logs.",
+   "sections": [
+    {
+     "h": "Methods",
+     "p": [
+      "The method says what the client wants done. GET retrieves a resource and should not change data. POST submits data to be processed, such as a login or a form. PUT replaces a resource, PATCH changes part of it, and DELETE removes it. HEAD returns only headers, and OPTIONS asks which methods are allowed. GET and HEAD are called safe because they should not modify anything. A frequent weakness is a server that performs state changes on GET requests or allows methods nobody intended, such as DELETE on a public path. Parameters in a GET travel in the URL, while POST parameters travel in the body."
+     ]
+    },
+    {
+     "h": "A request and its headers",
+     "p": [
+      "A request begins with a line such as GET /index.html HTTP/1.1, followed by headers, one per line, then a blank line and an optional body. Host names the site. User-Agent identifies the client software and is easily forged. Accept lists formats the client wants. Cookie carries stored cookies. Authorization carries credentials such as a bearer token. Content-Type and Content-Length describe a body. Referer states the page that linked here. Response headers include Content-Type, Set-Cookie, Location for redirects, Server, and security headers such as Strict-Transport-Security and Content-Security-Policy that instruct the browser to apply protections."
+     ]
+    },
+    {
+     "h": "Status codes",
+     "p": [
+      "The first digit of the status code gives the class. 1xx is informational. 2xx means success: 200 OK, 201 Created and 204 No Content. 3xx means redirection: 301 Moved Permanently, 302 Found and 304 Not Modified. 4xx means the client made an error: 400 Bad Request, 401 Unauthorized (authentication needed), 403 Forbidden (authenticated but not allowed), 404 Not Found and 429 Too Many Requests. 5xx means the server failed: 500 Internal Server Error, 502 Bad Gateway and 503 Service Unavailable. Many 404 responses in a row from one address is typical of content scanning, and repeated 401 responses suggest password guessing."
+     ]
+    },
+    {
+     "h": "Reading logs",
+     "p": [
+      "Web servers record each request on a line, often in the Common Log Format: client address, time, request line, status and size. Reading these lines tells a story. A 200 on a path like /admin from an unfamiliar address deserves attention. A burst of 500 responses after a specially crafted parameter may show an attack tripping an error. A 403 means the control worked. Because the User-Agent and many other fields can be faked, logs prove what was requested, not who really sent it. Combine status, path, size, timing and source to judge intent."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "HTTP exchange",
+    "text": "GET /account HTTP/1.1\nHost: shop.example.com\nCookie: sid=a1b2c3\n\nHTTP/1.1 200 OK\nContent-Type: text/html\nSet-Cookie: theme=dark; Secure\n\n198.51.100.9 - - [05/Oct/2026:10:01:02 +0000] \"GET /admin HTTP/1.1\" 403 199"
+   },
+   "example": "A log shows 203.0.113.25 requesting /admin, /backup.zip, /login.php and /wp-admin within two seconds, each answered 404. The pattern of many different guessed paths and 404 codes indicates automated content discovery. Later the same address sends 25 POST requests to /login with 401 responses, then a 200 and a redirect 302 to /dashboard. The analyst concludes that a password guessing attempt may have succeeded, checks the account, forces a password reset and blocks the address range while reviewing what the session accessed.",
+   "terms": [
+    {
+     "term": "GET",
+     "def": "A method that retrieves a resource without changing it."
+    },
+    {
+     "term": "POST",
+     "def": "A method that submits data to the server for processing."
+    },
+    {
+     "term": "401",
+     "def": "Status code meaning authentication is required or has failed."
+    },
+    {
+     "term": "403",
+     "def": "Status code meaning the request is understood but not permitted."
+    },
+    {
+     "term": "Header",
+     "def": "A name and value pair carrying metadata with a request or response."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which method should not change server data?",
+     "options": [
+      "GET",
+      "POST",
+      "DELETE",
+      "PUT"
+     ],
+     "a": 0,
+     "why": "GET is defined as safe."
+    },
+    {
+     "q": "What does status 403 mean?",
+     "options": [
+      "Not found",
+      "Forbidden",
+      "Server error",
+      "Redirect"
+     ],
+     "a": 1,
+     "why": "The server refuses access to an identified client."
+    },
+    {
+     "q": "Which class of status code indicates a server failure?",
+     "options": [
+      "2xx",
+      "3xx",
+      "4xx",
+      "5xx"
+     ],
+     "a": 3,
+     "why": "5xx codes mean a server-side error."
+    },
+    {
+     "q": "Many 404 responses from one IP across different paths suggests what?",
+     "options": [
+      "Normal browsing",
+      "Content discovery scanning",
+      "TLS failure",
+      "DNS caching"
+     ],
+     "a": 1,
+     "why": "Guessing paths yields many 404s."
+    }
+   ],
+   "recap": [
+    "Methods say what to do; headers carry metadata; status codes report the result.",
+    "2xx success, 3xx redirect, 4xx client error, 5xx server error.",
+    "Logs show requests, not proven identity."
+   ]
+  },
+  {
+   "title": "Cookies, Sessions and HTTPS",
+   "why": "Cookies and sessions are how websites remember you, so stealing or abusing them is a major attack goal.",
+   "sections": [
+    {
+     "h": "Why cookies exist",
+     "p": [
+      "Because HTTP is stateless, a site must recognize a returning user some other way. After login, the server creates a session, a record on its side, and sends back a session ID in a Set-Cookie header. The browser stores the cookie and attaches it to every later request to that site through the Cookie header. The server looks up the ID and knows who is calling. The session ID is therefore as powerful as a password for as long as it is valid, and anyone who obtains it can impersonate the user, a technique called session hijacking."
+     ]
+    },
+    {
+     "h": "Cookie attributes",
+     "p": [
+      "Security flags on a cookie reduce risk. HttpOnly prevents JavaScript from reading the cookie, limiting theft through cross-site scripting. Secure restricts the cookie to HTTPS connections so it is never sent in clear text. SameSite controls whether the cookie accompanies cross-site requests: Strict never sends it cross-site, Lax sends it only on top-level navigations, and None allows all but requires Secure. This helps resist cross-site request forgery. Expires or Max-Age sets lifetime, and Domain and Path define scope. A session cookie without HttpOnly, Secure and SameSite is a finding in almost every security review."
+     ]
+    },
+    {
+     "h": "Session management",
+     "p": [
+      "Good session handling generates long random IDs that cannot be guessed, issues a new ID at login to prevent session fixation, expires idle sessions, and destroys the server-side session at logout. Tokens should not appear in URLs. Sensitive actions may require re-authentication. Multi-factor authentication reduces the value of a stolen password but not a stolen session cookie, which is why session protection matters separately. Persistent login cookies, often called remember me, extend risk and should be long random tokens stored hashed on the server and revocable by the user."
+     ]
+    },
+    {
+     "h": "HTTPS and TLS",
+     "p": [
+      "HTTPS is HTTP carried inside a TLS connection. TLS provides three properties: confidentiality through encryption, integrity through message authentication and authentication of the server through a certificate signed by a trusted certificate authority. Without it, anyone on the path, such as someone on shared Wi-Fi, can read or alter traffic. Modern sites use TLS 1.2 or 1.3. The HSTS header tells browsers to use HTTPS only. A certificate warning means the identity check failed and should not be bypassed. HTTPS protects data in transit only; it does not protect against a malicious site or a flaw in the application itself."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Set-Cookie header",
+    "text": "HTTP/1.1 200 OK\nSet-Cookie: sid=9f8e7d6c5b4a; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=1800\nStrict-Transport-Security: max-age=31536000"
+   },
+   "example": "A tester reviews the login response for app.example.com and sees Set-Cookie: sid=1234; Path=/. No HttpOnly, no Secure and no SameSite appear, and the ID 1234 looks short and guessable. The tester reports three issues: the cookie can be read by scripts, may be sent over plain HTTP, and may be forged. The recommended fix is a long random value with Secure, HttpOnly and SameSite=Lax, a new ID issued on login, and HSTS enabled so browsers never attempt plain HTTP.",
+   "terms": [
+    {
+     "term": "Session ID",
+     "def": "A value that links a browser to a server-side session."
+    },
+    {
+     "term": "HttpOnly",
+     "def": "A cookie flag blocking JavaScript access."
+    },
+    {
+     "term": "Secure",
+     "def": "A cookie flag restricting the cookie to HTTPS."
+    },
+    {
+     "term": "SameSite",
+     "def": "A cookie attribute controlling cross-site sending."
+    },
+    {
+     "term": "Session hijacking",
+     "def": "Using a stolen session ID to impersonate a user."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which flag prevents JavaScript from reading a cookie?",
+     "options": [
+      "Secure",
+      "HttpOnly",
+      "SameSite",
+      "Path"
+     ],
+     "a": 1,
+     "why": "HttpOnly hides it from scripts."
+    },
+    {
+     "q": "What does the Secure flag do?",
+     "options": [
+      "Hashes the cookie",
+      "Sends it only over HTTPS",
+      "Encrypts the disk",
+      "Extends expiry"
+     ],
+     "a": 1,
+     "why": "The cookie is not sent over plain HTTP."
+    },
+    {
+     "q": "What does TLS NOT protect against?",
+     "options": [
+      "Eavesdropping",
+      "Tampering in transit",
+      "A flaw in the web application",
+      "Server impersonation"
+     ],
+     "a": 2,
+     "why": "TLS protects the channel, not application logic."
+    },
+    {
+     "q": "Why issue a new session ID at login?",
+     "options": [
+      "To prevent session fixation",
+      "To slow users",
+      "To reduce cookies",
+      "To use HTTP"
+     ],
+     "a": 0,
+     "why": "A fresh ID stops an attacker from pre-setting the session."
+    }
+   ],
+   "recap": [
+    "Cookies carry session IDs; protect them with HttpOnly, Secure and SameSite.",
+    "A stolen session ID equals a stolen login.",
+    "TLS secures data in transit, not the application."
+   ]
+  },
+  {
+   "title": "HTML, CSS and JavaScript Basics",
+   "why": "The browser runs code and displays content from servers you do not control, and that fact underlies injection and client-side attacks.",
+   "sections": [
+    {
+     "h": "Three languages, three jobs",
+     "p": [
+      "A web page is built from three technologies. HTML, HyperText Markup Language, defines structure and content with tags such as headings, paragraphs, links, forms and images. CSS, Cascading Style Sheets, controls appearance, such as color, layout and fonts. JavaScript adds behavior: it responds to clicks, updates the page without reloading and sends background requests. The browser downloads these as files and combines them. All three are plain text that the user can inspect through the browser's developer tools, which means nothing sent to the browser is secret."
+     ]
+    },
+    {
+     "h": "The DOM",
+     "p": [
+      "After parsing the HTML, the browser builds the Document Object Model, a tree of objects representing every element on the page. JavaScript can read and change this tree, for example altering text, adding elements or hiding buttons. Developer tools let a user edit the DOM live, which only changes their own view and not the server. If an application inserts untrusted text into the page without encoding it, an attacker's input may be interpreted as markup or script rather than as text. That flaw is cross-site scripting, and it is prevented by output encoding and content security policies."
+     ]
+    },
+    {
+     "h": "Forms and submitted data",
+     "p": [
+      "A form groups input fields and says where and how to send them. The action attribute gives the URL, and the method attribute gives GET or POST. Each input has a name, and on submission the browser sends name and value pairs, either in the query string or in the request body. Hidden fields and disabled buttons are just HTML, so users can change or bypass them. Whatever the browser sends must be treated as untrusted input by the server, including values chosen from drop-down lists, since the request can be crafted by hand or by a tool rather than through the form at all."
+     ]
+    },
+    {
+     "h": "What client-side code can and cannot be trusted with",
+     "p": [
+      "JavaScript validation, such as checking that an email field looks right, is a convenience for users and gives quick feedback. It is not a security control because attackers can disable scripts, edit the code or send requests directly. Every rule that matters, including authentication, authorization, price calculation and input validation, must be enforced again on the server. Likewise, secrets such as API keys or passwords must not be placed in client code, since anyone can read them. A useful rule is: the client is for display, the server is for decisions."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "HTML form",
+    "text": "<form action=\"/login\" method=\"POST\">\n  <input type=\"text\" name=\"user\">\n  <input type=\"password\" name=\"pass\">\n  <input type=\"hidden\" name=\"role\" value=\"user\">\n  <button type=\"submit\">Sign in</button>\n</form>\n\nBody sent: user=alice&pass=...&role=user"
+   },
+   "example": "A fictional shop page includes a hidden field price=49.99 for a keyboard, and JavaScript that blocks submission if the quantity is negative. A tester uses the developer tools to change the hidden price to 0.01 and sends the form. The server accepts it because it trusts the submitted price. The finding is that pricing and validation were enforced only in the browser. The fix is for the server to look up the price from its own product database, validate the quantity itself and ignore any price sent by the client.",
+   "terms": [
+    {
+     "term": "HTML",
+     "def": "The markup language that structures web page content."
+    },
+    {
+     "term": "CSS",
+     "def": "The language that controls the look and layout of a page."
+    },
+    {
+     "term": "JavaScript",
+     "def": "The scripting language that adds behavior in the browser."
+    },
+    {
+     "term": "DOM",
+     "def": "The tree of page elements the browser exposes to scripts."
+    },
+    {
+     "term": "XSS",
+     "def": "Cross-site scripting, where untrusted input runs as script in a page."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which technology adds behavior to a page?",
+     "options": [
+      "HTML",
+      "CSS",
+      "JavaScript",
+      "DNS"
+     ],
+     "a": 2,
+     "why": "JavaScript runs logic in the browser."
+    },
+    {
+     "q": "Why is client-side validation not a security control?",
+     "options": [
+      "It is too slow",
+      "Attackers can bypass or modify it",
+      "It uses HTTPS",
+      "It is encrypted"
+     ],
+     "a": 1,
+     "why": "Requests can be crafted without the page's scripts."
+    },
+    {
+     "q": "A form field name and value reach the server how?",
+     "options": [
+      "As a name and value pair in the query or body",
+      "Through DNS",
+      "Via ARP",
+      "As a cookie only"
+     ],
+     "a": 0,
+     "why": "Browsers send form data as name=value pairs."
+    },
+    {
+     "q": "What does the DOM represent?",
+     "options": [
+      "The server's disk",
+      "The tree of elements in the loaded page",
+      "The network",
+      "A database"
+     ],
+     "a": 1,
+     "why": "The DOM is the browser's page object tree."
+    }
+   ],
+   "recap": [
+    "HTML structures, CSS styles, JavaScript acts.",
+    "Anything sent to the browser can be inspected and changed.",
+    "Always enforce validation and authorization on the server."
+   ]
+  },
+  {
+   "title": "APIs, REST and JSON",
+   "why": "Modern apps talk to APIs, which are the main interface attackers and testers examine.",
+   "sections": [
+    {
+     "h": "What an API is",
+     "p": [
+      "An application programming interface lets one program request data or actions from another in a defined way. Web APIs use HTTP, so the tools you already know apply. A mobile app, a single-page website and a partner company can all call the same API. Unlike a human-facing page, an API returns structured data meant for programs. Because APIs expose the logic and data of an application directly, they are a large part of the attack surface, and they are often less visible than web pages because users never see them in a browser."
+     ]
+    },
+    {
+     "h": "REST",
+     "p": [
+      "Representational State Transfer, or REST, is a common style for web APIs. Resources are identified by URLs, and HTTP methods express actions. For example GET /api/v1/users/42 reads user 42, POST /api/v1/users creates a user, PUT /api/v1/users/42 replaces it and DELETE /api/v1/users/42 removes it. Responses use status codes such as 200, 201, 400, 401, 403, 404 and 429. REST is stateless, so each request must carry what the server needs, usually an authentication token. Plural nouns in the path and version numbers such as v1 are common conventions."
+     ]
+    },
+    {
+     "h": "JSON",
+     "p": [
+      "JavaScript Object Notation is the usual data format. It is plain text built from objects in curly braces holding keys and values, arrays in square brackets, strings in double quotes, numbers, true, false and null. For example {\"id\": 42, \"name\": \"alice\", \"roles\": [\"user\"], \"active\": true}. Keys must be double-quoted and trailing commas are not allowed. The header Content-Type: application/json announces it. Learn to read nested objects, since real responses may contain several levels. JSON is easy to read, so sensitive fields that the client does not need should be removed on the server before sending."
+     ]
+    },
+    {
+     "h": "API authentication",
+     "p": [
+      "APIs must know who is calling. An API key is a long secret string sent in a header such as X-API-Key, identifying an application. A bearer token, sent as Authorization: Bearer followed by the token, represents a logged-in user or app and often has an expiry. JSON Web Tokens, or JWTs, are a common token format containing signed claims. Secrets must be kept out of source code and URLs, stored securely and rotated. Common API weaknesses include missing authorization checks on object IDs, so that changing 42 to 43 reveals another user's record, excessive data in responses and no rate limiting."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "API call",
+    "text": "GET /api/v1/users/42 HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer eyJ...redacted\n\nHTTP/1.1 200 OK\nContent-Type: application/json\n\n{\"id\": 42, \"name\": \"alice\", \"roles\": [\"user\"], \"active\": true}"
+   },
+   "example": "A tester logged in as user 42 calls GET /api/v1/orders/1001 and receives their own order in JSON. They change the number to 1002, an order belonging to another customer, and the API returns it with status 200. The server checked that the token was valid but never checked that the order belonged to the caller. This broken object level authorization flaw is among the most common API issues. The fix is to verify ownership of every requested object on the server, returning 403 or 404 for others.",
+   "terms": [
+    {
+     "term": "API",
+     "def": "A defined way for programs to request data or actions from each other."
+    },
+    {
+     "term": "REST",
+     "def": "An API style using URLs for resources and HTTP methods for actions."
+    },
+    {
+     "term": "JSON",
+     "def": "A text format of keys, values, objects and arrays for data exchange."
+    },
+    {
+     "term": "Bearer token",
+     "def": "A credential sent in the Authorization header that grants access to its holder."
+    },
+    {
+     "term": "API key",
+     "def": "A secret string identifying the calling application."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which method usually creates a new resource in REST?",
+     "options": [
+      "GET",
+      "POST",
+      "HEAD",
+      "TRACE"
+     ],
+     "a": 1,
+     "why": "POST submits data to create a resource."
+    },
+    {
+     "q": "Which is valid JSON?",
+     "options": [
+      "{name: alice}",
+      "{\"name\": \"alice\"}",
+      "<name>alice</name>",
+      "name=alice"
+     ],
+     "a": 1,
+     "why": "JSON keys and strings use double quotes."
+    },
+    {
+     "q": "Where is a bearer token usually sent?",
+     "options": [
+      "Authorization header",
+      "URL fragment",
+      "DNS query",
+      "Image"
+     ],
+     "a": 0,
+     "why": "It goes in the Authorization header."
+    },
+    {
+     "q": "Changing an ID in an API URL reveals another user's data. What is missing?",
+     "options": [
+      "TLS",
+      "An ownership authorization check",
+      "A bigger key",
+      "CSS"
+     ],
+     "a": 1,
+     "why": "The server must verify the caller owns the object."
+    }
+   ],
+   "recap": [
+    "APIs return structured data over HTTP, usually JSON.",
+    "REST uses URLs for resources and methods for actions.",
+    "Tokens and keys must be protected and each object access authorized."
+   ]
+  },
+  {
+   "title": "Databases and SQL Basics",
+   "why": "Databases hold the valuable data, and unsafe queries are one of the most damaging web flaws.",
+   "sections": [
+    {
+     "h": "Relational databases",
+     "p": [
+      "A relational database stores data in tables made of rows and columns. A customers table might have columns id, name, city and balance, and each row is one customer. A primary key, usually id, uniquely identifies each row, and a foreign key in another table points to it to link records. Popular systems include MySQL, PostgreSQL, SQL Server and SQLite. Web applications talk to them using SQL, Structured Query Language. The database server normally listens on its own port, such as 3306 for MySQL and 5432 for PostgreSQL, and should never be directly exposed to the internet."
+     ]
+    },
+    {
+     "h": "Reading data with SELECT",
+     "p": [
+      "The SELECT statement reads data. SELECT name, city FROM customers returns two columns for every row, and SELECT * returns all columns. WHERE filters rows: SELECT name FROM customers WHERE city = 'Leeds'. Combine conditions with AND and OR, and sort with ORDER BY balance DESC. LIMIT 5 restricts the number of rows. Text values are in single quotes and numbers are not. The comparison operators are =, <>, <, >, <= and >=. LIKE with a percent sign matches patterns, for example name LIKE 'A%'. Reading these statements fluently helps you understand both logs and application behavior."
+     ]
+    },
+    {
+     "h": "INSERT, UPDATE, DELETE and JOIN",
+     "p": [
+      "INSERT INTO customers (name, city) VALUES ('Ana Test', 'Leeds') adds a row. UPDATE customers SET city = 'York' WHERE id = 7 changes rows, and DELETE FROM customers WHERE id = 7 removes them. Forgetting the WHERE clause affects every row, a classic and costly mistake. JOIN combines tables: SELECT c.name, o.total FROM customers c JOIN orders o ON o.customer_id = c.id returns each customer with their orders. Applications should connect with an account that has only the permissions it needs, for example read access to some tables, so that a flaw cannot drop everything."
+     ]
+    },
+    {
+     "h": "Why input must be parameterized",
+     "p": [
+      "If an application builds a query by gluing user text into a string, such as \"SELECT * FROM users WHERE name = '\" + input + \"'\", then an attacker can type characters that change the meaning of the query. This is SQL injection, and it can expose or alter entire databases. The defense is parameterized queries, also called prepared statements, where the SQL text with placeholders is sent separately from the values, so input is always treated as data and never as code. Additional layers are input validation, least privilege database accounts and error messages that do not reveal database details."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "SQL examples",
+    "text": "SELECT name, city FROM customers WHERE city = 'Leeds' ORDER BY name;\n\nSELECT c.name, o.total\nFROM customers c JOIN orders o ON o.customer_id = c.id\nWHERE o.total > 100;\n\n-- safe pattern: SELECT * FROM users WHERE name = ?"
+   },
+   "example": "A login form builds the query by concatenating the typed name. A tester enters a lone apostrophe, and the page returns a database error, showing that input reaches the SQL statement unmodified. This is a strong sign of injection risk, so the tester stops, documents the page and reports it without extracting any data. The developer rewrites the code to use a prepared statement with a placeholder and changes the application account to read only the users table. The same input now simply fails to match any name and returns an ordinary login failure.",
+   "terms": [
+    {
+     "term": "Table",
+     "def": "A set of rows and columns holding one kind of record."
+    },
+    {
+     "term": "Primary key",
+     "def": "A column that uniquely identifies each row."
+    },
+    {
+     "term": "SELECT",
+     "def": "The SQL statement that reads data."
+    },
+    {
+     "term": "JOIN",
+     "def": "A SQL operation combining rows from two tables."
+    },
+    {
+     "term": "Parameterized query",
+     "def": "A query where values are passed separately so input cannot change the SQL."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which clause filters rows in SQL?",
+     "options": [
+      "ORDER BY",
+      "WHERE",
+      "LIMIT",
+      "FROM"
+     ],
+     "a": 1,
+     "why": "WHERE selects the rows that match a condition."
+    },
+    {
+     "q": "What happens if you run DELETE FROM customers with no WHERE?",
+     "options": [
+      "Nothing",
+      "All rows are deleted",
+      "One row is deleted",
+      "An error always"
+     ],
+     "a": 1,
+     "why": "Without a condition every row is removed."
+    },
+    {
+     "q": "What is the best defense against SQL injection?",
+     "options": [
+      "Parameterized queries",
+      "Hidden fields",
+      "Longer URLs",
+      "Bigger fonts"
+     ],
+     "a": 0,
+     "why": "They keep input as data, not code."
+    },
+    {
+     "q": "Which statement combines two tables?",
+     "options": [
+      "JOIN",
+      "INSERT",
+      "DROP",
+      "LIMIT"
+     ],
+     "a": 0,
+     "why": "JOIN links rows by matching columns."
+    }
+   ],
+   "recap": [
+    "Tables hold rows; SELECT reads, WHERE filters, JOIN combines.",
+    "Missing WHERE clauses on UPDATE or DELETE affect every row.",
+    "Use parameterized queries and least privilege accounts."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Inspect a Request",
+   "sim": "web-proxy",
+   "scenario": "You are testing a fictional training site, www.example.com, with explicit permission inside a lab. A web proxy sits between the browser and the site and lists each request. You log in with the demo account alice and intercept the login request. Study its raw text and identify the method, the path, important headers, the cookie, and the body parameters, then note which values the browser chose and which the user typed.",
+   "objective": "Identify method, headers, cookie and body parameters in an intercepted login request.",
+   "steps": [
+    {
+     "do": "Submit the login form and open the intercepted request.",
+     "see": "Request 14 captured: POST /login HTTP/1.1."
+    },
+    {
+     "do": "Read the request line.",
+     "see": "Method POST, path /login, version HTTP/1.1."
+    },
+    {
+     "do": "Read the headers.",
+     "see": "Host: www.example.com; User-Agent: LabBrowser/1.0; Content-Type: application/x-www-form-urlencoded; Content-Length: 31."
+    },
+    {
+     "do": "Find the Cookie header.",
+     "see": "Cookie: sid=anon-7731; theme=light"
+    },
+    {
+     "do": "Read the body.",
+     "see": "user=alice&pass=Demo123&csrf=ab12"
+    },
+    {
+     "do": "Forward the request and read the response.",
+     "see": "HTTP/1.1 302 Found, Location: /dashboard, Set-Cookie: sid=9f8e7d6c; Path=/"
+    },
+    {
+     "do": "Note what changed.",
+     "see": "Session ID changed from anon-7731 to 9f8e7d6c after login."
+    }
+   ],
+   "answer": "The request is POST /login with Content-Type urlencoded. The body has user, pass and csrf parameters. The pre-login cookie sid=anon-7731 was replaced by a new session ID on login, which is good practice, and the 302 redirects to /dashboard.",
+   "hint": "Method and path are on the first line; parameters are after the blank line."
+  },
+  {
+   "title": "Status Code Detective",
+   "sim": "log-viewer",
+   "scenario": "A fictional web server for www.example.com has recorded several lines in its access log. The log viewer highlights the status field. Your task is to read each line for 301, 403, 404 and 500, explain what the user would have experienced and decide which line could point to an attack or to a bug in the application that engineers should investigate first.",
+   "objective": "Explain what each status code in the log means for the user and spot the suspicious one.",
+   "steps": [
+    {
+     "do": "Open the access log.",
+     "see": "Shows 8 lines; status column highlighted."
+    },
+    {
+     "do": "Read line 2: GET /old-page 301 0.",
+     "see": "301 Moved Permanently. The user is redirected to the new address."
+    },
+    {
+     "do": "Read line 4: GET /admin 403 199.",
+     "see": "403 Forbidden. The user is blocked from the admin page."
+    },
+    {
+     "do": "Read line 5: GET /missing.png 404 153.",
+     "see": "404 Not Found. A broken link or image."
+    },
+    {
+     "do": "Read line 6: GET /search?q=%27 500 721.",
+     "see": "500 Internal Server Error after an odd quote character in input."
+    },
+    {
+     "do": "Check source of lines 4 and 6.",
+     "see": "Both from 203.0.113.25 within 3 seconds."
+    },
+    {
+     "do": "Flag the line most worth escalating.",
+     "see": "Line 6 flagged: input likely reaching a database query."
+    }
+   ],
+   "answer": "A 301 redirects, a 403 denies, a 404 reports a missing resource and a 500 reports a server fault. Line 6 is the most important: a lone quote in the search parameter caused a 500 from a source that also probed /admin, suggesting testing for injection.",
+   "hint": "Compare the status code with the request path and the parameter values."
+  },
+  {
+   "title": "Cookie Flag Audit",
+   "sim": "web-proxy",
+   "scenario": "You are auditing three responses captured from a fictional site, shop.example.com, in a lab proxy. Each response sets a cookie. For every cookie you must check three attributes: HttpOnly, Secure and SameSite. Record which ones are missing, rate the cookie by its purpose, and recommend which response needs the most urgent fix before the site goes live. Treat any cookie that proves identity as more sensitive than one that stores a preference.",
+   "objective": "Find which cookies lack HttpOnly, Secure or SameSite.",
+   "steps": [
+    {
+     "do": "Open response 1.",
+     "see": "Set-Cookie: sid=9f8e7d6c5b4a; Path=/; Secure; HttpOnly; SameSite=Lax"
+    },
+    {
+     "do": "Mark response 1.",
+     "see": "All three flags present. Pass."
+    },
+    {
+     "do": "Open response 2.",
+     "see": "Set-Cookie: cart=3|7|9; Path=/; SameSite=Lax"
+    },
+    {
+     "do": "Mark response 2.",
+     "see": "Missing HttpOnly and Secure."
+    },
+    {
+     "do": "Open response 3.",
+     "see": "Set-Cookie: auth=eyJ...; Path=/"
+    },
+    {
+     "do": "Mark response 3.",
+     "see": "Missing HttpOnly, Secure and SameSite. Auth cookie."
+    },
+    {
+     "do": "Rank the fixes.",
+     "see": "Priority: response 3 first (auth), response 2 second."
+    }
+   ],
+   "answer": "Response 1 is correct. Response 2 lacks HttpOnly and Secure, lower impact because it only stores cart items. Response 3 is an authentication cookie missing HttpOnly, Secure and SameSite, the most urgent fix.",
+   "hint": "Weigh the missing flags by what the cookie protects."
+  },
+  {
+   "title": "Query the Customers Table",
+   "sim": "terminal",
+   "scenario": "You have a SQL terminal on a fictional training database named shopdb. The customers table has columns id, name, city and balance, with twelve sample rows. A manager sends four questions that you must answer using SELECT queries with WHERE and ORDER BY. Use only read statements and check each result before reporting it. The terminal prints rows as pipe-separated text and reports a row count after each query, so you can confirm that each answer matches the question asked.",
+   "objective": "Answer four lookup questions using SELECT with WHERE and ORDER BY.",
+   "steps": [
+    {
+     "do": "Run: SELECT name, city FROM customers LIMIT 3;",
+     "see": "Ana Test|Leeds; Ben Demo|York; Cara Sample|Leeds"
+    },
+    {
+     "do": "Q1: who lives in Leeds? Run: SELECT name FROM customers WHERE city = 'Leeds';",
+     "see": "Ana Test; Cara Sample; Dev Example (3 rows)"
+    },
+    {
+     "do": "Q2: balances over 500, highest first. Run: SELECT name, balance FROM customers WHERE balance > 500 ORDER BY balance DESC;",
+     "see": "Eli Fake 920; Cara Sample 640; Ben Demo 510 (3 rows)"
+    },
+    {
+     "do": "Q3: how many customers in York? Run: SELECT COUNT(*) FROM customers WHERE city = 'York';",
+     "see": "4"
+    },
+    {
+     "do": "Q4: lowest balance. Run: SELECT name, balance FROM customers ORDER BY balance ASC LIMIT 1;",
+     "see": "Fay Placeholder 12"
+    },
+    {
+     "do": "Try: SELECT name FROM customers WHERE city = Leeds;",
+     "see": "ERROR: unknown column Leeds. Text needs single quotes."
+    },
+    {
+     "do": "Report all answers.",
+     "see": "All four answers accepted."
+    }
+   ],
+   "answer": "Leeds customers are Ana Test, Cara Sample and Dev Example. Balances over 500 in order are Eli Fake 920, Cara Sample 640 and Ben Demo 510. Four customers live in York. The lowest balance is Fay Placeholder with 12.",
+   "hint": "Text values need single quotes, and ORDER BY ... DESC puts the highest first."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which part of a URL is not sent to the server?",
+   "options": [
+    "Path",
+    "Query",
+    "Fragment",
+    "Host"
+   ],
+   "a": 2,
+   "why": "The fragment stays in the browser."
+  },
+  {
+   "q": "Which method is intended only to retrieve data?",
+   "options": [
+    "GET",
+    "POST",
+    "PUT",
+    "DELETE"
+   ],
+   "a": 0,
+   "why": "GET is a safe, read-only method."
+  },
+  {
+   "q": "What does a 401 status mean?",
+   "options": [
+    "Authentication required or failed",
+    "Server crashed",
+    "Moved permanently",
+    "Created"
+   ],
+   "a": 0,
+   "why": "401 means credentials are missing or invalid."
+  },
+  {
+   "q": "Many 404 responses for different paths from one IP suggest what?",
+   "options": [
+    "Scanning for content",
+    "A healthy site",
+    "A TLS upgrade",
+    "A database backup"
+   ],
+   "a": 0,
+   "why": "Path guessing yields many 404s."
+  },
+  {
+   "q": "Which cookie flag blocks JavaScript from reading the cookie?",
+   "options": [
+    "HttpOnly",
+    "Secure",
+    "Path",
+    "Domain"
+   ],
+   "a": 0,
+   "why": "HttpOnly hides it from scripts."
+  },
+  {
+   "q": "Which flag keeps a cookie off plain HTTP connections?",
+   "options": [
+    "Secure",
+    "SameSite",
+    "HttpOnly",
+    "Max-Age"
+   ],
+   "a": 0,
+   "why": "Secure restricts it to HTTPS."
+  },
+  {
+   "q": "Why must validation also happen on the server?",
+   "options": [
+    "Clients can be bypassed or modified",
+    "Servers are faster",
+    "HTML forbids it",
+    "It saves bandwidth"
+   ],
+   "a": 0,
+   "why": "Attackers control what the client sends."
+  },
+  {
+   "q": "Which JSON snippet is valid?",
+   "options": [
+    "{\"a\": 1}",
+    "{a: 1}",
+    "{'a': 1}",
+    "a=1"
+   ],
+   "a": 0,
+   "why": "JSON requires double-quoted keys."
+  },
+  {
+   "q": "Which SQL clause filters rows?",
+   "options": [
+    "WHERE",
+    "ORDER BY",
+    "JOIN",
+    "INSERT"
+   ],
+   "a": 0,
+   "why": "WHERE sets the condition."
+  },
+  {
+   "q": "What best prevents SQL injection?",
+   "options": [
+    "Parameterized queries",
+    "Client-side checks only",
+    "Hiding the form",
+    "Longer passwords"
+   ],
+   "a": 0,
+   "why": "They separate code from data."
+  }
+ ]
+}

@@ -1,0 +1,800 @@
+{
+ "code": "SOC-01",
+ "intro": "A Security Operations Center (SOC) is the team, process and tooling that watches an organization's systems for signs of attack and responds to them. This module explains how SOCs are staffed in tiers, which tools each role uses, how an alert moves from detection to closure, how severity-based SLAs and playbooks keep work consistent, and how metrics such as MTTD and MTTR show whether the SOC is improving. These foundations frame every later module in the path.",
+ "lessons": [
+  {
+   "title": "SOC structure and Tier 1-3 roles",
+   "why": "Knowing who owns what in a SOC tells you when to escalate, to whom, and what the next person expects to receive.",
+   "sections": [
+    {
+     "h": "Why SOCs use tiers",
+     "p": [
+      "Most SOCs divide work by depth of analysis so that the large volume of simple decisions does not block the small number of hard ones. Tier 1 (L1) analysts monitor the alert queue, perform first-pass triage and close obvious false positives. Tier 2 (L2) analysts take escalated cases, investigate across several data sources and decide on containment. Tier 3 (L3) analysts are senior investigators, threat hunters and malware or forensic specialists who handle the hardest incidents and improve detections. The tier model keeps skilled people focused where their time is most valuable and gives new analysts a clear growth path."
+     ]
+    },
+    {
+     "h": "Roles beyond the three tiers",
+     "p": [
+      "Around the tiers sit supporting roles. The SOC manager owns staffing, budget, metrics and relationships with the business. Detection engineers write and tune rules. SOC or security engineers keep the SIEM, EDR and log pipelines healthy. Threat intelligence analysts supply context about adversaries. An incident manager (often called the incident commander) coordinates a major incident across IT, legal and communications. Small organizations combine these roles in a few people, and a managed security service provider (MSSP) may supply L1 and L2 on behalf of the customer."
+     ]
+    },
+    {
+     "h": "Escalation: what moves up and why",
+     "p": [
+      "An alert is escalated when it exceeds the analyst's authority, skill or time. Common triggers are confirmed compromise, a critical asset such as a domain controller, suspected data loss, an executive or privileged account, or evidence the analyst cannot interpret. Good escalation is complete: the analyst states what was seen, what was already checked, what is uncertain and what action is requested. Poor escalation, such as forwarding a raw alert with the note please look, forces the next tier to repeat the work and delays the response."
+     ]
+    },
+    {
+     "h": "Working models and shifts",
+     "p": [
+      "Many SOCs run 24x7 using three shifts or a follow-the-sun arrangement across time zones. Others run business hours with an on-call rotation. Whatever the model, continuity matters: the same case may be touched by several analysts, so ownership, status and next steps must be written down. Tier boundaries also change over time. Automation increasingly absorbs L1 tasks such as enrichment, so L1 analysts spend more time on verdicts and quality. Treat the tier names as a convention and learn the responsibilities each represents in your own organization."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Org chart (typical)",
+    "text": "SOC Manager\n  Incident Manager (major incidents)\n  L3: hunters, forensics, malware\n  L2: investigators, responders\n  L1: queue monitoring, triage\n  Engineering: SIEM/EDR/pipelines\n  Detection engineering, Threat intel"
+   },
+   "example": "At 02:10 an L1 analyst sees an EDR alert for encoded PowerShell on host FIN-WS-07 (192.0.2.44). Checking the user, parent process and prior alerts, they confirm Word launched PowerShell and a download followed. The host is a finance workstation, so they escalate to L2 with the process tree, command line, user, timeline and a request to isolate the host. L2 isolates it, and flags L3 to analyze the payload.",
+   "terms": [
+    {
+     "term": "Tier 1",
+     "def": "The first line of analysts who monitor alerts and perform initial triage."
+    },
+    {
+     "term": "Escalation",
+     "def": "Passing a case to a more senior person or team because it exceeds current authority or skill."
+    },
+    {
+     "term": "Incident manager",
+     "def": "The person who coordinates response across technical and business teams during a major incident."
+    },
+    {
+     "term": "MSSP",
+     "def": "A managed security service provider that runs monitoring on behalf of a customer."
+    },
+    {
+     "term": "Detection engineer",
+     "def": "A specialist who builds, tests and tunes detection rules."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which tier typically performs first-pass triage of the alert queue?",
+     "options": [
+      "Tier 1",
+      "Tier 3",
+      "SOC manager",
+      "Detection engineer"
+     ],
+     "a": 0,
+     "why": "L1 analysts monitor the queue and make the first triage decision."
+    },
+    {
+     "q": "Which is the best reason to escalate a case?",
+     "options": [
+      "The alert arrived on a Friday",
+      "A domain controller shows confirmed compromise",
+      "The alert title is long",
+      "The analyst is bored"
+     ],
+     "a": 1,
+     "why": "Confirmed compromise of a critical asset exceeds L1 authority and needs senior handling."
+    },
+    {
+     "q": "Who is mainly responsible for keeping SIEM log pipelines healthy?",
+     "options": [
+      "Security engineering",
+      "Tier 1 analysts",
+      "The incident manager",
+      "Legal counsel"
+     ],
+     "a": 0,
+     "why": "Engineers maintain the platforms and data flow that analysts rely on."
+    },
+    {
+     "q": "What makes an escalation note good?",
+     "options": [
+      "It forwards the raw alert unchanged",
+      "It states findings, checks done, uncertainties and the requested action",
+      "It only lists the hostname",
+      "It avoids naming the user"
+     ],
+     "a": 1,
+     "why": "Complete escalations save the next tier from repeating work."
+    }
+   ],
+   "recap": [
+    "SOCs divide work into tiers so simple volume and hard cases are handled by the right people.",
+    "Supporting roles (engineering, intel, incident manager) keep the SOC effective.",
+    "Escalate with findings, checks done and a clear request."
+   ]
+  },
+  {
+   "title": "The SOC toolset",
+   "why": "Each tool shows a different slice of activity; knowing what each can and cannot see tells you where to look next.",
+   "sections": [
+    {
+     "h": "SIEM and log management",
+     "p": [
+      "A Security Information and Event Management (SIEM) platform collects logs from many sources, normalizes them, stores them and lets analysts search and alert on them. Examples include Splunk, Microsoft Sentinel and Elastic Security. The SIEM is usually the central pane of glass for correlation, such as joining a firewall deny, an authentication failure and a web request from the same address. Its weakness is that it only knows what it is sent, so missing or badly parsed logs create blind spots."
+     ]
+    },
+    {
+     "h": "Endpoint and network visibility",
+     "p": [
+      "Endpoint Detection and Response (EDR) agents record process creation, file, registry and network activity on hosts and can contain a machine by isolating it. Network Detection and Response (NDR) and sensors such as Zeek or Suricata analyze traffic from taps or SPAN ports, which helps where no agent can be installed, for example on IoT devices. EDR sees what happened inside the host, NDR sees what crossed the wire. Encrypted traffic limits NDR content inspection, so metadata such as destinations, timing and certificates become important."
+     ]
+    },
+    {
+     "h": "Automation, cases and intelligence",
+     "p": [
+      "Security Orchestration, Automation and Response (SOAR) tools run playbooks automatically: enriching an IP, querying EDR, opening a ticket or blocking an indicator after approval. Ticketing or case management systems such as ServiceNow or TheHive record who did what, which is vital for audit and handoffs. A Threat Intelligence Platform (TIP) such as MISP stores indicators and context from feeds and partners. Analysts also use sandboxes, email security gateways and vulnerability scanners, each feeding alerts or context into the same workflow."
+     ]
+    },
+    {
+     "h": "Choosing the right tool for the question",
+     "p": [
+      "Match the question to the data source. Did a process run on this host? Use EDR. Which accounts logged on from this address? Use the SIEM and authentication logs. Did this host talk to a rare external server? Use NDR or firewall logs. Is this hash known malicious? Use the intelligence platform or a reputation service. Tools overlap, and strong analysts confirm a finding in a second source before concluding. Also remember that every tool generates alerts, so the SOC must tune and prioritize them rather than treat each product as a separate silo. A good SOC integrates them so that one case can pull evidence from all of them."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Tool map",
+    "text": "Question -> Tool\nProcess ran on host? -> EDR\nWho logged on from IP? -> SIEM auth logs\nRare external server? -> NDR / firewall\nKnown bad hash? -> TIP / reputation\nRecord actions -> Ticketing / case system"
+   },
+   "example": "An alert says host HR-LT-12 contacted 198.51.100.77. The analyst checks the SIEM for the proxy log (user and URL), EDR for the process that made the connection, and the TIP for any record of the address. EDR shows a signed update client, TIP has no hits, and the proxy shows a vendor update domain. The analyst documents each source in the ticket and closes the alert as benign.",
+   "terms": [
+    {
+     "term": "SIEM",
+     "def": "A platform that collects, normalizes, stores and correlates log data and raises alerts."
+    },
+    {
+     "term": "EDR",
+     "def": "Endpoint agent software that records host activity and supports detection and containment."
+    },
+    {
+     "term": "NDR",
+     "def": "Network detection and response, analysis of traffic to find threats."
+    },
+    {
+     "term": "SOAR",
+     "def": "Tooling that automates and orchestrates response playbooks."
+    },
+    {
+     "term": "TIP",
+     "def": "A threat intelligence platform that stores and shares indicators and context."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which tool is best for isolating an infected laptop from the network?",
+     "options": [
+      "EDR",
+      "SIEM dashboard",
+      "TIP",
+      "Vulnerability scanner"
+     ],
+     "a": 0,
+     "why": "EDR agents can network-isolate a host."
+    },
+    {
+     "q": "What is a main limitation of a SIEM?",
+     "options": [
+      "It cannot store logs",
+      "It only knows what it is sent and parsed correctly",
+      "It cannot search",
+      "It has no alerts"
+     ],
+     "a": 1,
+     "why": "Missing or badly parsed logs create blind spots."
+    },
+    {
+     "q": "What does SOAR primarily provide?",
+     "options": [
+      "Automated playbook execution and orchestration",
+      "Packet capture",
+      "Disk imaging",
+      "Password storage"
+     ],
+     "a": 0,
+     "why": "SOAR automates enrichment and response tasks."
+    },
+    {
+     "q": "Why use NDR in addition to EDR?",
+     "options": [
+      "It sees traffic on devices where no agent can run",
+      "It replaces all logging",
+      "It is cheaper than SIEM",
+      "It decrypts all traffic"
+     ],
+     "a": 0,
+     "why": "Network sensors cover agentless devices such as IoT."
+    }
+   ],
+   "recap": [
+    "SIEM correlates logs, EDR sees hosts, NDR sees traffic.",
+    "SOAR and ticketing automate and record the workflow.",
+    "Confirm findings in a second data source."
+   ]
+  },
+  {
+   "title": "Alert lifecycle and triage",
+   "why": "A consistent lifecycle makes decisions repeatable and auditable and prevents both missed attacks and wasted effort.",
+   "sections": [
+    {
+     "h": "From detection to triage",
+     "p": [
+      "An alert starts when a detection rule, product or user report fires. It lands in a queue with a severity and the first step is triage: quickly deciding whether it is worth further work. The analyst reads the alert logic, the triggering event, the asset and the user involved. A useful habit is to ask what the rule is looking for, why it fired here, and what benign explanations exist. Triage should be fast, typically minutes, and aims to separate clearly benign items from those needing investigation."
+     ]
+    },
+    {
+     "h": "Enrichment and verdict",
+     "p": [
+      "Enrichment adds context: asset criticality and owner, user role, geolocation and reputation of IPs and domains, file hashes, previous alerts on the same host and recent changes such as software deployments. With context the analyst reaches a verdict. A true positive means malicious or policy-violating activity occurred. A false positive means the rule fired but nothing wrong happened. A benign true positive means the activity matched the rule and was real, but was authorized, such as an admin running a scan. Record the reasoning, not only the label."
+     ]
+    },
+    {
+     "h": "Escalation, response and closure",
+     "p": [
+      "True positives that exceed L1 scope are escalated with a summary and evidence. Others are closed with a documented reason and, if the rule is noisy, a request to tune it. Closure is more than clicking a button: a good closure note says what was checked, the verdict, the action taken and any follow-up such as a detection improvement. Cases that are confirmed incidents move into the incident response process, with containment, eradication and recovery handled under the response plan rather than in the alert queue."
+     ]
+    },
+    {
+     "h": "Common triage mistakes",
+     "p": [
+      "Frequent errors include closing alerts based on the title only, trusting a single reputation score, ignoring asset criticality, and anchoring on the first explanation. Another mistake is failing to look for related activity: one failed logon may be noise, but ten across many accounts is a pattern. Avoid alert fatigue by tracking which rules give little value and sending them for tuning. Remember that an attacker may deliberately create noise, so an alert that looks routine on a critical host deserves a second look before closure."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Case note (example)",
+    "text": "Alert: Multiple failed logons (rule AUTH-014)\nSrc: 203.0.113.50  Target: svc-backup\nChecked: 14 failures in 3 min, 0 success\nContext: external IP, no prior history\nVerdict: True positive, brute force attempt\nAction: IP blocked at firewall, ticket INC-2041"
+   },
+   "example": "A rule fires for a user downloading a large archive from a file share at 14:20. Enrichment shows the user is a project manager, the share is their team folder, and a project handover happened that week. There is no external transfer and no prior alerts. The analyst labels it a benign true positive, writes the reasoning in the ticket, and asks detection engineering to add a size threshold or exclude the team share.",
+   "terms": [
+    {
+     "term": "Triage",
+     "def": "Quick initial assessment to decide whether an alert needs investigation."
+    },
+    {
+     "term": "Enrichment",
+     "def": "Adding context such as asset, user and reputation data to an alert."
+    },
+    {
+     "term": "True positive",
+     "def": "An alert that correctly identifies malicious or violating activity."
+    },
+    {
+     "term": "False positive",
+     "def": "An alert that fired though no real problem exists."
+    },
+    {
+     "term": "Benign true positive",
+     "def": "Real activity that matched the rule but was authorized."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does a false positive mean?",
+     "options": [
+      "The rule fired but nothing wrong occurred",
+      "Malware was confirmed",
+      "The alert was missed",
+      "The case was escalated"
+     ],
+     "a": 0,
+     "why": "A false positive is a firing without a real problem."
+    },
+    {
+     "q": "Which step adds asset criticality and IP reputation to an alert?",
+     "options": [
+      "Enrichment",
+      "Closure",
+      "Eradication",
+      "Retention"
+     ],
+     "a": 0,
+     "why": "Enrichment supplies context for the verdict."
+    },
+    {
+     "q": "An admin runs an approved scan that triggers a rule. What is the verdict?",
+     "options": [
+      "Benign true positive",
+      "Missed detection",
+      "Ransomware",
+      "Data loss"
+     ],
+     "a": 0,
+     "why": "The activity is real but authorized."
+    },
+    {
+     "q": "Which is a triage mistake?",
+     "options": [
+      "Closing an alert based on its title alone",
+      "Checking related alerts on the host",
+      "Recording reasoning",
+      "Verifying in a second source"
+     ],
+     "a": 0,
+     "why": "Titles do not show what actually happened."
+    }
+   ],
+   "recap": [
+    "Triage, enrich, decide a verdict, then escalate or close with notes.",
+    "Distinguish true, false and benign true positives.",
+    "Look for related activity and record reasoning."
+   ]
+  },
+  {
+   "title": "SLAs, playbooks and shift handoffs",
+   "why": "Time targets, written procedures and clear handoffs keep a team consistent when people and shifts change.",
+   "sections": [
+    {
+     "h": "Severity-based SLAs",
+     "p": [
+      "A service level agreement (SLA) in a SOC sets how fast alerts are acknowledged and handled by severity. A common pattern is: critical, acknowledge within 15 minutes and begin containment within an hour; high, acknowledge within 30 to 60 minutes; medium, within a few hours; low, within a business day. Severity combines the detection's confidence, the impact if true and asset criticality. SLAs are agreed with the business, measured by the ticketing system and reviewed so that targets reflect real risk rather than being arbitrary. Missing SLAs usually signals understaffing or too much noise."
+     ]
+    },
+    {
+     "h": "Playbooks and runbooks",
+     "p": [
+      "A playbook is a documented set of steps for a type of alert or incident, such as phishing, malware or suspicious logon. It lists inputs, checks, decision points, actions and escalation criteria. Following one improves consistency and speeds up new analysts. For example, a phishing playbook says to obtain the message, analyze headers and URLs, search for other recipients, purge, block indicators and notify the user. Playbooks should be versioned, tested and updated after incidents. Some steps can be automated in SOAR while approval-based steps such as isolating a server remain human."
+     ]
+    },
+    {
+     "h": "Writing a shift handoff",
+     "p": [
+      "Handoffs transfer knowledge between shifts. A good note is structured: open cases with owner, status and next action; pending requests and who is waiting; noteworthy trends such as an active phishing campaign; system issues such as a log source down; and risks or deadlines. Be specific, with case IDs, hostnames and times in UTC. Avoid vague lines such as still working on the thing. The incoming analyst should be able to continue without calling the previous one. Many teams also hold a short verbal briefing to cover anything nuanced."
+     ]
+    },
+    {
+     "h": "Keeping the process healthy",
+     "p": [
+      "SLAs, playbooks and handoffs are linked. A clear playbook shortens handling time, which helps meet SLAs, and a precise handoff stops cases stalling over a shift change. Review them regularly using metrics: which alert types breach SLAs, which playbooks are skipped and which handoff notes left questions. Involve analysts in updates because they know where steps are unclear. Document exceptions too, for example when an on-call manager approves a delay, so that audits can see decisions were deliberate."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Handoff note",
+    "text": "Shift: 14:00-22:00 UTC -> 22:00-06:00 UTC\nINC-2041 High: brute force on svc-backup, IP blocked, monitor 24h\nINC-2043 Med: phish reported, 3 recipients, purge pending approval\nIssue: proxy logs delayed ~20 min since 18:30\nRisk: patch window on web01 at 23:00"
+   },
+   "example": "A critical alert for ransomware behavior arrives at 09:00 with a 15-minute acknowledge SLA. The analyst acknowledges at 09:06, follows the ransomware playbook (isolate host, preserve evidence, notify incident manager) and escalates by 09:20. At end of shift they write a handoff listing the case ID, the isolated host, pending forensic imaging and the next contact, all in UTC so the next shift can pick up immediately.",
+   "terms": [
+    {
+     "term": "SLA",
+     "def": "A time commitment for responding to or resolving alerts, set by severity."
+    },
+    {
+     "term": "Playbook",
+     "def": "A documented step list for handling a specific alert or incident type."
+    },
+    {
+     "term": "Runbook",
+     "def": "A detailed operational procedure, often for a specific system task."
+    },
+    {
+     "term": "Shift handoff",
+     "def": "The structured transfer of case status and risks between shifts."
+    },
+    {
+     "term": "Severity",
+     "def": "A rating combining confidence, impact and asset criticality."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which factor most directly sets an alert's SLA?",
+     "options": [
+      "Severity",
+      "The analyst's name",
+      "The log format",
+      "The SIEM vendor"
+     ],
+     "a": 0,
+     "why": "SLAs are tied to severity levels."
+    },
+    {
+     "q": "What is a playbook?",
+     "options": [
+      "A step list for handling a type of alert",
+      "A firewall rule",
+      "A threat actor profile",
+      "A log parser"
+     ],
+     "a": 0,
+     "why": "Playbooks standardize handling."
+    },
+    {
+     "q": "Which handoff line is best?",
+     "options": [
+      "INC-2043: purge pending approval from manager, 3 recipients",
+      "Still working on the thing",
+      "Nothing special",
+      "Ask me later"
+     ],
+     "a": 0,
+     "why": "It is specific, includes an ID and a next action."
+    },
+    {
+     "q": "Frequent SLA breaches most likely suggest what?",
+     "options": [
+      "Understaffing or too much noise",
+      "Perfect tuning",
+      "Excess storage",
+      "Faster networks"
+     ],
+     "a": 0,
+     "why": "Breaches usually point to capacity or noise problems."
+    }
+   ],
+   "recap": [
+    "SLAs scale response time with severity.",
+    "Playbooks give consistent, reviewable procedures.",
+    "Handoffs must be specific, current and in UTC."
+   ]
+  },
+  {
+   "title": "SOC metrics: MTTD, MTTR and quality",
+   "why": "Metrics show whether detection and response are improving and where effort is wasted.",
+   "sections": [
+    {
+     "h": "Time-based metrics",
+     "p": [
+      "Mean Time to Detect (MTTD) is the average time from when malicious activity begins to when the SOC detects it. Mean Time to Respond (MTTR) is the average time from detection to containment or resolution; some teams define separate measures such as time to acknowledge and time to contain. Compute them from timestamps in cases. Example: activity starts 10:00, detected 10:30, contained 12:00. Detection time is 30 minutes and response time is 90 minutes. Averaging across many incidents gives MTTD and MTTR. Always state exactly which start and end events are used so numbers are comparable."
+     ]
+    },
+    {
+     "h": "Quality and volume metrics",
+     "p": [
+      "Alert volume shows workload. The false positive rate is false positives divided by total alerts reviewed, such as 180 of 200 giving 90 percent. Precision is true positives divided by all alerts, so 20 of 200 gives 10 percent. Other measures include escalation rate, reopen rate, SLA compliance and coverage against ATT&CK techniques. High volume with low precision implies noise and analyst fatigue, while low volume might mean missing logs rather than a quiet environment. Read metrics together rather than singly."
+     ]
+    },
+    {
+     "h": "Interpreting and misusing metrics",
+     "p": [
+      "Means can mislead: one incident that took three weeks to detect can distort an average, so many teams also report the median and the distribution. Metrics can also be gamed. If analysts are rewarded for fast closure, they may close alerts carelessly, so pair speed with quality checks such as peer review of closed cases. Measure what you want to improve, and compare against your own trend rather than another organization, because incident types and data differ. Report to managers with context, such as a drop in MTTD after new detections."
+     ]
+    },
+    {
+     "h": "Using metrics to improve",
+     "p": [
+      "Metrics become useful when they lead to action. A rule with a 98 percent false positive rate is a tuning candidate. A rising time to acknowledge on weekends suggests staffing changes. A long MTTD for phishing might justify better email telemetry. Set targets, review them monthly and record the changes you made and their effect. Metrics also support budget requests by showing the effect of tools and staffing. Keep definitions stable so that trends mean something, and note any change in definition when you report."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Worked numbers",
+    "text": "Case A: start 10:00 detect 10:30 contain 12:00\n  TTD 30 min, TTR 90 min\nCase B: start 08:00 detect 09:00 contain 09:30\n  TTD 60 min, TTR 30 min\nMTTD = (30+60)/2 = 45 min\nMTTR = (90+30)/2 = 60 min"
+   },
+   "example": "A SOC reviews 400 alerts in a week and 360 are false positives. The false positive rate is 90 percent and precision is 10 percent. One rule generates 250 of the alerts. The manager asks detection engineering to tune that rule first. After tuning, the weekly volume drops to 220 alerts with 40 true positives, so precision rises to about 18 percent while no true positives are lost.",
+   "terms": [
+    {
+     "term": "MTTD",
+     "def": "Mean time to detect: average time from activity start to detection."
+    },
+    {
+     "term": "MTTR",
+     "def": "Mean time to respond: average time from detection to containment or resolution."
+    },
+    {
+     "term": "False positive rate",
+     "def": "The share of reviewed alerts that were false positives."
+    },
+    {
+     "term": "Precision",
+     "def": "True positives divided by total alerts."
+    },
+    {
+     "term": "Median",
+     "def": "The middle value, less distorted by outliers than a mean."
+    }
+   ],
+   "check": [
+    {
+     "q": "An attack starts 09:00, is detected 09:20 and contained 10:20. What are the detection and response times?",
+     "options": [
+      "20 min and 60 min",
+      "60 min and 20 min",
+      "80 min and 20 min",
+      "20 min and 80 min"
+     ],
+     "a": 0,
+     "why": "Detection is 09:00 to 09:20 and response is 09:20 to 10:20."
+    },
+    {
+     "q": "180 of 200 alerts are false positives. What is the false positive rate?",
+     "options": [
+      "90 percent",
+      "10 percent",
+      "18 percent",
+      "180 percent"
+     ],
+     "a": 0,
+     "why": "180 divided by 200 is 0.9."
+    },
+    {
+     "q": "Why report the median alongside the mean?",
+     "options": [
+      "Outliers can distort the mean",
+      "The median is always smaller",
+      "It is required by law",
+      "It hides slow incidents"
+     ],
+     "a": 0,
+     "why": "One very long incident can skew an average."
+    },
+    {
+     "q": "What risk arises if analysts are rewarded only for fast closure?",
+     "options": [
+      "Careless closures that miss true positives",
+      "Higher precision",
+      "Lower volume",
+      "Better SLAs only"
+     ],
+     "a": 0,
+     "why": "Speed without quality control encourages shortcuts."
+    }
+   ],
+   "recap": [
+    "MTTD measures detection delay and MTTR response time.",
+    "Pair volume, precision and false positive rate.",
+    "Use metrics to drive tuning, staffing and tooling decisions."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Sort the alert queue",
+   "sim": "siem",
+   "scenario": "The SIEM queue holds 10 alerts at 08:00 for the fictional company Example Corp. Assets include a domain controller (dc01, 192.0.2.10), a public web server and user laptops. Some alerts are routine and others suggest compromise. You rank them and assign tiers.",
+   "objective": "Rank all 10 alerts by severity and asset criticality and assign each to the correct tier.",
+   "steps": [
+    {
+     "do": "Open the queue and sort by severity column",
+     "see": "10 alerts listed: 2 Critical, 3 High, 3 Medium, 2 Low"
+    },
+    {
+     "do": "Open alert A1 (Critical) and read the asset field",
+     "see": "A1: mimikatz-like credential dump on dc01 (192.0.2.10), asset criticality Tier-0"
+    },
+    {
+     "do": "Open alert A2 (Critical)",
+     "see": "A2: ransomware file rename burst on FS02, 400 files in 2 min"
+    },
+    {
+     "do": "Open High alerts and compare the assets",
+     "see": "H1 web01 SQLi attempts; H2 laptop AV detection quarantined; H3 failed logons on svc-backup from 203.0.113.50"
+    },
+    {
+     "do": "Open Medium and Low alerts",
+     "see": "M1 policy proxy block, M2 new software install, M3 port scan from internal scanner; L1 and L2 informational login at odd hour for test account"
+    },
+    {
+     "do": "Assign tiers using the dropdown",
+     "see": "Assignment saved: A1,A2 -> L3 and incident manager; H1,H3 -> L2; H2 -> L1 close with note; M1-M3 and L1-L2 -> L1"
+    },
+    {
+     "do": "Submit ranking",
+     "see": "Ranking scored: order correct, 10 of 10 tiers acceptable"
+    }
+   ],
+   "answer": "Highest priority are A1 (credential dumping on the domain controller) and A2 (ransomware behavior), both escalated to L3 and the incident manager. H1 and H3 go to L2, and the rest are handled by L1 with notes.",
+   "hint": "Rank by impact if true and asset criticality, not just the label color."
+  },
+  {
+   "title": "Follow the phishing playbook",
+   "sim": "scenario",
+   "scenario": "A user at Example Corp reports an email claiming to be from payroll (sender billing@example.net) with a link. You follow the SOC phishing playbook and make the correct choice at each decision point, then record the outcome in the ticket.",
+   "objective": "Choose the correct playbook step at each decision point and close the case with a recorded outcome.",
+   "steps": [
+    {
+     "do": "Decision 1: acknowledge the report. Choose 'Acknowledge and request original message as attachment'",
+     "see": "Reporter thanked. Original .eml received with full headers"
+    },
+    {
+     "do": "Decision 2: analysis. Choose 'Inspect headers and defang URL, check reputation'",
+     "see": "Return-Path mismatch; URL hxxp://payroll-example[.]test/login flagged as lookalike"
+    },
+    {
+     "do": "Decision 3: scope. Choose 'Search mail logs for the sender and URL'",
+     "see": "Search finds 14 recipients, 2 clicked per proxy logs"
+    },
+    {
+     "do": "Decision 4: containment. Choose 'Purge from mailboxes and block sender and URL'",
+     "see": "14 messages purged, domain blocked at proxy"
+    },
+    {
+     "do": "Decision 5: affected users. Choose 'Reset credentials for the 2 clickers and review sign-ins'",
+     "see": "2 passwords reset, no suspicious sign-ins found"
+    },
+    {
+     "do": "Record outcome in the ticket and close",
+     "see": "Ticket INC-3001: True positive phishing, contained, user advised"
+    }
+   ],
+   "answer": "Correct path is acknowledge, analyze, scope the campaign, purge and block, reset the two users who clicked and document. The verdict is a true positive phishing campaign with no confirmed account compromise.",
+   "hint": "Always search for other recipients before closing a single report."
+  },
+  {
+   "title": "Write a shift handoff",
+   "sim": "chat-sim",
+   "scenario": "You finish an evening shift and a chat-sim plays the incoming analyst, Sam. You must give a structured handoff covering open cases, pending actions and risks. Cases: INC-2041 brute force blocked, INC-2043 phishing purge pending, proxy log delay, and a patch window on web01 at 23:00 UTC.",
+   "objective": "Provide a complete, specific handoff that lets Sam continue without follow-up questions.",
+   "steps": [
+    {
+     "do": "Type: 'Open cases: INC-2041 and INC-2043'",
+     "see": "Sam: Status and owner for each?"
+    },
+    {
+     "do": "Type: 'INC-2041 High, brute force on svc-backup, IP 203.0.113.50 blocked, monitor 24h, owner me until 22:00 UTC'",
+     "see": "Sam: Got it. Anything pending?"
+    },
+    {
+     "do": "Type: 'INC-2043 Medium phishing, 3 recipients, purge awaiting manager approval'",
+     "see": "Sam: Who do I chase for approval?"
+    },
+    {
+     "do": "Type: 'Chase the SOC manager on-call; approval needed before 23:00'",
+     "see": "Sam: Noted. Any system issues?"
+    },
+    {
+     "do": "Type: 'Proxy logs delayed about 20 min since 18:30 UTC, engineering ticket ENG-77'",
+     "see": "Sam: Will tell the team if it worsens."
+    },
+    {
+     "do": "Type: 'Risk: patch window on web01 at 23:00 UTC may cause alert noise'",
+     "see": "Sam: Understood. Handoff complete, checklist 5 of 5 items covered"
+    }
+   ],
+   "answer": "A complete handoff has case IDs with severity, status, owner and next action, pending approvals and who gives them, system issues with ticket numbers, and upcoming risks, all with times in UTC.",
+   "hint": "Include owner, next action and a UTC time for every item."
+  },
+  {
+   "title": "Compute SOC metrics",
+   "sim": "diagram-builder",
+   "scenario": "Three incidents have timestamps recorded in the case system. Place start, detection and containment markers on a timeline and compute the mean times. Case 1: start 10:00, detected 10:30, contained 12:00. Case 2: start 08:00, detected 09:00, contained 09:30. Case 3: start 13:00, detected 13:10, contained 14:10.",
+   "objective": "Derive MTTD and MTTR for the three cases.",
+   "steps": [
+    {
+     "do": "Drag the start, detect and contain markers for Case 1 onto the timeline",
+     "see": "Case 1: TTD 30 min, TTR 90 min"
+    },
+    {
+     "do": "Place markers for Case 2",
+     "see": "Case 2: TTD 60 min, TTR 30 min"
+    },
+    {
+     "do": "Place markers for Case 3",
+     "see": "Case 3: TTD 10 min, TTR 60 min"
+    },
+    {
+     "do": "Click Sum detection times",
+     "see": "Total TTD = 100 min"
+    },
+    {
+     "do": "Divide by 3 and enter MTTD",
+     "see": "MTTD = 33.3 min, accepted"
+    },
+    {
+     "do": "Click Sum response times, divide by 3 and enter MTTR",
+     "see": "Total TTR = 180 min, MTTR = 60 min, accepted"
+    }
+   ],
+   "answer": "MTTD is about 33 minutes (100 divided by 3) and MTTR is 60 minutes (180 divided by 3). Response time is measured from detection to containment, not from start.",
+   "hint": "Subtract carefully: detection time starts at activity start, response time starts at detection."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which tier usually handles escalated multi-source investigations?",
+   "options": [
+    "Tier 2",
+    "Tier 1 only",
+    "Legal",
+    "Vendor support"
+   ],
+   "a": 0,
+   "why": "L2 investigates escalated cases across sources."
+  },
+  {
+   "q": "Which tool is primarily used to isolate a compromised host?",
+   "options": [
+    "EDR",
+    "Ticketing",
+    "TIP",
+    "Email gateway"
+   ],
+   "a": 0,
+   "why": "EDR agents can isolate hosts."
+  },
+  {
+   "q": "An alert fires for an approved vulnerability scan. The best label is:",
+   "options": [
+    "Benign true positive",
+    "True positive attack",
+    "Missed detection",
+    "Ransomware"
+   ],
+   "a": 0,
+   "why": "The activity was real but authorized."
+  },
+  {
+   "q": "What is the correct order of the early alert lifecycle?",
+   "options": [
+    "Detect, triage, enrich, verdict",
+    "Verdict, detect, enrich, triage",
+    "Close, detect, triage, enrich",
+    "Enrich, close, detect, triage"
+   ],
+   "a": 0,
+   "why": "Alerts are detected, triaged, enriched, then given a verdict."
+  },
+  {
+   "q": "Which element sets how quickly a critical alert must be acknowledged?",
+   "options": [
+    "SLA",
+    "Parser",
+    "Index",
+    "Regex"
+   ],
+   "a": 0,
+   "why": "SLAs set response targets by severity."
+  },
+  {
+   "q": "A good shift handoff should include:",
+   "options": [
+    "Case IDs, status, next action and UTC times",
+    "Only a greeting",
+    "Personal opinions",
+    "Raw logs without context"
+   ],
+   "a": 0,
+   "why": "Specific, actionable details are required."
+  },
+  {
+   "q": "Activity starts 14:00, detected 14:45, contained 15:15. What is time to respond?",
+   "options": [
+    "30 minutes",
+    "45 minutes",
+    "75 minutes",
+    "15 minutes"
+   ],
+   "a": 0,
+   "why": "Response runs from detection (14:45) to containment (15:15)."
+  },
+  {
+   "q": "If 45 of 50 reviewed alerts were false positives, the false positive rate is:",
+   "options": [
+    "90 percent",
+    "10 percent",
+    "45 percent",
+    "5 percent"
+   ],
+   "a": 0,
+   "why": "45 divided by 50 is 0.9."
+  },
+  {
+   "q": "Why might a mean MTTD mislead?",
+   "options": [
+    "A single long outlier can skew it",
+    "Means are always accurate",
+    "It ignores time",
+    "It requires no data"
+   ],
+   "a": 0,
+   "why": "Outliers distort means, so median and distribution help."
+  },
+  {
+   "q": "What is the best response to a rule with a 98 percent false positive rate?",
+   "options": [
+    "Send it for tuning",
+    "Ignore all alerts",
+    "Disable logging",
+    "Escalate each alert to L3"
+   ],
+   "a": 0,
+   "why": "Noisy rules should be tuned, keeping true positive detection."
+  }
+ ]
+}

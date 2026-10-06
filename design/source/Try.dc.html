@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Try: a question</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+a{color:inherit}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="width:390px;height:844px;box-sizing:border-box;position:relative;overflow:hidden;display:flex;flex-direction:column;background-color:#F3F5F9;background-image:radial-gradient(#D3DAE8 1px,transparent 1px);background-size:18px 18px;font-family:'Hanken Grotesk',sans-serif;color:#101B33">
+  <div style="flex:1;min-height:0;padding:48px 20px 0;box-sizing:border-box;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;gap:10px">
+      <a href="Module.dc.html" aria-label="Close" style="width:44px;height:44px;margin-left:-12px;display:flex;align-items:center;justify-content:center;text-decoration:none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#101B33" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></a>
+      <div style="flex:1;display:flex;gap:3px">
+        <span style="flex:1;height:6px;border-radius:3px;background:#0F9D8A"></span><span style="flex:1;height:6px;border-radius:3px;background:#0F9D8A"></span><span style="flex:1;height:6px;border-radius:3px;background:#0F9D8A"></span>
+        <span style="flex:1;height:6px;border-radius:3px;background:linear-gradient(90deg,#0F9D8A 0 50%,#DCE2EC 50%)"></span>
+        <span style="flex:1;height:6px;border-radius:3px;background:#DCE2EC"></span><span style="flex:1;height:6px;border-radius:3px;background:#DCE2EC"></span><span style="flex:1;height:6px;border-radius:3px;background:#DCE2EC"></span><span style="flex:1;height:6px;border-radius:3px;background:#DCE2EC"></span>
+      </div>
+    </div>
+    <div style="margin-top:20px;font:600 12px/1 'Hanken Grotesk',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#5B6781">Question 4 of 8 · Pick one</div>
+    <h1 style="margin:10px 0 0;font:700 26px/1.15 'Bricolage Grotesque',sans-serif;letter-spacing:-.01em">Which record maps a name to an IPv4 address?</h1>
+
+    <div role="radiogroup" aria-label="Answers" style="margin-top:20px;display:flex;flex-direction:column;gap:10px">
+      <sc-for list="{{opts}}" as="o" hint-placeholder-count="4">
+        <button type="button" role="radio" aria-checked="{{o.sel}}" style="{{o.style}}" onClick="{{o.pick}}">
+          <span style="width:30px;height:30px;border-radius:9px;background:{{o.kbg}};display:flex;align-items:center;justify-content:center;flex:none;font:600 14px/1 'IBM Plex Mono',monospace">{{o.k}}</span>
+          <span style="flex:1;text-align:left;font:500 17px/1.2 'Hanken Grotesk',sans-serif">{{o.t}}</span>
+        </button>
+      </sc-for>
+    </div>
+
+    <sc-if value="{{showGood}}" hint-placeholder-val="{{false}}">
+      <div style="margin-top:16px;background:#DDF3EF;border:1px solid #9AD8CD;border-radius:16px;padding:12px 14px;font:400 15px/1.4 'Hanken Grotesk',sans-serif"><strong style="font-weight:700">Right.</strong> An A record holds an IPv4 address. AAAA holds an IPv6 address.</div>
+    </sc-if>
+    <sc-if value="{{showBad}}" hint-placeholder-val="{{false}}">
+      <div style="margin-top:16px;background:#FFF1AD;border:1px solid #E8D56A;border-radius:16px;padding:12px 14px;font:400 15px/1.4 'Hanken Grotesk',sans-serif"><strong style="font-weight:700">Not quite.</strong> The record for an IPv4 address is A. Pick it to continue.</div>
+    </sc-if>
+  </div>
+
+  <div style="flex:none;padding:12px 20px 30px;box-sizing:border-box;display:flex;flex-direction:column;gap:6px">
+    <sc-if value="{{canContinue}}" hint-placeholder-val="{{false}}">
+      <a href="Label.dc.html" style="height:54px;border-radius:16px;background:#101B33;color:#fff;text-decoration:none;font:600 16px/1 'Hanken Grotesk',sans-serif;display:flex;align-items:center;justify-content:center">Continue</a>
+    </sc-if>
+    <sc-if value="{{cannotContinue}}" hint-placeholder-val="{{true}}">
+      <div style="height:54px;border-radius:16px;background:#DCE2EC;color:#5B6781;font:600 16px/1 'Hanken Grotesk',sans-serif;display:flex;align-items:center;justify-content:center">Choose an answer</div>
+    </sc-if>
+    <a href="Learn.dc.html" style="min-height:44px;display:flex;align-items:center;justify-content:center;text-decoration:none;font:600 15px/1 'Hanken Grotesk',sans-serif;color:#2347C7">Show me the explanation again</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  state = { pick: null };
+  renderVals() {
+    const p = this.state.pick;
+    const base = "width:100%;min-height:60px;box-sizing:border-box;padding:12px 14px;display:flex;align-items:center;gap:12px;border-radius:16px;cursor:pointer;color:#101B33;";
+    const defs = [
+      { k: 'A', t: 'A' }, { k: 'B', t: 'AAAA' }, { k: 'C', t: 'MX' }, { k: 'D', t: 'TXT' }
+    ];
+    const opts = defs.map((d) => {
+      const sel = p === d.k;
+      const good = sel && d.k === 'A';
+      const bad = sel && d.k !== 'A';
+      let style = base + 'background:#fff;border:1px solid #DCE2EC;';
+      let kbg = '#E6EAF2';
+      if (good) { style = base + 'background:#DDF3EF;border:2px solid #0F9D8A;'; kbg = '#0F9D8A'; }
+      if (bad) { style = base + 'background:#FFF8D6;border:2px solid #E0A100;'; kbg = '#FFE066'; }
+      return { k: d.k, t: d.t, sel: sel, style: style, kbg: kbg, pick: () => this.setState({ pick: d.k }) };
+    });
+    return {
+      opts: opts,
+      showGood: p === 'A',
+      showBad: p !== null && p !== 'A',
+      canContinue: p === 'A',
+      cannotContinue: p !== 'A'
+    };
+  }
+}
+</script>
+</body>
+</html>

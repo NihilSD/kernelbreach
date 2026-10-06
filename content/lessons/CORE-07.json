@@ -1,0 +1,1212 @@
+{
+ "code": "CORE-07",
+ "intro": "This module teaches how web applications fail and how to fix them. You will review HTTP, survey the OWASP Top 10, and study injection, cross-site scripting, broken authentication, broken access control and IDOR, CSRF and SSRF, misconfiguration and vulnerable components, and finally secure headers, cookie flags and testing with Burp or ZAP. Every attack is practiced only against a sandbox and paired with the code or configuration change that stops it.",
+ "lessons": [
+  {
+   "title": "HTTP basics and the OWASP Top 10",
+   "why": "Every web flaw is a misuse of how requests and responses work. You must read HTTP fluently and know the standard categories of weakness.",
+   "sections": [
+    {
+     "h": "Requests, responses and methods",
+     "p": [
+      "HTTP is a stateless request-response protocol. A request has a method, a path, headers and an optional body; a response has a status code, headers and a body. Common methods are GET (retrieve, should be safe and not change state), POST (submit data), PUT and PATCH (update), and DELETE. Status codes group by first digit: 2xx success (200 OK), 3xx redirect (301, 302), 4xx client error (400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found), 5xx server error (500, 503). Important headers include Host, Cookie, Content-Type, Authorization and User-Agent. Everything the client sends, including hidden form fields and cookies, can be changed by the user, so the server must never trust it."
+     ]
+    },
+    {
+     "h": "Parameters, cookies and state",
+     "p": [
+      "Data reaches the server in the URL query string, the path, headers, cookies and the body, as form fields or JSON. Because HTTP is stateless, applications track users with cookies or tokens, which makes them a prime target. Never place secrets in URLs, because they appear in logs, browser history and Referer headers. Use POST or PUT for state changes. A browser enforces the same-origin policy, which stops a script on one origin from reading data from another, but it does not stop the browser from sending requests, which is why CSRF exists. Servers must validate input, authenticate and authorize every request."
+     ]
+    },
+    {
+     "h": "The OWASP Top 10",
+     "p": [
+      "The Open Worldwide Application Security Project (OWASP) publishes a ranked awareness list of the most critical web application risks. The 2021 edition names: A01 Broken Access Control, A02 Cryptographic Failures, A03 Injection, A04 Insecure Design, A05 Security Misconfiguration, A06 Vulnerable and Outdated Components, A07 Identification and Authentication Failures, A08 Software and Data Integrity Failures, A09 Security Logging and Monitoring Failures, and A10 Server-Side Request Forgery. Broken access control sits at number one because it was found in a large share of tested applications. Newer editions reorder and rename categories, so treat the list as a map, not a checklist to memorize forever."
+     ]
+    },
+    {
+     "h": "How to use the list",
+     "p": [
+      "The Top 10 is an awareness document. For development, pair it with the OWASP Application Security Verification Standard (ASVS), which gives testable requirements, and the Cheat Sheet Series for concrete fixes. During design, use threat modeling to find insecure design before code exists. During testing, map each finding to a category so teams can see patterns, such as many access control issues in one service. Record the affected request, the root cause and the fix. Fixing a class of problem with a shared library or framework feature, such as a safe query builder, is better than patching each page separately."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Raw HTTP exchange (fictional)",
+    "text": "POST /login HTTP/1.1\nHost: shop.example.com\nContent-Type: application/x-www-form-urlencoded\nCookie: lang=en\n\nuser=ana.test&pass=********\n\nHTTP/1.1 302 Found\nLocation: /account\nSet-Cookie: sid=9f3a...; Secure; HttpOnly; SameSite=Lax"
+   },
+   "example": "A tester reads a login exchange and notes three facts: the credentials travel in a POST body, the server answers 302 and sets a session cookie, and the cookie has Secure, HttpOnly and SameSite flags. She maps related risks to Top 10 categories: weak lockout is A07, a missing check on /account/1042 would be A01, and verbose stack traces on error pages would be A05. The map guides which requests she will test next.",
+   "terms": [
+    {
+     "term": "HTTP method",
+     "def": "The verb in a request that states the intended action, such as GET or POST."
+    },
+    {
+     "term": "Status code",
+     "def": "A three digit number in a response indicating the result."
+    },
+    {
+     "term": "Same-origin policy",
+     "def": "A browser rule preventing a page from reading data from another origin."
+    },
+    {
+     "term": "OWASP Top 10",
+     "def": "A ranked list of the most critical web application security risks."
+    },
+    {
+     "term": "ASVS",
+     "def": "The OWASP standard of verifiable web security requirements."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which status code means the user is authenticated but not allowed?",
+     "options": [
+      "401",
+      "403",
+      "404",
+      "500"
+     ],
+     "a": 1,
+     "why": "403 Forbidden denies access to an identified client."
+    },
+    {
+     "q": "What is the top category in the 2021 OWASP Top 10?",
+     "options": [
+      "Injection",
+      "Broken Access Control",
+      "XSS",
+      "SSRF"
+     ],
+     "a": 1,
+     "why": "A01 is Broken Access Control."
+    },
+    {
+     "q": "Why should GET requests not change state?",
+     "options": [
+      "GET is encrypted",
+      "They can be cached, prefetched and triggered cross-site",
+      "They use UDP",
+      "They are faster"
+     ],
+     "a": 1,
+     "why": "Safe methods should have no side effects."
+    },
+    {
+     "q": "Which data can a user alter before it reaches the server?",
+     "options": [
+      "Only the URL",
+      "Only the form fields",
+      "Cookies, headers, hidden fields and parameters",
+      "Nothing"
+     ],
+     "a": 2,
+     "why": "Anything sent by the client is untrusted."
+    }
+   ],
+   "recap": [
+    "HTTP data from the client is always untrusted.",
+    "Know status codes, methods, headers and cookies.",
+    "Use the OWASP Top 10, ASVS and cheat sheets to classify and fix flaws."
+   ]
+  },
+  {
+   "title": "Injection: SQLi and command injection",
+   "why": "Injection happens when untrusted data is interpreted as code. It can expose or destroy entire databases and remains one of the most damaging flaws.",
+   "sections": [
+    {
+     "h": "How SQL injection works",
+     "p": [
+      "SQL injection occurs when an application builds a query by concatenating user input, so the input changes the structure of the query. Given the code query = \"SELECT * FROM users WHERE name='\" + name + \"'\", a value such as ' OR '1'='1 turns the condition into one that is always true and returns every row. A single quote that causes a database syntax error is a common first sign. With a UNION clause an attacker can append results from another table if the column counts match. Impact ranges from authentication bypass to data theft, modification and sometimes command execution on the database server. Error messages, response timing and differences in page content also leak information, giving blind injection."
+     ]
+    },
+    {
+     "h": "Parameterized queries",
+     "p": [
+      "The primary fix is parameterized queries, also called prepared statements. The SQL text is sent with placeholders, and values are supplied separately, so the database never treats them as code. For example, cursor.execute(\"SELECT * FROM users WHERE name = %s\", (name,)) keeps the input as data. Object-relational mappers help if used with bound parameters, but raw string building inside an ORM is still vulnerable. Stored procedures are safe only if they do not concatenate dynamic SQL. Escaping by hand is fragile and should not be the main defense. Placeholders cannot be used for table or column names, so use an allowlist of permitted identifiers."
+     ]
+    },
+    {
+     "h": "Defense in depth for databases",
+     "p": [
+      "Add layers around parameterization. Validate input by type, length, format and range, using allowlists, such as digits only for an ID. Run the application with a least-privilege database account that cannot drop tables, read system tables, or access unrelated schemas. Hide detailed errors from users and log them privately. Use a WAF as a temporary shield, not a cure. Test with static analysis, dynamic scanning and code review that searches for string concatenation near queries. Keep sensitive columns encrypted or hashed so that even a successful query yields less value, and monitor for unusual query patterns and sudden large result sets."
+     ]
+    },
+    {
+     "h": "Command injection and other interpreters",
+     "p": [
+      "Command injection arises when an application passes user input to a shell, for example building ping -c 1 plus a user-supplied host. Shell metacharacters such as ; | && and backticks let input append extra commands. Prevent it by avoiding the shell: call APIs or libraries directly, or pass arguments as an array to functions that do not invoke a shell, and validate input against strict allowlists. The same principle covers LDAP, XPath, NoSQL and template injection: keep code and data separate, use safe APIs, and apply least privilege to the process so any mistake has limited impact. Running services as unprivileged users limits damage."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Vulnerable versus fixed (fictional)",
+    "text": "# vulnerable\nq = \"SELECT id FROM users WHERE name='\" + name + \"'\"\n# input: ' OR '1'='1  -> WHERE name='' OR '1'='1'\n\n# fixed\ncur.execute(\"SELECT id FROM users WHERE name = %s\", (name,))\n# input is bound as a literal value, never parsed as SQL"
+   },
+   "example": "A search page at shop.example.com returns a database error when a tester enters a single quote. The code concatenates the term into a SELECT. The developer rewrites the query as a prepared statement, validates that the sort column is one of three allowed names, and switches the app to a database account with read-only access to the products table. Retesting the same quote now returns a normal 'no results' page and no error text.",
+   "terms": [
+    {
+     "term": "SQL injection",
+     "def": "Altering a database query by supplying input that is interpreted as SQL."
+    },
+    {
+     "term": "Parameterized query",
+     "def": "A query where input values are bound separately from the SQL text."
+    },
+    {
+     "term": "Blind injection",
+     "def": "Injection where results are inferred from behavior rather than shown directly."
+    },
+    {
+     "term": "Allowlist validation",
+     "def": "Accepting only values known to be valid."
+    },
+    {
+     "term": "Command injection",
+     "def": "Causing an application to run attacker-chosen operating system commands."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the primary defense against SQL injection?",
+     "options": [
+      "Blocking the word SELECT",
+      "Parameterized queries",
+      "Client-side JavaScript validation",
+      "Hiding the login page"
+     ],
+     "a": 1,
+     "why": "Binding separates data from code."
+    },
+    {
+     "q": "Why can a placeholder not protect a table name?",
+     "options": [
+      "Placeholders only bind values",
+      "Tables are encrypted",
+      "Databases ignore them",
+      "It is too slow"
+     ],
+     "a": 0,
+     "why": "Identifiers must come from an allowlist."
+    },
+    {
+     "q": "Which input is typical in command injection?",
+     "options": [
+      "A semicolon followed by another command",
+      "A long password",
+      "A JPEG image",
+      "A cookie flag"
+     ],
+     "a": 0,
+     "why": "Shell metacharacters chain commands."
+    },
+    {
+     "q": "Why use a least-privilege database account?",
+     "options": [
+      "It speeds queries",
+      "It limits damage if injection occurs",
+      "It encrypts data",
+      "It removes need for validation"
+     ],
+     "a": 1,
+     "why": "A compromised query can do less."
+    }
+   ],
+   "recap": [
+    "Never build queries or shell commands from raw input.",
+    "Use parameterized queries and allowlists for identifiers.",
+    "Layer least privilege, error hiding and testing."
+   ]
+  },
+  {
+   "title": "Cross-site scripting",
+   "why": "XSS lets attackers run script in a victim's browser under your site's origin, enabling session theft, defacement and actions on the user's behalf.",
+   "sections": [
+    {
+     "h": "Three kinds of XSS",
+     "p": [
+      "Reflected XSS occurs when input from a request, such as a search term, is echoed into the response without encoding, so a crafted link causes script to run in the victim's browser. Stored XSS happens when malicious input is saved, for example in a comment or profile, and later served to every viewer, which makes it more dangerous. DOM-based XSS occurs entirely in client-side code, when JavaScript reads from a source such as location.hash and writes it to a sink such as innerHTML without sanitizing. Script running in the page can read non-HttpOnly cookies, call APIs as the user, rewrite the page and capture keystrokes. A test string such as <script>alert(1)</script> in a sandbox shows whether input is executed."
+     ]
+    },
+    {
+     "h": "Output encoding",
+     "p": [
+      "The core defense is context-aware output encoding: encode data as it is written into the page, according to where it goes. In HTML body text, convert < > & \" ' to entities; in an HTML attribute, encode and always quote the attribute; in JavaScript, encode as escaped values or, better, avoid inserting data into script at all; in URLs, percent-encode. Modern frameworks such as React, Angular and Vue encode by default, but bypasses like dangerouslySetInnerHTML, v-html or innerHTML reintroduce risk. When users must submit rich HTML, sanitize it with a maintained library such as DOMPurify using an allowlist of tags and attributes, never a hand-written filter."
+     ]
+    },
+    {
+     "h": "Content Security Policy",
+     "p": [
+      "Content Security Policy (CSP) is a response header that tells the browser which sources of scripts, styles and other content are allowed. A strong policy, such as Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-r4nd0m'; object-src 'none'; base-uri 'self', blocks inline scripts without a matching nonce and scripts from other origins, so an injected payload fails even if a bug exists. Avoid 'unsafe-inline' and wildcard sources. Start with Content-Security-Policy-Report-Only and a report-to endpoint to find breakage, then enforce. CSP is a second layer; the first is correct encoding. Pair it with HttpOnly cookies so stolen script cannot read the session cookie."
+     ]
+    },
+    {
+     "h": "Finding and fixing XSS",
+     "p": [
+      "Test each place where user data is reflected: search boxes, error messages, profile fields, headers such as User-Agent that are displayed in admin pages, and parameters in single-page applications. Check how the value appears in the page source to learn its context. Fix at the output point, not only at input, because the same data may appear in several contexts. Add automated scanning and code review for unsafe sinks. After the fix, retest the original payload and encoded variants. Educate developers that sanitizing by deleting the word script is easily bypassed, and that framework defaults should be left on."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Encoding example (fictional)",
+    "text": "input:    <script>alert(1)</script>\nunsafe:   <p>Hello <script>alert(1)</script></p>      (runs)\nencoded:  <p>Hello &lt;script&gt;alert(1)&lt;/script&gt;</p>  (shown as text)\nheader:   Content-Security-Policy: default-src 'self'; script-src 'self'"
+   },
+   "example": "A comment form on blog.example.com stores text and prints it raw. A tester posts a harmless alert payload and every visitor sees a popup, proving stored XSS. The fix has three parts: the template now HTML-encodes comment text, a CSP forbids inline scripts, and the session cookie is marked HttpOnly. The tester resubmits the payload and it appears as visible text, with the browser console reporting a CSP block for any injection attempt.",
+   "terms": [
+    {
+     "term": "Reflected XSS",
+     "def": "Script injected through a request and echoed back in the response."
+    },
+    {
+     "term": "Stored XSS",
+     "def": "Script saved on the server and delivered to later visitors."
+    },
+    {
+     "term": "DOM XSS",
+     "def": "Script injection through unsafe client-side handling of data."
+    },
+    {
+     "term": "Output encoding",
+     "def": "Converting special characters so they are displayed, not executed."
+    },
+    {
+     "term": "CSP",
+     "def": "A header restricting which content sources the browser may load or run."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which XSS type persists on the server?",
+     "options": [
+      "Reflected",
+      "Stored",
+      "DOM",
+      "Passive"
+     ],
+     "a": 1,
+     "why": "Stored payloads are served to every viewer."
+    },
+    {
+     "q": "What is the primary defense against XSS?",
+     "options": [
+      "Context-aware output encoding",
+      "Longer passwords",
+      "Using GET only",
+      "Disabling cookies"
+     ],
+     "a": 0,
+     "why": "Encoding keeps data from being interpreted as markup."
+    },
+    {
+     "q": "What does a CSP with script-src 'self' do to an injected inline script?",
+     "options": [
+      "Allows it",
+      "Blocks it",
+      "Encrypts it",
+      "Logs only"
+     ],
+     "a": 1,
+     "why": "Inline scripts without nonces are blocked."
+    },
+    {
+     "q": "Which cookie flag limits the damage of XSS cookie theft?",
+     "options": [
+      "Secure",
+      "HttpOnly",
+      "Path",
+      "Expires"
+     ],
+     "a": 1,
+     "why": "HttpOnly hides the cookie from scripts."
+    }
+   ],
+   "recap": [
+    "XSS runs attacker script in your origin.",
+    "Encode output by context and sanitize rich HTML with a trusted library.",
+    "Add CSP and HttpOnly cookies as extra layers."
+   ]
+  },
+  {
+   "title": "Broken authentication and session flaws",
+   "why": "If login and session handling are weak, attackers do not need to exploit anything else; they simply become the user.",
+   "sections": [
+    {
+     "h": "Weak login and credential stuffing",
+     "p": [
+      "Broken authentication covers weak passwords policies, unlimited login attempts, predictable reset tokens, default accounts and exposing which part of a login failed. Credential stuffing uses lists of username and password pairs leaked elsewhere, relying on password reuse; it is automated and low and slow to avoid detection. Brute force tries many passwords against one account, while password spraying tries one common password against many accounts. Defenses include rate limiting per account and per IP, progressive delays, CAPTCHA or proof-of-work on suspicious activity, breached-password checks, MFA, and alerts for bursts of failures. Use the same generic message, such as invalid username or password, for every failure to prevent account enumeration."
+     ]
+    },
+    {
+     "h": "Session fixation and hijacking",
+     "p": [
+      "In session fixation, an attacker obtains a valid session ID and tricks a victim into using it, for instance through a crafted link, then waits for the victim to log in; the server keeps the same ID, so the attacker is now logged in. The fix is to issue a new session ID at login and after privilege changes. Session hijacking steals an active ID through XSS, network sniffing on plain HTTP, or logs. Counter it with Secure and HttpOnly cookies, HTTPS everywhere with HSTS, never putting IDs in URLs, and short idle and absolute timeouts. Logout must invalidate the session on the server, not only delete the browser cookie."
+     ]
+    },
+    {
+     "h": "Password reset and recovery flaws",
+     "p": [
+      "Password reset is a second login path and is often the weakest. Reset tokens must be long, random, single use, short lived and tied to the account; never use sequential numbers or user-controlled data. Do not reveal whether an email exists. Send links only to the address on file and do not allow the Host header to control the link domain. Security questions based on public facts are weak and should be dropped. After a reset, invalidate other sessions and notify the user. Require re-authentication or MFA before changing email or password, since attackers who briefly hold a session will try to lock out the owner."
+     ]
+    },
+    {
+     "h": "Hardening the login flow",
+     "p": [
+      "Store passwords with Argon2id or bcrypt, enforce MFA for sensitive accounts, and support passkeys. Log all authentication events with user, source address and outcome, and alert on anomalies such as many failures across many usernames from one address. Do not rely on client-side checks. Test by trying common passwords on a test account, observing whether lockout occurs, checking if the session ID changes after login, and examining cookies for flags. Remove default and test accounts before launch. Treat service accounts and API keys in the same way: rotate them, scope them narrowly and never hard-code them in source repositories."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Login log excerpt (fictional)",
+    "text": "09:41:02 FAIL user=ana.test  src=198.51.100.9\n09:41:02 FAIL user=ben.test  src=198.51.100.9\n09:41:03 FAIL user=cy.test   src=198.51.100.9\n09:41:03 FAIL user=dee.test  src=198.51.100.9\n... 1,900 more distinct usernames in 4 minutes\nalert: password spraying pattern"
+   },
+   "example": "The monitoring dashboard for portal.example.com shows 2,000 failed logins in four minutes, each against a different username and from 198.51.100.9. This is password spraying or credential stuffing. The team adds per-IP rate limits, requires MFA for any account with a failure in the last hour, forces a reset on accounts whose passwords match a breached list, and switches the error text to one generic message so attackers cannot learn which usernames exist.",
+   "terms": [
+    {
+     "term": "Credential stuffing",
+     "def": "Replaying leaked credentials across sites."
+    },
+    {
+     "term": "Password spraying",
+     "def": "Trying a few common passwords against many accounts."
+    },
+    {
+     "term": "Session fixation",
+     "def": "Forcing a victim to use a session ID the attacker knows."
+    },
+    {
+     "term": "Account enumeration",
+     "def": "Discovering valid usernames through differing responses."
+    },
+    {
+     "term": "Rate limiting",
+     "def": "Restricting how many attempts are allowed in a period."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which defense stops session fixation?",
+     "options": [
+      "Issue a new session ID at login",
+      "Longer cookies",
+      "Use GET",
+      "Reject MFA"
+     ],
+     "a": 0,
+     "why": "A fresh ID makes the planted one useless."
+    },
+    {
+     "q": "What distinguishes password spraying from brute force?",
+     "options": [
+      "It tries few passwords across many accounts",
+      "It targets one account with many guesses",
+      "It uses SQL",
+      "It needs physical access"
+     ],
+     "a": 0,
+     "why": "Spraying avoids per-account lockouts."
+    },
+    {
+     "q": "Why use one generic login error message?",
+     "options": [
+      "It shortens pages",
+      "It prevents account enumeration",
+      "It hides cookies",
+      "It speeds logins"
+     ],
+     "a": 1,
+     "why": "Different messages reveal which usernames exist."
+    },
+    {
+     "q": "A good reset token is:",
+     "options": [
+      "Sequential",
+      "Random, single use and short lived",
+      "The user's email",
+      "Sent in the URL forever"
+     ],
+     "a": 1,
+     "why": "Predictable or reusable tokens allow takeover."
+    }
+   ],
+   "recap": [
+    "Rate limit, add MFA and check breached passwords.",
+    "Regenerate session IDs; invalidate on logout.",
+    "Treat password reset as part of authentication."
+   ]
+  },
+  {
+   "title": "Broken access control and IDOR",
+   "why": "Authorization failures are the most common serious web flaw. Authentication proves identity, but the server must still check every action.",
+   "sections": [
+    {
+     "h": "What broken access control means",
+     "p": [
+      "Broken access control means users can act outside their intended permissions: viewing others' records, editing data, or reaching admin functions. Typical forms are vertical privilege escalation, where a normal user reaches admin features, and horizontal escalation, where a user reaches another user's data. Causes include trusting hidden fields, relying on obscure URLs, enforcing checks only in the user interface, and forgetting checks on some endpoints. Because the interface hides a button, the underlying request is still available to anyone who sends it directly. Access control must be enforced on the server for every request, using a deny by default policy."
+     ]
+    },
+    {
+     "h": "Insecure direct object references",
+     "p": [
+      "An insecure direct object reference (IDOR) occurs when an application uses a client-supplied identifier, such as /api/orders/1042, to fetch an object without verifying that the current user owns it. A tester logs in as one user, changes 1042 to 1043, and if the order belonging to another user is returned, the flaw is confirmed. Numeric sequential IDs make guessing trivial, but unpredictable IDs do not fix the problem; they only make discovery harder. The same flaw appears in file downloads, profile endpoints, invoice PDFs and the JSON bodies of update calls, including mass assignment, where extra fields such as role=admin are accepted."
+     ]
+    },
+    {
+     "h": "Function-level checks and the fix",
+     "p": [
+      "Missing function-level access control exposes administrative endpoints, such as /admin/export, to any authenticated user or even anonymous clients. The remedy is a central authorization layer: every request passes through the same policy check, which verifies the user's role and ownership of the target object. For example, query orders with both the order ID and the user ID taken from the server-side session, not from the request. Return 403 or 404 consistently. Do not trust roles or IDs sent in tokens or hidden fields without checking server-side data. Log denied attempts and alert on repeated enumeration patterns, since many sequential ID requests suggest probing."
+     ]
+    },
+    {
+     "h": "Testing for access control flaws",
+     "p": [
+      "Build a test matrix of roles and endpoints. Using two normal accounts and one admin, try each action as each role and confirm that unauthorized combinations are denied. Replay requests with another user's session cookie, change identifiers, switch HTTP methods, and call back-end APIs directly. Automated scanners find few of these issues because they require understanding of business rules, so write explicit tests in the application's test suite. Prefer indirect references or UUIDs as an additional layer, and apply rate limits to make enumeration slower. Review file and storage permissions as well, since cloud buckets and download links can bypass application checks entirely."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Request and ownership check (fictional)",
+    "text": "GET /api/orders/1043 HTTP/1.1\nCookie: sid=<ana.test session>\n-> 200 OK {\"id\":1043,\"owner\":\"ben.test\",...}   (flaw)\n\nfixed: SELECT * FROM orders WHERE id=? AND owner_id=?  (session user)\n-> 404 Not Found"
+   },
+   "example": "While logged in as ana.test, a tester changes the order number in the URL from 1042 to 1043 and receives ben.test's order. This is horizontal IDOR. The developers modify the query to include the owner from the server-side session and add an authorization test that requests another user's order and expects 404. They also search the code for other endpoints that look up objects by ID alone and fix three more.",
+   "terms": [
+    {
+     "term": "IDOR",
+     "def": "Accessing an object by changing an identifier because the server does not check ownership."
+    },
+    {
+     "term": "Horizontal escalation",
+     "def": "Accessing another user's data at the same privilege level."
+    },
+    {
+     "term": "Vertical escalation",
+     "def": "Gaining higher privileges, such as admin functions."
+    },
+    {
+     "term": "Mass assignment",
+     "def": "Binding request fields to internal object properties without restriction."
+    },
+    {
+     "term": "Deny by default",
+     "def": "Refusing access unless a rule explicitly allows it."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which flaw is shown when changing /orders/1042 to /orders/1043 returns another user's order?",
+     "options": [
+      "XSS",
+      "IDOR",
+      "CSRF",
+      "SQLi"
+     ],
+     "a": 1,
+     "why": "The ID is used without an ownership check."
+    },
+    {
+     "q": "Where must authorization be enforced?",
+     "options": [
+      "Only in the UI",
+      "On the server for every request",
+      "In the browser",
+      "Only at login"
+     ],
+     "a": 1,
+     "why": "Hidden buttons do not stop direct requests."
+    },
+    {
+     "q": "Do random UUIDs alone fix IDOR?",
+     "options": [
+      "Yes, fully",
+      "No, they only hide identifiers; checks are still needed",
+      "Yes if HTTPS",
+      "Only for admins"
+     ],
+     "a": 1,
+     "why": "Unguessable IDs can still leak or be shared."
+    },
+    {
+     "q": "What is vertical privilege escalation?",
+     "options": [
+      "Accessing a peer's data",
+      "A normal user reaching admin functions",
+      "Using a VPN",
+      "Session timeout"
+     ],
+     "a": 1,
+     "why": "It crosses to a higher privilege level."
+    }
+   ],
+   "recap": [
+    "Check ownership and role server-side on every request.",
+    "Use a central authorization layer and deny by default.",
+    "Test each role against each endpoint."
+   ]
+  },
+  {
+   "title": "CSRF and SSRF",
+   "why": "Some attacks abuse trust: CSRF abuses the browser's trust in your session, and SSRF abuses the server's trust within its network.",
+   "sections": [
+    {
+     "h": "How CSRF works",
+     "p": [
+      "Cross-site request forgery (CSRF) tricks a logged-in user's browser into sending a state-changing request to a site where the user is authenticated. Because browsers automatically attach cookies to requests for that site, the server cannot tell the forged request from a real one. For example, a page on a malicious site might auto-submit a hidden form that posts to bank.example.com/transfer. The attacker cannot read the response, but can change email addresses, passwords or transfer funds. CSRF affects actions that rely only on cookies for authentication and that are triggered by predictable requests, whether GET or POST."
+     ]
+    },
+    {
+     "h": "CSRF defenses",
+     "p": [
+      "The main defense is the synchronizer token pattern: the server includes a random, per-session or per-request CSRF token in each form, and rejects state-changing requests that lack the correct token. A cross-origin attacker cannot read the token because of the same-origin policy. The SameSite cookie attribute, with Lax or Strict, stops browsers from sending the cookie on most cross-site requests, and is now the default in many browsers, but it should be used alongside tokens. Additional checks include verifying the Origin or Referer header, requiring custom headers for APIs, and re-authenticating for sensitive actions. Never use GET for changes."
+     ]
+    },
+    {
+     "h": "Server-side request forgery",
+     "p": [
+      "Server-side request forgery (SSRF) occurs when an application fetches a URL supplied by a user, for instance an image import or webhook, and the attacker points it to an internal resource the server can reach, such as an admin console at 10.0.0.5 or a cloud metadata service at 169.254.169.254, which may reveal credentials. The attacker uses the server's position as a proxy. It ranks in the OWASP Top 10 as A10 because cloud environments make internal endpoints valuable. Impact includes internal port scanning, reading metadata, and reaching services that trust the network."
+     ]
+    },
+    {
+     "h": "SSRF defenses",
+     "p": [
+      "Prefer an allowlist of permitted destination hosts and schemes, and block requests to private, loopback and link-local ranges after DNS resolution, to defeat tricks where a name resolves to an internal address. Do not follow redirects blindly, and disable unneeded URL schemes such as file:// and gopher://. Segment the network so the application server cannot reach sensitive systems, and require cloud metadata protections such as IMDSv2 on AWS, which needs a session token header. Do not return raw responses to the user. Log outbound requests and alert on connections to metadata addresses or internal ranges, which are rarely legitimate for such features."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Forged form versus tokenized form (fictional)",
+    "text": "<!-- attacker page -->\n<form action=\"https://bank.example.com/transfer\" method=\"POST\"> ... </form>\n\n<!-- legitimate page with token -->\n<input type=\"hidden\" name=\"csrf\" value=\"c9f1a7e2...\">\nSet-Cookie: sid=...; Secure; HttpOnly; SameSite=Lax"
+   },
+   "example": "A profile page at app.example.com lets users change an email address with a POST that relies only on the session cookie. A tester shows that a hidden form on another origin can change it. The team adds a per-session CSRF token checked on every POST, sets SameSite=Lax on the session cookie, and verifies the Origin header. The same app has an 'import avatar by URL' feature, which they restrict to an allowlist of image hosts and block metadata ranges.",
+   "terms": [
+    {
+     "term": "CSRF",
+     "def": "Forcing a logged-in user's browser to submit an unwanted request."
+    },
+    {
+     "term": "CSRF token",
+     "def": "An unpredictable value that must accompany state-changing requests."
+    },
+    {
+     "term": "SameSite",
+     "def": "A cookie attribute that limits sending cookies on cross-site requests."
+    },
+    {
+     "term": "SSRF",
+     "def": "Making a server send requests to unintended destinations."
+    },
+    {
+     "term": "Cloud metadata service",
+     "def": "A link-local service at 169.254.169.254 giving instances their configuration and credentials."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why can the attacker in CSRF not simply read the token?",
+     "options": [
+      "It is encrypted by TLS",
+      "The same-origin policy blocks reading other origins",
+      "Tokens are public",
+      "Cookies hide it"
+     ],
+     "a": 1,
+     "why": "Cross-origin pages cannot read the victim's responses."
+    },
+    {
+     "q": "Which cookie setting reduces CSRF risk?",
+     "options": [
+      "SameSite=Lax or Strict",
+      "Path=/",
+      "Expires=Never",
+      "Domain=*"
+     ],
+     "a": 0,
+     "why": "Cookies are not sent on most cross-site requests."
+    },
+    {
+     "q": "What target is typical in SSRF against cloud servers?",
+     "options": [
+      "169.254.169.254",
+      "8.8.8.8",
+      "127.0.0.2 only",
+      "example.org"
+     ],
+     "a": 0,
+     "why": "The metadata endpoint may expose credentials."
+    },
+    {
+     "q": "Best SSRF defense for a URL fetch feature?",
+     "options": [
+      "Blocklist the word localhost",
+      "Allowlist destinations and block internal ranges after DNS resolution",
+      "Trust user URLs",
+      "Return raw responses"
+     ],
+     "a": 1,
+     "why": "Allowlisting plus resolution checks defeats many tricks."
+    }
+   ],
+   "recap": [
+    "CSRF abuses automatic cookies; use tokens and SameSite.",
+    "SSRF abuses the server's network position.",
+    "Allowlist destinations, block internal ranges, protect metadata."
+   ]
+  },
+  {
+   "title": "Misconfiguration and vulnerable components",
+   "why": "Many breaches need no clever exploit. Default passwords, open admin pages and old libraries are found by automated scanning within hours of exposure.",
+   "sections": [
+    {
+     "h": "Common misconfigurations",
+     "p": [
+      "Security misconfiguration includes default credentials, unnecessary services and sample applications, directory listing that exposes files, debug mode left on, verbose error pages showing stack traces and paths, overly permissive cloud storage buckets, missing security headers, and unpatched servers. Attackers use search engines and scanners to find them at scale. Typical sensitive leftovers are backup files such as config.php.bak, .git folders, and admin consoles reachable from the internet. Prevent them with a repeatable hardened build, automated configuration checks against baselines like CIS Benchmarks, removal of defaults, and different credentials and settings per environment, with secrets stored in a vault and not in code."
+     ]
+    },
+    {
+     "h": "Vulnerable and outdated components",
+     "p": [
+      "Applications depend on frameworks, libraries and containers, and a vulnerability in any of them becomes your vulnerability. Public flaws are tracked as CVE identifiers and rated with CVSS scores; the Log4Shell (CVE-2021-44228) incident showed how one logging library could affect thousands of products. Software composition analysis (SCA) tools scan dependency manifests and images, match versions against vulnerability databases such as the NVD and OSV, and report which are affected. Remove unused dependencies, pin versions, and use only maintained packages. Be aware of supply chain risks such as typosquatted package names and compromised maintainers."
+     ]
+    },
+    {
+     "h": "SBOM and lifecycle",
+     "p": [
+      "A software bill of materials (SBOM) is a machine-readable inventory of components in a product, in formats such as SPDX or CycloneDX. When a new vulnerability is announced, an SBOM lets you answer quickly: which of our applications include this library, and which version? Generate SBOMs during the build, store them with each release, and feed them to vulnerability monitoring. Establish a policy for patch timelines by severity, and track end-of-life frameworks that no longer receive fixes. Automated dependency update tools open pull requests for new versions, and continuous integration tests confirm that updates do not break behavior."
+     ]
+    },
+    {
+     "h": "Finding issues in practice",
+     "p": [
+      "Run authenticated and unauthenticated scans with tools such as OWASP ZAP, Nikto or a commercial scanner, and compare findings with a baseline. Check what is exposed: request paths like /admin, /.git/ and /backup/, try documented default credentials only on systems you own or are authorized to test, and review error pages for leaked details. Review cloud permissions with configuration scanners. Fix by removing or restricting rather than hiding. Set custom error pages, turn off directory listing, and keep a short, documented list of every exposed service. Schedule recurring checks, as configuration drifts over time and new components are added with each release."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "SCA report excerpt (fictional)",
+    "text": "package            installed  fixed-in  severity  id\nlog4j-core         2.14.1     2.17.1    CRITICAL  CVE-2021-44228\nexpress            4.16.0     4.19.2    MEDIUM    (advisory)\nlodash             4.17.15    4.17.21   HIGH      (advisory)\nsummary: 3 vulnerable of 212 dependencies"
+   },
+   "example": "The nightly SCA scan for shop.example.com flags log4j-core 2.14.1 as critical. The SBOM shows two services include it. The team upgrades to 2.17.1, redeploys, and then verifies with the scanner. During the same review a tester finds directory listing enabled on /uploads/ and a default admin password on a staging console. All three issues are fixed, and a hardened baseline plus a CI check prevent them from returning.",
+   "terms": [
+    {
+     "term": "Misconfiguration",
+     "def": "An insecure setting, default or unnecessary feature that exposes a system."
+    },
+    {
+     "term": "CVE",
+     "def": "A public identifier for a specific vulnerability."
+    },
+    {
+     "term": "SCA",
+     "def": "Software composition analysis, scanning dependencies for known vulnerabilities."
+    },
+    {
+     "term": "SBOM",
+     "def": "A formal inventory of the components in a software product."
+    },
+    {
+     "term": "Typosquatting",
+     "def": "Publishing a package with a name similar to a popular one."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does an SBOM help you answer quickly?",
+     "options": [
+      "Which systems include a vulnerable component",
+      "Who wrote the code",
+      "How fast the site is",
+      "Which users are online"
+     ],
+     "a": 0,
+     "why": "It lists components and versions."
+    },
+    {
+     "q": "Which is a security misconfiguration?",
+     "options": [
+      "Directory listing enabled on an uploads folder",
+      "HTTPS enabled",
+      "Parameterized queries",
+      "Strong passwords"
+     ],
+     "a": 0,
+     "why": "It exposes files unintentionally."
+    },
+    {
+     "q": "What does CVE-2021-44228 refer to?",
+     "options": [
+      "Log4Shell",
+      "Heartbleed",
+      "EternalBlue",
+      "Shellshock"
+     ],
+     "a": 0,
+     "why": "It is the Log4j remote code execution flaw."
+    },
+    {
+     "q": "Best response to default credentials on a console?",
+     "options": [
+      "Ignore if internal",
+      "Change or remove them and restrict access",
+      "Hide the URL",
+      "Rename the server"
+     ],
+     "a": 1,
+     "why": "Defaults are the first thing attackers try."
+    }
+   ],
+   "recap": [
+    "Use hardened baselines, remove defaults, hide verbose errors.",
+    "Scan dependencies with SCA and keep them updated.",
+    "Use an SBOM so you can respond fast to new CVEs."
+   ]
+  },
+  {
+   "title": "Secure headers, cookies and testing",
+   "why": "Headers and cookie flags are cheap, high-leverage controls. Proxies like Burp and ZAP let you see and test everything the browser sends.",
+   "sections": [
+    {
+     "h": "Security headers",
+     "p": [
+      "Browsers enforce policies that servers declare in response headers. Strict-Transport-Security (HSTS), for example max-age=31536000; includeSubDomains, forces HTTPS. Content-Security-Policy restricts where scripts and other content may load from. X-Content-Type-Options: nosniff stops the browser guessing a different content type, which prevents some script execution tricks. X-Frame-Options: DENY or CSP frame-ancestors prevents clickjacking by blocking framing. Referrer-Policy limits URL leakage, and Permissions-Policy turns off unneeded browser features such as camera. Cache-Control: no-store keeps sensitive pages out of caches. Remove headers that reveal version numbers, such as Server and X-Powered-By."
+     ]
+    },
+    {
+     "h": "Cookie flags",
+     "p": [
+      "Session cookies should carry the attributes Secure, HttpOnly and SameSite. Secure sends the cookie only over HTTPS. HttpOnly prevents JavaScript from reading it, which blunts XSS theft. SameSite=Lax or Strict controls cross-site sending, reducing CSRF. Use a narrow Path and Domain, set sensible Max-Age, and consider the __Host- prefix, which requires Secure, Path=/ and no Domain attribute, preventing subdomain overwrite. Do not store sensitive data in cookies unencrypted. An example: Set-Cookie: __Host-sid=abc123; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=1800. Review every cookie your application sets, including those from third-party scripts."
+     ]
+    },
+    {
+     "h": "Input handling principles",
+     "p": [
+      "Treat all input as untrusted. Validate on the server for type, length, range and format, preferring allowlists, and encode on output based on context. Reject rather than silently fix suspicious input where practical, canonicalize before validating to avoid double-encoding tricks, and limit file upload types, sizes and storage locations, serving uploads from a separate domain with non-executable permissions. Client-side validation helps users but gives no security. Combine validation with safe APIs: parameterized queries, template engines with auto-escaping and library functions that avoid the shell. Use a framework's built-in protections rather than writing your own, and keep them enabled."
+     ]
+    },
+    {
+     "h": "Testing with Burp Suite and ZAP",
+     "p": [
+      "Burp Suite and OWASP ZAP act as intercepting proxies. Configure the browser to send traffic through the proxy, install the proxy's CA certificate for HTTPS, then browse the application. The proxy records history; you can intercept a request, edit parameters, and forward it, repeat a request many times with the Repeater, and run automated scans or fuzzing with Intruder or ZAP's active scan. ZAP is free and open source, and Burp has a free Community edition. Test only systems you own or have written permission to test, and prefer staging environments. Document each finding with request, response, impact and a fix, and retest after remediation."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Secure response headers (fictional)",
+    "text": "HTTP/1.1 200 OK\nStrict-Transport-Security: max-age=31536000; includeSubDomains\nContent-Security-Policy: default-src 'self'; object-src 'none'\nX-Content-Type-Options: nosniff\nReferrer-Policy: strict-origin-when-cross-origin\nSet-Cookie: __Host-sid=abc; Secure; HttpOnly; SameSite=Lax; Path=/"
+   },
+   "example": "A ZAP baseline scan against staging.example.com reports a missing CSP, missing HSTS, a session cookie without HttpOnly and a Server header revealing the exact web server version. The administrator adds the headers in the reverse proxy configuration, marks the cookie flags in the application framework and removes the version string. A rescan shows no header warnings, and the browser's developer tools confirm the policy is applied on the live pages.",
+   "terms": [
+    {
+     "term": "HSTS",
+     "def": "A header requiring browsers to use HTTPS for a site."
+    },
+    {
+     "term": "nosniff",
+     "def": "A header telling browsers to trust the declared content type."
+    },
+    {
+     "term": "Clickjacking",
+     "def": "Tricking users into clicking hidden framed content."
+    },
+    {
+     "term": "__Host- prefix",
+     "def": "A cookie name prefix enforcing Secure, Path=/ and no Domain."
+    },
+    {
+     "term": "Intercepting proxy",
+     "def": "A tool that sits between browser and server to inspect and modify traffic."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which header prevents clickjacking by blocking framing?",
+     "options": [
+      "X-Frame-Options or frame-ancestors",
+      "HSTS",
+      "Referrer-Policy",
+      "ETag"
+     ],
+     "a": 0,
+     "why": "They control whether the page may be embedded."
+    },
+    {
+     "q": "What does the Secure cookie flag do?",
+     "options": [
+      "Hides it from JavaScript",
+      "Sends it only over HTTPS",
+      "Blocks cross-site sending",
+      "Encrypts it"
+     ],
+     "a": 1,
+     "why": "Secure prevents cleartext transmission."
+    },
+    {
+     "q": "Where must input validation be enforced for security?",
+     "options": [
+      "Only in the browser",
+      "On the server",
+      "Only in CSS",
+      "Nowhere"
+     ],
+     "a": 1,
+     "why": "Client checks are easily bypassed."
+    },
+    {
+     "q": "What must you have before testing a web application with Burp or ZAP?",
+     "options": [
+      "Permission to test it",
+      "A fast laptop",
+      "A VPN",
+      "A new browser"
+     ],
+     "a": 0,
+     "why": "Unauthorized testing may be illegal."
+    }
+   ],
+   "recap": [
+    "Set HSTS, CSP, nosniff and frame protection headers.",
+    "Use Secure, HttpOnly and SameSite cookie flags.",
+    "Test with proxies on authorized systems and retest fixes."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Intercept and modify a request",
+   "sim": "web-proxy",
+   "scenario": "You are testing a fictional training shop at shop.example.test inside the sandbox. The proxy is already in front of the browser. Your account is student01. The login form posts credentials, and you want to learn how the server reacts when a request parameter such as a hidden field or role value is changed. Only the sandbox application may be used.",
+   "objective": "Capture a login request, change a parameter and explain what the response reveals.",
+   "steps": [
+    {
+     "do": "Turn on interception and submit the login form with user student01.",
+     "see": "Intercepted: POST /login HTTP/1.1  Host: shop.example.test"
+    },
+    {
+     "do": "Read the request body.",
+     "see": "user=student01&pass=training1&redirect=/home&role=user"
+    },
+    {
+     "do": "Forward unchanged and view the response.",
+     "see": "302 Found. Location: /home. Set-Cookie: sid=sbx-4471; HttpOnly"
+    },
+    {
+     "do": "Resend with role=admin in the Repeater.",
+     "see": "302 Found. Location: /home. Welcome student01 (role: user)  - role ignored."
+    },
+    {
+     "do": "Resend with a wrong password and note the message.",
+     "see": "200 OK. 'Invalid username or password.'"
+    },
+    {
+     "do": "Resend with an unknown username.",
+     "see": "200 OK. 'Invalid username or password.' (same message and size)"
+    },
+    {
+     "do": "Open the notes panel and record findings.",
+     "see": "Saved: server ignores client-supplied role; error messages uniform."
+    }
+   ],
+   "answer": "The server ignored the modified role parameter and returned the same generic error for both a wrong password and an unknown username, so it does not trust the client role and does not enumerate users. The session cookie has HttpOnly. The exercise shows every parameter can be edited and must be validated server-side.",
+   "hint": "Compare both the status code and the body length when you change a parameter."
+  },
+  {
+   "title": "Exploit SQL injection safely",
+   "sim": "web-proxy",
+   "scenario": "In the sandbox, the fictional app at lab-shop.example.test has a product search at /search?q=. Developers suspect it builds SQL by concatenation. You may test only this sandbox. The database holds a products table with three columns and a users table with id, username and password_hash. All data is fake. Record what each response tells you, including error text, status code and page size, because those clues drive the next test and explain the flaw to developers afterward.",
+   "objective": "Confirm injection with a quote, enumerate columns, extract the fake user table, then name the root cause.",
+   "steps": [
+    {
+     "do": "Search for the term lamp.",
+     "see": "200 OK. 3 products shown."
+    },
+    {
+     "do": "Search for lamp' (single quote).",
+     "see": "500 Internal Server Error. 'You have an error in your SQL syntax near ''''.' Verbose error visible."
+    },
+    {
+     "do": "Search for lamp' ORDER BY 3-- and then ORDER BY 4--.",
+     "see": "ORDER BY 3: 200 OK. ORDER BY 4: error 'Unknown column 4'. Query returns 3 columns."
+    },
+    {
+     "do": "Search for x' UNION SELECT 1,username,password_hash FROM users--.",
+     "see": "200 OK. Rows shown: admin_demo | 5f4d..., student01 | 8c6b..."
+    },
+    {
+     "do": "Record that the table contents were returned in the product list.",
+     "see": "Finding saved: UNION injection, data disclosure of 2 fake rows."
+    },
+    {
+     "do": "Open the code view for the search handler.",
+     "see": "query = \"SELECT id,name,price FROM products WHERE name LIKE '%\" + q + \"%'\""
+    },
+    {
+     "do": "Choose the root cause from the list.",
+     "see": "Correct: unsanitized input concatenated into SQL."
+    }
+   ],
+   "answer": "The search term is concatenated into the SQL string, so a quote breaks the query and a UNION adds rows from another table. The root cause is string concatenation with untrusted input, made worse by verbose errors and unrestricted database privileges. The fix is parameterized queries.",
+   "hint": "A UNION needs the same number of columns as the original query; find that number first."
+  },
+  {
+   "title": "Fix an injectable query",
+   "sim": "code-editor",
+   "scenario": "The sandbox code editor shows a fictional Python function find_user(name) that builds a SELECT statement by adding the name into a string. A unit test runs the payload ' OR '1'='1 and expects zero rows, plus a normal test for the name ana.test expecting one row. Your job is to fix the function. The test harness is strict: it only passes if the injection payload is treated as plain data, so partial fixes such as removing quotes will not satisfy it, and a second check inspects your code for leftover concatenation.",
+   "objective": "Replace concatenation with a parameterized query and make both tests pass.",
+   "steps": [
+    {
+     "do": "Open db.py and read find_user.",
+     "see": "def find_user(name): q = \"SELECT id FROM users WHERE name='\" + name + \"'\"; return cur.execute(q).fetchall()"
+    },
+    {
+     "do": "Run the test suite before changes.",
+     "see": "test_normal: PASS. test_injection: FAIL (returned 5 rows, expected 0)."
+    },
+    {
+     "do": "Replace the string with a placeholder: SELECT id FROM users WHERE name = ?",
+     "see": "Edit saved. Syntax check: ok."
+    },
+    {
+     "do": "Pass the value as a bound parameter: cur.execute(q, (name,)).",
+     "see": "Edit saved. Linter: no string concatenation in SQL."
+    },
+    {
+     "do": "Run the test suite again.",
+     "see": "test_normal: PASS. test_injection: PASS (0 rows)."
+    },
+    {
+     "do": "Add allowlist validation for the sort column argument.",
+     "see": "ALLOWED = {'name','created'}; invalid value raises ValueError. Test added: PASS."
+    },
+    {
+     "do": "Run the security linter.",
+     "see": "0 findings. Build: green."
+    }
+   ],
+   "answer": "The fixed function uses SELECT id FROM users WHERE name = ? with cur.execute(q, (name,)), so the quote payload is treated as a literal name and returns no rows. The sort column is checked against an allowlist because placeholders cannot bind identifiers. Both tests and the linter pass.",
+   "hint": "Values go in the parameter tuple; only fixed text stays in the SQL string."
+  },
+  {
+   "title": "Find stored XSS",
+   "sim": "web-proxy",
+   "scenario": "The sandbox blog at blog.example.test has a comment box. Comments are saved and shown to every visitor, and all content is fake. Another sandbox user, visitor02, will view the page afterward. You will test with a harmless alert payload, confirm persistence, inspect headers, and then apply the correct fix in the template and policy. Remember to look at both the stored page source and the response headers, since the lab grades the final result on encoding and on the browser-side protections you add.",
+   "objective": "Prove stored XSS safely, then remediate with output encoding and CSP.",
+   "steps": [
+    {
+     "do": "Post the comment: hello.",
+     "see": "Comment added. Page source: <li>hello</li>"
+    },
+    {
+     "do": "Post a comment containing <script>alert('x1')</script>.",
+     "see": "Comment added. Page source: <li><script>alert('x1')</script></li>"
+    },
+    {
+     "do": "Reload as visitor02 in another sandbox browser.",
+     "see": "Popup 'x1' appears for visitor02. Persistence confirmed: stored XSS."
+    },
+    {
+     "do": "Open response headers for the page.",
+     "see": "No Content-Security-Policy. Set-Cookie: sid=sbx-77 (no HttpOnly)."
+    },
+    {
+     "do": "Edit the template to output {{ comment | escape }}.",
+     "see": "Saved. Template check: ok."
+    },
+    {
+     "do": "Reload the page after resubmitting the payload.",
+     "see": "Page source: <li>&lt;script&gt;alert('x1')&lt;/script&gt;</li>. Text shown, no popup."
+    },
+    {
+     "do": "Add header Content-Security-Policy: default-src 'self'; script-src 'self' and HttpOnly on the cookie.",
+     "see": "Applied. Console: no inline script permitted. Scanner: 0 XSS findings."
+    }
+   ],
+   "answer": "Comments were stored and rendered unencoded, so the script ran for every visitor: stored XSS. The fix is HTML output encoding in the template, backed by a CSP blocking inline scripts and an HttpOnly session cookie. After the fix the payload shows as plain text.",
+   "hint": "Check the page source, not just the visible page, to see how your input was written."
+  },
+  {
+   "title": "Enumerate IDOR",
+   "sim": "web-proxy",
+   "scenario": "In a sandbox, the fictional API at api.lab.example.test serves orders at /v1/orders/{id}. You are logged in as student01, whose orders are 2001 and 2002. Other sandbox users own other IDs. All data is fake. You will test whether the API checks ownership, record the evidence and then add the missing check in the sandbox code. Pay attention to how the identifiers are numbered and to which owner appears in each response, then fix the cause in the server code rather than hiding the numbers from the user.",
+   "objective": "Read another user's order by changing the ID, then add an ownership check and verify.",
+   "steps": [
+    {
+     "do": "Request GET /v1/orders/2001 as student01.",
+     "see": "200 OK {\"id\":2001,\"owner\":\"student01\",\"total\":42.00}"
+    },
+    {
+     "do": "Send GET /v1/orders/2003 in the Repeater with the same cookie.",
+     "see": "200 OK {\"id\":2003,\"owner\":\"student02\",\"total\":118.50}  <- another user's data"
+    },
+    {
+     "do": "Try 2004 and 2005.",
+     "see": "Both return 200 with other owners. Sequential IDs enumerable."
+    },
+    {
+     "do": "Record the finding with the request and response.",
+     "see": "Finding saved: IDOR (OWASP A01), horizontal escalation."
+    },
+    {
+     "do": "Open the handler and read the query.",
+     "see": "SELECT * FROM orders WHERE id = ?   (no owner condition)"
+    },
+    {
+     "do": "Change it to WHERE id = ? AND owner_id = ? using the session user.",
+     "see": "Edit saved. Unit test added."
+    },
+    {
+     "do": "Replay IDs 2003 to 2005 as student01.",
+     "see": "404 Not Found for each. 2001 and 2002 still return 200."
+    }
+   ],
+   "answer": "The API returned orders for any ID without checking the owner, so student01 read student02's data: a horizontal IDOR. The fix adds the authenticated user's ID from the session to the query, so other users' orders return 404 while the user's own orders still work.",
+   "hint": "Change one digit at a time and watch the owner field in the response."
+  },
+  {
+   "title": "Harden headers and cookies",
+   "sim": "config-editor",
+   "scenario": "A fictional nginx configuration at /etc/nginx/sites/app.example.test serves a web application. A scan reports missing HSTS, CSP, nosniff and frame protection, a session cookie without Secure or HttpOnly, and a version leak in the Server header. Edit the configuration and re-run the scan inside the sandbox. The configuration reload is validated before the scan runs, so a syntax error will be reported first. Check that headers also appear on error responses and that no header leaks software version details.",
+   "objective": "Add the missing headers and cookie flags and clear the scan findings.",
+   "steps": [
+    {
+     "do": "Open the config file and scan it.",
+     "see": "Scan: 6 findings (HSTS, CSP, nosniff, framing, cookie flags, server_tokens)."
+    },
+    {
+     "do": "Add server_tokens off;",
+     "see": "Saved. Finding 'version disclosure' cleared on test."
+    },
+    {
+     "do": "Add add_header Strict-Transport-Security \"max-age=31536000; includeSubDomains\" always;",
+     "see": "Saved. HSTS present."
+    },
+    {
+     "do": "Add add_header Content-Security-Policy \"default-src 'self'; object-src 'none'\" always;",
+     "see": "Saved. CSP present. Preview page loads without violations."
+    },
+    {
+     "do": "Add X-Content-Type-Options nosniff and X-Frame-Options DENY.",
+     "see": "Saved. Both present."
+    },
+    {
+     "do": "Set proxy_cookie_flags ~ Secure HttpOnly SameSite=Lax;",
+     "see": "Saved. Cookie sid now Secure; HttpOnly; SameSite=Lax."
+    },
+    {
+     "do": "Reload nginx and re-scan.",
+     "see": "nginx -t: ok. Scan: 0 header findings, 0 cookie findings."
+    }
+   ],
+   "answer": "The final config sets server_tokens off, HSTS, a restrictive CSP, nosniff, X-Frame-Options DENY, and Secure, HttpOnly, SameSite=Lax on the session cookie. After reloading, the scan shows no missing header or cookie findings. Retesting also confirms the page still loads normally, so protections did not break functionality.",
+   "hint": "Use the always parameter so headers are sent on error pages too."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which status code means the request was understood but access is forbidden?",
+   "options": [
+    "200",
+    "301",
+    "403",
+    "503"
+   ],
+   "a": 2,
+   "why": "403 Forbidden denies access."
+  },
+  {
+   "q": "Which category is first in the 2021 OWASP Top 10?",
+   "options": [
+    "Injection",
+    "Broken Access Control",
+    "SSRF",
+    "Security Logging"
+   ],
+   "a": 1,
+   "why": "A01:2021."
+  },
+  {
+   "q": "What stops SQL injection at the root?",
+   "options": [
+    "Parameterized queries",
+    "Client-side filters",
+    "Hiding errors only",
+    "Longer URLs"
+   ],
+   "a": 0,
+   "why": "Data is bound separately from SQL code."
+  },
+  {
+   "q": "Which XSS variety is delivered from a saved comment to many visitors?",
+   "options": [
+    "Reflected",
+    "Stored",
+    "DOM",
+    "Self"
+   ],
+   "a": 1,
+   "why": "Stored payloads persist on the server."
+  },
+  {
+   "q": "What is the best control for XSS output?",
+   "options": [
+    "Context-aware encoding",
+    "Blocking the word alert",
+    "Using HTTP",
+    "Disabling cookies"
+   ],
+   "a": 0,
+   "why": "Encoding prevents interpretation as code."
+  },
+  {
+   "q": "What is IDOR?",
+   "options": [
+    "Using an ID without checking ownership",
+    "A SQL function",
+    "A TLS version",
+    "A header"
+   ],
+   "a": 0,
+   "why": "Authorization is missing for the referenced object."
+  },
+  {
+   "q": "Which pair of controls best defends against CSRF?",
+   "options": [
+    "CSRF tokens and SameSite cookies",
+    "Longer passwords and WAF",
+    "HSTS and nosniff",
+    "SBOM and SCA"
+   ],
+   "a": 0,
+   "why": "Tokens plus SameSite stop forged cross-site requests."
+  },
+  {
+   "q": "What is a target of SSRF on cloud hosts?",
+   "options": [
+    "The metadata service at 169.254.169.254",
+    "The user's keyboard",
+    "A DNS root",
+    "A browser cache"
+   ],
+   "a": 0,
+   "why": "It can expose instance credentials."
+  },
+  {
+   "q": "Which header forces HTTPS in browsers?",
+   "options": [
+    "Strict-Transport-Security",
+    "X-Frame-Options",
+    "Referrer-Policy",
+    "Server"
+   ],
+   "a": 0,
+   "why": "HSTS."
+  },
+  {
+   "q": "Which cookie flag stops scripts reading the cookie?",
+   "options": [
+    "HttpOnly",
+    "Secure",
+    "Path",
+    "Max-Age"
+   ],
+   "a": 0,
+   "why": "HttpOnly blocks JavaScript access."
+  }
+ ]
+}

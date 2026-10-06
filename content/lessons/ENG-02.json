@@ -1,0 +1,948 @@
+{
+ "code": "ENG-02",
+ "intro": "This module shows how to make operating systems hard to attack and keep them that way. You will learn hardening principles and the CIS Benchmarks, then apply concrete settings on Linux and Windows. You will build a patch management lifecycle, enforce desired state with configuration management tools, and use gold images and compliance scanners to detect drift. Most breaches use known weaknesses and default settings, so disciplined hardening and patching remove a large share of real-world risk at low cost.",
+ "lessons": [
+  {
+   "title": "Hardening principles and CIS Benchmarks",
+   "why": "Default installations favor convenience over security. Hardening systematically removes what is not needed and tightens what remains, using agreed benchmarks instead of personal opinion.",
+   "sections": [
+    {
+     "h": "Attack surface reduction",
+     "p": [
+      "Hardening means configuring a system to reduce its attack surface and the impact of compromise. The core moves are consistent: install only required software, disable or remove unused services and accounts, close unneeded ports, change defaults, apply least privilege, enable logging, and keep software patched. Each service you remove is one fewer program that can contain a vulnerability, and each default password you change is one fewer guessable credential. Start from a minimal installation image, add only what the role needs, and document why each exception exists. Hardening should be repeatable and automated, not a one-time manual checklist."
+     ]
+    },
+    {
+     "h": "What the CIS Benchmarks are",
+     "p": [
+      "The Center for Internet Security (CIS) publishes consensus-based configuration guides called CIS Benchmarks for operating systems, cloud platforms, databases, browsers and network devices. Volunteers from industry, government and academia write and review them, so they reflect broad practical experience. Each benchmark lists numbered recommendations with a description, rationale, audit procedure, remediation steps and impact. Examples include 'Ensure SSH root login is disabled' and 'Ensure password history is configured'. Benchmarks differ from the CIS Controls, which are a prioritized program of high-level safeguards; benchmarks give the exact settings. The US DISA STIGs are a comparable, more rigid source."
+     ]
+    },
+    {
+     "h": "Level 1 and Level 2 profiles",
+     "p": [
+      "Benchmarks define profiles. Level 1 contains practical settings that give clear security value with little risk of reducing function, and is a sensible baseline for most systems. Level 2 is meant for environments needing defense in depth and higher assurance, and may reduce usability or break some applications, so it needs testing. Many benchmarks also separate roles, such as Windows Member Server and Domain Controller, or Workstation and Server. Some include a STIG profile that aligns with DISA requirements. Choose the profile by data sensitivity and by what the system must do, then record any recommendation you deliberately skip."
+     ]
+    },
+    {
+     "h": "Scoring and assessment",
+     "p": [
+      "Compliance is measured by running an assessment tool and counting passed recommendations. CIS-CAT Pro scans a host against a benchmark and reports a percentage score per section. Recommendations are marked automated, where a tool can check them, or manual, where a person must review. Scoring drives trends but not safety by itself, so read failures by risk, not only by count. Run a baseline scan on a test image, fix or document each failure, and re-scan. Always test hardening on a non-production copy first, because settings such as disabling NTLM or removing a service can break legitimate dependencies."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Scan summary",
+    "text": "Benchmark : CIS Ubuntu Linux 22.04 LTS, Level 1 Server\nHost      : web01.example.com\nPassed 148 | Failed 22 | Manual 9 | Score 87.1 %\nFAIL 5.2.8  Ensure SSH root login is disabled\nFAIL 3.4.2  Ensure firewall default policy is deny\nFAIL 4.1.1  Ensure auditd is installed"
+   },
+   "example": "A team builds a web server image for example.com. They choose Level 1 Server because the host serves public content but holds no regulated data. The first scan scores 87.1 percent. They fix SSH root login, set a default deny firewall policy and install auditd, then re-scan to 97 percent. Three Level 1 items conflict with an old monitoring agent, so they record those as documented exceptions with an owner and a review date instead of ignoring them.",
+   "terms": [
+    {
+     "term": "Hardening",
+     "def": "Reducing attack surface and tightening configuration to lower risk."
+    },
+    {
+     "term": "CIS Benchmark",
+     "def": "A consensus configuration guide with auditable recommendations."
+    },
+    {
+     "term": "Level 1 profile",
+     "def": "Practical baseline settings with low risk of breaking function."
+    },
+    {
+     "term": "Level 2 profile",
+     "def": "Stricter settings for higher assurance that may affect usability."
+    },
+    {
+     "term": "CIS-CAT",
+     "def": "A CIS tool that assesses a system against a benchmark."
+    },
+    {
+     "term": "STIG",
+     "def": "A DISA configuration standard used by US defense organizations."
+    }
+   ],
+   "check": [
+    {
+     "q": "What distinguishes CIS Level 2 from Level 1?",
+     "options": [
+      "It is only for Windows",
+      "Stricter settings for higher assurance that may reduce usability",
+      "It removes logging",
+      "It is optional documentation"
+     ],
+     "a": 1,
+     "why": "Level 2 gives defense in depth at the cost of possible functionality impact."
+    },
+    {
+     "q": "Which is a core hardening step?",
+     "options": [
+      "Enable all default services",
+      "Disable unneeded services and accounts",
+      "Reuse default passwords",
+      "Disable updates"
+     ],
+     "a": 1,
+     "why": "Removing what is unneeded shrinks the attack surface."
+    },
+    {
+     "q": "What does a CIS Benchmark recommendation typically include?",
+     "options": [
+      "Only a score",
+      "Rationale, audit and remediation steps",
+      "A vendor sales pitch",
+      "A firewall brand list"
+     ],
+     "a": 1,
+     "why": "Each item explains why, how to check and how to fix."
+    },
+    {
+     "q": "Why test hardening settings on a non-production copy first?",
+     "options": [
+      "They never cause issues",
+      "Some settings can break legitimate applications",
+      "Scanners require it",
+      "Benchmarks forbid production"
+     ],
+     "a": 1,
+     "why": "Restrictive settings may break dependencies."
+    }
+   ],
+   "recap": [
+    "Hardening removes unneeded software, services and defaults, and applies least privilege.",
+    "CIS Benchmarks give consensus, auditable settings; Level 1 is the practical baseline and Level 2 is stricter.",
+    "Scan, fix, re-scan, and document exceptions instead of silently skipping items."
+   ]
+  },
+  {
+   "title": "Linux hardening",
+   "why": "Linux servers are exposed to constant scanning and password guessing. A short list of well-understood settings blocks the most common attacks.",
+   "sections": [
+    {
+     "h": "Securing SSH",
+     "p": [
+      "SSH is usually the first service attackers probe on port 22. In /etc/ssh/sshd_config set PermitRootLogin no so attackers cannot target the root account directly and actions are tied to named users. Set PasswordAuthentication no and PubkeyAuthentication yes to require key-based authentication, which resists guessing. Restrict who may log in with AllowUsers or AllowGroups, set MaxAuthTries 3 and LoginGraceTime 30, disable X11Forwarding and, where possible, require MFA. Prefer modern algorithms and remove legacy ones. Validate with sshd -t before reloading the service, and keep a second session open so a mistake cannot lock you out."
+     ]
+    },
+    {
+     "h": "Kernel parameters, permissions and services",
+     "p": [
+      "Network kernel parameters are set with sysctl, persisted in /etc/sysctl.d/. Common values: net.ipv4.tcp_syncookies=1, net.ipv4.conf.all.rp_filter=1 (reverse path filtering), net.ipv4.conf.all.accept_redirects=0, net.ipv4.conf.all.send_redirects=0, net.ipv4.ip_forward=0 on non-routers, and kernel.randomize_va_space=2 for full ASLR. Check file permissions: /etc/shadow should be readable only by root and the shadow group, world-writable files should be found and justified, and a default umask of 027 limits new file access. List listening services with ss -tulpn and disable anything not required using systemctl disable --now."
+     ]
+    },
+    {
+     "h": "Auditing, MAC and updates",
+     "p": [
+      "The Linux audit framework, auditd, records security-relevant events using rules in /etc/audit/rules.d/. Typical rules watch changes to /etc/passwd, /etc/shadow, /etc/sudoers and sshd_config, and log privileged command use and time changes. Send audit logs to a central collector so a compromised host cannot erase them. Keep mandatory access control enabled: SELinux on Red Hat family systems or AppArmor on Debian and Ubuntu, in enforcing mode. Configure automatic security updates, such as unattended-upgrades on Debian family systems or dnf-automatic on Red Hat family systems, for hosts where unattended updates are acceptable."
+     ]
+    },
+    {
+     "h": "Accounts, firewall and verification",
+     "p": [
+      "Enforce strong authentication policy: lock or remove unused accounts, set password aging with chage, and configure pam_faillock to lock accounts after repeated failures. Give administrators individual accounts and sudo, with logging, rather than a shared root login. Run a host firewall such as nftables, ufw or firewalld with a default deny inbound policy and explicit allows. Verify the result with a scanner such as Lynis or OpenSCAP, and by checking effective settings, for example sshd -T | grep -i permitroot to display the running value, since an included config file can override what you edited."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ sshd -T | grep -Ei 'permitrootlogin|passwordauth|maxauthtries'\npermitrootlogin no\npasswordauthentication no\nmaxauthtries 3\n$ ss -tulpn | grep LISTEN\ntcp LISTEN 0 128 0.0.0.0:22 users:((\"sshd\"))\n$ stat -c '%a %U:%G' /etc/shadow\n640 root:shadow"
+   },
+   "example": "An administrator hardening host 192.0.2.30 sets PermitRootLogin no and PasswordAuthentication no, but sshd -T still shows passwordauthentication yes. Searching shows a drop-in file in /etc/ssh/sshd_config.d/ that sets it yes, and because the first obtained value wins, that file overrides the main one. They correct the drop-in, run sshd -t, reload the service, and confirm with sshd -T. The lesson is to verify the effective configuration, not just the file they edited.",
+   "terms": [
+    {
+     "term": "PermitRootLogin",
+     "def": "sshd option controlling whether root may log in directly."
+    },
+    {
+     "term": "sysctl",
+     "def": "Tool and interface for reading and setting kernel parameters."
+    },
+    {
+     "term": "auditd",
+     "def": "The Linux audit daemon that records security events."
+    },
+    {
+     "term": "SELinux",
+     "def": "A mandatory access control system used mainly on Red Hat family systems."
+    },
+    {
+     "term": "AppArmor",
+     "def": "Profile-based mandatory access control used on Debian and Ubuntu."
+    },
+    {
+     "term": "umask",
+     "def": "A mask defining default permissions for newly created files."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which sshd_config setting disables direct root login?",
+     "options": [
+      "PermitRootLogin no",
+      "RootLogin allow",
+      "AllowRoot no",
+      "PermitEmptyPasswords no"
+     ],
+     "a": 0,
+     "why": "PermitRootLogin no refuses root sessions."
+    },
+    {
+     "q": "What command reveals the effective sshd configuration?",
+     "options": [
+      "sshd -T",
+      "ssh-add -l",
+      "ss -s",
+      "sysctl -a"
+     ],
+     "a": 0,
+     "why": "sshd -T prints the active configuration including includes."
+    },
+    {
+     "q": "Which sysctl setting enables SYN cookies?",
+     "options": [
+      "net.ipv4.tcp_syncookies=1",
+      "kernel.randomize_va_space=0",
+      "net.ipv4.ip_forward=1",
+      "net.ipv4.conf.all.accept_redirects=1"
+     ],
+     "a": 0,
+     "why": "tcp_syncookies=1 helps resist SYN floods."
+    },
+    {
+     "q": "Why send auditd logs to a central collector?",
+     "options": [
+      "To make them larger",
+      "A compromised host cannot easily erase remote copies",
+      "Auditd requires it",
+      "To disable rules"
+     ],
+     "a": 1,
+     "why": "Remote copies preserve evidence after compromise."
+    }
+   ],
+   "recap": [
+    "Harden SSH: no root login, key authentication, restricted users, limited attempts.",
+    "Set sysctl network protections, tight file permissions, and disable unneeded services.",
+    "Use auditd, SELinux or AppArmor, default deny firewall, and verify effective settings."
+   ]
+  },
+  {
+   "title": "Windows hardening",
+   "why": "Windows environments are managed centrally, which allows one policy change to harden thousands of systems and to close well-known credential theft paths.",
+   "sections": [
+    {
+     "h": "Group Policy and local policy",
+     "p": [
+      "In Active Directory environments, Group Policy Objects (GPOs) apply settings to organizational units, giving consistent baselines. On standalone machines, the Local Security Policy (secpol.msc) and Local Group Policy editor (gpedit.msc) hold the same kinds of settings. Key areas are account policies (password length, lockout threshold), user rights assignment, security options and the advanced audit policy. Microsoft publishes Security Baselines in the Security Compliance Toolkit, and CIS provides benchmarks for each Windows version and role. Apply baselines to a pilot OU first, and use Group Policy Results or gpresult /r to confirm what actually applied."
+     ]
+    },
+    {
+     "h": "Removing legacy protocols",
+     "p": [
+      "Several old protocols enable credential theft or lateral movement. SMBv1 should be disabled; on servers use Set-SmbServerConfiguration -EnableSMB1Protocol $false, and remove the feature where present. LLMNR and NetBIOS name service fall back for name resolution and can be abused to capture credential hashes; disable LLMNR through the policy Turn off multicast name resolution. Restrict NTLM using the Network security: Restrict NTLM policies, audit NTLM use first, then block where Kerberos works. Require SMB signing and, where supported, set LAN Manager authentication level to send NTLMv2 only and refuse LM and NTLM."
+     ]
+    },
+    {
+     "h": "Endpoint protection and encryption",
+     "p": [
+      "Microsoft Defender Antivirus should be on with cloud protection and tamper protection enabled so malware cannot switch it off. Attack Surface Reduction (ASR) rules block risky behaviors, such as Office applications creating child processes, and should be deployed first in audit mode. Enable Windows Defender Firewall with default deny inbound on all profiles. Use BitLocker with a TPM, and ideally a startup PIN on laptops, to protect data if a device is lost, and store recovery keys in Active Directory or Entra ID. Credential Guard isolates secrets using virtualization-based security. Windows LAPS gives every computer a unique, rotating local administrator password."
+     ]
+    },
+    {
+     "h": "Logging and administration",
+     "p": [
+      "Enable the advanced audit policy categories for logon events, account management, process creation (event 4688 with command line), and policy changes, and size the Security log appropriately. Turn on PowerShell script block logging (event 4104) and forward events to a central collector using Windows Event Forwarding or an agent. Use tiered administration so domain admin credentials never touch ordinary workstations. Remove users from the local Administrators group and manage software through a deployment tool. Check changes against a baseline, because a later GPO or local override may silently reverse your setting."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "PowerShell check",
+    "text": "PS> Get-SmbServerConfiguration | Select EnableSMB1Protocol,RequireSecuritySignature\nEnableSMB1Protocol RequireSecuritySignature\n------------------ -------------------------\n             False                      True\nPS> Get-BitLockerVolume C: | Select ProtectionStatus\nProtectionStatus : On"
+   },
+   "example": "A domain at corp.example.com audits NTLM before blocking it. The team enables the policy 'Network security: Restrict NTLM: Audit NTLM authentication in this domain' and collects events for a month. The logs reveal an old file server at 203.0.113.60 and one reporting tool still using NTLM. They fix those, then switch the policy to deny for the rest. Auditing before enforcing prevented an outage while still removing a path commonly abused for relay and hash capture.",
+   "terms": [
+    {
+     "term": "GPO",
+     "def": "Group Policy Object, a set of settings applied to AD users and computers."
+    },
+    {
+     "term": "SMBv1",
+     "def": "A legacy file sharing protocol that should be disabled."
+    },
+    {
+     "term": "LLMNR",
+     "def": "A multicast name resolution fallback that can be abused to capture credentials."
+    },
+    {
+     "term": "BitLocker",
+     "def": "Windows full-volume encryption, often backed by a TPM."
+    },
+    {
+     "term": "Credential Guard",
+     "def": "Feature that uses virtualization to protect credential secrets."
+    },
+    {
+     "term": "LAPS",
+     "def": "Tool that rotates unique local administrator passwords."
+    }
+   ],
+   "check": [
+    {
+     "q": "Where do you configure settings that apply to many domain computers at once?",
+     "options": [
+      "Registry editor on each host",
+      "Group Policy Objects linked to OUs",
+      "Task Manager",
+      "Device Manager"
+     ],
+     "a": 1,
+     "why": "GPOs apply centrally to scoped OUs."
+    },
+    {
+     "q": "Which action reduces the risk of hash capture through name resolution fallback?",
+     "options": [
+      "Enable LLMNR",
+      "Disable LLMNR",
+      "Enable SMBv1",
+      "Disable logging"
+     ],
+     "a": 1,
+     "why": "LLMNR can be spoofed by attackers on the local network."
+    },
+    {
+     "q": "What should usually be done before blocking NTLM?",
+     "options": [
+      "Nothing",
+      "Audit its use to find dependencies",
+      "Delete Kerberos",
+      "Disable the domain"
+     ],
+     "a": 1,
+     "why": "Auditing reveals applications that still need NTLM."
+    },
+    {
+     "q": "What does Windows LAPS provide?",
+     "options": [
+      "Unique rotating local admin passwords",
+      "Full disk encryption",
+      "Name resolution",
+      "Printer sharing"
+     ],
+     "a": 0,
+     "why": "LAPS prevents one shared local admin password."
+    }
+   ],
+   "recap": [
+    "Use GPOs and security baselines to apply consistent policy and confirm with gpresult.",
+    "Disable SMBv1 and LLMNR, restrict NTLM after auditing, and require SMB signing.",
+    "Enable Defender with tamper protection, ASR rules, BitLocker, Credential Guard, LAPS and strong auditing."
+   ]
+  },
+  {
+   "title": "Patch management lifecycle",
+   "why": "Attackers weaponize published vulnerabilities within days. A reliable patch process closes that window without breaking production.",
+   "sections": [
+    {
+     "h": "Inventory and prioritization",
+     "p": [
+      "You cannot patch what you do not know you own, so the lifecycle begins with an accurate asset and software inventory that records operating system, version, owner, criticality and exposure. Monitor vendor advisories and vulnerability feeds, then prioritize. CVSS gives severity, but also consider whether the flaw is listed in CISA's Known Exploited Vulnerabilities catalog, whether the EPSS score shows high exploitation probability, whether the system is internet-facing, and how valuable its data is. Set service-level targets, for example critical and exploited within 72 hours, high within 14 days, and routine within 30 days."
+     ]
+    },
+    {
+     "h": "Test and staged rollout",
+     "p": [
+      "Test patches on a representative lab or pilot group before broad release, checking boot, key applications, agents and performance. Then roll out in rings: a pilot ring of IT and volunteers (about 5 percent), a broad ring of most systems, and a last ring of critical or fragile systems that receive patches after the others prove stable. Microsoft Patch Tuesday occurs on the second Tuesday of each month, which many teams use as the start of a monthly cycle. Schedule maintenance windows, notify owners, and cluster nodes so servers can be patched one at a time without downtime."
+     ]
+    },
+    {
+     "h": "Tools",
+     "p": [
+      "Windows environments use WSUS or Microsoft Configuration Manager, Windows Update for Business, or Microsoft Intune with update rings and deadlines to control timing. Linux uses package managers: apt on Debian and Ubuntu, dnf or yum on Red Hat family systems, with tools like unattended-upgrades or Red Hat Satellite for control and repository snapshots. Third-party applications, browsers and firmware also need patching, and container images must be rebuilt from updated base images. Whatever the tool, use one authoritative source, report compliance per device, and flag machines that missed the cycle."
+     ]
+    },
+    {
+     "h": "Rollback and emergency patching",
+     "p": [
+      "Plan rollback before you patch: take VM snapshots or backups, keep previous package versions available, and know how to uninstall an update or pin a package version, for example with apt-mark hold. Define success criteria and monitoring so a bad patch is detected quickly. An emergency, or out-of-band, process handles actively exploited flaws: shorten testing, approve through an expedited change path, patch internet-facing systems first, and apply compensating controls such as a WAF rule or disabling a feature when a patch is not available. Verify afterward with a vulnerability scan and record exceptions with an expiry date."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ apt list --upgradable 2>/dev/null | head -3\nopenssl/jammy-updates 3.0.2-0ubuntu1.18 amd64 [upgradable]\n$ sudo apt-mark hold nginx\nnginx set on hold.\n$ sudo apt install --only-upgrade openssl\n$ needrestart -r l"
+   },
+   "example": "A critical remote code execution flaw appears in a web server product on the KEV list. The team skips the normal monthly cycle. They apply the patch to the lab within hours, confirm the application works, and then patch the internet-facing hosts at 198.51.100.10 and 198.51.100.11 one at a time behind the load balancer. Internal hosts follow the next day. A scan confirms the version, and a snapshot taken before patching remains available for 24 hours as the rollback path.",
+   "terms": [
+    {
+     "term": "Patch ring",
+     "def": "A group of systems that receive updates in a defined order."
+    },
+    {
+     "term": "KEV",
+     "def": "CISA catalog of vulnerabilities known to be exploited in the wild."
+    },
+    {
+     "term": "EPSS",
+     "def": "A score estimating the probability that a vulnerability will be exploited."
+    },
+    {
+     "term": "WSUS",
+     "def": "Windows Server Update Services for approving and distributing Windows updates."
+    },
+    {
+     "term": "Out-of-band patch",
+     "def": "An emergency update outside the normal schedule."
+    },
+    {
+     "term": "Compensating control",
+     "def": "A temporary control that reduces risk when a fix is unavailable."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which input helps prioritize beyond CVSS?",
+     "options": [
+      "Inclusion in the KEV catalog",
+      "Server color",
+      "Hostname length",
+      "Vendor logo"
+     ],
+     "a": 0,
+     "why": "Known exploitation raises urgency."
+    },
+    {
+     "q": "Why use patch rings?",
+     "options": [
+      "To patch everything at once",
+      "To detect problems on a small group before broad rollout",
+      "To avoid inventory",
+      "To skip testing"
+     ],
+     "a": 1,
+     "why": "Staging limits the blast radius of a bad patch."
+    },
+    {
+     "q": "What should exist before a patch is applied?",
+     "options": [
+      "A rollback plan",
+      "A new firewall",
+      "A new vendor",
+      "A longer password"
+     ],
+     "a": 0,
+     "why": "Snapshots or pinned versions allow recovery."
+    },
+    {
+     "q": "Which is a compensating control for an unpatched exposed flaw?",
+     "options": [
+      "Ignoring it",
+      "A WAF rule or disabling the vulnerable feature",
+      "Disabling logs",
+      "Rebooting daily"
+     ],
+     "a": 1,
+     "why": "Temporary mitigation reduces exposure until a patch is installed."
+    }
+   ],
+   "recap": [
+    "Start with an inventory and prioritize using CVSS, KEV, EPSS and exposure.",
+    "Test, then roll out in rings with maintenance windows and monitoring.",
+    "Plan rollback, and use an expedited emergency path with compensating controls for exploited flaws."
+   ]
+  },
+  {
+   "title": "Configuration management tools",
+   "why": "Manual changes drift and cannot be audited. Configuration management describes the desired state as code so every server converges to the same secure configuration.",
+   "sections": [
+    {
+     "h": "Desired state and idempotence",
+     "p": [
+      "Configuration management tools let you declare the state you want, such as 'package auditd is installed, service is running, file sshd_config has these contents', rather than scripting steps. The tool compares reality with the declaration and changes only what differs. This property is called idempotence: running the same configuration twice produces the same result and makes no change the second time. Idempotence makes it safe to run configurations repeatedly to correct drift, and the definitions become documentation and an audit trail when stored in version control with code review for changes."
+     ]
+    },
+    {
+     "h": "Ansible",
+     "p": [
+      "Ansible is agentless: a control node connects to managed hosts over SSH (or WinRM for Windows) and runs modules described in YAML playbooks. Inventories list hosts and groups, roles package reusable tasks, and variables separate data from logic. Modules such as lineinfile, template, package, service and sysctl are idempotent. Run ansible-playbook with --check --diff to preview changes without applying them. Secrets belong in Ansible Vault or an external secrets manager, not in plain text. Ansible runs when you trigger it, so schedule it or use a controller such as AWX to run regularly."
+     ]
+    },
+    {
+     "h": "Puppet and DSC",
+     "p": [
+      "Puppet uses an agent on each node that periodically (by default every 30 minutes) contacts a server, retrieves a compiled catalog based on manifests written in Puppet's declarative language, and enforces it. This pull model corrects drift automatically. Windows PowerShell Desired State Configuration (DSC) describes state in configurations compiled to MOF documents and applied by the Local Configuration Manager, which can run in ApplyAndAutoCorrect mode. Chef and Salt are similar alternatives. Choose by team skills and platform: agentless push suits ad hoc and small estates; agent pull suits large fleets needing continuous enforcement."
+     ]
+    },
+    {
+     "h": "Operating at scale",
+     "p": [
+      "Store all configuration in Git, review changes through pull requests, and test in CI against disposable machines with tools such as Molecule or containers before production. Use environments (development, staging, production) with the same code and different variables. Limit who can change code and who can run it, because the configuration tool holds powerful credentials on every host. Report on runs: which nodes failed, which changed, which did not check in. Pair configuration management with image building and compliance scanning, so a hardened baseline is defined once and enforced continuously."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Ansible task",
+    "text": "- name: Disable SSH root login\n  ansible.builtin.lineinfile:\n    path: /etc/ssh/sshd_config\n    regexp: '^#?PermitRootLogin'\n    line: 'PermitRootLogin no'\n  notify: reload sshd\n# run: ansible-playbook harden.yml --check --diff"
+   },
+   "example": "A team manages 300 Linux servers. They write a role that installs auditd, sets sshd options and applies sysctl values. The first run changes most hosts. The second run reports changed=0 on every host, which proves idempotence. A week later an engineer manually edits PermitRootLogin on one host for troubleshooting. The next scheduled run reverts it and records a change for that host, so the drift is both corrected and visible in the report.",
+   "terms": [
+    {
+     "term": "Idempotence",
+     "def": "Applying the same configuration repeatedly yields the same state."
+    },
+    {
+     "term": "Playbook",
+     "def": "An Ansible file of tasks describing desired actions in YAML."
+    },
+    {
+     "term": "Agentless",
+     "def": "Managing nodes without software installed on them, as Ansible does over SSH."
+    },
+    {
+     "term": "Catalog",
+     "def": "The compiled set of resources Puppet enforces on a node."
+    },
+    {
+     "term": "DSC",
+     "def": "PowerShell Desired State Configuration for Windows."
+    },
+    {
+     "term": "Infrastructure as code",
+     "def": "Defining infrastructure and settings in version-controlled files."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does idempotent mean for a configuration run?",
+     "options": [
+      "It always changes files",
+      "Re-running makes no further change once the state is correct",
+      "It deletes the host",
+      "It needs a reboot"
+     ],
+     "a": 1,
+     "why": "Idempotent operations converge to the same state."
+    },
+    {
+     "q": "Which tool is agentless and uses SSH?",
+     "options": [
+      "Ansible",
+      "Puppet agent",
+      "Windows LCM",
+      "SCCM client"
+     ],
+     "a": 0,
+     "why": "Ansible connects over SSH without an agent."
+    },
+    {
+     "q": "What does --check --diff do in ansible-playbook?",
+     "options": [
+      "Applies changes silently",
+      "Previews changes without applying them",
+      "Deletes inventories",
+      "Encrypts the vault"
+     ],
+     "a": 1,
+     "why": "Check mode simulates and diff shows modifications."
+    },
+    {
+     "q": "Why store configuration in Git?",
+     "options": [
+      "Review, history and rollback of changes",
+      "To avoid testing",
+      "To remove variables",
+      "To disable idempotence"
+     ],
+     "a": 0,
+     "why": "Version control gives accountability and recoverability."
+    }
+   ],
+   "recap": [
+    "Configuration management declares desired state and applies it idempotently.",
+    "Ansible pushes over SSH, Puppet and DSC pull and can auto-correct drift.",
+    "Keep configuration in Git, test before production, and protect the automation credentials."
+   ]
+  },
+  {
+   "title": "Baselines, drift and compliance scanning",
+   "why": "A hardened baseline is only valuable if new systems start from it and existing ones stay within it. Scanning and exception handling make that measurable.",
+   "sections": [
+    {
+     "h": "Gold images and baselines",
+     "p": [
+      "A baseline is the approved secure configuration for a system role. A gold image is a pre-built operating system image that already contains the baseline, patches and agents. Build images with automation such as HashiCorp Packer so they are reproducible, scan them before publishing, sign or version them, and rebuild regularly to include new patches. Deploy servers from the gold image and, where possible, treat them as immutable: replace instead of modifying. Keep separate baselines for roles such as web server, database and workstation, and record the benchmark version and profile each one follows."
+     ]
+    },
+    {
+     "h": "Compliance scanners",
+     "p": [
+      "OpenSCAP uses SCAP content, such as the SCAP Security Guide, to evaluate a system against profiles including CIS and DISA STIG; for example oscap xccdf eval --profile xccdf_org.ssgproject.content_profile_cis --report report.html and a datastream file. It can also generate remediation scripts. Lynis is an open-source auditing tool that runs lynis audit system, reports warnings and suggestions, and gives a hardening index. CIS-CAT, Microsoft Security Compliance Toolkit and cloud services such as AWS Config or Azure Policy do similar work. Use scanner output as evidence, and re-scan after changes."
+     ]
+    },
+    {
+     "h": "Drift detection",
+     "p": [
+      "Configuration drift is any deviation from the approved baseline, caused by emergency fixes, manual edits, failed updates or compromise. Detect it through scheduled scans, configuration management reports, file integrity monitoring tools such as AIDE or Tripwire, and cloud policy engines that flag non-compliant resources. Alert on high-risk drift, for example SSH settings changed or a new local administrator. Decide for each item whether to remediate automatically, remediate through a ticket, or investigate, since unexplained drift on a critical host may indicate an attacker making changes."
+     ]
+    },
+    {
+     "h": "Exceptions and reporting",
+     "p": [
+      "Some recommendations cannot be met because of application or business needs. Handle them through a formal exception: describe the setting, the reason, the compensating control, the risk owner, and an expiry date for review. Track exceptions in a register so scanners can mark them as accepted rather than failed, and so they do not accumulate silently. Report compliance as trend lines and exception counts to management. A healthy program shows rising compliance, shrinking drift time, and exceptions that are reviewed and retired, not a one-time perfect score."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Lynis excerpt",
+    "text": "$ sudo lynis audit system --quick\n  Hardening index : 74 [##############      ]\n  Warnings (2):\n   ! No password set for GRUB boot loader [BOOT-5122]\n   ! iptables module(s) loaded, but no rules active [FIRE-4512]\n  Suggestions (18):\n   * Harden SSH: set PermitRootLogin to NO [SSH-7440]"
+   },
+   "example": "A weekly OpenSCAP scan of 40 database servers finds that db07 now fails the rule requiring SSH root login to be disabled, although it passed last week. The team checks the change log and finds no ticket. File integrity records show the sshd_config modified at 02:14 by an account that does not normally administer the host. They escalate to the incident process. Drift detection converted a quiet configuration change into an investigation lead.",
+   "terms": [
+    {
+     "term": "Baseline",
+     "def": "The approved secure configuration for a system role."
+    },
+    {
+     "term": "Gold image",
+     "def": "A prebuilt hardened system image used to deploy new hosts."
+    },
+    {
+     "term": "Configuration drift",
+     "def": "Deviation of a system from its approved baseline."
+    },
+    {
+     "term": "OpenSCAP",
+     "def": "Open-source tooling that evaluates systems against SCAP security content."
+    },
+    {
+     "term": "Lynis",
+     "def": "An open-source host auditing tool that produces a hardening index."
+    },
+    {
+     "term": "Exception register",
+     "def": "A record of approved deviations with owner, reason and expiry."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is configuration drift?",
+     "options": [
+      "Deviation from the approved baseline",
+      "A network protocol",
+      "A type of malware",
+      "A backup method"
+     ],
+     "a": 0,
+     "why": "Drift is any departure from the baseline."
+    },
+    {
+     "q": "Which tool can evaluate a Linux host against CIS or STIG profiles using SCAP content?",
+     "options": [
+      "OpenSCAP",
+      "Wireshark",
+      "Nmap",
+      "Burp"
+     ],
+     "a": 0,
+     "why": "OpenSCAP uses SCAP content for profile evaluation."
+    },
+    {
+     "q": "What should a documented exception include?",
+     "options": [
+      "Only a verbal agreement",
+      "Reason, compensating control, owner and expiry",
+      "A deleted finding",
+      "Nothing"
+     ],
+     "a": 1,
+     "why": "Exceptions must be accountable and time-limited."
+    },
+    {
+     "q": "Why rebuild gold images regularly?",
+     "options": [
+      "To include new patches and baseline updates",
+      "To remove version control",
+      "To avoid scanning",
+      "To increase drift"
+     ],
+     "a": 0,
+     "why": "Images age as vulnerabilities are published."
+    }
+   ],
+   "recap": [
+    "Baselines and gold images make secure builds repeatable.",
+    "Scan with OpenSCAP, Lynis or CIS-CAT and use integrity monitoring to detect drift.",
+    "Manage exceptions with owner, compensating controls and expiry, and report trends."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Harden sshd_config",
+   "sim": "config-editor",
+   "scenario": "Host jump01.example.com at 192.0.2.50 has a default sshd_config. Audit findings say root login is permitted, passwords are accepted, and every local user can log in. You must edit the file to meet the Level 1 recommendations while keeping admins able to connect.",
+   "objective": "Edit sshd_config to disable root login and password authentication, set modern ciphers and restrict users.",
+   "steps": [
+    {
+     "do": "Open /etc/ssh/sshd_config in the editor.",
+     "see": "File loaded: PermitRootLogin yes, PasswordAuthentication yes, no AllowUsers."
+    },
+    {
+     "do": "Set PermitRootLogin to no.",
+     "see": "Line updated. Check: PASS 5.2.8."
+    },
+    {
+     "do": "Set PasswordAuthentication to no and PubkeyAuthentication to yes.",
+     "see": "Check: PASS 5.2.10 key-based authentication enforced."
+    },
+    {
+     "do": "Add AllowUsers alice bob.",
+     "see": "Check: PASS access restricted to 2 users."
+    },
+    {
+     "do": "Set MaxAuthTries 3 and LoginGraceTime 30.",
+     "see": "Both values accepted."
+    },
+    {
+     "do": "Add Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com and remove arcfour entries.",
+     "see": "Check: PASS no weak ciphers offered."
+    },
+    {
+     "do": "Run 'sshd -t'.",
+     "see": "No syntax errors."
+    },
+    {
+     "do": "Click Apply and reload.",
+     "see": "Service reloaded. Scan: 6 of 6 SSH checks pass."
+    }
+   ],
+   "answer": "The final file contains PermitRootLogin no, PasswordAuthentication no, PubkeyAuthentication yes, AllowUsers alice bob, MaxAuthTries 3, LoginGraceTime 30 and strong ciphers only, validated with sshd -t before the reload.",
+   "hint": "Always run sshd -t and keep an existing session open before reloading."
+  },
+  {
+   "title": "Audit a Linux host",
+   "sim": "terminal",
+   "scenario": "You have a shell on app02.example.com (192.0.2.60) and a Lynis-style audit tool. The report lists a world-readable /etc/shadow, an unneeded telnet service and a missing default firewall policy. You must read the findings and fix each failing item.",
+   "objective": "Run the audit, interpret the findings and remediate the permission and service items.",
+   "steps": [
+    {
+     "do": "Type: lynis audit system --quick",
+     "see": "Hardening index: 61. Warnings: 3. Suggestions: 12."
+    },
+    {
+     "do": "Type: stat -c '%a %U:%G' /etc/shadow",
+     "see": "644 root:root  (too permissive)"
+    },
+    {
+     "do": "Type: chmod 640 /etc/shadow && chgrp shadow /etc/shadow",
+     "see": "Permissions updated."
+    },
+    {
+     "do": "Type: ss -tulpn | grep ':23'",
+     "see": "tcp LISTEN 0 5 0.0.0.0:23 users:(('telnetd'))"
+    },
+    {
+     "do": "Type: systemctl disable --now inetd-telnet",
+     "see": "Service stopped and disabled."
+    },
+    {
+     "do": "Type: ufw default deny incoming && ufw allow 22/tcp && ufw enable",
+     "see": "Default policy set to deny; rule for 22/tcp added."
+    },
+    {
+     "do": "Type: lynis audit system --quick",
+     "see": "Hardening index: 78. Warnings: 0."
+    }
+   ],
+   "answer": "The fixes are setting /etc/shadow to mode 640 owned by root:shadow, disabling the telnet service, and applying a default deny inbound firewall policy with only SSH allowed. After the fixes, the hardening index rises from 61 to 78 with no warnings.",
+   "hint": "Fix warnings first, then work through suggestions by risk."
+  },
+  {
+   "title": "Windows GPO review",
+   "sim": "config-editor",
+   "scenario": "A baseline for member servers in corp.example.com requires SMBv1 disabled, NTLM restricted and audit policy for logon events and process creation. A policy editor shows the current GPO state with several settings not compliant. You must toggle settings until the baseline report is green.",
+   "objective": "Set GPO values to meet the baseline for SMBv1, NTLM and auditing.",
+   "steps": [
+    {
+     "do": "Open the GPO 'Member Server Baseline'.",
+     "see": "Compliance 4 of 10 settings."
+    },
+    {
+     "do": "Under Computer Configuration, set 'SMB 1.0 server' to Disabled.",
+     "see": "Setting updated. Check SMBv1: PASS."
+    },
+    {
+     "do": "Set 'Network security: LAN Manager authentication level' to Send NTLMv2 response only, refuse LM and NTLM.",
+     "see": "Check: PASS level 5."
+    },
+    {
+     "do": "Set 'Network security: Restrict NTLM: Audit NTLM authentication in this domain' to Enable all.",
+     "see": "Audit enabled; a note says audit before denying."
+    },
+    {
+     "do": "Enable Advanced Audit Policy: Logon success and failure.",
+     "see": "Check: PASS logon auditing."
+    },
+    {
+     "do": "Enable 'Include command line in process creation events' and audit Process Creation success.",
+     "see": "Check: PASS event 4688 with command line."
+    },
+    {
+     "do": "Click Run compliance check.",
+     "see": "Compliance 10 of 10. NTLM block deferred until audit data is reviewed."
+    }
+   ],
+   "answer": "The compliant policy disables SMBv1, sets NTLMv2-only authentication, enables NTLM auditing as a first step toward restriction, and turns on logon and process creation auditing including command lines.",
+   "hint": "Audit NTLM before blocking it."
+  },
+  {
+   "title": "Patch rollout plan",
+   "sim": "scenario",
+   "scenario": "A monthly update and an emergency out-of-band patch are due. The estate has a test lab, 20 pilot laptops, 400 general workstations, 12 internet-facing servers at 198.51.100.0/28 and 6 fragile production database servers. You must order the rollout and choose rollback steps.",
+   "objective": "Create a ring-based plan for the monthly patch and handle an actively exploited vulnerability.",
+   "steps": [
+    {
+     "do": "Drag 'Test lab' to Ring 0.",
+     "see": "Accepted: validation before any production system."
+    },
+    {
+     "do": "Drag 'Pilot laptops' to Ring 1.",
+     "see": "Accepted: 5 percent pilot with daily health check."
+    },
+    {
+     "do": "Drag 'General workstations' to Ring 2 and 'Database servers' to Ring 3.",
+     "see": "Accepted: fragile systems patched last."
+    },
+    {
+     "do": "Choose rollback: snapshot before patch and keep prior version available.",
+     "see": "Rollback plan marked adequate."
+    },
+    {
+     "do": "Open the emergency scenario: actively exploited flaw in the web server.",
+     "see": "Alert: KEV listed, internet-facing hosts affected."
+    },
+    {
+     "do": "Move 'Internet-facing servers' to the front of the emergency queue and add a WAF rule as a compensating control.",
+     "see": "Accepted: exposed hosts first, mitigation in place."
+    },
+    {
+     "do": "Click Evaluate plan.",
+     "see": "Score 100: rings ordered, rollback defined, emergency path correct."
+    }
+   ],
+   "answer": "Monthly order is lab, pilot, general workstations, then fragile database servers, with snapshots for rollback. For the exploited flaw, patch internet-facing servers first through an expedited change and apply a compensating WAF rule until patched.",
+   "hint": "Exposure and exploitation decide emergency order; fragility decides normal order."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "A Level 2 CIS profile is intended for:",
+   "options": [
+    "All systems without testing",
+    "Environments needing higher assurance, with possible usability impact",
+    "Printers only",
+    "Removing logging"
+   ],
+   "a": 1,
+   "why": "Level 2 adds defense in depth and may affect function."
+  },
+  {
+   "q": "Which sshd_config pair is most important to reduce password guessing?",
+   "options": [
+    "PasswordAuthentication no and PubkeyAuthentication yes",
+    "X11Forwarding yes and UseDNS yes",
+    "PermitEmptyPasswords yes",
+    "Port 22 and Banner none"
+   ],
+   "a": 0,
+   "why": "Key-only authentication eliminates password guessing."
+  },
+  {
+   "q": "Which command shows the running sshd settings including include files?",
+   "options": [
+    "sshd -T",
+    "ssh -V",
+    "ss -a",
+    "sshd -q"
+   ],
+   "a": 0,
+   "why": "sshd -T prints the effective configuration."
+  },
+  {
+   "q": "Which Windows setting helps stop credential capture through name resolution fallback?",
+   "options": [
+    "Disable LLMNR",
+    "Enable SMBv1",
+    "Disable BitLocker",
+    "Enable guest account"
+   ],
+   "a": 0,
+   "why": "LLMNR can be spoofed to capture hashes."
+  },
+  {
+   "q": "What is the best reason to deploy patches in rings?",
+   "options": [
+    "To skip testing",
+    "To limit the impact of a faulty patch",
+    "To avoid inventory",
+    "To remove rollback"
+   ],
+   "a": 1,
+   "why": "Small early rings reveal problems before wide release."
+  },
+  {
+   "q": "Which source tells you a vulnerability is known to be exploited?",
+   "options": [
+    "CISA KEV catalog",
+    "A vendor logo",
+    "CIS Level 1",
+    "Lynis hardening index"
+   ],
+   "a": 0,
+   "why": "KEV lists vulnerabilities exploited in the wild."
+  },
+  {
+   "q": "An idempotent configuration run on a compliant host:",
+   "options": [
+    "Makes no changes",
+    "Reinstalls everything",
+    "Reboots the host",
+    "Removes the baseline"
+   ],
+   "a": 0,
+   "why": "The state already matches, so nothing changes."
+  },
+  {
+   "q": "Which tool is agent-based and pulls its catalog from a server?",
+   "options": [
+    "Puppet",
+    "Ad hoc SSH loop",
+    "Ansible over SSH",
+    "Netcat"
+   ],
+   "a": 0,
+   "why": "Puppet agents periodically retrieve and apply catalogs."
+  },
+  {
+   "q": "A scan shows db07 failing a rule it passed last week, with no change ticket. This is:",
+   "options": [
+    "Configuration drift to investigate",
+    "A normal improvement",
+    "A gold image",
+    "A false patch"
+   ],
+   "a": 0,
+   "why": "Unexplained drift may indicate error or compromise."
+  },
+  {
+   "q": "A proper exception record contains:",
+   "options": [
+    "Reason, compensating control, owner and expiry",
+    "Only a verbal note",
+    "The scanner password",
+    "A deleted finding"
+   ],
+   "a": 0,
+   "why": "Exceptions must be accountable and reviewed."
+  }
+ ]
+}

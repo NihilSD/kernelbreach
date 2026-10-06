@@ -1,0 +1,918 @@
+{
+ "code": "SOC-11",
+ "intro": "Malware triage is the fast, careful first look at a suspicious file. This module covers safe handling and lab hygiene, hashing and file identification, static triage with strings and PE headers, reading sandbox reports, using VirusTotal and other reputation sources responsibly, and recognizing common families such as loaders, infostealers, RATs, ransomware and webshells. The goal is a documented verdict and usable indicators without ever risking production systems. Every lesson pairs concepts with defensive practice and short drills.",
+ "lessons": [
+  {
+   "title": "Safe handling and lab hygiene",
+   "why": "One careless double-click can turn a sample into a real incident. Safe handling rules protect you, your colleagues and your network.",
+   "sections": [
+    {
+     "h": "Why isolation matters",
+     "p": [
+      "Malware triage means deliberately touching hostile files, so the first rule is that nothing runs where it can reach production. Use a dedicated analysis machine or virtual machine with no shared folders, no clipboard sharing, no connection to the corporate LAN and a snapshot you can revert after each session. Network access should be either fully disabled or routed through a simulated internet service such as INetSim, so the sample cannot contact a real command server or move laterally. Never analyze on your daily workstation, and never open samples from the mail client or browser that holds your credentials."
+     ]
+    },
+    {
+     "h": "Transport and storage",
+     "p": [
+      "Samples travel in password-protected archives, by long-standing convention with the password 'infected' (or 'malware'). The archive prevents antivirus on mail gateways and endpoints from silently deleting the file and stops accidental execution by someone browsing the share. Store samples in a clearly labeled location with restricted access, and name files by their hash rather than their original name, for example 3f2a...e91.bin. Remove the executable extension, because a file named invoice.exe is one click from trouble. Keep a log of who received the sample and why.",
+      "Treat the sample repository like evidence storage. Limit access to the analysts who need it, keep immutable copies of originals, and work only on copies. If you must share a sample with a vendor or another team, record the recipient, the date, the hash and the approval. Delete working copies when the case closes according to your retention policy, and never leave samples on shared drives where antivirus or a curious colleague may trigger them."
+     ]
+    },
+    {
+     "h": "Defanging indicators",
+     "p": [
+      "When you write indicators into tickets, chat or email, defang them so they cannot be clicked or auto-fetched: hxxp://malicious-example[.]com/payload, 203.0[.]113[.]9 and user[@]example[.]com. Link previews in chat tools and mail clients can contact the server and leak that you looked at it. Defanged text is reversible by tooling, and platforms such as CyberChef can refang it. Apply the same care to screenshots that contain live links, and avoid pasting full sample content into public tools."
+     ]
+    },
+    {
+     "h": "Process and ethics",
+     "p": [
+      "Define in advance what you are allowed to do: which tools, which networks, whether samples may be uploaded to third parties, and who approves it. Record every step, including timestamps and file hashes, so findings are reproducible. Treat a sample as evidence if an incident is open: changing it, or running it on the original system, may destroy proof. Finally, remember that samples may contain real victim data, such as stolen credentials, so handle that data under your organization's privacy rules and report accidental exposure immediately."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Lab checklist",
+    "text": "[ ] Analysis VM, snapshot taken, no shared folders\n[ ] Network: host-only or INetSim, no real internet\n[ ] Sample in password-protected zip (infected)\n[ ] File renamed to <sha256>.bin\n[ ] Indicators defanged: hxxp://example[.]com\n[ ] Revert snapshot after the session"
+   },
+   "example": "Analyst Mira receives a suspicious attachment from a user on 198.51.100.0/24. She does not open it on her laptop. She copies the file into an isolated VM, renames it to its SHA-256 value with a .bin extension, takes a snapshot, and writes her notes with defanged domains. After static work she reverts the snapshot, stores the password-protected archive in the case folder, and records every action and hash in the ticket.",
+   "terms": [
+    {
+     "term": "Isolation",
+     "def": "Separating an analysis system from production networks and data."
+    },
+    {
+     "term": "Snapshot",
+     "def": "A saved VM state that can be restored after analysis."
+    },
+    {
+     "term": "Defanging",
+     "def": "Altering indicators, such as hxxp and [.], so they cannot be clicked or fetched."
+    },
+    {
+     "term": "INetSim",
+     "def": "A tool that simulates internet services for contained analysis."
+    },
+    {
+     "term": "Infected archive",
+     "def": "A password-protected archive using the convention password 'infected'."
+    }
+   ],
+   "check": [
+    {
+     "q": "Where should an unknown sample be analyzed?",
+     "options": [
+      "On your work laptop",
+      "In an isolated VM",
+      "On a file server",
+      "In your mailbox"
+     ],
+     "a": 1,
+     "why": "Isolation keeps hostile code away from production."
+    },
+    {
+     "q": "Why use password-protected archives for samples?",
+     "options": [
+      "They load faster",
+      "They stop accidental execution and AV deletion",
+      "They remove malware",
+      "They encrypt the network"
+     ],
+     "a": 1,
+     "why": "The archive prevents silent deletion and accidental runs."
+    },
+    {
+     "q": "Which is a defanged URL?",
+     "options": [
+      "http://example.com",
+      "hxxp://example[.]com",
+      "https://example.com",
+      "ftp://example.com"
+     ],
+     "a": 1,
+     "why": "hxxp and [.] prevent clicks and fetches."
+    },
+    {
+     "q": "After a session in the VM you should:",
+     "options": [
+      "Keep running the sample",
+      "Revert to a clean snapshot",
+      "Join it to the domain",
+      "Email the sample"
+     ],
+     "a": 1,
+     "why": "Reverting restores a known-clean state."
+    }
+   ],
+   "recap": [
+    "Isolate, snapshot and disconnect before touching samples.",
+    "Use infected archives and hash-based names.",
+    "Defang indicators and log every action."
+   ]
+  },
+  {
+   "title": "Hashes and file identification",
+   "why": "A hash is the fingerprint you use to track, share and look up a file without exposing it. File type checks stop you from trusting a misleading name.",
+   "sections": [
+    {
+     "h": "Cryptographic hashes",
+     "p": [
+      "A hash function turns any file into a fixed-length digest. MD5 produces 128 bits and SHA-1 160 bits; both have known collision weaknesses, but they remain widely used as identifiers in older feeds. SHA-256 produces 256 bits and is the standard for modern reporting. On Linux, run sha256sum sample.bin; on Windows PowerShell, Get-FileHash -Algorithm SHA256 sample.bin. Changing even a single byte produces a completely different hash, so an exact-match hash proves identity but cannot detect a slightly modified variant. Always record at least SHA-256, and MD5 if your feeds still use it."
+     ]
+    },
+    {
+     "h": "Fuzzy hashes and imphash",
+     "p": [
+      "Fuzzy hashing finds similar files. ssdeep uses context-triggered piecewise hashing and outputs a string such as 768:abc...:xyz, and ssdeep -m compares files and gives a similarity score from 0 to 100. TLSH is another similarity hash. For Windows executables the import hash, imphash, is an MD5 of the ordered imported function names, which often matches variants built from the same source even after recompilation. Use these for clustering and pivoting, remembering that unrelated files can occasionally match and that packers distort results."
+     ]
+    },
+    {
+     "h": "Identifying the real type",
+     "p": [
+      "Extensions lie; magic bytes tell the truth. A Windows PE file starts with 'MZ' (hex 4D 5A), an ELF with 7F 45 4C 46, a ZIP or modern Office file with 'PK' (50 4B 03 04), a PDF with '%PDF', and a legacy Office document with D0 CF 11 E0. The file command reads these signatures: file invoice.pdf may answer 'PE32 executable (GUI) Intel 80386, for MS Windows'. A hex viewer or xxd -l 16 shows the first bytes. When the claimed and detected types disagree, treat the file as suspicious."
+     ]
+    },
+    {
+     "h": "Extension tricks",
+     "p": [
+      "Attackers abuse display behavior. Windows hides known extensions by default, so invoice.pdf.exe may appear as invoice.pdf. A right-to-left override character (U+202E) can reverse part of a name so that 'invoice_exe.pdf' actually ends with a different extension. Long names push the real extension out of view, and archives may hold .lnk or .iso files that launch hidden payloads. Enable extension display, inspect real names in a terminal and compare against the detected type. Also note file size, timestamps and embedded metadata, but remember timestamps can be forged.",
+      "Always verify a hash from a trusted tool rather than the name or the sender's claim. When a colleague passes along a hash in chat, you can search it in reputation services without touching the file, which is the safest first step. If the hash is unknown, that does not mean the file is clean; it only means no one has submitted it or it is brand-new and custom-built, which is itself a mild signal in targeted attacks."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ sha256sum 3f2a.bin\n9b1c0d...e47a  3f2a.bin\n$ file invoice.pdf\ninvoice.pdf: PE32 executable (GUI) Intel 80386, for MS Windows\n$ xxd -l 8 invoice.pdf\n00000000: 4d5a 9000 0300 0000  MZ......\n$ ssdeep -m known.db 3f2a.bin\n3f2a.bin matches known.db:famA.bin (87)"
+   },
+   "example": "A mail gateway quarantines invoice.pdf at 192.0.2.25's mailbox. The analyst runs file and gets 'PE32 executable', and xxd shows the bytes 4D 5A, so it is a program wearing a document name. SHA-256 is searched in the threat feed and returns a known loader. ssdeep also matches another sample at 87, linking this to an earlier campaign, so the case is escalated and the sender domain is blocked.",
+   "terms": [
+    {
+     "term": "SHA-256",
+     "def": "A 256-bit cryptographic hash used as the standard file identifier."
+    },
+    {
+     "term": "ssdeep",
+     "def": "A fuzzy hash that scores similarity between files from 0 to 100."
+    },
+    {
+     "term": "imphash",
+     "def": "A hash of a PE file's imported functions used to cluster variants."
+    },
+    {
+     "term": "Magic bytes",
+     "def": "Leading bytes that identify a real file format, such as MZ for PE."
+    },
+    {
+     "term": "Right-to-left override",
+     "def": "A Unicode control character that reverses text and disguises extensions."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which bytes begin a Windows PE file?",
+     "options": [
+      "PK",
+      "MZ",
+      "%PDF",
+      "7F ELF"
+     ],
+     "a": 1,
+     "why": "PE files begin with MZ, 4D 5A."
+    },
+    {
+     "q": "A fuzzy hash is useful for:",
+     "options": [
+      "Proving exact identity",
+      "Finding similar variants",
+      "Encrypting files",
+      "Hiding samples"
+     ],
+     "a": 1,
+     "why": "ssdeep scores similarity."
+    },
+    {
+     "q": "invoice.pdf is reported by file as PE32 executable. This means:",
+     "options": [
+      "It is a safe PDF",
+      "The extension is misleading",
+      "The file is encrypted",
+      "It is a log"
+     ],
+     "a": 1,
+     "why": "The real format is an executable."
+    },
+    {
+     "q": "Changing one byte of a file changes its SHA-256:",
+     "options": [
+      "Slightly",
+      "Completely",
+      "Not at all",
+      "Only the first character"
+     ],
+     "a": 1,
+     "why": "Hashes show an avalanche effect."
+    }
+   ],
+   "recap": [
+    "Record SHA-256 for every sample, and MD5 if feeds use it.",
+    "Use ssdeep and imphash to cluster variants.",
+    "Trust magic bytes, not extensions."
+   ]
+  },
+  {
+   "title": "Strings and static triage",
+   "why": "Static triage lets you form a good hypothesis about a file in minutes, without running it and without risk of detonation.",
+   "sections": [
+    {
+     "h": "Strings",
+     "p": [
+      "The strings utility extracts printable character sequences from a binary. Run strings -n 8 sample.bin for ASCII and strings -el sample.bin for 16-bit little-endian Unicode, which Windows programs commonly use. Look for URLs and domains, IP addresses, file paths, registry keys such as HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run, user agents, commands like cmd.exe /c, base64 blobs, ransom note text, mutex names, PDB paths that leak developer usernames, and error messages. FLOSS (FireEye Labs Obfuscated String Solver) can also recover stack and encoded strings that plain strings misses.",
+      "Combine strings with context. A URL inside a legitimate updater is unremarkable, but the same URL next to cmd.exe /c and a hard-coded user agent is suspicious. Search distinctive strings, such as a mutex or typo-laden error message, in reputation services and threat reports, because they often match known families. Also check the resources section: embedded executables, scripts or encrypted blobs in .rsrc are a common way to carry the next stage."
+     ]
+    },
+    {
+     "h": "PE headers and imports",
+     "p": [
+      "The PE format begins with the DOS header (MZ), points to the PE header and lists sections such as .text (code), .data, .rdata and .rsrc (resources). Tools like pefile, PE-bear, Detect It Easy and CFF Explorer show the compile timestamp (easily forged), the section table and the import table. Imported API names hint at capability: VirtualAlloc, WriteProcessMemory and CreateRemoteThread suggest injection; URLDownloadToFile and InternetOpen suggest download or network use; RegSetValueEx suggests persistence; CryptEncrypt suggests encryption. Few imports plus LoadLibrary and GetProcAddress suggest the program resolves APIs at runtime to hide them."
+     ]
+    },
+    {
+     "h": "Packers and entropy",
+     "p": [
+      "Packers compress or encrypt a program and unpack it in memory at run time. Signs include section names like UPX0 and UPX1, a very small import table, a large resource section, and a high ratio between raw and virtual size. Entropy measures randomness on a scale from 0 to 8; text and normal code sit roughly between 4 and 6.5, while values above about 7 across a section suggest compression or encryption. High entropy is not proof of malice because legitimate installers are packed too, but together with few imports and odd section names it is a strong hint."
+     ]
+    },
+    {
+     "h": "Forming a hypothesis",
+     "p": [
+      "Combine the clues into a short, testable statement: 'a 32-bit dropper, probably UPX-packed, that downloads a payload from a hard-coded URL and sets a Run key'. State confidence and what would confirm it. Static analysis cannot prove behavior, so you then decide whether to detonate in a sandbox, search intelligence for the indicators, or just block and report. Note extracted indicators in defanged form. Do not attempt to reverse engineer deeply unless your role requires it; a triage analyst's job is a fast, accurate, documented verdict."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ strings -n 8 3f2a.bin | grep -iE 'http|run|mutex'\nhttp://update-check[.]example[.]com/gate.php\nSoftware\\Microsoft\\Windows\\CurrentVersion\\Run\nGlobal\\Mtx_8841af\n$ diec 3f2a.bin\nPE32 ; Packer: UPX ; Entropy .text 7.82"
+   },
+   "example": "Strings on a sample reveal a defanged URL update-check[.]example[.]com/gate.php, a Run key path and a mutex named Global\\Mtx_8841af. The import table has only LoadLibrary and GetProcAddress and a section called UPX1 with entropy 7.8. The analyst hypothesizes a packed downloader with registry persistence, records the indicators, and sends the sample for sandbox detonation to confirm the network behavior.",
+   "terms": [
+    {
+     "term": "strings",
+     "def": "A utility that prints readable text sequences from a binary file."
+    },
+    {
+     "term": "Import table",
+     "def": "The list of external API functions a PE file uses."
+    },
+    {
+     "term": "Packer",
+     "def": "A tool that compresses or encrypts an executable to hide its code."
+    },
+    {
+     "term": "Entropy",
+     "def": "A measure of data randomness from 0 to 8, high in packed content."
+    },
+    {
+     "term": "Mutex",
+     "def": "A named object malware uses to ensure only one instance runs."
+    }
+   ],
+   "check": [
+    {
+     "q": "A high-entropy section with few imports suggests:",
+     "options": [
+      "A text file",
+      "Packing or encryption",
+      "A driver",
+      "A clean installer only"
+     ],
+     "a": 1,
+     "why": "These signs together point to a packed binary."
+    },
+    {
+     "q": "Which API pair suggests process injection?",
+     "options": [
+      "WriteProcessMemory and CreateRemoteThread",
+      "GetTickCount and Sleep",
+      "MessageBox and ExitProcess",
+      "CloseHandle and ReadFile"
+     ],
+     "a": 0,
+     "why": "These are classic injection APIs."
+    },
+    {
+     "q": "Why use strings -el?",
+     "options": [
+      "Find Unicode 16-bit strings",
+      "Encrypt strings",
+      "List imports",
+      "Show entropy"
+     ],
+     "a": 0,
+     "why": "Windows programs often store UTF-16 text."
+    },
+    {
+     "q": "Static analysis can prove:",
+     "options": [
+      "Actual runtime behavior",
+      "Capability hints, not behavior",
+      "Network connections made",
+      "Payload decrypted"
+     ],
+     "a": 1,
+     "why": "Static work forms a hypothesis only."
+    }
+   ],
+   "recap": [
+    "Strings, imports and sections give quick capability clues.",
+    "Packing shows as high entropy, odd section names and few imports.",
+    "Write a testable hypothesis and defanged indicators."
+   ]
+  },
+  {
+   "title": "Sandbox reports and behavior",
+   "why": "A sandbox runs the sample for you and records what it does. Reading the report well converts raw telemetry into a verdict and detection ideas.",
+   "sections": [
+    {
+     "h": "What a sandbox does",
+     "p": [
+      "A sandbox executes a sample in an instrumented, disposable virtual machine and records its behavior. Interactive services such as Any.Run let you click through prompts; automated platforms include Cuckoo (open source), Joe Sandbox, Hybrid Analysis and cloud EDR sandboxes. Typical runtime is a few minutes. Reports contain a score or verdict, a process tree, file and registry activity, network traffic, dropped files, screenshots, and mapped ATT&CK techniques. Remember that a sandbox shows what happened in that environment, which may differ from your real hosts."
+     ]
+    },
+    {
+     "h": "Process tree and file activity",
+     "p": [
+      "Start with the process tree. A Word document spawning cmd.exe then powershell.exe is highly suspicious. Note command lines, such as powershell.exe -nop -w hidden -enc followed by base64, and parent-child anomalies like svchost.exe started by something other than services.exe. Then read file activity: dropped files with paths such as %APPDATA%\\Roaming\\svc32.exe or C:\\Users\\Public, copies of the sample, and deleted originals. Collect the hashes of dropped files and treat each as a new sample to investigate."
+     ]
+    },
+    {
+     "h": "Registry and persistence",
+     "p": [
+      "Registry activity reveals persistence and configuration. Look for new values under HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run or RunOnce, services created under HKLM\\SYSTEM\\CurrentControlSet\\Services, scheduled tasks, and changes that disable security such as Windows Defender exclusion keys. Also note mutex creation and attempts to detect virtual machines or sandboxes, for example checking registry keys of virtualization products, sleeping for long periods or inspecting mouse movement. Evasion explains why a quiet report may not mean a harmless file."
+     ]
+    },
+    {
+     "h": "Network and extracting indicators",
+     "p": [
+      "Network sections list DNS queries, HTTP requests, TLS connections and raw connections. Capture domains, IP addresses, URI paths, user agents and JA3 fingerprints. Beaconing at regular intervals to a rare domain, such as POSTs to /gate.php every 60 seconds, suggests command and control. Compare against the DNS and proxy logs of your own environment to find other infected hosts. Defang the output and feed the final indicators to blocklists and detection rules, noting the sandbox name, date and analysis ID for traceability.",
+      "Write the final analysis in a consistent format: summary verdict, infection chain, persistence, network indicators, dropped files, ATT&CK techniques and recommended actions. Include screenshots and the report link so reviewers can reproduce the finding. If results conflict between sandboxes, trust the one that reached the payload stage and note that the others were evaded or timed out. Where the sample needed a specific argument or file to run, document it for repeatable detonation."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Log excerpt",
+    "text": "[proc] winword.exe (2104) -> cmd.exe (3380) -> powershell.exe -nop -w hidden -enc JAB...\n[file] dropped C:\\Users\\Public\\svc32.exe sha256=7c4d...19ab\n[reg ] set HKCU\\...\\Run\\Updater = C:\\Users\\Public\\svc32.exe\n[dns ] update-check.example.com -> 203.0.113.9\n[net ] POST http://203.0.113.9/gate.php every 60s"
+   },
+   "example": "A report shows winword.exe starting PowerShell with an encoded command, a dropped svc32.exe in C:\\Users\\Public, a Run key value named Updater, and a POST to 203.0.113.9/gate.php every 60 seconds. The analyst concludes a macro dropper installing a beaconing implant with registry persistence, extracts the hash of svc32.exe, the IP and the path, and searches proxy logs for other hosts that contacted the same address.",
+   "terms": [
+    {
+     "term": "Process tree",
+     "def": "The parent-child hierarchy of processes started during analysis."
+    },
+    {
+     "term": "Dropped file",
+     "def": "A file the sample writes to disk during execution."
+    },
+    {
+     "term": "Beaconing",
+     "def": "Regular, periodic callbacks from an infected host to a controller."
+    },
+    {
+     "term": "Sandbox evasion",
+     "def": "Techniques that make malware behave benignly when it detects analysis."
+    },
+    {
+     "term": "JA3",
+     "def": "A fingerprint of a TLS client hello used to spot client software."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which parent-child pair is most suspicious?",
+     "options": [
+      "explorer.exe -> chrome.exe",
+      "winword.exe -> powershell.exe",
+      "services.exe -> svchost.exe",
+      "wininit.exe -> services.exe"
+     ],
+     "a": 1,
+     "why": "Office spawning a shell is a classic macro behavior."
+    },
+    {
+     "q": "A new value in a Run key indicates:",
+     "options": [
+      "Persistence",
+      "Time sync",
+      "Windows update",
+      "Printing"
+     ],
+     "a": 0,
+     "why": "Run keys execute programs at logon."
+    },
+    {
+     "q": "A quiet sandbox report may be misleading because:",
+     "options": [
+      "Sandboxes are always wrong",
+      "Malware may detect and evade analysis",
+      "Reports hide files",
+      "Logs are encrypted"
+     ],
+     "a": 1,
+     "why": "Evasion can produce benign-looking runs."
+    },
+    {
+     "q": "Dropped files should be:",
+     "options": [
+      "Ignored",
+      "Hashed and analyzed as new samples",
+      "Executed on the host",
+      "Renamed only"
+     ],
+     "a": 1,
+     "why": "Each dropped file is a new lead."
+    }
+   ],
+   "recap": [
+    "Read process tree, files, registry and network in that order.",
+    "Extract defanged indicators and dropped hashes.",
+    "Sandbox results reflect one environment, so beware evasion."
+   ]
+  },
+  {
+   "title": "VirusTotal and reputation",
+   "why": "Reputation services answer 'has anyone seen this before' in seconds, but careless uploads can leak your data and tip off attackers.",
+   "sections": [
+    {
+     "h": "Reading the detection ratio",
+     "p": [
+      "VirusTotal aggregates results from dozens of antivirus engines and other services. The headline shows a ratio such as 54/72, meaning 54 engines flagged the file. A high ratio with consistent family names is strong evidence. A low ratio like 2/72 is ambiguous: it may be a false positive from generic heuristics, or a new custom malware not yet detected. Read the engine names and labels, the file's first submission date, its names, size and type, and the community comments. Reputation is one input; never block or clear on the ratio alone."
+     ]
+    },
+    {
+     "h": "Behavior and relations",
+     "p": [
+      "The Behavior tab shows sandbox results from several vendors, including processes, files, registry and network activity, with ATT&CK tags. The Details tab includes hashes, signature information, PE header data and imphash. The Relations tab pivots to contacted domains and IPs, dropped files, execution parents and related URLs, which helps you find infrastructure and sibling samples. Pivoting from a hash to a domain to other files that contacted it is a core hunting technique, but verify each link, since shared hosting can connect unrelated items."
+     ]
+    },
+    {
+     "h": "Privacy and operational security",
+     "p": [
+      "Uploading a file shares it with the service and, under its terms, with vendors and paying customers who can download it. If the file contains internal data, such as a custom document sent to your finance team, you may leak customer or company information. Attackers also monitor sample services: a first-time upload of a bespoke implant can alert a targeted adversary that it was found. Prefer a hash search first, which reveals nothing about the file's contents. Upload only after policy approval and when no sensitive content exists."
+     ]
+    },
+    {
+     "h": "Other reputation sources",
+     "p": [
+      "Combine sources: URLhaus and MalwareBazaar from abuse.ch, AlienVault OTX, Hybrid Analysis, urlscan.io for web pages, AbuseIPDB for IP reports, and your own threat intelligence platform. Check domain age with WHOIS, passive DNS for history and certificates. Good indicators decay: an IP address may belong to a legitimate host days later, so record when a verdict was made. When tools disagree, document the sources and reasoning, and make a decision based on the weight of corroborated evidence.",
+      "Keep an internal record of verdicts so repeated alerts for the same hash are resolved quickly. Document the false positives that you confirm, such as an admin tool flagged by heuristics, and add them to an allowlist with an owner and review date. Likewise maintain a blocklist with expiry. This turns each triage into reusable knowledge and keeps analysts from rechecking the same file every week."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Lookup summary",
+    "text": "SHA-256: 7c4d...19ab\nDetections: 54/72  (family labels: Loader.Gen, Trojan.Dropper)\nFirst submitted: 2026-09-28\nNames: invoice.pdf.exe, svc32.exe\nRelations: contacts update-check[.]example[.]com (203.0.113.9)"
+   },
+   "example": "A hash from a mail alert is searched, not uploaded. It shows 54/72 detections, first seen two days ago, with relations to update-check[.]example[.]com. The analyst blocks the domain, searches DNS logs for other clients that resolved it, and notes the verdict with a timestamp. A second, custom-looking document found on the CFO's laptop shows 0/72 for its hash, so the team does not upload it and detonates it locally.",
+   "terms": [
+    {
+     "term": "Detection ratio",
+     "def": "The count of engines flagging a file out of the total that scanned it."
+    },
+    {
+     "term": "Relations",
+     "def": "VirusTotal view linking a sample to domains, IPs and related files."
+    },
+    {
+     "term": "Passive DNS",
+     "def": "A historical record of which names resolved to which addresses."
+    },
+    {
+     "term": "False positive",
+     "def": "A benign file incorrectly flagged as malicious."
+    },
+    {
+     "term": "Hash search",
+     "def": "Looking up a hash without uploading the file."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the safest first reputation step for a sensitive file?",
+     "options": [
+      "Upload the file",
+      "Search its hash",
+      "Email it",
+      "Run it"
+     ],
+     "a": 1,
+     "why": "A hash search reveals nothing about content."
+    },
+    {
+     "q": "A 2/72 ratio means:",
+     "options": [
+      "Definitely clean",
+      "Ambiguous, could be new or false positive",
+      "Definitely malware",
+      "Engines are broken"
+     ],
+     "a": 1,
+     "why": "Low counts need corroboration."
+    },
+    {
+     "q": "The Relations tab helps you:",
+     "options": [
+      "Pivot to related domains and files",
+      "Delete the sample",
+      "Change the hash",
+      "Edit the PE header"
+     ],
+     "a": 0,
+     "why": "It supports infrastructure pivoting."
+    },
+    {
+     "q": "Uploading a sample can:",
+     "options": [
+      "Delete it",
+      "Expose its content to vendors and others",
+      "Make it safer",
+      "Only affect local logs"
+     ],
+     "a": 1,
+     "why": "Uploaded files may be shared and downloaded."
+    }
+   ],
+   "recap": [
+    "Use the ratio as one input among many.",
+    "Pivot using behavior and relations tabs.",
+    "Search hashes first; upload only with approval."
+   ]
+  },
+  {
+   "title": "Common malware families",
+   "why": "Recognizing the class of malware tells you what the attacker wants and what to do next: contain quickly, reset credentials or restore data.",
+   "sections": [
+    {
+     "h": "Loaders and droppers",
+     "p": [
+      "Loaders and droppers exist to deliver other malware. A dropper carries its payload inside; a downloader fetches it from a server. They are typically small, packed and heavily obfuscated, and they gather basic host information before reporting in. Historically, large botnet loaders such as Emotet were used to sell access to ransomware operators. Seeing a loader means the real harm is probably still coming, so containment should be fast, and you should ask what second-stage payloads arrived. Look for Office macros, script files (.js, .vbs), ISO and LNK delivery chains and PowerShell download cradles."
+     ]
+    },
+    {
+     "h": "Infostealers and RATs",
+     "p": [
+      "Infostealers harvest browser passwords and cookies, cryptocurrency wallets, saved sessions and files, then upload them in one burst; families such as RedLine, Raccoon and Lumma are examples. The response must include resetting credentials and revoking sessions, not only cleaning the host. Remote access trojans (RATs), such as AsyncRAT, njRAT and Remcos, give an operator interactive control: screen capture, keylogging, file transfer, webcam, shell. They beacon regularly to a controller and persist through Run keys or scheduled tasks. A RAT implies a human may be operating the host."
+     ]
+    },
+    {
+     "h": "Ransomware",
+     "p": [
+      "Ransomware encrypts files, usually with a symmetric key protected by an asymmetric key, appends an extension, drops ransom notes and often deletes shadow copies with vssadmin delete shadows or wmic shadowcopy delete. Modern operations first steal data for double extortion. Indicators include many files modified rapidly, new extensions, high-volume SMB writes, services stopped (backup, database) and note files such as README.txt in each folder. Early detection depends on spotting precursors: credential dumping, lateral movement, backup tampering. After encryption begins, speed of isolation is critical."
+     ]
+    },
+    {
+     "h": "Webshells and others",
+     "p": [
+      "A webshell is a small script, such as a PHP, ASPX or JSP file, planted on a web server to give remote command execution through HTTP requests. Signs include recently created files in web directories, requests to an unusual script with a command-like parameter, and the web server process spawning shells, for example w3wp.exe or apache launching cmd.exe. Other classes include wipers, cryptominers, rootkits, bots for DDoS and backdoors. Naming conventions vary by vendor, so classify by behavior and capabilities first and keep family names as secondary labels.",
+      "Match the response to the class. A loader calls for hunting the follow-on payloads; a RAT demands scoping of what an operator did by hand; a stealer needs credential and session resets across every account used on the machine; a webshell needs a review of the web application, its logs and the vulnerability that allowed the upload. Writing a short playbook per class saves time during incidents and ensures that the cleanup matches the real risk."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Behavior to class",
+    "text": "Many files encrypted + README.txt + vssadmin delete shadows -> ransomware\nBrowser credential store read + zip upload -> infostealer\nPeriodic POST to /gate.php + remote shell -> RAT\nw3wp.exe spawns cmd.exe -> possible webshell\nSmall packed file downloads second stage -> loader"
+   },
+   "example": "An alert shows a file server where thousands of documents gained the extension .locked in two minutes, with a README.txt in every folder and a vssadmin delete shadows command on the host. The analyst classifies this as ransomware, isolates the host and the SMB shares it exposes, asks the IR team to look for the earlier loader and credential dumping, and verifies the status of offline backups before any recovery discussion.",
+   "terms": [
+    {
+     "term": "Loader",
+     "def": "Malware whose purpose is to download or run other malware."
+    },
+    {
+     "term": "Infostealer",
+     "def": "Malware that harvests credentials, cookies and files for exfiltration."
+    },
+    {
+     "term": "RAT",
+     "def": "A remote access trojan giving an operator interactive control."
+    },
+    {
+     "term": "Ransomware",
+     "def": "Malware that encrypts data and demands payment."
+    },
+    {
+     "term": "Webshell",
+     "def": "A server-side script that gives remote command execution over HTTP."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which behavior best matches ransomware?",
+     "options": [
+      "Many files encrypted and notes dropped",
+      "One DNS query",
+      "A single login",
+      "A printer job"
+     ],
+     "a": 0,
+     "why": "Mass encryption with notes is the signature."
+    },
+    {
+     "q": "After an infostealer infection you must also:",
+     "options": [
+      "Reset credentials and revoke sessions",
+      "Ignore the host",
+      "Reinstall printers",
+      "Disable DNS"
+     ],
+     "a": 0,
+     "why": "Stolen secrets remain usable until revoked."
+    },
+    {
+     "q": "w3wp.exe spawning cmd.exe suggests:",
+     "options": [
+      "A normal update",
+      "A possible webshell",
+      "A printer problem",
+      "A DNS issue"
+     ],
+     "a": 1,
+     "why": "Web server processes seldom start shells."
+    },
+    {
+     "q": "A loader's main purpose is to:",
+     "options": [
+      "Encrypt files",
+      "Deliver further malware",
+      "Mine coins",
+      "Block ports"
+     ],
+     "a": 1,
+     "why": "Loaders deliver other payloads."
+    }
+   ],
+   "recap": [
+    "Classify by behavior first, family name second.",
+    "Loaders precede bigger harm; stealers demand credential resets.",
+    "Ransomware needs fast isolation and backup checks."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Hash and identify",
+   "sim": "terminal",
+   "scenario": "A fictional file invoice_2026.pdf.exe arrived at user@example.com and was forwarded to you. You are in an isolated analysis VM and the file is already copied as sample.bin. Determine its identity and real type, then check whether it is known without uploading it. The user has not opened the file, and your lead wants a short written verdict within fifteen minutes. Record every command you run and every result so the ticket is reproducible by a colleague.",
+   "objective": "Calculate the hash, detect the double extension and look up the hash.",
+   "steps": [
+    {
+     "do": "Run: sha256sum sample.bin",
+     "see": "9b1c0d44a7...e47a  sample.bin"
+    },
+    {
+     "do": "Run: file invoice_2026.pdf.exe",
+     "see": "invoice_2026.pdf.exe: PE32 executable (GUI) Intel 80386, for MS Windows"
+    },
+    {
+     "do": "Run: xxd -l 4 sample.bin",
+     "see": "00000000: 4d5a 9000  MZ.."
+    },
+    {
+     "do": "Note the file name",
+     "see": "Double extension detected: .pdf then .exe. The real type is PE."
+    },
+    {
+     "do": "Run: hashlookup 9b1c0d44a7...e47a",
+     "see": "Result: known. Labels: Loader.Gen. First seen 2 days ago. 54/72."
+    },
+    {
+     "do": "Record defanged findings",
+     "see": "Saved: SHA-256 9b1c...e47a; type PE32; verdict: known loader."
+    }
+   ],
+   "answer": "The file is a Windows PE executable disguised with a double extension. Its SHA-256 matches a known loader detected by 54 of 72 engines, so the verdict is malicious. Record the hash, the real type and the sender, block the hash and report the mail.",
+   "hint": "Check magic bytes and the real extension before trusting the name."
+  },
+  {
+   "title": "Strings triage",
+   "sim": "terminal",
+   "scenario": "A packed fictional executable, dropper.bin, was recovered from a user's Downloads folder. You are in an isolated VM and must decide quickly if it is malicious by extracting readable indicators and writing a short verdict. Your lead wants a one-paragraph verdict plus a list of indicators to block. Nothing may be executed in this lab; you rely on static output only, so be explicit about what is a hypothesis.",
+   "objective": "Extract URLs, API names and mutexes and write a verdict.",
+   "steps": [
+    {
+     "do": "Run: strings -n 8 dropper.bin | head",
+     "see": "!This program cannot be run in DOS mode ... UPX0 UPX1"
+    },
+    {
+     "do": "Run: strings -n 8 dropper.bin | grep -i http",
+     "see": "http://update-check[.]example[.]com/gate.php"
+    },
+    {
+     "do": "Run: strings -n 6 dropper.bin | grep -iE 'Virtual|Remote|URLDown'",
+     "see": "VirtualAlloc\nWriteProcessMemory\nURLDownloadToFileA"
+    },
+    {
+     "do": "Run: strings -n 6 dropper.bin | grep -i mtx",
+     "see": "Global\\Mtx_8841af"
+    },
+    {
+     "do": "Run: strings dropper.bin | grep -i 'currentversion'",
+     "see": "Software\\Microsoft\\Windows\\CurrentVersion\\Run"
+    },
+    {
+     "do": "Run: diec dropper.bin",
+     "see": "Packer: UPX; Entropy .text: 7.82"
+    },
+    {
+     "do": "Write verdict",
+     "see": "Verdict saved."
+    }
+   ],
+   "answer": "Verdict: a UPX-packed downloader that fetches a payload from update-check[.]example[.]com/gate.php, uses VirtualAlloc, WriteProcessMemory and URLDownloadToFileA for injection or download, sets a Run key and uses the mutex Global\\Mtx_8841af. Confidence is moderate-high; confirm in a sandbox.",
+   "hint": "Group each string by purpose: network, capability, persistence, uniqueness."
+  },
+  {
+   "title": "Read a sandbox report",
+   "sim": "log-viewer",
+   "scenario": "A fictional sandbox report for a Word document from sender@example.com is open in the log viewer. Extract dropped files, persistence keys and command and control domains so the SOC can block them and search for other infected hosts. The report is long, so work through the panels methodically. The SOC will use your list to block infrastructure and to search proxy and DNS logs for other clients that contacted the same destinations.",
+   "objective": "Extract dropped files, persistence keys and C2 domains from the report.",
+   "steps": [
+    {
+     "do": "Open the Processes panel",
+     "see": "winword.exe -> cmd.exe -> powershell.exe -nop -w hidden -enc JAB..."
+    },
+    {
+     "do": "Open the Files panel",
+     "see": "Created C:\\Users\\Public\\svc32.exe sha256=7c4d...19ab; Created %TEMP%\\a.ps1"
+    },
+    {
+     "do": "Open the Registry panel",
+     "see": "Set HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\Updater = C:\\Users\\Public\\svc32.exe"
+    },
+    {
+     "do": "Open the DNS panel",
+     "see": "update-check.example.com -> 203.0.113.9"
+    },
+    {
+     "do": "Open the HTTP panel",
+     "see": "POST http://203.0.113.9/gate.php (every 60s, 4 requests)"
+    },
+    {
+     "do": "Open the Mutex panel",
+     "see": "Created Global\\Mtx_8841af"
+    },
+    {
+     "do": "Click Export IOCs",
+     "see": "IOC list: 1 hash, 1 domain, 1 IP, 1 Run key, 1 mutex (defanged)."
+    }
+   ],
+   "answer": "Dropped file C:\\Users\\Public\\svc32.exe (SHA-256 7c4d...19ab), persistence key HKCU Run value Updater, and C2 at update-check[.]example[.]com resolving to 203[.]0[.]113[.]9 with beaconing to /gate.php. Block the domain and IP, hunt for the hash and the Run key, and review the macro document source.",
+   "hint": "Read the report in order: processes, files, registry, network."
+  },
+  {
+   "title": "Classify the family",
+   "sim": "scenario",
+   "scenario": "Four fictional hosts in your network show different behaviors. As the on-duty analyst you must label each with the correct malware class so that the responder can choose the right playbook for each machine. Each host has been isolated for now, so there is time to pick carefully. Use only the behavior described, not any guess about the tool or the attacker, and justify each label to the responder.",
+   "objective": "Match each behavior set to a malware class.",
+   "steps": [
+    {
+     "do": "Host A: thousands of files renamed .locked, notes in each folder",
+     "see": "Selected: ransomware. Correct."
+    },
+    {
+     "do": "Host B: browser password store read then a zip uploaded once",
+     "see": "Selected: infostealer. Correct."
+    },
+    {
+     "do": "Host C: POST every 60 seconds to 203.0.113.9 and an interactive shell",
+     "see": "Selected: RAT. Correct."
+    },
+    {
+     "do": "Host D: web server process spawns cmd.exe after a request to /upload/x.aspx",
+     "see": "Selected: webshell. Correct."
+    },
+    {
+     "do": "Host E: small packed file downloads a second executable",
+     "see": "Selected: loader. Correct."
+    },
+    {
+     "do": "Submit classification",
+     "see": "All classes correct. Suggested playbooks assigned."
+    }
+   ],
+   "answer": "Host A is ransomware, B an infostealer, C a RAT, D a webshell and E a loader. Each maps to a playbook: isolate and check backups, reset credentials, scope operator actions, review the web app and upload path, and hunt for follow-on payloads.",
+   "hint": "Ask what the attacker is gaining: data, control, money or delivery."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Where should unknown samples be analyzed?",
+   "options": [
+    "Production laptop",
+    "Isolated VM",
+    "Mail server",
+    "Domain controller"
+   ],
+   "a": 1,
+   "why": "Isolation prevents spread."
+  },
+  {
+   "q": "What password convention is used for sample archives?",
+   "options": [
+    "admin",
+    "infected",
+    "password",
+    "root"
+   ],
+   "a": 1,
+   "why": "'infected' is the common convention."
+  },
+  {
+   "q": "Which bytes identify a PE file?",
+   "options": [
+    "PK",
+    "MZ",
+    "%PDF",
+    "GIF8"
+   ],
+   "a": 1,
+   "why": "PE files start with MZ."
+  },
+  {
+   "q": "Which hash is best for similarity comparison?",
+   "options": [
+    "SHA-256",
+    "ssdeep",
+    "CRC32",
+    "SHA-1"
+   ],
+   "a": 1,
+   "why": "ssdeep is a fuzzy hash."
+  },
+  {
+   "q": "Entropy above about 7 in a section suggests:",
+   "options": [
+    "Plain text",
+    "Packing or encryption",
+    "A log file",
+    "An icon"
+   ],
+   "a": 1,
+   "why": "High entropy indicates compressed or encrypted data."
+  },
+  {
+   "q": "Word spawning PowerShell in a sandbox report is:",
+   "options": [
+    "Normal",
+    "Highly suspicious",
+    "A printer action",
+    "A DNS update"
+   ],
+   "a": 1,
+   "why": "Office should not launch shells."
+  },
+  {
+   "q": "A Run key value indicates:",
+   "options": [
+    "Persistence",
+    "Time sync",
+    "Backup",
+    "Logging"
+   ],
+   "a": 0,
+   "why": "Run keys start programs at logon."
+  },
+  {
+   "q": "The safest first reputation step for a sensitive file:",
+   "options": [
+    "Upload it",
+    "Search its hash",
+    "Mail it",
+    "Run it"
+   ],
+   "a": 1,
+   "why": "A hash search leaks nothing."
+  },
+  {
+   "q": "An infostealer incident requires:",
+   "options": [
+    "Credential and session resets",
+    "Only a reboot",
+    "Disabling DNS",
+    "Printer repair"
+   ],
+   "a": 0,
+   "why": "Stolen secrets must be revoked."
+  },
+  {
+   "q": "w3wp.exe launching cmd.exe suggests:",
+   "options": [
+    "A webshell",
+    "A DNS issue",
+    "A scheduled backup",
+    "A GPU driver"
+   ],
+   "a": 0,
+   "why": "Web server processes rarely spawn shells."
+  }
+ ]
+}

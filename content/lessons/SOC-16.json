@@ -1,0 +1,801 @@
+{
+ "code": "SOC-16",
+ "intro": "Most modern intrusions touch cloud and identity systems, so analysts must read their logs fluently. This module covers AWS CloudTrail and Microsoft Entra ID sign-in and audit logs: which events exist, how to interpret key fields, and how to trace an actor through role assumption and API calls. You will learn to recognize password spraying, adversary-in-the-middle phishing, session token replay and MFA fatigue, then triage SaaS alerts such as impossible travel, malicious inbox rules and OAuth grants, and respond in the right order.",
+ "lessons": [
+  {
+   "title": "Cloud logging fundamentals",
+   "why": "You cannot investigate what was never logged. Knowing which logs exist, what they cover and how long they last decides what you can prove.",
+   "sections": [
+    {
+     "h": "CloudTrail event types",
+     "p": [
+      "AWS CloudTrail records API activity in an account. Management events (control plane) cover actions that manage resources: RunInstances, CreateUser, AttachRolePolicy, PutBucketPolicy, AssumeRole. A trail logs these by default for the first copy of management events. Data events (data plane) cover high-volume resource operations such as S3 GetObject and PutObject, Lambda Invoke and DynamoDB item operations. Data events are off by default and cost extra, so a team must enable them deliberately. Insights events flag unusual API call rates. Without data events you can see that a bucket policy changed but not which objects were downloaded."
+     ]
+    },
+    {
+     "h": "Where logs live and retention",
+     "p": [
+      "CloudTrail Event history shows the last 90 days of management events per region at no setup cost, but it is not a durable record. A configured trail delivers logs as JSON files to an S3 bucket, optionally to CloudWatch Logs, and can be organization-wide and multi-region. Log file integrity validation produces signed digest files that help prove logs were not altered. Protect the bucket with restricted access, versioning and a separate logging account, because attackers with admin rights may try StopLogging or DeleteTrail to hide activity. CloudTrail Lake offers queryable storage with configurable retention."
+     ]
+    },
+    {
+     "h": "Entra ID logs",
+     "p": [
+      "Microsoft Entra ID (formerly Azure AD) provides sign-in logs and audit logs. Sign-in logs include interactive user sign-ins, non-interactive sign-ins (token refreshes by apps), service principal sign-ins and managed identity sign-ins. Audit logs record directory changes: user creation, role assignment, application consent, conditional access policy changes, password resets and MFA method registration. Default retention is short, roughly 7 days on free tenants and 30 days with Entra ID P1 or P2, so export through diagnostic settings to Log Analytics, a storage account or a SIEM for long-term investigation."
+     ]
+    },
+    {
+     "h": "SaaS and unified logs",
+     "p": [
+      "Microsoft 365 adds the Unified Audit Log, which captures Exchange mailbox actions (inbox rule creation, mail access), SharePoint file activity and Teams. Other SaaS providers, such as Google Workspace, Okta and Salesforce, have their own audit APIs. When investigating, plan which logs answer which question: identity logs for who authenticated, audit logs for what changed, cloud API logs for what resources were touched and mailbox logs for data access. Always normalize time to UTC and keep note of what is not logged, so conclusions stay honest.",
+      "Retention and cost decisions are a security topic, not only an IT one. A common baseline is organization-wide trails in all regions, logs sent to a dedicated log-archive account with write-only permissions for the source accounts, and alerts on StopLogging, DeleteTrail, UpdateTrail and changes to the log bucket policy. Cloud providers also offer other relevant records beyond these two services: AWS GuardDuty findings, VPC flow logs, and Config history show different sides of the same activity."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "CloudTrail trail setting",
+    "text": "trail: org-trail-example  multi-region: true\nmanagement events: ReadWrite  (default)\ndata events: S3 bucket 'example-finance-data' WriteOnly\ndelivery: s3://example-log-archive/AWSLogs/\nlog file validation: enabled\nevent history (fallback): 90 days"
+   },
+   "example": "A fictional analyst investigates a suspected leak from the bucket example-finance-data. CloudTrail management events show a PutBucketPolicy call two days ago, but the trail had no S3 data events enabled, so there is no record of which objects were read. The analyst notes this gap in the findings, uses VPC flow logs and S3 server access logs as partial substitutes, and recommends enabling data events on sensitive buckets.",
+   "terms": [
+    {
+     "term": "Management event",
+     "def": "A control-plane API call that changes or lists resources."
+    },
+    {
+     "term": "Data event",
+     "def": "A high-volume data-plane operation such as S3 GetObject."
+    },
+    {
+     "term": "Trail",
+     "def": "A CloudTrail configuration that delivers events to S3 or other targets."
+    },
+    {
+     "term": "Audit log",
+     "def": "An Entra record of directory and configuration changes."
+    },
+    {
+     "term": "Unified Audit Log",
+     "def": "Microsoft 365 log of mailbox, file and admin activity."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which CloudTrail event type is off by default?",
+     "options": [
+      "Data events",
+      "Trail validation",
+      "Event history",
+      "Management events"
+     ],
+     "a": 0,
+     "why": "Data events must be enabled and cost extra."
+    },
+    {
+     "q": "How long does CloudTrail Event history keep management events?",
+     "options": [
+      "1 year",
+      "7 days",
+      "Forever",
+      "90 days"
+     ],
+     "a": 3,
+     "why": "Event history covers 90 days."
+    },
+    {
+     "q": "Which Entra log records a conditional access policy change?",
+     "options": [
+      "Sign-in log",
+      "DNS log",
+      "Audit log",
+      "Flow log"
+     ],
+     "a": 2,
+     "why": "Directory changes appear in audit logs."
+    },
+    {
+     "q": "Why export Entra logs to a SIEM or storage?",
+     "options": [
+      "It is required by Entra",
+      "Logs expire when read",
+      "To speed sign-ins",
+      "Default retention is short"
+     ],
+     "a": 3,
+     "why": "Default retention is only days to a month."
+    }
+   ],
+   "recap": [
+    "CloudTrail: management events by default, data events must be enabled.",
+    "Entra: sign-in logs show authentication, audit logs show changes; retention is short.",
+    "Know what is not logged before drawing conclusions."
+   ]
+  },
+  {
+   "title": "Reading CloudTrail",
+   "why": "Every cloud action is an API call. Reading a CloudTrail record field by field lets you name the actor, the action and whether it worked.",
+   "sections": [
+    {
+     "h": "Core fields",
+     "p": [
+      "A CloudTrail record is JSON. eventTime is the UTC timestamp. eventSource is the service, such as s3.amazonaws.com or iam.amazonaws.com. eventName is the API action, for example CreateAccessKey or PutBucketPolicy. awsRegion shows where it was called. sourceIPAddress is the caller's address, which may be a public IP, or an AWS service name when a service acted on the caller's behalf. userAgent shows the client: aws-cli, Boto3, console or a browser. readOnly separates reads from writes, and requestParameters and responseElements hold arguments and results."
+     ]
+    },
+    {
+     "h": "userIdentity",
+     "p": [
+      "The userIdentity block answers who. Its type is IAMUser, AssumedRole, Root, AWSService, FederatedUser or similar. IAMUser includes userName and accessKeyId (keys starting AKIA are long-term, ASIA are temporary session keys). AssumedRole includes the role ARN and a sessionContext that shows sessionIssuer, the role that was assumed, and often the original identity through sourceIdentity or the session name. Root usage is always notable. Recording accessKeyId lets you search every action by one credential, which is the main pivot in a key compromise."
+     ]
+    },
+    {
+     "h": "errorCode and outcomes",
+     "p": [
+      "A missing errorCode means success. AccessDenied, UnauthorizedOperation, and Client.UnauthorizedOperation show a denied call; many denials from one identity across diverse services suggest permission enumeration after a key theft. ThrottlingException can signal heavy automated calling. Look at both the failures and the successes that follow them, since an attacker often tests with read-only list calls such as ListBuckets, GetCallerIdentity and ListRoles before attempting changes. Always read errorMessage, which often names the missing permission."
+     ]
+    },
+    {
+     "h": "Tracing role assumption",
+     "p": [
+      "Attackers often chain identities. An sts:AssumeRole event shows the caller in userIdentity and the role in requestParameters.roleArn, with new temporary credentials in responseElements. Later events appear as AssumedRole with that role and session name. Following the chain from a stolen key to AssumeRole to impactful actions, such as PutBucketPolicy, CreateUser, AttachUserPolicy or StopLogging, reveals the real actor and the blast radius. Check sourceIPAddress for changes: a role assumed from a new external IP is suspicious.",
+      "Do not forget to check what the actor did next. After AssumeRole, sort events by session name and time to build a clean list of what that session touched. Look for CreateAccessKey, CreateLoginProfile, AttachUserPolicy and UpdateAssumeRolePolicy, which create persistence for the attacker. Also note the region: activity in regions the company never uses, such as unusual deployments of compute instances, is a common sign of cryptocurrency mining or staging by an intruder who gained credentials."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "CloudTrail record (trimmed)",
+    "text": "{\"eventTime\":\"2026-10-03T14:22:09Z\",\"eventSource\":\"s3.amazonaws.com\",\n \"eventName\":\"PutBucketPolicy\",\"awsRegion\":\"us-east-1\",\n \"sourceIPAddress\":\"203.0.113.77\",\"userAgent\":\"aws-cli/2.15\",\n \"userIdentity\":{\"type\":\"AssumedRole\",\"accessKeyId\":\"ASIAFAKEEXAMPLE1234\",\n  \"arn\":\"arn:aws:sts::111122223333:assumed-role/DevOpsRole/sess-fake\"},\n \"requestParameters\":{\"bucketName\":\"example-finance-data\"},\n \"readOnly\":false}  (no errorCode = success)"
+   },
+   "example": "A fictional PutBucketPolicy event shows AssumedRole DevOpsRole from 203.0.113.77 using aws-cli. The analyst searches CloudTrail for AssumeRole events producing that session: it was assumed ten minutes earlier by IAM user dev-fake using access key AKIAFAKEEXAMPLE5678 from the same IP, which is outside the company's usual ranges. Earlier events show GetCallerIdentity and ListRoles. The access key is the compromised credential and dev-fake is the actor of record.",
+   "terms": [
+    {
+     "term": "eventName",
+     "def": "The API action performed."
+    },
+    {
+     "term": "userIdentity",
+     "def": "Block identifying the caller type, ARN and keys."
+    },
+    {
+     "term": "accessKeyId",
+     "def": "The credential ID; AKIA is long term, ASIA is temporary."
+    },
+    {
+     "term": "errorCode",
+     "def": "Present only when the call failed."
+    },
+    {
+     "term": "AssumeRole",
+     "def": "STS call that returns temporary credentials for a role."
+    }
+   ],
+   "check": [
+    {
+     "q": "An event with no errorCode means?",
+     "options": [
+      "It was a console login",
+      "It failed",
+      "It was throttled",
+      "It succeeded"
+     ],
+     "a": 3,
+     "why": "No errorCode indicates success."
+    },
+    {
+     "q": "Which access key prefix indicates temporary credentials?",
+     "options": [
+      "ASIA",
+      "IAMU",
+      "ROOT",
+      "AKIA"
+     ],
+     "a": 0,
+     "why": "ASIA keys come from STS sessions."
+    },
+    {
+     "q": "Where do you find the role in an AssumeRole event?",
+     "options": [
+      "eventTime",
+      "requestParameters.roleArn",
+      "userAgent",
+      "awsRegion"
+     ],
+     "a": 1,
+     "why": "The role ARN is in the request parameters."
+    },
+    {
+     "q": "Many AccessDenied events across services from one key suggest?",
+     "options": [
+      "Normal backups",
+      "Log delay",
+      "Permission enumeration by a possible intruder",
+      "DNS failure"
+     ],
+     "a": 2,
+     "why": "Testing permissions causes diverse denials."
+    }
+   ],
+   "recap": [
+    "Read eventName, userIdentity, sourceIPAddress and errorCode first.",
+    "Pivot on accessKeyId and follow AssumeRole chains.",
+    "Look for enumeration calls before impactful changes."
+   ]
+  },
+  {
+   "title": "Entra ID sign-in analysis",
+   "why": "Sign-in logs are the first place to look in an identity incident. Each field tells you whether authentication succeeded, why, and how risky it looked.",
+   "sections": [
+    {
+     "h": "Core sign-in fields",
+     "p": [
+      "Each Entra sign-in record has the time, user principal name, application, IP address, location, device details, client app, user agent and a status block with an errorCode. ErrorCode 0 means success. Common failures: 50126 invalid username or password; 50053 account locked by smart lockout; 50057 account disabled; 50055 password expired; 50034 user not found; 50074 strong authentication required; 50076 MFA required by policy; 500121 MFA authentication failed; 53003 blocked by conditional access. A correlation ID and a session ID let you link related events, and the sign-in type (interactive or non-interactive) matters because token refreshes appear as non-interactive."
+     ]
+    },
+    {
+     "h": "Conditional access",
+     "p": [
+      "The conditionalAccessStatus is success, failure or notApplied. The appliedConditionalAccessPolicies list shows each policy's result: success, failure, notApplied or notEnabled. A sign-in with status notApplied for every policy means nothing evaluated it, which can reveal a policy gap such as legacy authentication or excluded accounts. Report-only results show what would have happened. Legacy protocols such as IMAP, POP and SMTP AUTH cannot do MFA, so they are favorite targets for password attacks and should be blocked by policy."
+     ]
+    },
+    {
+     "h": "MFA details",
+     "p": [
+      "Authentication details list each step: password, then MFA with the method used, such as Microsoft Authenticator push, SMS, phone call, FIDO2 or TOTP, and the result detail. The authenticationRequirement shows singleFactorAuthentication or multiFactorAuthentication. A successful sign-in with singleFactor for a sensitive app is notable. Also check whether MFA was satisfied by claim in the token, which means the session reused an earlier MFA result, a detail relevant to token theft."
+     ]
+    },
+    {
+     "h": "Risk levels",
+     "p": [
+      "Entra ID Protection adds riskLevelDuringSignIn and riskLevelAggregated with values none, low, medium or high, and riskState such as atRisk, confirmedCompromised or remediated. Risk detections include anonymized IP address, unfamiliar sign-in properties, impossible travel, malicious IP, leaked credentials, anomalous token and token issuer anomaly. Risk is a probability signal, not proof. Combine it with the actual facts: where the IP came from, whether the user normally uses that device and what the account did after signing in.",
+      "Remember that the portal also shows summary views like the Risky sign-ins and Risky users reports, but raw log queries in Log Analytics with KQL provide far greater control. A typical query selects SigninLogs where ResultType is 50126, groups by IPAddress and counts distinct UserPrincipalName, and sorts by that count. Becoming comfortable with KQL's summarize, dcount and bin operators is essential for analysts working in Microsoft environments, and the same patterns apply in SPL and other query languages."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Sign-in record (trimmed)",
+    "text": "time: 2026-10-03T08:14:51Z  user: jdoe@example.com\napp: Office 365 Exchange Online  ip: 198.51.100.23 (Country X)\nstatus.errorCode: 0   conditionalAccessStatus: success\nauthenticationRequirement: multiFactorAuthentication\nMFA: satisfied by claim in the token\nriskLevelDuringSignIn: medium  riskEventTypes: anomalousToken\nsessionId: 0f2e-FAKE-9a11  deviceDetail: (unmanaged)"
+   },
+   "example": "A fictional sign-in for jdoe@example.com succeeds with errorCode 0 from an unfamiliar IP, with the MFA requirement 'satisfied by claim in the token', risk medium, and event type anomalousToken on an unmanaged device. The analyst notes that no MFA prompt appeared in this session, which suggests an existing token was reused rather than a fresh login. She checks the session ID against earlier sign-ins from the user's usual IP, which matches, and escalates as suspected token theft.",
+   "terms": [
+    {
+     "term": "Error code 50126",
+     "def": "Invalid username or password."
+    },
+    {
+     "term": "Error code 53003",
+     "def": "Blocked by conditional access."
+    },
+    {
+     "term": "conditionalAccessStatus",
+     "def": "Result of evaluating conditional access policies."
+    },
+    {
+     "term": "Non-interactive sign-in",
+     "def": "Token refresh by an app without user input."
+    },
+    {
+     "term": "riskLevelDuringSignIn",
+     "def": "Entra ID Protection risk rating for that sign-in."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which error code means invalid username or password?",
+     "options": [
+      "50076",
+      "0",
+      "50126",
+      "53003"
+     ],
+     "a": 2,
+     "why": "50126 is a failed credential."
+    },
+    {
+     "q": "What does conditionalAccessStatus notApplied for all policies suggest?",
+     "options": [
+      "Strong protection",
+      "MFA succeeded",
+      "No policy evaluated the sign-in, a possible gap",
+      "Blocked sign-in"
+     ],
+     "a": 2,
+     "why": "Policies did not apply, indicating exclusion or gap."
+    },
+    {
+     "q": "Why is legacy authentication a risk?",
+     "options": [
+      "It is encrypted",
+      "It cannot do MFA",
+      "It is slow",
+      "It uses FIDO2"
+     ],
+     "a": 1,
+     "why": "Legacy protocols bypass MFA."
+    },
+    {
+     "q": "A high risk level means?",
+     "options": [
+      "Account disabled",
+      "Proven compromise",
+      "A probability signal requiring verification",
+      "MFA succeeded"
+     ],
+     "a": 2,
+     "why": "Risk is a signal, not proof."
+    }
+   ],
+   "recap": [
+    "ErrorCode 0 is success; know 50126, 50053, 50076, 500121 and 53003.",
+    "Check conditional access results and the MFA authentication details.",
+    "Treat risk levels as signals to verify with facts."
+   ]
+  },
+  {
+   "title": "Password spraying and token theft",
+   "why": "Attackers rarely break in with exploits against cloud identity. They guess passwords, trick users into approving sign-ins or steal session tokens, and each leaves recognizable log patterns.",
+   "sections": [
+    {
+     "h": "Password spraying",
+     "p": [
+      "Spraying tries one or a few common passwords, such as a season and year, against many accounts, so no single account reaches the lockout threshold. In Entra sign-in logs it appears as many 50126 failures from one IP or a small set of IPs across many different users in a short time, followed by occasional success (errorCode 0) or by 50053 for accounts that did lock. Variants spread attempts over hours or through rotating residential proxies, so detect with a threshold such as ten or more distinct users failed from one source in thirty minutes, and also by distinct users per IP over days. Legacy endpoints and non-interactive logs are frequent targets."
+     ]
+    },
+    {
+     "h": "Adversary-in-the-middle phishing and token replay",
+     "p": [
+      "AiTM phishing uses a reverse proxy page that relays the real Microsoft login to the victim. The user completes MFA, and the attacker captures the session cookie, bypassing MFA. Indicators: a successful sign-in followed by a second sign-in from a different IP and user agent reusing the same session or token without a new MFA prompt, 'MFA satisfied by claim in the token', anomalousToken or tokenIssuerAnomaly risk detections, and new inbox rules or MFA method registrations shortly afterwards. Phishing-resistant methods like FIDO2 and token protection reduce the risk."
+     ]
+    },
+    {
+     "h": "MFA fatigue",
+     "p": [
+      "In MFA fatigue, an attacker who already has the password triggers repeated push prompts, hoping the user approves one to make them stop. Logs show many 500121 failures or denied responses, or error 50074, in rapid succession for one user, often at night, then a success. Number matching and additional context in Authenticator make blind approval harder. Detect a burst of MFA denials, then a success from a new IP. Always contact the user through a separate channel to learn whether they initiated the prompts."
+     ]
+    },
+    {
+     "h": "Putting the signals together",
+     "p": [
+      "One log line rarely proves compromise. Build a timeline per user: failed attempts, first success, location and device changes, token or session reuse, then post-login actions such as audit log events for MFA method addition, mailbox rule creation, OAuth consent and role changes. Compare with the user's baseline. A successful login after a spray against a service account that normally logs in from fixed IP addresses is stronger evidence than the spray alone. This correlation separates noisy internet scanning from actual account takeover.",
+      "Be cautious with attribution of country from IP address: geolocation is approximate, and attackers use residential proxies or cloud hosts near the victim to blend in. Do not treat a sign-in from the user's home country as safe or one from abroad as proof of attack. Instead compare device identifiers, user agent, ASN, token claims, the time pattern and what actions followed. Also record whether the account is privileged or a service account, since that changes urgency and the audience for escalation."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Spray pattern",
+    "text": "08:01:02Z 203.0.113.40 user01@example.com 50126\n08:01:05Z 203.0.113.40 user02@example.com 50126\n08:01:09Z 203.0.113.40 user03@example.com 50126\n ... (118 distinct users, same IP, 30 min)\n08:19:44Z 203.0.113.40 user57@example.com 0  (success, no MFA claim)\nSummary: 1 IP, 118 users, 1 password guess each"
+   },
+   "example": "A query groups failed sign-ins by source IP and counts distinct users: 203.0.113.40 tried 118 accounts in 30 minutes, once each, and one account succeeded. Because each account failed only once, no lockouts fired. The analyst checks user57@example.com: the sign-in used legacy IMAP authentication, bypassing MFA. She escalates, blocks the IP, disables legacy authentication, and starts the response process for the one compromised account.",
+   "terms": [
+    {
+     "term": "Password spraying",
+     "def": "One or few passwords tried against many accounts."
+    },
+    {
+     "term": "AiTM phishing",
+     "def": "Reverse-proxy phishing that steals the session cookie after MFA."
+    },
+    {
+     "term": "Session token replay",
+     "def": "Reusing a stolen token from another device or IP."
+    },
+    {
+     "term": "MFA fatigue",
+     "def": "Spamming push prompts until the user approves."
+    },
+    {
+     "term": "Number matching",
+     "def": "Authenticator feature requiring the user to enter a displayed number."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which pattern indicates password spraying?",
+     "options": [
+      "One source failing across many accounts with one guess each",
+      "Many failures for one user",
+      "Large downloads",
+      "One success"
+     ],
+     "a": 0,
+     "why": "One attempt per many accounts avoids lockout."
+    },
+    {
+     "q": "What indicates token replay?",
+     "options": [
+      "Disabled account",
+      "DNS tunneling",
+      "Same session from a new IP without new MFA",
+      "Wrong password"
+     ],
+     "a": 2,
+     "why": "Reuse of the token bypasses MFA prompts."
+    },
+    {
+     "q": "What is a strong defense against AiTM?",
+     "options": [
+      "Phishing-resistant MFA such as FIDO2",
+      "Longer passwords only",
+      "SMS codes",
+      "Hiding the login page"
+     ],
+     "a": 0,
+     "why": "FIDO2 is bound to the real origin."
+    },
+    {
+     "q": "MFA fatigue appears as?",
+     "options": [
+      "Burst of denied prompts then a success",
+      "DNS errors",
+      "CloudTrail failures",
+      "One denial"
+     ],
+     "a": 0,
+     "why": "Repeated prompts followed by an approval."
+    }
+   ],
+   "recap": [
+    "Spray: many users, one source, one guess each, mostly 50126.",
+    "AiTM and token replay: same session from a different IP, MFA by claim.",
+    "MFA fatigue: bursts of denied prompts followed by success; verify with user."
+   ]
+  },
+  {
+   "title": "SaaS alerts and identity response",
+   "why": "After spotting a likely takeover, the order of response actions decides whether the attacker is truly removed or keeps access through a forgotten token or rule.",
+   "sections": [
+    {
+     "h": "Triage common alerts",
+     "p": [
+      "Impossible travel flags sign-ins from locations too far apart for the time elapsed; false positives come from VPNs, mobile carriers and corporate proxies, so verify the IPs, device and user explanation. Suspicious inbox rules are a classic post-compromise step: rules that forward mail to external addresses, move messages to RSS or Archive folders, delete security notices or mark messages read, created with New-InboxRule or through Outlook. Malicious OAuth consent grants give an application standing access to mail and files without a password, and survive password resets. Check Audit logs for 'Consent to application' and the granted scopes such as Mail.Read, offline_access and Files.ReadWrite.All."
+     ]
+    },
+    {
+     "h": "Containment order",
+     "p": [
+      "Respond to a confirmed account takeover in a sensible order. First revoke all refresh tokens and sessions for the user (for example Revoke-MgUserSignInSession or Revoke sessions in the portal), otherwise stolen tokens stay valid. Reset the password and require reauthentication. Review and remove attacker-added MFA methods, remove malicious inbox rules and forwarding settings, and review and revoke suspicious OAuth grants and app registrations. Resetting the password alone does not invalidate existing tokens or OAuth consent, so skipping the other steps leaves persistence."
+     ]
+    },
+    {
+     "h": "Scoping the impact",
+     "p": [
+      "After containment, determine what the attacker did. Search the Unified Audit Log for MailItemsAccessed, Send, FileDownloaded and SharePoint access by the account. Look for lateral phishing sent from the mailbox to internal users or partners, and check whether privileged roles were assigned or other accounts touched. Identify the initial vector, such as a phishing email, spray or leaked credentials, and which other users received the same lure. Document times in UTC and the evidence for each conclusion."
+     ]
+    },
+    {
+     "h": "Prevention and follow-up",
+     "p": [
+      "Recommend durable fixes: enforce MFA with phishing-resistant methods for admins, block legacy authentication, use conditional access to require compliant devices, restrict user consent to apps, enable number matching, enable sign-in risk policies that require reauthentication, and alert on new inbox forwarding rules. Notify the user, and where data was accessed, involve legal and privacy teams according to policy. Feed the detections used back into the detection engineering process so similar activity is caught earlier next time.",
+      "Communication is part of the response. Keep the user informed in plain language, avoid blaming them, and ask for facts such as whether they clicked a link, approved a prompt or installed an app. Where the compromised account belongs to an executive or an administrator, escalate immediately and extend the scope to include everything the account could reach. Track all actions in the case record with UTC times so the response can be reviewed and the timeline stays defensible."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Containment steps",
+    "text": "1. Revoke sessions:   Revoke-MgUserSignInSession -UserId jdoe@example.com\n2. Reset password:    force change at next sign-in\n3. Review MFA methods: remove unknown phone 555-0100 (fake)\n4. Remove inbox rule: 'Fwd-Archive' -> forward to ext-fake@example.net\n5. Revoke OAuth grant: 'MailSync Pro' (Mail.Read, offline_access)\n6. Search UAL: MailItemsAccessed 10-03 08:14Z onward"
+   },
+   "example": "A fictional user jdoe@example.com reports odd mail. The analyst finds a sign-in from an unfamiliar IP, an inbox rule forwarding invoices to ext-fake@example.net and an OAuth grant to 'MailSync Pro'. She revokes sessions first, then resets the password, removes the rule and the grant, and checks the MFA methods for an unknown phone. Searching the audit log shows 40 mail items accessed. She reports scope and recommends blocking user consent.",
+   "terms": [
+    {
+     "term": "Revoke sessions",
+     "def": "Invalidate refresh tokens so stolen sessions stop working."
+    },
+    {
+     "term": "Inbox rule",
+     "def": "A mailbox rule that can forward or hide mail."
+    },
+    {
+     "term": "OAuth consent grant",
+     "def": "Permission given to an app to access data without the password."
+    },
+    {
+     "term": "Impossible travel",
+     "def": "Sign-ins too far apart in distance for the time between them."
+    },
+    {
+     "term": "MailItemsAccessed",
+     "def": "Audit event showing mailbox items read."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which step invalidates stolen refresh tokens?",
+     "options": [
+      "Clearing DNS cache",
+      "Revoking sessions",
+      "Reinstalling Office",
+      "Password reset alone"
+     ],
+     "a": 1,
+     "why": "Resetting a password does not always kill tokens."
+    },
+    {
+     "q": "Why review OAuth grants after a takeover?",
+     "options": [
+      "They are logs",
+      "They survive password resets",
+      "They block MFA",
+      "They expire daily"
+     ],
+     "a": 1,
+     "why": "Granted apps keep access regardless of password."
+    },
+    {
+     "q": "A common false positive for impossible travel is?",
+     "options": [
+      "FIDO2",
+      "Strong passwords",
+      "Report-only mode",
+      "VPN or proxy exit points"
+     ],
+     "a": 3,
+     "why": "VPNs change apparent location."
+    },
+    {
+     "q": "What is a typical malicious inbox rule?",
+     "options": [
+      "Add signature",
+      "Sort newsletters",
+      "Forward invoices to an external address and hide originals",
+      "Color-code mail"
+     ],
+     "a": 2,
+     "why": "Forwarding and hiding are attacker behaviors."
+    }
+   ],
+   "recap": [
+    "Triage alerts with facts: IPs, devices, rules, grants.",
+    "Contain in order: revoke sessions, reset password, remove rules, MFA methods and OAuth grants.",
+    "Scope with audit logs and prevent with conditional access and consent controls."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Trace CloudTrail activity",
+   "sim": "log-viewer",
+   "scenario": "Security received a notice that the bucket example-finance-data had its policy changed on the fictional AWS account 111122223333. You have the CloudTrail log viewer with filters on eventName, accessKeyId and sourceIPAddress. Your goal is to identify who really made the change.",
+   "objective": "Follow an access key through AssumeRole to the bucket policy change and name the actor.",
+   "steps": [
+    {
+     "do": "Filter eventName = PutBucketPolicy",
+     "see": "1 event: 2026-10-03T14:22:09Z, AssumedRole DevOpsRole, accessKeyId ASIAFAKEEXAMPLE1234, sourceIP 203.0.113.77"
+    },
+    {
+     "do": "Open the event and read userIdentity.arn",
+     "see": "arn:aws:sts::111122223333:assumed-role/DevOpsRole/sess-fake"
+    },
+    {
+     "do": "Filter eventName = AssumeRole and responseElements containing ASIAFAKEEXAMPLE1234",
+     "see": "1 event: 14:11:40Z, caller IAMUser dev-fake, accessKeyId AKIAFAKEEXAMPLE5678, sourceIP 203.0.113.77"
+    },
+    {
+     "do": "Filter all events by accessKeyId AKIAFAKEEXAMPLE5678",
+     "see": "14:09:02Z GetCallerIdentity ok; 14:09:30Z ListRoles ok; 14:10:12Z ListBuckets ok; 14:11:40Z AssumeRole ok; 3 earlier AccessDenied on iam:ListUsers"
+    },
+    {
+     "do": "Check the IP history for dev-fake over the previous 30 days",
+     "see": "Usual IPs: 192.0.2.0/24 office range. 203.0.113.77 appears for the first time on 2026-10-03"
+    },
+    {
+     "do": "Read the PutBucketPolicy requestParameters",
+     "see": "Policy grants s3:GetObject to Principal '*' on example-finance-data"
+    }
+   ],
+   "answer": "The actor is the IAM user dev-fake via compromised long-term key AKIAFAKEEXAMPLE5678, used from a new IP 203.0.113.77, who enumerated permissions, assumed DevOpsRole and made the bucket public with PutBucketPolicy. Disable the key, revert the policy and review S3 access.",
+   "hint": "Search AssumeRole by the temporary key in responseElements, then pivot on the long-term key."
+  },
+  {
+   "title": "Detect a password spray",
+   "sim": "siem",
+   "scenario": "The SIEM holds Entra ID sign-in logs for the fictional tenant example.com. The help desk reports many users seeing lockout emails and one executive confused by a prompt. Use KQL-style queries to determine whether a password spray occurred and from where.",
+   "objective": "Show that one source tried one password against many users and find any successful account.",
+   "steps": [
+    {
+     "do": "Query failures by user: SigninLogs | where ResultType==50126 | summarize count() by UserPrincipalName | top 5",
+     "see": "Top users each have 1 to 2 failures: no single account has many failures"
+    },
+    {
+     "do": "Query failures by IP: summarize dcount(UserPrincipalName), count() by IPAddress",
+     "see": "203.0.113.40: 118 users, 121 attempts; next highest IP: 3 users"
+    },
+    {
+     "do": "Filter on 203.0.113.40 and list ResultType values",
+     "see": "50126: 118; 50053: 3; 0: 1"
+    },
+    {
+     "do": "Show the success row",
+     "see": "08:19:44Z user57@example.com ResultType 0, ClientApp: IMAP4, no MFA, conditionalAccessStatus notApplied"
+    },
+    {
+     "do": "Check the time span",
+     "see": "First attempt 08:01:02Z, last 08:31:12Z (30 min)"
+    },
+    {
+     "do": "List accounts hit with 50053",
+     "see": "3 accounts locked by smart lockout (user12, user40, user88)"
+    }
+   ],
+   "answer": "A password spray came from 203.0.113.40: 118 distinct users with one guess each in 30 minutes. One account, user57@example.com, was compromised through legacy IMAP with no MFA. Block the IP, disable legacy authentication and begin account response for user57.",
+   "hint": "Count distinct users per IP, not failures per user."
+  },
+  {
+   "title": "Spot token replay",
+   "sim": "log-viewer",
+   "scenario": "A user, asmith@example.com, was seen reading mail in a country she is not in, but the sign-in log shows MFA succeeded. Two sign-in rows share a session ID. Compare them in the log viewer to decide whether a token was stolen.",
+   "objective": "Flag token theft by comparing two sign-ins with the same session ID but different IPs and devices.",
+   "steps": [
+    {
+     "do": "Open sign-in A (08:02Z) and note IP, device and MFA",
+     "see": "IP 192.0.2.77 (office), Windows 11 managed, MFA: Authenticator push approved, sessionId 0f2e-FAKE-9a11"
+    },
+    {
+     "do": "Open sign-in B (08:41Z) and note IP, device and MFA",
+     "see": "IP 198.51.100.23 (Country X), device unmanaged, Linux, MFA: satisfied by claim in the token, sessionId 0f2e-FAKE-9a11"
+    },
+    {
+     "do": "Compare user agents",
+     "see": "A: Edge on Windows. B: python-requests/2.31"
+    },
+    {
+     "do": "Check risk fields on B",
+     "see": "riskLevelDuringSignIn: medium, riskEventTypes: anomalousToken"
+    },
+    {
+     "do": "Check the audit log for asmith after 08:41Z",
+     "see": "08:47Z New inbox rule 'Archive'; 08:52Z MFA method added: phone (fake number)"
+    },
+    {
+     "do": "Check whether there was a login attempt before B",
+     "see": "No password sign-in from 198.51.100.23 before 08:41Z"
+    }
+   ],
+   "answer": "Token replay: session 0f2e-FAKE-9a11 was created from the office with MFA, then reused from 198.51.100.23 on an unmanaged device with a scripting user agent and no new MFA, followed by an inbox rule and added MFA method. Treat as stolen session token; start account takeover response.",
+   "hint": "Same session ID, different IP and device, and no new password or MFA event."
+  },
+  {
+   "title": "Respond to account takeover",
+   "sim": "scenario",
+   "scenario": "The token replay case on asmith@example.com is confirmed. An attacker created an inbox rule, added a phone MFA method and granted consent to an app named MailSync Pro. You must choose the response actions in the correct order. A wrong order lets the attacker keep access.",
+   "objective": "Choose revoke sessions, reset password, remove malicious inbox rule and review OAuth grants in the correct order.",
+   "steps": [
+    {
+     "do": "Select first action: Revoke all sessions and refresh tokens for asmith",
+     "see": "Result: stolen session token 0f2e-FAKE-9a11 now invalid; attacker session ends"
+    },
+    {
+     "do": "Select second action: Reset password and require MFA re-registration",
+     "see": "Result: password changed; unknown phone MFA method removed during review"
+    },
+    {
+     "do": "Select third action: Delete the inbox rule 'Archive' and forwarding to ext-fake@example.net",
+     "see": "Result: rule removed; forwarding disabled"
+    },
+    {
+     "do": "Select fourth action: Review OAuth grants and revoke 'MailSync Pro'",
+     "see": "Result: grant revoked; app consent blocked for tenant"
+    },
+    {
+     "do": "Select fifth action: Search UAL for MailItemsAccessed and Send after 08:41Z",
+     "see": "Result: 40 items accessed, 0 sent externally"
+    },
+    {
+     "do": "Select sixth action: Notify user and document in the case",
+     "see": "Result: user informed; case updated with UTC timeline"
+    }
+   ],
+   "answer": "Correct order: revoke sessions, reset password and review MFA methods, remove the inbox rule and forwarding, revoke the OAuth grant, scope impact with audit logs, then notify and document. Password reset alone would have left the token and grant active.",
+   "hint": "Kill tokens first, then remove each persistence mechanism."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which CloudTrail events are disabled by default?",
+   "options": [
+    "Data events",
+    "Digest files",
+    "Management events",
+    "Event history"
+   ],
+   "a": 0,
+   "why": "Data events must be enabled."
+  },
+  {
+   "q": "What does a CloudTrail record without errorCode indicate?",
+   "options": [
+    "Throttle",
+    "Console login",
+    "Failure",
+    "Success"
+   ],
+   "a": 3,
+   "why": "No errorCode means the call succeeded."
+  },
+  {
+   "q": "Which prefix identifies a temporary AWS access key?",
+   "options": [
+    "USER",
+    "ROOT",
+    "AKIA",
+    "ASIA"
+   ],
+   "a": 3,
+   "why": "ASIA keys are STS temporary credentials."
+  },
+  {
+   "q": "Where is the role named in a CloudTrail AssumeRole event?",
+   "options": [
+    "awsRegion",
+    "readOnly",
+    "eventTime",
+    "requestParameters.roleArn"
+   ],
+   "a": 3,
+   "why": "The roleArn is a request parameter."
+  },
+  {
+   "q": "Entra error code 50126 means?",
+   "options": [
+    "Invalid username or password",
+    "MFA required",
+    "Blocked by CA",
+    "Success"
+   ],
+   "a": 0,
+   "why": "50126 is a failed credential."
+  },
+  {
+   "q": "A spray is best detected by?",
+   "options": [
+    "Distinct users failed per source IP",
+    "File size",
+    "DNS volume",
+    "Failures per user"
+   ],
+   "a": 0,
+   "why": "Spraying spreads across users."
+  },
+  {
+   "q": "Which sign-in detail suggests token replay?",
+   "options": [
+    "Account disabled",
+    "Smart lockout",
+    "MFA satisfied by claim in the token from a new IP and device",
+    "Wrong password"
+   ],
+   "a": 2,
+   "why": "No fresh MFA with a changed context suggests a replayed token."
+  },
+  {
+   "q": "Which control best resists AiTM phishing?",
+   "options": [
+    "Hidden login URL",
+    "SMS codes",
+    "FIDO2 phishing-resistant MFA",
+    "Longer password"
+   ],
+   "a": 2,
+   "why": "FIDO2 binds authentication to the genuine origin."
+  },
+  {
+   "q": "What is the first containment step in a confirmed takeover?",
+   "options": [
+    "Reboot the server",
+    "Revoke sessions and tokens",
+    "Change DNS",
+    "Delete the mailbox"
+   ],
+   "a": 1,
+   "why": "Stolen tokens would remain valid otherwise."
+  },
+  {
+   "q": "Why check OAuth grants after a takeover?",
+   "options": [
+    "They hold passwords",
+    "They lock accounts",
+    "They encrypt mail",
+    "They persist after a password reset"
+   ],
+   "a": 3,
+   "why": "Granted apps retain access."
+  }
+ ]
+}

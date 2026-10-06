@@ -1,0 +1,1073 @@
+{
+ "code": "SOC-14",
+ "intro": "Detection engineering turns attacker behavior into reliable, tested alerts. This module follows the full lifecycle from requirement to retirement, then teaches the three rule languages every SOC meets: Sigma for logs, YARA for files and memory, and Snort or Suricata for network traffic. You will learn how to balance precision against resilience, validate rules with replayed and benign data, and manage everything as code with Git, pull requests and CI. Good detections are the difference between a quiet, trusted queue and an unmanageable flood of noise.",
+ "lessons": [
+  {
+   "title": "Detection engineering lifecycle",
+   "why": "A rule written once and never measured decays into noise or blind spots. A lifecycle keeps detections tied to real risk and honest about their value.",
+   "sections": [
+    {
+     "h": "From requirement to hypothesis",
+     "p": [
+      "Every detection starts with a requirement: a threat report, a red team finding, an incident lesson, or a gap against MITRE ATT&CK coverage. The engineer turns that into a hypothesis such as 'if an attacker dumps credentials from LSASS, a non-system process will open lsass.exe with read access to its memory'. A good hypothesis names the technique, the telemetry that would show it (for example Sysmon Event ID 10, ProcessAccess), and the benign activity that might look similar. Without this step teams write rules from a single sample and miss the underlying behavior."
+     ]
+    },
+    {
+     "h": "Build, test and deploy",
+     "p": [
+      "Building means choosing the data source, writing the logic and attaching metadata: title, description, severity, ATT&CK tags, owner and known false positives. Testing runs the rule against a known-malicious sample, usually an Atomic Red Team test or a replayed log, and against a week or more of benign production data to count hits. Deployment is staged: first as a silent or low-severity rule that only logs matches, then promoted to a ticket-creating alert once precision is acceptable. A runbook link should ship with the rule so the analyst knows what to do."
+     ]
+    },
+    {
+     "h": "Measure",
+     "p": [
+      "After deployment the team tracks metrics per rule: alert volume, true positive rate, mean time to triage, how many alerts were closed as benign, and whether any incident was found by this rule first. A rule that fires 400 times a day with a 1 percent true positive rate is costing analyst hours and teaching the team to ignore alerts. Rules that never fire are not automatically good either; they should be exercised periodically by purple team tests to prove the telemetry and logic still work."
+     ]
+    },
+    {
+     "h": "Retire",
+     "p": [
+      "Environments change. A rule built for a legacy tool, a patched vulnerability, or a log source that was decommissioned should be retired deliberately, with a record of why. Retirement keeps the rule set small enough to review and maintain. Rules are also revised when attackers change behavior, when a new Windows version alters event fields, or when tuning exceptions have grown so large that the original logic is unrecognizable. Treat the cycle as continuous rather than a one-time project.",
+      "Ownership matters throughout the cycle. Each rule should have a named owner who answers questions from analysts, reviews its metrics every quarter and decides when it changes. Without an owner, rules drift: the author leaves, exceptions pile up and nobody remembers what the rule was meant to catch. Many teams also keep a coverage backlog ranked by risk, so the next rule built is the one that closes the most important gap against the threats that actually target the organization, rather than whichever technique is currently fashionable in conference talks."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Rule metadata",
+    "text": "title: LSASS access by non-system process\nstatus: test\nowner: detection-team\nattack: T1003.001\nsource: Sysmon EventID 10\nfp_rate_7d: 3 hits, 2 benign backup agent\nstage: silent -> alert\nreview_date: 2027-01-15"
+   },
+   "example": "A threat report says a fictional group uses scheduled tasks for persistence. The engineer writes the hypothesis (T1053.005, new task created with an action pointing to a user-writable path), picks Windows Security Event 4698 and Sysmon process creation of schtasks.exe, builds the rule, replays an Atomic Red Team test, then runs it on 14 days of data. It matches 9 benign software updaters, so an allowlist by signer is added, and the rule is promoted from silent to alert with a runbook link.",
+   "terms": [
+    {
+     "term": "Hypothesis",
+     "def": "A testable statement of what attacker behavior will look like in specific telemetry."
+    },
+    {
+     "term": "Telemetry",
+     "def": "The logs or events that record activity and can feed a detection."
+    },
+    {
+     "term": "Silent mode",
+     "def": "Deploying a rule so it records matches without creating tickets."
+    },
+    {
+     "term": "False positive",
+     "def": "An alert on benign activity."
+    },
+    {
+     "term": "Purple team",
+     "def": "Joint red and blue exercise that tests whether detections fire."
+    }
+   ],
+   "check": [
+    {
+     "q": "What should a detection engineering cycle begin with?",
+     "options": [
+      "A requirement and a testable hypothesis",
+      "A SIEM license renewal",
+      "A rule copied from a vendor feed",
+      "A list of all log sources"
+     ],
+     "a": 0,
+     "why": "Rules need a clear threat requirement and hypothesis to be meaningful."
+    },
+    {
+     "q": "Why deploy a new rule in silent mode first?",
+     "options": [
+      "To make it run faster",
+      "Because Sigma requires it",
+      "To hide it from auditors",
+      "To measure real-world hits before it creates tickets"
+     ],
+     "a": 3,
+     "why": "Silent mode reveals noise without burdening analysts."
+    },
+    {
+     "q": "Which metric best shows a rule is costing more than it delivers?",
+     "options": [
+      "Short rule title",
+      "High volume with very low true positive rate",
+      "Recent commit date",
+      "Large number of tags"
+     ],
+     "a": 1,
+     "why": "High volume with few true positives wastes analyst time."
+    },
+    {
+     "q": "Why retire rules?",
+     "options": [
+      "To reduce Git history",
+      "To keep the rule set maintainable and relevant to the current environment",
+      "Because rules expire after 90 days",
+      "To lower storage cost only"
+     ],
+     "a": 1,
+     "why": "Obsolete rules add noise and maintenance burden."
+    }
+   ],
+   "recap": [
+    "Start from a requirement and a testable hypothesis tied to telemetry.",
+    "Test on malicious samples and benign data, deploy in stages.",
+    "Measure each rule and retire or revise it when it no longer earns its keep."
+   ]
+  },
+  {
+   "title": "Sigma rules",
+   "why": "Sigma is the common, vendor-neutral format for log detections, so one rule can be shared and converted to many SIEM query languages.",
+   "sections": [
+    {
+     "h": "Structure of a Sigma rule",
+     "p": [
+      "A Sigma rule is a YAML file. Metadata fields include title, id (a UUID), status (experimental, test, stable), description, author, date and tags such as attack.execution and attack.t1059.001. The logsource block says where the rule applies, using category (for example process_creation), product (windows) and optionally service. The logsource is abstract: it is not a table name, which is what lets a backend map it to the right index or event ID for each platform. A rule missing a logsource cannot be converted reliably."
+     ]
+    },
+    {
+     "h": "Detection, selection and condition",
+     "p": [
+      "The detection section holds named selections and a condition. Each selection is a map of field names to values, for example Image|endswith: '\\winword.exe'. Modifiers after the pipe change matching: contains, startswith, endswith, re, and all (every listed value must match). Multiple fields in one selection are ANDed; a list of values is ORed. The condition combines them with and, or, not, parentheses and keywords like 1 of selection_* or all of them. Filters are written as separate selections and excluded with 'and not filter'."
+     ]
+    },
+    {
+     "h": "Metadata that matters",
+     "p": [
+      "The falsepositives list documents known benign causes, such as 'administrative scripts using encoded commands', and the level field (informational, low, medium, high, critical) sets default severity. Tags map the rule to MITRE ATT&CK so coverage can be reported. A reference list points to the report or blog that inspired the rule. These fields are not decoration: reviewers and analysts depend on them to judge whether an alert is believable."
+     ]
+    },
+    {
+     "h": "Conversion to SIEM queries",
+     "p": [
+      "Tools such as sigma-cli with pySigma backends convert a rule into Splunk SPL, Microsoft Sentinel KQL, Elastic queries and others, using a processing pipeline that maps Sigma field names to the platform's schema. Always inspect the converted output and run it against test data; field mappings differ between environments, and a query that converts cleanly can still match nothing if the field names are wrong.",
+      "Real-world rule files often hold several related detections. Sigma supports correlation and also lets one rule be split into a generic detection plus environment-specific filters kept in a separate file, which is a clean way to maintain exceptions without editing the shared logic. Keep the id field stable across edits so that alert history in the SIEM remains linked to the rule, and use the related field to point at rules that supersede or complement it. Good titles describe behavior, not tools, for example 'Office Application Spawning Encoded PowerShell'."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Sigma rule (YAML)",
+    "text": "title: Encoded PowerShell From Office\nid: 7b1c2f9e-0000-4000-8000-000000000001\nstatus: test\nlogsource:\n  category: process_creation\n  product: windows\ndetection:\n  selection_parent:\n    ParentImage|endswith: ['\\winword.exe','\\excel.exe']\n  selection_child:\n    Image|endswith: '\\powershell.exe'\n    CommandLine|contains: ' -enc'\n  condition: selection_parent and selection_child\nfalsepositives:\n  - Rare macro-driven admin tools\nlevel: high"
+   },
+   "example": "A rule must catch Word launching PowerShell with an encoded command. The engineer defines selection_parent for ParentImage ending in winword.exe or excel.exe, selection_child for powershell.exe with CommandLine containing ' -enc', and a condition joining them. After converting to KQL with a Sentinel pipeline, the query returns nothing on test data because the pipeline mapped CommandLine to a different column. Fixing the mapping makes the Atomic test fire, proving why converted output must be tested.",
+   "terms": [
+    {
+     "term": "logsource",
+     "def": "The Sigma block that abstracts which log type the rule applies to."
+    },
+    {
+     "term": "selection",
+     "def": "A named set of field conditions inside detection."
+    },
+    {
+     "term": "Modifier",
+     "def": "A suffix such as contains or endswith that changes how a value matches."
+    },
+    {
+     "term": "condition",
+     "def": "The boolean expression combining selections."
+    },
+    {
+     "term": "pySigma",
+     "def": "The Python framework behind sigma-cli that converts rules to backend queries."
+    }
+   ],
+   "check": [
+    {
+     "q": "In a Sigma selection, how are two different fields combined?",
+     "options": [
+      "AND",
+      "OR",
+      "Ignored",
+      "XOR"
+     ],
+     "a": 0,
+     "why": "Fields within one selection are ANDed."
+    },
+    {
+     "q": "What does the all modifier do on a list of values?",
+     "options": [
+      "Disables the field",
+      "Matches any value",
+      "Requires every value to match",
+      "Converts to regex"
+     ],
+     "a": 2,
+     "why": "Values|contains|all requires all values."
+    },
+    {
+     "q": "Why is logsource abstract?",
+     "options": [
+      "So backends can map it to different platforms",
+      "To hide the data",
+      "To reduce file size",
+      "It is optional"
+     ],
+     "a": 0,
+     "why": "Abstraction enables conversion to many SIEMs."
+    },
+    {
+     "q": "A converted query returns no results on a known test. Most likely cause?",
+     "options": [
+      "Rule is too old",
+      "YAML indentation",
+      "Sigma is broken",
+      "Field mapping in the pipeline does not match the schema"
+     ],
+     "a": 3,
+     "why": "Field name mapping errors are the common cause."
+    }
+   ],
+   "recap": [
+    "Sigma = YAML with logsource, detection selections and a condition.",
+    "Modifiers and filters shape precision; falsepositives and tags document intent.",
+    "Convert with pySigma, then always test the converted query."
+   ]
+  },
+  {
+   "title": "Detection logic design",
+   "why": "The same behavior can be detected naively or robustly. Design choices decide whether an attacker evades the rule with a trivial change.",
+   "sections": [
+    {
+     "h": "Specificity versus resilience",
+     "p": [
+      "A rule that matches an exact tool name or hash is highly specific but easy to evade: rename the binary and it is blind. A rule that matches a behavior, such as any process accessing LSASS memory with specific access rights, is more resilient but may produce more false positives. Good engineering sits between them. David Bianco's Pyramid of Pain describes this: hashes and IPs are cheap for attackers to change, while tactics and procedures are costly. Prefer detections higher on the pyramid, and keep cheap indicator rules as short-lived supplements."
+     ]
+    },
+    {
+     "h": "Command lines and parent-child",
+     "p": [
+      "Command-line patterns capture intent: arguments like -EncodedCommand, -w hidden, certutil -urlcache, or rundll32 with comsvcs.dll MiniDump. Parent-child relationships capture context: winword.exe spawning powershell.exe, or w3wp.exe spawning cmd.exe, is rarely legitimate even when the child is a normal tool. Combining both gives strong signal. Account for evasion such as case changes, caret insertion in cmd, and alternative flag spellings (-e, -enc, -EncodedCommand), using regex or multiple values rather than one literal."
+     ]
+    },
+    {
+     "h": "Rarity and thresholds",
+     "p": [
+      "Some behavior is only suspicious when unusual. A rule may alert when a process name is seen on fewer than three hosts in 30 days, or when one account fails logon more than 10 times in 5 minutes from a single source. Thresholds need a time window and a grouping field, and they should be derived from observed baselines, not guesses. Beware thresholds set just below attacker speed; slow, low-volume attempts evade them, which is why detections for slow activity use longer windows or complementary hunts."
+     ]
+    },
+    {
+     "h": "Allowlists and exceptions",
+     "p": [
+      "Every exception weakens a rule, so make exceptions narrow. Exclude a specific signed binary path run by a named service account, not all PowerShell from the admin subnet. Record why each exception exists and who approved it. Review exceptions periodically, since attackers may abuse the very tools you allowlisted. When a rule needs more than a few exceptions, reconsider the logic itself.",
+      "Consider also how the data is collected. A command-line rule is only as good as the logging policy behind it: Windows event 4688 records command lines only when the audit policy and the registry setting for command-line inclusion are enabled, and Sysmon Event ID 1 records them with hashes and the parent command line. When the rule depends on a field that is missing on some hosts, the engineer must note that gap, since an attacker on an unmonitored host would never trigger the alert."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Naive vs better",
+    "text": "NAIVE:   Image endswith '\\mimikatz.exe'\nBETTER:  EventID 10 TargetImage endswith '\\lsass.exe'\n         GrantedAccess in ('0x1010','0x1410','0x1438')\n         and not SourceImage in signed-allowlist\nTHRESH:  count(4625) by src_ip, window 5m > 10\nRARITY:  process_name seen on < 3 hosts / 30d"
+   },
+   "example": "A rule flags any file named procdump.exe. An attacker renames it to svc.exe and the rule is blind. The engineer redesigns: alert on a process with command line containing '-ma' and 'lsass', or on Sysmon Event 10 access to lsass.exe with memory-read rights from an unsigned process. Testing shows a backup agent also touches LSASS, so its signed path is allowlisted narrowly. The new rule catches the rename and keeps noise low.",
+   "terms": [
+    {
+     "term": "Pyramid of Pain",
+     "def": "Model ranking indicators by how hard they are for attackers to change."
+    },
+    {
+     "term": "Parent-child",
+     "def": "The relationship between a launching process and the process it starts."
+    },
+    {
+     "term": "Threshold",
+     "def": "A count within a time window that must be exceeded to alert."
+    },
+    {
+     "term": "Allowlist",
+     "def": "A narrow exception for known-benign activity."
+    },
+    {
+     "term": "Evasion",
+     "def": "Changes an attacker makes so a rule no longer matches."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which indicator is hardest for an attacker to change?",
+     "options": [
+      "Technique or behavior",
+      "File name",
+      "IP address",
+      "File hash"
+     ],
+     "a": 0,
+     "why": "Behavioral procedures are costly to change."
+    },
+    {
+     "q": "Why is winword.exe spawning powershell.exe a strong signal?",
+     "options": [
+      "Word is unsafe",
+      "The relationship is rarely legitimate",
+      "PowerShell is malware",
+      "It is always blocked"
+     ],
+     "a": 1,
+     "why": "Parent-child context is rarely benign."
+    },
+    {
+     "q": "How should thresholds be chosen?",
+     "options": [
+      "By vendor default only",
+      "Always 100",
+      "From observed baselines with window and grouping",
+      "Randomly"
+     ],
+     "a": 2,
+     "why": "Baselines ground thresholds in reality."
+    },
+    {
+     "q": "What is the risk of a broad allowlist?",
+     "options": [
+      "YAML errors",
+      "More alerts",
+      "It lets attackers hide in the excluded activity",
+      "Slower rule"
+     ],
+     "a": 2,
+     "why": "Broad exceptions create blind spots."
+    }
+   ],
+   "recap": [
+    "Prefer behavior over brittle indicators.",
+    "Combine command line and parent-child; handle evasion variants.",
+    "Use baseline-driven thresholds and narrow, documented exceptions."
+   ]
+  },
+  {
+   "title": "YARA rules",
+   "why": "YARA identifies malware and suspicious files by patterns in content, which helps with triage, hunting across file stores and memory scanning.",
+   "sections": [
+    {
+     "h": "Anatomy of a YARA rule",
+     "p": [
+      "A rule has a name, optional meta, a strings section and a condition. Meta stores author, date, description and reference. Strings come in three kinds: text ($a = \"cmd.exe /c\" ascii wide nocase), hexadecimal byte patterns with wildcards and jumps ($h = { 4D 5A ?? ?? [2-4] E8 }), and regular expressions ($r = /https?:\\/\\/[a-z0-9.]+\\/gate\\.php/). Modifiers such as ascii, wide, nocase, fullword and xor adapt matching to how strings appear in binaries. The condition is a boolean expression over strings and file properties."
+     ]
+    },
+    {
+     "h": "Conditions",
+     "p": [
+      "Conditions use string counts and sets: any of them, all of ($s*), 2 of ($a,$b,$c). File properties include filesize (for example filesize < 2MB), and uint16(0) == 0x5A4D checks the 'MZ' header of a Windows PE, while uint32(uint32(0x3C)) == 0x00004550 confirms the PE signature. Using the header check first lets YARA skip non-executables quickly. Modules like pe allow checks on imports, sections and compile timestamps, for example pe.imports(\"kernel32.dll\", \"VirtualAllocEx\")."
+     ]
+    },
+    {
+     "h": "Choosing good strings",
+     "p": [
+      "Pick strings that are unique to the family or behavior: custom mutex names, PDB paths, odd error messages, rare configuration keys, or a distinctive code sequence. Avoid common API names or strings found in legitimate software. Packed samples hide most strings, so use the packer's stub or unpacked memory dumps. Always test a rule on a clean corpus of normal files, such as a fresh OS image and common applications, to measure false positives before deployment."
+     ]
+    },
+    {
+     "h": "Performance",
+     "p": [
+      "Slow rules hurt scanning of large file stores. Short strings, tiny hex patterns with leading wildcards, and unbounded regexes like .* generate many candidate matches. Prefer atoms of at least 4 solid bytes, anchor conditions on cheap checks (filesize, uint16(0)) placed before expensive ones, and avoid broad regex. YARA prints performance warnings during compilation; heed them. Rule sets should be compiled and benchmarked against a representative sample set.",
+      "YARA is also useful beyond files on disk. The same rules can scan process memory, which reveals unpacked payloads that never touch disk in clear form, and they power triage in sandboxes, malware repositories and many endpoint tools. Keep rule sets organized by family or purpose, record the sample hashes each rule was built from in the meta section, and re-test them against new versions of the family. A rule that matched last year's build may miss a recompiled variant that changed its strings."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "YARA rule",
+    "text": "rule Fake_Loader_Example {\n  meta: author=\"analyst1\" date=\"2026-10-01\"\n  strings:\n    $mx = \"Global\\\\fakeload_mtx_77\" ascii wide\n    $pdb = \"C:\\\\build\\\\loader_v2\\\\x64\\\\Release\" ascii\n    $h = { 48 8B ?? ?? 48 83 C4 28 C3 CC CC }\n  condition:\n    uint16(0) == 0x5A4D and filesize < 3MB and 2 of ($mx,$pdb,$h)\n}"
+   },
+   "example": "An analyst unpacks a fictional loader and finds a custom mutex string and a build path. She writes strings for both plus a short code pattern, requires a PE header, filesize below 3 MB and at least two of three strings. Scanning a clean set of 20,000 files yields zero hits, and three known samples all match. A first draft that used the single string 'CreateMutex' matched 4,000 clean files, which shows why unique strings matter.",
+   "terms": [
+    {
+     "term": "uint16(0)",
+     "def": "Reads two bytes at offset 0; 0x5A4D is the MZ header."
+    },
+    {
+     "term": "Hex string",
+     "def": "A byte pattern with wildcards and jumps."
+    },
+    {
+     "term": "Modifier",
+     "def": "Option such as wide or nocase that changes how a text string matches."
+    },
+    {
+     "term": "Atom",
+     "def": "A short fixed byte sequence YARA uses to speed matching."
+    },
+    {
+     "term": "Clean corpus",
+     "def": "A set of benign files used to measure false positives."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does uint16(0) == 0x5A4D check?",
+     "options": [
+      "A script shebang",
+      "File size",
+      "The MZ header of a PE file",
+      "A ZIP archive"
+     ],
+     "a": 2,
+     "why": "0x5A4D is MZ."
+    },
+    {
+     "q": "Which makes a YARA rule slow?",
+     "options": [
+      "Meta fields",
+      "Short strings and unbounded regex",
+      "uint16 check",
+      "filesize check"
+     ],
+     "a": 1,
+     "why": "Short or broad patterns create many candidates."
+    },
+    {
+     "q": "What is the best kind of string?",
+     "options": [
+      "Common API name",
+      "The word 'error'",
+      "Generic URL",
+      "Unique mutex or PDB path"
+     ],
+     "a": 3,
+     "why": "Unique artifacts reduce false positives."
+    },
+    {
+     "q": "Why test against a clean corpus?",
+     "options": [
+      "To hash files",
+      "To measure false positives",
+      "To update YARA",
+      "To compress rules"
+     ],
+     "a": 1,
+     "why": "Clean data shows how often the rule misfires."
+    }
+   ],
+   "recap": [
+    "YARA = strings, hex, regex plus a condition.",
+    "Gate with filesize and header checks, require several unique strings.",
+    "Test on clean files and watch performance warnings."
+   ]
+  },
+  {
+   "title": "Snort and Suricata rules",
+   "why": "Network rules detect known exploits, malware communications and policy violations on the wire; their syntax and buffers decide whether they match at all.",
+   "sections": [
+    {
+     "h": "Rule anatomy",
+     "p": [
+      "A rule has a header and options. Header: action (alert, drop, reject, pass), protocol, source address and port, direction (->), destination address and port, for example alert http $HOME_NET any -> $EXTERNAL_NET any. Options in parentheses are semicolon separated: msg, flow, content, pcre, classtype, sid, rev and metadata. The sid is the unique rule ID; local rules conventionally use 1000000 and above, and rev increments with each change. Variables like $HOME_NET are set in the engine configuration."
+     ]
+    },
+    {
+     "h": "Matching options",
+     "p": [
+      "The content option matches bytes, with modifiers such as nocase, depth, offset, distance and within to constrain position. Multiple content matches are chained. pcre adds regular expression matching but is slower, so Suricata and Snort recommend a fast_pattern content match first. The flow option, for example flow:established,to_server, limits the rule to the right direction of a tracked TCP session, which cuts false positives and cost. Thresholding and detection_filter limit repeated alerts."
+     ]
+    },
+    {
+     "h": "Buffers and protocol keywords",
+     "p": [
+      "Suricata and Snort 3 parse protocols and expose sticky buffers, so you match inside a specific field instead of the raw packet. Examples: http.method, http.uri, http.user_agent, http.request_body, http.host, dns.query and tls.sni. Writing http.method; content:\"POST\"; http.uri; content:\"/gate.php\"; is both faster and more accurate than a raw payload match, and it works after the engine normalizes things like chunking. Encrypted traffic exposes only metadata such as SNI, JA3 and certificate fields."
+     ]
+    },
+    {
+     "h": "Deployment practice",
+     "p": [
+      "Use Emerging Threats or vendor rule sets as a base and write local rules for your environment. Test with a PCAP using suricata -r file.pcap -l logdir and read eve.json and fast.log. Check rule syntax with suricata -T. Measure performance counters since a few heavy pcre rules can drop packets. Document each rule with reference and classtype so analysts understand an alert.",
+      "Some limits are worth knowing. Signature rules only see what the sensor can decode: with TLS everywhere, payload content is invisible without decryption, so network rules shift toward SNI, JA3 or JA4 fingerprints, certificate fields, DNS names and traffic shape. Rules also operate at line speed, so a poorly written rule can slow the sensor and cause dropped packets, which blinds every other rule. Review sensor statistics, such as the packet drop counters, after each major rule update."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Suricata rule",
+    "text": "alert http $HOME_NET any -> $EXTERNAL_NET any (\n  msg:\"LOCAL fake beacon POST\"; flow:established,to_server;\n  http.method; content:\"POST\";\n  http.uri; content:\"/gate.php\"; fast_pattern;\n  http.user_agent; content:\"FakeAgent/1.0\";\n  classtype:trojan-activity; sid:1000001; rev:1;)"
+   },
+   "example": "A fictional malware posts to /gate.php on a server at 203.0.113.50 with user agent FakeAgent/1.0. The engineer writes the rule above, runs suricata -T to validate, then replays a captured PCAP with suricata -r. eve.json shows one alert for the infected host 192.0.2.15. A second run on a clean browsing PCAP gives no alerts. The fast_pattern on the URI keeps the rule efficient.",
+   "terms": [
+    {
+     "term": "sid",
+     "def": "Unique signature ID for a rule."
+    },
+    {
+     "term": "flow",
+     "def": "Option restricting a rule to a session state and direction."
+    },
+    {
+     "term": "Sticky buffer",
+     "def": "Keyword selecting a protocol field, such as http.uri, for following content matches."
+    },
+    {
+     "term": "fast_pattern",
+     "def": "The content match used for efficient pre-filtering."
+    },
+    {
+     "term": "eve.json",
+     "def": "Suricata's structured JSON event log."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does flow:established,to_server do?",
+     "options": [
+      "Sets sid",
+      "Matches UDP only",
+      "Matches client-to-server traffic in a tracked session",
+      "Drops packets"
+     ],
+     "a": 2,
+     "why": "It restricts to established sessions in that direction."
+    },
+    {
+     "q": "Why use http.uri instead of raw content?",
+     "options": [
+      "It is required by TLS",
+      "It matches in the parsed field, faster and more accurate",
+      "It needs no sid",
+      "It is encrypted"
+     ],
+     "a": 1,
+     "why": "Buffers scope the match to the normalized field."
+    },
+    {
+     "q": "Which command tests a rule against a PCAP?",
+     "options": [
+      "suricata -r file.pcap -l logs",
+      "sigma convert",
+      "tcpdump -w",
+      "ping"
+     ],
+     "a": 0,
+     "why": "The -r option reads a PCAP offline."
+    },
+    {
+     "q": "Why put a content match before pcre?",
+     "options": [
+      "No reason",
+      "Fast content filters traffic before slower regex",
+      "pcre sets sid",
+      "pcre is illegal"
+     ],
+     "a": 1,
+     "why": "Fast pattern pre-filter reduces regex cost."
+    }
+   ],
+   "recap": [
+    "Rule = action, header and semicolon-separated options.",
+    "Use flow and sticky buffers to be precise and fast.",
+    "Test with offline PCAP replay and read eve.json."
+   ]
+  },
+  {
+   "title": "Testing and tuning",
+   "why": "Untested rules either miss attacks or drown analysts. Structured testing proves a rule works and measures its cost.",
+   "sections": [
+    {
+     "h": "Proving detection with simulation",
+     "p": [
+      "Atomic Red Team provides small, technique-mapped tests, for example T1003.001 for LSASS dumping or T1053.005 for scheduled tasks, that can be run in a lab to generate telemetry. Run the atomic, confirm the expected event is logged, then confirm the rule fires. If the event is missing, the failure lies in telemetry, such as a Sysmon config that does not capture it, not in the rule. Frameworks such as Caldera and tools like Invoke-AtomicRedTeam automate this, and results should be recorded per rule and technique."
+     ]
+    },
+    {
+     "h": "Replay and benign data",
+     "p": [
+      "Replaying saved logs or PCAPs allows repeatable tests without a live attack. Datasets from public repositories and your own incident archives can serve as malicious sets. Equally important is a benign set: weeks of real production logs, or a representative sample. Run the rule across it and count hits. Each hit is reviewed and classified as true or false positive. A rule that hits 50 times on benign data needs narrowing before it reaches the queue."
+     ]
+    },
+    {
+     "h": "Measuring precision and noise",
+     "p": [
+      "Precision equals true positives divided by all alerts. Recall measures how many real attacks were caught, which is harder to know and is estimated through simulations. Track alerts per day, analyst time per alert and the false positive rate. A rule with 90 percent precision and 3 alerts a week is excellent; one with 2 percent precision and 300 alerts a day is unusable. Severity should reflect confidence and impact together."
+     ]
+    },
+    {
+     "h": "Tuning without blinding",
+     "p": [
+      "Tuning options include adding narrow filters, raising thresholds, tightening command-line patterns, enriching with context such as asset criticality, or lowering severity. Each change must be re-tested against the malicious sample to ensure the rule still fires. Record the change and reason in the rule history. Avoid tuning by deleting alerts that are merely inconvenient; an unexplained spike may be real. Re-run the regression set after every change.",
+      "Finally, tuning is a negotiation between engineering and the analysts who handle the alerts. Gather their feedback through close reasons in the ticketing system: a close code like 'benign - known admin tool' is data that can drive a precise exception. Review the top noisy rules every week and the quiet rules every quarter. Also keep a small set of canary tests that run automatically, so you learn quickly if a log pipeline change silently breaks a detection that nobody has seen fire for months."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Test record",
+    "text": "rule: lsass_access_nonsystem  v3\natomic T1003.001 test: FIRED (1/1)\nbenign set 14d, 2.1M events: 11 hits\n  9 backup agent -> allowlist signer\n  2 AV scan  -> allowlist path\nafter tuning: hits=0 benign, atomic FIRED\nprecision(prod, 30d): 8 TP / 10 alerts = 80%"
+   },
+   "example": "A rule for PowerShell download cradles fires 120 times a day. The engineer reviews the hits and finds 110 are from a software deployment tool that runs under a service account on a known path. She adds a filter on that signed binary and account, re-runs the Atomic test to confirm it still fires, and re-runs the benign data. Daily alerts drop to 4, of which 3 are real findings from testers, giving precision near 75 percent.",
+   "terms": [
+    {
+     "term": "Atomic Red Team",
+     "def": "A library of small tests mapped to ATT&CK techniques."
+    },
+    {
+     "term": "Precision",
+     "def": "True positives divided by all alerts."
+    },
+    {
+     "term": "Recall",
+     "def": "Share of real malicious events a rule catches."
+    },
+    {
+     "term": "Regression test",
+     "def": "Re-running tests after a change to confirm earlier behavior still works."
+    },
+    {
+     "term": "Benign set",
+     "def": "Representative normal data used to measure false positives."
+    }
+   ],
+   "check": [
+    {
+     "q": "If an Atomic test runs but no event is logged, the problem is probably?",
+     "options": [
+      "Missing telemetry",
+      "Git config",
+      "Too many alerts",
+      "The rule logic"
+     ],
+     "a": 0,
+     "why": "No event means collection is the gap."
+    },
+    {
+     "q": "Precision is?",
+     "options": [
+      "TP / total events",
+      "FP / TP",
+      "TP / all alerts",
+      "Alerts per day"
+     ],
+     "a": 2,
+     "why": "Precision measures the share of alerts that are true."
+    },
+    {
+     "q": "After adding a filter you should?",
+     "options": [
+      "Re-run the malicious test to confirm it still fires",
+      "Delete the old tests",
+      "Disable the rule",
+      "Raise severity"
+     ],
+     "a": 0,
+     "why": "Tuning must not remove true detection."
+    },
+    {
+     "q": "Why test on benign data?",
+     "options": [
+      "To increase recall",
+      "To count false positives before deployment",
+      "To train attackers",
+      "To satisfy YAML"
+     ],
+     "a": 1,
+     "why": "Benign hits reveal noise."
+    }
+   ],
+   "recap": [
+    "Prove rules fire using Atomic tests and replay.",
+    "Measure precision and noise on benign data.",
+    "Tune narrowly and regression-test every change."
+   ]
+  },
+  {
+   "title": "Detection as code",
+   "why": "Treating rules like software gives review, history, automated checks and safe rollback, which keeps a growing rule set trustworthy.",
+   "sections": [
+    {
+     "h": "Repository and workflow",
+     "p": [
+      "Detection as code stores rules as text files, usually Sigma YAML, YARA and Suricata rule files, in a Git repository organized by platform or technique. Changes happen on branches and are merged through pull requests with at least one reviewer. The Git history provides an audit trail of who changed what and why, and tagged releases allow rollback to a known good set. This replaces ad hoc edits inside a SIEM console, where changes are untracked and hard to reverse."
+     ]
+    },
+    {
+     "h": "Pull request review",
+     "p": [
+      "Reviewers check the rule for a clear hypothesis, correct logsource, precise logic, documented false positives, ATT&CK tags and a test result attached to the PR. They ask whether the rule was run against benign data, whether exceptions are narrow, and whether severity and runbook link are present. A checklist template in the PR keeps reviews consistent. Review is also a learning channel where junior engineers see how experienced ones reason about evasion."
+     ]
+    },
+    {
+     "h": "CI validation and deployment",
+     "p": [
+      "Continuous integration runs on every PR. Typical checks: YAML lint, Sigma schema validation with sigma check, required fields such as id, status and tags, unique IDs, conversion to target backends, yara compile for syntax, suricata -T for rule syntax, and unit tests that run the rule against stored positive and negative log samples. On merge, a pipeline deploys rules to the SIEM through its API. Secrets for deployment live in a secret store, not in the repository."
+     ]
+    },
+    {
+     "h": "Tags, changelogs and releases",
+     "p": [
+      "Mapping tags such as attack.t1059.001 let you generate ATT&CK coverage reports and spot gaps. A changelog records each release: added, changed and retired rules, with reasons and test evidence. Semantic versions or dated releases let the SOC know what is live. Include a rule status lifecycle (experimental, test, stable, deprecated) so consumers know how far to trust a rule.",
+      "Branching strategy should stay simple: short-lived feature branches off main, small pull requests that change one rule or one related group, and protected main branch requiring passing CI and approval. Large dumps of dozens of rules are impossible to review properly. Some teams add a staging environment where merged rules run in silent mode for a week before a second promotion step moves them to production alerting. That mirrors the lifecycle from the first lesson and makes the whole workflow auditable end to end."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "CI log",
+    "text": "$ sigma check rules/\n  OK   rules/win/proc_office_ps_enc.yml\n  FAIL rules/win/susp_task.yml: missing field 'logsource'\n$ yara -C compiled.yarc rules/yara/*.yar   -> OK\n$ suricata -T -S local.rules              -> OK\n$ pytest tests/  -> 41 passed, 1 failed (susp_task: no FP sample)\nPipeline result: BLOCKED"
+   },
+   "example": "An engineer opens a pull request adding a scheduled task rule. CI fails because the logsource is missing and no benign sample test exists. The reviewer also notes the ATT&CK tag points to the wrong technique. The engineer fixes the YAML, adds positive and negative samples, corrects the tag to attack.t1053.005, and CI passes. After approval the rule merges, deploys to the SIEM, and release 2026.10 lists it under added rules.",
+   "terms": [
+    {
+     "term": "Pull request",
+     "def": "A proposed change reviewed before merging."
+    },
+    {
+     "term": "CI",
+     "def": "Automated checks that run on each change."
+    },
+    {
+     "term": "Changelog",
+     "def": "A record of what changed in each release."
+    },
+    {
+     "term": "ATT&CK tag",
+     "def": "Metadata mapping a rule to a MITRE technique."
+    },
+    {
+     "term": "Rollback",
+     "def": "Returning to a previous known good release."
+    }
+   ],
+   "check": [
+    {
+     "q": "Main benefit of storing rules in Git?",
+     "options": [
+      "Free licenses",
+      "History, review and rollback",
+      "Faster searches",
+      "Smaller rules"
+     ],
+     "a": 1,
+     "why": "Version control gives auditability."
+    },
+    {
+     "q": "Which is a typical CI check?",
+     "options": [
+      "Printing the rules",
+      "Schema validation and unit tests on samples",
+      "Disabling alerts",
+      "Rebooting the SIEM"
+     ],
+     "a": 1,
+     "why": "CI validates syntax and behavior."
+    },
+    {
+     "q": "Why map rules to ATT&CK tags?",
+     "options": [
+      "Required by YARA",
+      "To report coverage and gaps",
+      "To speed matching",
+      "To encrypt rules"
+     ],
+     "a": 1,
+     "why": "Tags enable coverage analysis."
+    },
+    {
+     "q": "Where should deployment credentials live?",
+     "options": [
+      "In the repo",
+      "In the rule YAML",
+      "In a secret store",
+      "In the PR title"
+     ],
+     "a": 2,
+     "why": "Secrets must not be committed."
+    }
+   ],
+   "recap": [
+    "Rules live in Git with PR review and a checklist.",
+    "CI validates syntax, schema and sample tests before deployment.",
+    "Tags, changelogs and releases keep coverage and changes visible."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Write a Sigma rule",
+   "sim": "code-editor",
+   "scenario": "You are given a half-finished Sigma rule file for a fictional company, example.com. Analysts saw winword.exe launch powershell.exe with a long Base64 argument on workstation WS-014 and want a reusable detection. The logsource and metadata are present; the detection block is empty and the condition is missing.",
+   "objective": "Complete the detection and condition so the rule matches encoded PowerShell started by an Office process.",
+   "steps": [
+    {
+     "do": "Open rule.yml and read the logsource block",
+     "see": "logsource: category process_creation, product windows. detection: (empty)"
+    },
+    {
+     "do": "Add selection_parent with ParentImage|endswith for winword.exe and excel.exe",
+     "see": "Editor: field ParentImage accepted, 2 values (OR)"
+    },
+    {
+     "do": "Add selection_child with Image|endswith '\\powershell.exe'",
+     "see": "Editor: Image accepted"
+    },
+    {
+     "do": "Add CommandLine|contains with ' -enc' and ' -EncodedCommand' in selection_child",
+     "see": "Editor: 2 values under CommandLine (OR), ANDed with Image"
+    },
+    {
+     "do": "Set condition: selection_parent and selection_child",
+     "see": "Syntax check: OK"
+    },
+    {
+     "do": "Click Test against sample.log",
+     "see": "Matches: 1 of 5000 events (WS-014 winword.exe -> powershell.exe -enc JABz...). Benign sample: 0 hits"
+    },
+    {
+     "do": "Add falsepositives and level: high, then Save",
+     "see": "Rule saved. sigma check: PASS"
+    }
+   ],
+   "answer": "The finished rule uses selection_parent (Office parent images), selection_child (powershell.exe with an encoded-command flag) and condition selection_parent and selection_child. It matches the single malicious event on WS-014 and none of the benign sample.",
+   "hint": "Fields inside one selection are ANDed; lists of values are ORed."
+  },
+  {
+   "title": "Fix an over-broad rule",
+   "sim": "siem",
+   "scenario": "A SIEM rule named 'PowerShell Execution' fires 300 times a day on the fictional network of example.com and analysts are ignoring it. The rule matches any process whose Image ends with powershell.exe. Logs show most hits come from a patch tool, but real attacks also use PowerShell.",
+   "objective": "Narrow the rule using parent process and command-line conditions, then re-run to confirm noise drops and the true detection stays.",
+   "steps": [
+    {
+     "do": "Run the existing rule over the last 24 hours",
+     "see": "Result: 312 events. Top parent: ccmexec.exe (261), explorer.exe (40), winword.exe (3), other (8)"
+    },
+    {
+     "do": "Inspect the 3 winword.exe events",
+     "see": "All 3: ParentImage winword.exe, CommandLine contains '-w hidden -enc'. Host WS-014"
+    },
+    {
+     "do": "Add condition ParentImage in (winword.exe, excel.exe, outlook.exe, wmiprvse.exe)",
+     "see": "Preview: 14 events"
+    },
+    {
+     "do": "Add condition CommandLine contains (' -enc', ' -w hidden', 'DownloadString')",
+     "see": "Preview: 4 events"
+    },
+    {
+     "do": "Add exclusion for ccmexec.exe signed by the software management vendor",
+     "see": "Preview: 4 events, 0 from ccmexec.exe"
+    },
+    {
+     "do": "Re-run against the 24-hour data and the stored malicious sample",
+     "see": "24h: 4 hits (3 WS-014 real, 1 admin test). Sample: DETECTED"
+    },
+    {
+     "do": "Save the rule as v2 with a change note",
+     "see": "Saved: v2, projected volume 4 per day"
+    }
+   ],
+   "answer": "The tuned rule requires an Office or WMI parent plus suspicious command-line markers and excludes the signed patch tool. It dropped from 312 to 4 daily events while still detecting the malicious WS-014 activity.",
+   "hint": "Look at the top parent processes first; most noise usually comes from one tool."
+  },
+  {
+   "title": "Write a YARA rule",
+   "sim": "code-editor",
+   "scenario": "An analyst unpacked a fictional loader sample, loader_x.bin, and found a custom mutex string, a build path, and a short code pattern. A folder of 500 clean files is available for validation. The goal is a rule that matches the loader but not clean software.",
+   "objective": "Create a YARA rule using unique strings and PE conditions, and verify it against the clean set.",
+   "steps": [
+    {
+     "do": "Open strings.txt from the analysis",
+     "see": "Found: Global\\fakeload_mtx_77, C:\\build\\loader_v2\\x64\\Release, hex 48 8B ?? ?? 48 83 C4 28 C3"
+    },
+    {
+     "do": "Define $mx as the mutex string with ascii wide",
+     "see": "Compiler: string $mx OK"
+    },
+    {
+     "do": "Define $pdb as the build path and $h as the hex pattern",
+     "see": "Compiler: 3 strings OK"
+    },
+    {
+     "do": "Set condition: uint16(0) == 0x5A4D and filesize < 3MB and 2 of ($mx,$pdb,$h)",
+     "see": "Compile: OK, no performance warnings"
+    },
+    {
+     "do": "Run against loader_x.bin",
+     "see": "MATCH: Fake_Loader_Example loader_x.bin"
+    },
+    {
+     "do": "Run against the clean folder (500 files)",
+     "see": "0 matches in 500 files"
+    },
+    {
+     "do": "Try replacing $mx with the string 'CreateMutex' and rerun clean set",
+     "see": "Matches: 212 of 500 (rule rejected as too generic). Revert change"
+    }
+   ],
+   "answer": "The rule uses the unique mutex, PDB path and code pattern with a PE header and size gate, requiring any two strings. It matches the loader and none of the 500 clean files. Generic strings like CreateMutex cause false positives.",
+   "hint": "Choose strings that exist only in this family, not API names."
+  },
+  {
+   "title": "Suricata signature",
+   "sim": "config-editor",
+   "scenario": "Fictional malware on host 192.0.2.15 sends HTTP POST requests to /gate.php with user agent FakeAgent/1.0 to the server 203.0.113.50. You have local.rules open and a PCAP named beacon.pcap to test with.",
+   "objective": "Write a Suricata rule that alerts on that traffic and verify it on the PCAP.",
+   "steps": [
+    {
+     "do": "Start the rule: alert http $HOME_NET any -> $EXTERNAL_NET any",
+     "see": "Editor: header parsed OK"
+    },
+    {
+     "do": "Add msg and flow:established,to_server",
+     "see": "Editor: options accepted"
+    },
+    {
+     "do": "Add http.method; content:\"POST\"; and http.uri; content:\"/gate.php\"; fast_pattern;",
+     "see": "Editor: sticky buffers OK, fast_pattern set"
+    },
+    {
+     "do": "Add http.user_agent; content:\"FakeAgent/1.0\";",
+     "see": "Editor: OK"
+    },
+    {
+     "do": "Add classtype:trojan-activity; sid:1000001; rev:1;",
+     "see": "suricata -T: configuration OK, 1 rule loaded"
+    },
+    {
+     "do": "Run suricata -r beacon.pcap -l out/",
+     "see": "Processed 8210 packets, 1 alert written"
+    },
+    {
+     "do": "Open out/eve.json",
+     "see": "alert: LOCAL fake beacon POST, src 192.0.2.15 -> dst 203.0.113.50:80, sid 1000001"
+    }
+   ],
+   "answer": "The rule matches POST requests to /gate.php with user agent FakeAgent/1.0 in established client-to-server flows and produced exactly one alert from 192.0.2.15 to 203.0.113.50 on the PCAP, with a valid unique sid.",
+   "hint": "Use sticky buffers like http.uri rather than raw content."
+  },
+  {
+   "title": "Review a detection PR",
+   "sim": "chat-sim",
+   "scenario": "A teammate opened a pull request adding a new rule, susp_schtask_create.yml, to the shared detections repository for example.com. You are the reviewer. The PR description says 'tested, looks good' with no evidence attached. Use the chat to inspect the diff and discuss with the author.",
+   "objective": "Find the missing logsource and the untested false positives, and request changes.",
+   "steps": [
+    {
+     "do": "Open the PR diff",
+     "see": "File shows title, description, detection selection on schtasks.exe with '/create'. No logsource block"
+    },
+    {
+     "do": "Ask the author: where is the logsource?",
+     "see": "Author: 'Oh, I forgot it, the converter worked anyway.' CI log: sigma check FAIL missing logsource"
+    },
+    {
+     "do": "Ask for the benign test results",
+     "see": "Author: 'I only ran the Atomic test. Did not run it on production logs.'"
+    },
+    {
+     "do": "Run the rule on 14 days of benign data via the review tool",
+     "see": "Result: 87 hits, 80 from a backup agent running schtasks.exe /create"
+    },
+    {
+     "do": "Check tags and falsepositives fields",
+     "see": "Tag attack.t1053.005 is correct. falsepositives: empty"
+    },
+    {
+     "do": "Post review: request changes",
+     "see": "Review posted: add logsource (process_creation, windows), allowlist signed backup agent, document falsepositives, attach benign test results"
+    },
+    {
+     "do": "Author pushes fix, re-run CI",
+     "see": "CI: all checks pass, benign hits 3 per 14 days. Review: approve"
+    }
+   ],
+   "answer": "The PR lacked a logsource block and had never been tested against benign data, which produced 87 hits mostly from a backup agent. Changes requested: add logsource, narrow with a signed allowlist, document false positives, include test evidence.",
+   "hint": "Ask what evidence supports 'tested' and check CI output."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which Sigma block states what kind of log a rule applies to?",
+   "options": [
+    "falsepositives",
+    "logsource",
+    "level",
+    "tags"
+   ],
+   "a": 1,
+   "why": "logsource abstracts the log type."
+  },
+  {
+   "q": "In a Sigma rule, a selection with fields Image and CommandLine requires?",
+   "options": [
+    "Either field",
+    "Both fields to match",
+    "Neither",
+    "Only the first"
+   ],
+   "a": 1,
+   "why": "Fields in one selection are ANDed."
+  },
+  {
+   "q": "Which indicator is most costly for an attacker to change?",
+   "options": [
+    "IP",
+    "Technique behavior",
+    "Tool name",
+    "Hash"
+   ],
+   "a": 1,
+   "why": "Behavior sits at the top of the Pyramid of Pain."
+  },
+  {
+   "q": "What does uint16(0) == 0x5A4D check in YARA?",
+   "options": [
+    "filesize",
+    "XOR key",
+    "PE MZ header",
+    "Zip header"
+   ],
+   "a": 2,
+   "why": "MZ marks DOS/PE executables."
+  },
+  {
+   "q": "Which Suricata option limits a rule to client requests in a tracked TCP session?",
+   "options": [
+    "flow:established,to_server",
+    "sid",
+    "rev",
+    "classtype"
+   ],
+   "a": 0,
+   "why": "flow restricts state and direction."
+  },
+  {
+   "q": "Precision is calculated as?",
+   "options": [
+    "True positives / all alerts",
+    "Rules / day",
+    "False negatives / TP",
+    "Alerts / hosts"
+   ],
+   "a": 0,
+   "why": "Precision is the share of alerts that are real."
+  },
+  {
+   "q": "An Atomic test produces no event in logs. Next step?",
+   "options": [
+    "Check telemetry and logging configuration",
+    "Delete the test",
+    "Rewrite the rule",
+    "Raise severity"
+   ],
+   "a": 0,
+   "why": "Without the event there is nothing to detect."
+  },
+  {
+   "q": "Why run a rule on benign data before deployment?",
+   "options": [
+    "To train analysts",
+    "To convert syntax",
+    "To count false positives",
+    "To compress logs"
+   ],
+   "a": 2,
+   "why": "Benign hits show noise."
+  },
+  {
+   "q": "Which CI check catches a missing required Sigma field?",
+   "options": [
+    "Schema validation",
+    "Compression",
+    "Rebasing",
+    "DNS lookup"
+   ],
+   "a": 0,
+   "why": "Schema validation enforces fields."
+  },
+  {
+   "q": "A rule keeps firing on a signed patch tool. Best tuning?",
+   "options": [
+    "Disable the rule",
+    "Lower threshold to zero",
+    "Delete alerts",
+    "Narrow exclusion of that signed binary, then re-test the malicious sample"
+   ],
+   "a": 3,
+   "why": "Narrow filters plus regression testing preserve detection."
+  }
+ ]
+}

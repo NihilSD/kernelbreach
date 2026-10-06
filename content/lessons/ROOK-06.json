@@ -1,0 +1,792 @@
+{
+ "code": "ROOK-06",
+ "intro": "This module moves you from looking around the Linux file system to actively shaping it. You will create directories and files, copy, rename and delete them, read files and follow live logs, select groups of files with wildcards, and search the disk with find. These are the daily moves of every administrator and analyst, and they are also how evidence is collected, logs are read and mistakes are made. You will learn the safe habits that prevent accidental data loss.",
+ "lessons": [
+  {
+   "title": "mkdir and touch",
+   "why": "Every project, case folder and evidence directory starts with creating structure, and timestamps are a basic forensic clue.",
+   "sections": [
+    {
+     "h": "Making directories with mkdir",
+     "p": [
+      "The mkdir command creates a directory: mkdir reports creates one folder in the current location. If the parent does not exist, plain mkdir fails with 'No such file or directory'. The -p option solves this by creating the whole chain at once and by staying silent when the directory already exists, which makes it safe to put in scripts. For example, mkdir -p labs/week1/notes builds labs, then week1 inside it, then notes inside that. You can also create several siblings in one command, and brace expansion, such as mkdir -p proj/{src,docs,tests}, lets the shell expand the list for you before mkdir runs."
+     ]
+    },
+    {
+     "h": "Creating files with touch",
+     "p": [
+      "The touch command has two jobs. If the named file does not exist, it creates an empty file of size zero. If the file already exists, it leaves the contents alone and only updates the access and modification timestamps to the current time. That is why touch is used both to make placeholder files such as touch notes.txt and to refresh a file so that build tools or backups see it as new. You can give many names at once: touch a.txt b.txt c.txt. Redirection with > also creates an empty file, but it truncates an existing file, which touch never does."
+     ]
+    },
+    {
+     "h": "Timestamps: atime, mtime and ctime",
+     "p": [
+      "Linux files carry three main times. The mtime is the last time the content was modified, the atime is the last time it was read (often relaxed by the mount option relatime), and the ctime is the last time the inode metadata, such as permissions or owner, changed. You cannot set ctime directly, because the kernel updates it whenever the inode changes. The command ls -l shows mtime by default, ls -lu shows atime and ls -lc shows ctime. Investigators compare these values to build a timeline, and attackers who edit timestamps with touch -d still leave ctime behind as a clue."
+     ]
+    },
+    {
+     "h": "Good naming habits",
+     "p": [
+      "Names are case sensitive, so Report.txt and report.txt are different files. Avoid spaces, because the shell splits unquoted words; use hyphens or underscores, such as incident_2024-05-01.txt. If a name does contain spaces, quote it: touch 'my notes.txt'. Names starting with a dot are hidden. Use ls -l after every create operation to confirm what exists, and use pwd to confirm where you are. A habit of checking before and after catches typos like creating a directory in the wrong parent, which is among the most common beginner errors."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ mkdir -p labs/week1/notes\n$ touch labs/week1/notes/todo.txt\n$ ls -l labs/week1/notes\ntotal 0\n-rw-r--r-- 1 student student 0 Mar  3 09:14 todo.txt\n$ touch labs/week1/notes/todo.txt\n$ ls -l --time=ctime labs/week1/notes/todo.txt"
+   },
+   "example": "A student needs a folder for an exercise on a host called lab01. She runs mkdir -p cases/case42/evidence and touch cases/case42/evidence/hashes.txt. The listing shows a zero-byte file with a timestamp of the current minute. Later she runs touch again, and the size stays at zero while the time moves forward. She learns that touch never erases content, and that the directory chain was created in one step because of -p.",
+   "terms": [
+    {
+     "term": "mkdir -p",
+     "def": "Creates a directory and any missing parents, with no error if it exists."
+    },
+    {
+     "term": "touch",
+     "def": "Creates an empty file or updates the timestamps of an existing one."
+    },
+    {
+     "term": "mtime",
+     "def": "The time a file's content last changed."
+    },
+    {
+     "term": "ctime",
+     "def": "The time a file's inode metadata last changed; it cannot be set directly."
+    },
+    {
+     "term": "Brace expansion",
+     "def": "Shell feature that expands {a,b} into separate words before the command runs."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does mkdir -p a/b/c do when none of the folders exist?",
+     "options": [
+      "Fails with an error",
+      "Creates a, b and c in a chain",
+      "Creates only c",
+      "Creates a file named c"
+     ],
+     "a": 1,
+     "why": "-p creates all missing parents."
+    },
+    {
+     "q": "What happens when touch is run on an existing file?",
+     "options": [
+      "Content is erased",
+      "File is deleted",
+      "Timestamps are updated, content kept",
+      "It is renamed"
+     ],
+     "a": 2,
+     "why": "touch only updates times for existing files."
+    },
+    {
+     "q": "Which timestamp changes when you chmod a file?",
+     "options": [
+      "mtime only",
+      "ctime",
+      "none",
+      "filename"
+     ],
+     "a": 1,
+     "why": "ctime tracks inode metadata changes such as permissions."
+    },
+    {
+     "q": "Why avoid spaces in file names?",
+     "options": [
+      "Linux forbids them",
+      "The shell splits unquoted words",
+      "They make files hidden",
+      "They change permissions"
+     ],
+     "a": 1,
+     "why": "Unquoted spaces break one name into several arguments."
+    }
+   ],
+   "recap": [
+    "mkdir -p builds nested paths safely and quietly.",
+    "touch creates empty files or refreshes timestamps without altering content.",
+    "mtime, atime and ctime tell different stories, and ctime is hard to forge."
+   ]
+  },
+  {
+   "title": "cp, mv and rm",
+   "why": "Copy, move and delete are the commands that can both save and destroy data, and rm has no safety net.",
+   "sections": [
+    {
+     "h": "Copying with cp",
+     "p": [
+      "The cp command duplicates files: cp report.txt backup.txt creates a new file with the same contents. To copy into a directory, name the directory last: cp a.txt b.txt archive/. Directories need the recursive flag, so cp -r project project_copy copies the whole tree. Add -i to be prompted before overwriting, and -p to preserve mode, ownership and timestamps, which matters when copying evidence or configuration files. Without -i, cp silently overwrites an existing destination, so a wrong target name can destroy a good file in one keystroke."
+     ]
+    },
+    {
+     "h": "Moving and renaming with mv",
+     "p": [
+      "The mv command both moves and renames, because in Linux a rename is just moving a file to a new name. mv draft.txt final.txt renames in place, while mv final.txt archive/ moves the file into a folder. Within the same file system it is nearly instant, since only directory entries change; across file systems it copies and then deletes. Like cp, mv overwrites silently unless you add -i, and -n refuses to overwrite at all. Moving a directory needs no -r. Always check the destination with ls afterwards to confirm the file is where you intended."
+     ]
+    },
+    {
+     "h": "Deleting with rm and why there is no recycle bin",
+     "p": [
+      "The rm command unlinks files from the file system. There is no recycle bin or undo: the directory entry is removed and the space is marked free, and recovery afterwards is unreliable and often impossible. rm file.txt removes one file, rm -i asks first, rm -r removes a directory and everything inside it, and -f suppresses prompts and errors. The combination rm -rf is dangerous, especially with variables or wildcards: rm -rf /home/$DIR/ with an empty DIR could wipe far more than intended. rmdir removes only empty directories, which is a safer choice."
+     ]
+    },
+    {
+     "h": "Safe habits",
+     "p": [
+      "Before deleting, run ls with the same pattern to see exactly what will match. Use -i for interactive work, and consider aliasing rm to rm -i in your own shell. Avoid running as root when practicing. Back up before bulk operations, and test destructive scripts on a copy. Use absolute paths in scripts and quote variables so that spaces or empty values do not alter the command. Remember that on shared servers, an attacker or a clumsy script that deletes logs is destroying evidence, so file deletion events are worth monitoring and protecting with backups and append-only logging."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ cp -i report.txt backup.txt\n$ cp -r project project_copy\n$ mv draft.txt final.txt\n$ rm -i old.tmp\nrm: remove regular file 'old.tmp'? y\n$ rm -r project_copy\n$ rmdir empty_dir"
+   },
+   "example": "An analyst wants to rename notes.txt to notes_final.txt and keep an archive copy. She runs cp -p notes.txt archive/notes_2024.txt, then mv notes.txt notes_final.txt. Next she wants to delete the folder tmp_work, so first she types ls tmp_work to see what is inside, then rm -r tmp_work. Because she checked first and copied before moving, a typing mistake could be undone, whereas a bare rm -rf could not.",
+   "terms": [
+    {
+     "term": "cp -r",
+     "def": "Copies directories recursively."
+    },
+    {
+     "term": "mv",
+     "def": "Moves or renames files and directories."
+    },
+    {
+     "term": "rm -i",
+     "def": "Prompts before each deletion."
+    },
+    {
+     "term": "rm -rf",
+     "def": "Recursive forced deletion with no prompts; very dangerous."
+    },
+    {
+     "term": "rmdir",
+     "def": "Removes only empty directories."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which flag makes cp ask before overwriting?",
+     "options": [
+      "-r",
+      "-i",
+      "-p",
+      "-v"
+     ],
+     "a": 1,
+     "why": "-i is interactive mode."
+    },
+    {
+     "q": "How do you rename a file in Linux?",
+     "options": [
+      "rename only",
+      "mv old new",
+      "cp old new",
+      "touch old new"
+     ],
+     "a": 1,
+     "why": "mv with a new name in the same folder renames."
+    },
+    {
+     "q": "Why is rm risky?",
+     "options": [
+      "It is slow",
+      "It has no recycle bin",
+      "It needs root",
+      "It changes ownership"
+     ],
+     "a": 1,
+     "why": "Deleted files are unlinked and not recoverable in general."
+    },
+    {
+     "q": "Which command removes only an empty directory?",
+     "options": [
+      "rm -rf",
+      "rmdir",
+      "mv",
+      "cp -r"
+     ],
+     "a": 1,
+     "why": "rmdir refuses to remove a non-empty directory."
+    }
+   ],
+   "recap": [
+    "cp copies, mv moves or renames, rm deletes permanently.",
+    "Use -i and preview with ls before destructive commands.",
+    "rm -rf with variables or wildcards is a classic way to lose data."
+   ]
+  },
+  {
+   "title": "Reading Files: cat, less, head, tail",
+   "why": "Logs and configuration files are plain text, and choosing the right viewer saves time and avoids flooding your screen.",
+   "sections": [
+    {
+     "h": "cat for short files",
+     "p": [
+      "The cat command prints a whole file to the terminal, and its name comes from concatenate, because cat a.txt b.txt joins files in order. It suits short files such as a one-line config or a hash value. Add -n to number lines. For large files it is a poor choice, because thousands of lines scroll past and you only see the end. cat is also commonly used to feed files into pipes, but many commands can read files directly. Do not cat binary files; the raw bytes can garble your terminal, and you can recover with the reset command."
+     ]
+    },
+    {
+     "h": "less for paging",
+     "p": [
+      "The less pager opens a file and lets you move through it without loading everything: space moves down a page, b moves back, g and G jump to start and end, /word searches forward and n repeats the search, and q quits. less -N shows line numbers and less +F follows a file. Unlike the older more, less can scroll backward and does not read the entire file first, so it opens huge logs quickly. For investigation, less is the default choice, because you can search for an IP address or error code and jump between hits."
+     ]
+    },
+    {
+     "h": "head and tail for the ends",
+     "p": [
+      "head prints the first lines of a file, ten by default, and tail prints the last ten. Use -n to choose: head -n 3 file or tail -n 20 /var/log/auth.log. Recent events sit at the bottom of most logs, so tail is the go-to command for what just happened. The option tail -f follows the file, printing new lines as they are appended, which lets you watch a login attempt arrive in real time; stop it with Ctrl+C. tail -F also copes with log rotation by reopening the file when it is replaced."
+     ]
+    },
+    {
+     "h": "Choosing the right tool",
+     "p": [
+      "Match the viewer to the job. Tiny file: cat. Big file you must explore: less. Header or format check of a CSV: head. Most recent events: tail. Live monitoring: tail -f. Combining them is common: head -n 100 file | tail -n 20 prints lines 81 to 100. Remember permissions apply, so many logs under /var/log need sudo to read. When reading logs as part of an investigation, never edit the original; view it read-only and copy it if you need to experiment, to keep evidence intact."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ head -n 2 /var/log/auth.log\nMar  3 08:01:12 web01 sshd[811]: Server listening on 0.0.0.0 port 22.\nMar  3 08:01:12 web01 sshd[811]: Server listening on :: port 22.\n$ tail -n 1 /var/log/auth.log\nMar  3 09:20:41 web01 sshd[2210]: Failed password for invalid user admin from 203.0.113.9 port 51522 ssh2\n$ tail -f /var/log/auth.log"
+   },
+   "example": "An administrator on web01 hears that someone is guessing passwords. She runs tail -n 20 /var/log/auth.log with sudo and sees repeated Failed password lines from 203.0.113.9. To watch whether it continues, she opens sudo tail -f /var/log/auth.log and sees a new line every second. She then opens the whole file in less and searches /203.0.113.9 to count the first occurrence. Each tool fitted a different step of the same investigation.",
+   "terms": [
+    {
+     "term": "cat",
+     "def": "Prints a file, or concatenates several, to standard output."
+    },
+    {
+     "term": "less",
+     "def": "A pager for viewing large files with scrolling and search."
+    },
+    {
+     "term": "head",
+     "def": "Shows the first lines of a file."
+    },
+    {
+     "term": "tail -f",
+     "def": "Shows the end of a file and follows new lines as they are added."
+    },
+    {
+     "term": "Log rotation",
+     "def": "Periodic renaming and compression of logs so files do not grow forever."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which command shows the last 20 lines of a file?",
+     "options": [
+      "head -n 20",
+      "tail -n 20",
+      "cat -20",
+      "less -20"
+     ],
+     "a": 1,
+     "why": "tail prints from the end."
+    },
+    {
+     "q": "Which exits less?",
+     "options": [
+      "x",
+      "q",
+      "Ctrl+S",
+      "Esc Esc"
+     ],
+     "a": 1,
+     "why": "q quits less."
+    },
+    {
+     "q": "What does tail -f do?",
+     "options": [
+      "Finds files",
+      "Follows new lines as they are written",
+      "Formats output",
+      "Fixes permissions"
+     ],
+     "a": 1,
+     "why": "-f keeps the file open and prints appended lines."
+    },
+    {
+     "q": "Best viewer for a 2 GB log you want to search?",
+     "options": [
+      "cat",
+      "less",
+      "echo",
+      "touch"
+     ],
+     "a": 1,
+     "why": "less opens quickly and supports /search."
+    }
+   ],
+   "recap": [
+    "Use cat for small files, less for exploring, head/tail for the ends.",
+    "tail -f is the live-monitoring tool for logs.",
+    "Read evidence files without modifying them."
+   ]
+  },
+  {
+   "title": "Wildcards and Globbing",
+   "why": "Globs let one command act on many files, but a wrong pattern can match more than you expect, so predicting matches is a core skill.",
+   "sections": [
+    {
+     "h": "What globbing is",
+     "p": [
+      "Globbing is the shell expanding a pattern into a list of matching file names before the command runs. The command never sees the star; it receives the expanded names. If you type ls *.txt in a folder with a.txt and b.txt, ls actually runs as ls a.txt b.txt. This means that echo *.txt is a safe way to preview what a pattern will match. If nothing matches, Bash by default passes the pattern through unchanged, which can cause confusing errors. Quoting the pattern, as in '*.txt', stops the shell from expanding it."
+     ]
+    },
+    {
+     "h": "The main wildcards",
+     "p": [
+      "The asterisk * matches any number of characters, including none, so log* matches log, log1 and logfile.txt. The question mark ? matches exactly one character, so file?.txt matches file1.txt but not file10.txt. Square brackets match one character from a set or range: [abc] or [a-z] or [0-9]. A leading ! or ^ inside brackets negates the set. Braces such as {jpg,png} are different: brace expansion generates words and does not depend on files existing. Globs do not match a leading dot by default, so * ignores hidden files."
+     ]
+    },
+    {
+     "h": "Predicting matches",
+     "p": [
+      "Practice by reading a directory and deciding the result first. Given report1.txt, report2.txt, report10.txt, report_final.txt and notes.txt, report?.txt matches report1.txt and report2.txt only. report*.txt matches all four report files. report[0-9].txt matches the two single digit files. *.txt matches everything, and [a-n]*.txt matches only notes.txt because report starts with r. Always preview with ls or echo before attaching rm to a pattern, as rm *.tmp is fine but rm * .tmp, with a stray space, deletes everything."
+     ]
+    },
+    {
+     "h": "Globs versus regular expressions",
+     "p": [
+      "Beginners confuse shell globs with regular expressions. In a glob, * means any characters; in a regex, * means repeat the previous item, and .* is needed for any characters. Globs are handled by the shell and apply to file names, while regex is used by tools such as grep and sed on text. The same symbols mean different things in each, so check which tool is interpreting the pattern. Quoting matters: grep 'a.*b' file needs quotes so the shell leaves the pattern for grep to interpret."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ ls\nnotes.txt  report1.txt  report2.txt  report10.txt  old.tmp  cache.tmp\n$ echo report?.txt\nreport1.txt report2.txt\n$ echo *.tmp\nold.tmp cache.tmp\n$ rm -i *.tmp"
+   },
+   "example": "A folder holds backup_01.tar through backup_12.tar plus backup_old.tar. To list only the first nine numbered backups, the learner types ls backup_0?.tar and gets backup_01 to backup_09. For all numbered ones she uses backup_[0-9][0-9].tar, which excludes backup_old.tar. Before removing anything, she runs echo backup_1?.tar to see that it matches 10, 11 and 12 only, then confirms the result and deletes with rm -i.",
+   "terms": [
+    {
+     "term": "Glob",
+     "def": "A shell pattern that expands to matching file names."
+    },
+    {
+     "term": "*",
+     "def": "Matches zero or more characters."
+    },
+    {
+     "term": "?",
+     "def": "Matches exactly one character."
+    },
+    {
+     "term": "[a-z]",
+     "def": "Matches one character in the range."
+    },
+    {
+     "term": "Brace expansion",
+     "def": "Generates a list of words from {a,b} regardless of what files exist."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which pattern matches file1.txt but not file10.txt?",
+     "options": [
+      "file*.txt",
+      "file?.txt",
+      "file[0-9]*",
+      "*.txt"
+     ],
+     "a": 1,
+     "why": "? matches exactly one character."
+    },
+    {
+     "q": "Who expands a glob?",
+     "options": [
+      "The command",
+      "The shell",
+      "The kernel",
+      "The file system"
+     ],
+     "a": 1,
+     "why": "The shell expands it before running the command."
+    },
+    {
+     "q": "Does * match hidden files by default?",
+     "options": [
+      "Yes",
+      "No",
+      "Only in /tmp",
+      "Only as root"
+     ],
+     "a": 1,
+     "why": "Leading dots must be matched explicitly."
+    },
+    {
+     "q": "Safest way to preview rm *.tmp?",
+     "options": [
+      "Run it and see",
+      "echo *.tmp",
+      "rm -f *.tmp",
+      "mv *.tmp /"
+     ],
+     "a": 1,
+     "why": "echo shows the expansion without deleting."
+    }
+   ],
+   "recap": [
+    "The shell, not the command, expands globs.",
+    "* any run, ? one character, [] a set or range.",
+    "Preview patterns with echo or ls before deleting."
+   ]
+  },
+  {
+   "title": "Hidden Files and find",
+   "why": "Configuration and persistence often hide in dotfiles, and find lets you locate files by properties when you do not know the path.",
+   "sections": [
+    {
+     "h": "Hidden files",
+     "p": [
+      "In Linux a file or folder whose name starts with a dot is hidden from the default ls output. This is a convention, not security: ls -a shows them all, and ls -A omits the . and .. entries. User settings live in dotfiles in the home directory, such as .bashrc for shell setup, .profile, .ssh/ for keys and authorized_keys, and .bash_history for command history. Because they are inconspicuous, malware and attackers sometimes hide files this way, for example a folder named '.. ' with trailing spaces, so reviewers always look with ls -la."
+     ]
+    },
+    {
+     "h": "Finding by name and type",
+     "p": [
+      "The find command walks a directory tree and tests each entry. The syntax is find START TESTS ACTIONS. find /home -name '*.conf' finds by name, and -iname ignores case. Quote the pattern so find, not the shell, handles it. Use -type f for regular files and -type d for directories. If you omit the start path, current directory is used on most systems, but giving it explicitly is clearer. Searching / without privileges prints 'Permission denied' for protected areas; redirect with 2>/dev/null to hide those messages, or use sudo."
+     ]
+    },
+    {
+     "h": "Finding by size and time",
+     "p": [
+      "find can filter by size and age. -size +50M matches files larger than 50 megabytes, and -size -1k matches under one kilobyte. For time, -mtime -1 means modified less than one day ago, -mtime +30 means more than thirty days ago, and -mmin -10 uses minutes. Tests combine as AND by default, so find /var -type f -size +50M -mtime -1 finds large files changed in the last day. This is how you track down a log that suddenly filled the disk, or spot files an intruder dropped recently."
+     ]
+    },
+    {
+     "h": "Actions and care",
+     "p": [
+      "By default find prints matches, but -exec runs a command for each one: find . -name '*.tmp' -exec rm -i {} \\; where {} is the matched name. -delete removes matches directly and must come last in the expression, so test the same command without it first. Another tool, locate, searches a prebuilt database and is faster, but may be stale until updatedb runs. For security work, useful searches include files with world-write permission, recently modified files in /etc, and unexpected files in /tmp."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ ls -a ~\n.  ..  .bash_history  .bashrc  .ssh  notes.txt\n$ find /var/log -type f -size +50M -mtime -1 2>/dev/null\n/var/log/app/debug.log\n$ find ~ -iname '*.conf' -type f"
+   },
+   "example": "Disk usage on app01 jumped overnight. The administrator runs find /var -type f -size +50M -mtime -1 2>/dev/null and gets one hit: /var/log/app/debug.log. She checks with ls -lh, finds it is 2 GB because debug logging was left on, and compresses it. The same combination of size and mtime tests found the cause in seconds, whereas browsing folders by hand would have taken far longer.",
+   "terms": [
+    {
+     "term": "Dotfile",
+     "def": "A file whose name begins with a dot and is hidden from default listings."
+    },
+    {
+     "term": "find",
+     "def": "Command that searches a directory tree using tests on name, type, size and time."
+    },
+    {
+     "term": "-mtime -1",
+     "def": "Matches files modified within the last day."
+    },
+    {
+     "term": "-exec",
+     "def": "Runs a command on each file that find matches."
+    },
+    {
+     "term": "locate",
+     "def": "Fast search over a prebuilt file name database."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which command lists hidden files too?",
+     "options": [
+      "ls -l",
+      "ls -a",
+      "ls -h",
+      "ls -r"
+     ],
+     "a": 1,
+     "why": "-a includes names that begin with a dot."
+    },
+    {
+     "q": "What does find / -size +50M match?",
+     "options": [
+      "Files under 50 MB",
+      "Files over 50 MB",
+      "Empty files",
+      "Directories"
+     ],
+     "a": 1,
+     "why": "+ means greater than."
+    },
+    {
+     "q": "What does -mtime -1 mean?",
+     "options": [
+      "Modified over a day ago",
+      "Modified within the last day",
+      "Created yesterday only",
+      "Accessed once"
+     ],
+     "a": 1,
+     "why": "Negative values mean less than that many days ago."
+    },
+    {
+     "q": "Why quote '*.conf' in find -name?",
+     "options": [
+      "It is required for speed",
+      "So find rather than the shell handles the pattern",
+      "To make it hidden",
+      "To ignore case"
+     ],
+     "a": 1,
+     "why": "Otherwise the shell may expand it first."
+    }
+   ],
+   "recap": [
+    "Dotfiles are hidden by convention only; use ls -la.",
+    "find filters by name, type, size and time and can act on results.",
+    "Test with print first, then add -exec or -delete."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Build a Project Tree",
+   "sim": "terminal",
+   "scenario": "You are setting up a workspace for a fictional team project named webapp on host lab01. The layout must hold source code, documentation and test data, with a few starter files, and you must verify the result recursively before handing it over.",
+   "objective": "Create a nested directory layout with mkdir -p and touch and verify it with ls -R.",
+   "steps": [
+    {
+     "do": "Type pwd to confirm location.",
+     "see": "/home/student"
+    },
+    {
+     "do": "Type mkdir -p webapp/{src,docs,tests/data}",
+     "see": "(no output; directories created)"
+    },
+    {
+     "do": "Type touch webapp/src/main.py webapp/docs/README.txt webapp/tests/data/sample.csv",
+     "see": "(no output)"
+    },
+    {
+     "do": "Type ls -R webapp",
+     "see": "webapp:\ndocs  src  tests\n\nwebapp/docs:\nREADME.txt\n\nwebapp/src:\nmain.py\n\nwebapp/tests:\ndata\n\nwebapp/tests/data:\nsample.csv"
+    },
+    {
+     "do": "Type ls -l webapp/src",
+     "see": "-rw-r--r-- 1 student student 0 Mar  3 10:02 main.py"
+    },
+    {
+     "do": "Type mkdir webapp/tests/data/extra",
+     "see": "(no output, but extra is created since parent exists)"
+    }
+   ],
+   "answer": "The tree webapp with src/main.py, docs/README.txt and tests/data/sample.csv exists, confirmed by ls -R. mkdir -p created nested folders in one command, and touch created zero-byte files.",
+   "hint": "Use brace expansion inside mkdir -p to make several folders at once."
+  },
+  {
+   "title": "Safe Cleanup",
+   "sim": "terminal",
+   "scenario": "In a fictional reports folder on host lab01 you find q1.txt, q2.txt, q3.txt and three leftovers named a.tmp, b.tmp and c.tmp. Your manager wants the reports archived and only the temporary files removed, without touching anything else.",
+   "objective": "Copy and move report files, then delete only the .tmp files using wildcards and rm -i.",
+   "steps": [
+    {
+     "do": "Type ls",
+     "see": "a.tmp  b.tmp  c.tmp  q1.txt  q2.txt  q3.txt"
+    },
+    {
+     "do": "Type mkdir archive",
+     "see": "(no output)"
+    },
+    {
+     "do": "Type cp q*.txt archive/",
+     "see": "(no output; three files copied)"
+    },
+    {
+     "do": "Type mv q3.txt q3_final.txt",
+     "see": "(no output)"
+    },
+    {
+     "do": "Type echo *.tmp",
+     "see": "a.tmp b.tmp c.tmp"
+    },
+    {
+     "do": "Type rm -i *.tmp",
+     "see": "rm: remove regular file 'a.tmp'? (answer y for each)"
+    },
+    {
+     "do": "Type ls",
+     "see": "archive  q1.txt  q2.txt  q3_final.txt"
+    }
+   ],
+   "answer": "Only the three .tmp files were removed, the reports remain, and archive holds copies of q1 to q3. Previewing with echo and using rm -i prevented deleting the wrong files.",
+   "hint": "Preview the glob with echo before attaching rm to it."
+  },
+  {
+   "title": "Follow the Log",
+   "sim": "log-viewer",
+   "scenario": "A fictional web server web01 writes /var/log/auth.log. Someone reports possible password guessing against SSH in the last few minutes. You must find the newest failed login lines and the first lines of the file to confirm the log start time.",
+   "objective": "Use tail and head on a simulated auth log to find the most recent failed login lines.",
+   "steps": [
+    {
+     "do": "Run head -n 3 auth.log",
+     "see": "Mar  3 08:00:01 web01 CRON[501]: session opened for user root\nMar  3 08:00:02 web01 CRON[501]: session closed\nMar  3 08:01:12 web01 sshd[811]: Server listening on 0.0.0.0 port 22."
+    },
+    {
+     "do": "Run tail -n 5 auth.log",
+     "see": "Mar  3 09:20:37 web01 sshd[2210]: Failed password for invalid user admin from 203.0.113.9 port 51520 ssh2\n(4 more similar lines for users root, test, oracle, guest)"
+    },
+    {
+     "do": "Run tail -f auth.log and wait",
+     "see": "New line appears: 09:20:44 ... Failed password for invalid user ubuntu from 203.0.113.9 port 51531 ssh2"
+    },
+    {
+     "do": "Stop with Ctrl+C",
+     "see": "Prompt returns."
+    },
+    {
+     "do": "Run tail -n 50 auth.log",
+     "see": "All failed attempts share one source address"
+    }
+   ],
+   "answer": "The most recent failed logins all come from 203.0.113.9 against many usernames, with new attempts every few seconds, which indicates automated password guessing against SSH.",
+   "hint": "Recent events are at the end of the file, so tail beats head."
+  },
+  {
+   "title": "Hunt the Large File",
+   "sim": "terminal",
+   "scenario": "A fictional server app01 has a nearly full disk after a night job. You suspect one file of about 50 MB or more under /var/tmp was written in the last day. Search without scanning by hand and ignore permission noise.",
+   "objective": "Use find with -name, -size and -mtime to locate a 50 MB file modified in the last day.",
+   "steps": [
+    {
+     "do": "Type find /var/tmp -type f",
+     "see": "(long list of 40 files)"
+    },
+    {
+     "do": "Type find /var/tmp -type f -size +50M",
+     "see": "/var/tmp/export_old.dat\n/var/tmp/export_new.dat"
+    },
+    {
+     "do": "Add the time test: find /var/tmp -type f -size +50M -mtime -1",
+     "see": "/var/tmp/export_new.dat"
+    },
+    {
+     "do": "Narrow by name: find /var/tmp -name 'export*.dat' -size +50M -mtime -1",
+     "see": "/var/tmp/export_new.dat"
+    },
+    {
+     "do": "Type ls -lh /var/tmp/export_new.dat",
+     "see": "-rw-r--r-- 1 svc svc 52M Mar  3 02:14 /var/tmp/export_new.dat"
+    }
+   ],
+   "answer": "The file is /var/tmp/export_new.dat, 52 MB, modified at 02:14 today. The size test alone found two files, and the -mtime -1 test excluded the older export_old.dat.",
+   "hint": "Combine -size +50M with -mtime -1; tests are ANDed."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which command creates nested directories in one step?",
+   "options": [
+    "mkdir",
+    "mkdir -p",
+    "touch -p",
+    "mv -p"
+   ],
+   "a": 1,
+   "why": "-p creates missing parents."
+  },
+  {
+   "q": "touch on an existing file does what?",
+   "options": [
+    "Truncates it",
+    "Updates timestamps",
+    "Deletes it",
+    "Hides it"
+   ],
+   "a": 1,
+   "why": "touch refreshes times only."
+  },
+  {
+   "q": "Why is rm dangerous?",
+   "options": [
+    "It needs a license",
+    "Files are not moved to a recycle bin",
+    "It always asks twice",
+    "It changes ownership"
+   ],
+   "a": 1,
+   "why": "Deletion is permanent in practice."
+  },
+  {
+   "q": "Which flag makes cp or rm prompt first?",
+   "options": [
+    "-r",
+    "-i",
+    "-v",
+    "-a"
+   ],
+   "a": 1,
+   "why": "-i is interactive."
+  },
+  {
+   "q": "Best way to watch new lines in a log as they arrive?",
+   "options": [
+    "cat log",
+    "tail -f log",
+    "head log",
+    "less log"
+   ],
+   "a": 1,
+   "why": "tail -f follows appended lines."
+  },
+  {
+   "q": "report?.txt matches which file?",
+   "options": [
+    "report10.txt",
+    "report1.txt",
+    "report.txt",
+    "reports.txt"
+   ],
+   "a": 1,
+   "why": "? is exactly one character."
+  },
+  {
+   "q": "Who expands wildcards such as *.txt?",
+   "options": [
+    "The command",
+    "The shell",
+    "The kernel",
+    "The disk"
+   ],
+   "a": 1,
+   "why": "The shell expands globs."
+  },
+  {
+   "q": "Which command lists dotfiles in the current folder?",
+   "options": [
+    "ls",
+    "ls -a",
+    "ls -S",
+    "ls -d"
+   ],
+   "a": 1,
+   "why": "-a shows hidden entries."
+  },
+  {
+   "q": "find / -type f -size +50M finds...",
+   "options": [
+    "Directories over 50 MB",
+    "Regular files over 50 MB",
+    "Files younger than 50 days",
+    "Empty files"
+   ],
+   "a": 1,
+   "why": "-type f plus +50M."
+  },
+  {
+   "q": "Which timestamp is updated when permissions change?",
+   "options": [
+    "mtime",
+    "ctime",
+    "btime only",
+    "none"
+   ],
+   "a": 1,
+   "why": "ctime records inode changes."
+  }
+ ]
+}

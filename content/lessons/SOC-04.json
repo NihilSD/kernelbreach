@@ -1,0 +1,788 @@
+{
+ "code": "SOC-04",
+ "intro": "Linux servers and web applications produce text logs that show who connected, which commands ran and what visitors requested. This module covers where logs live and how to query syslog and journald, how to read SSH and sudo activity in auth.log, how auditd records system calls and file changes, how to parse Apache and Nginx access logs, and how to spot brute force, scanning and web attacks with grep, awk and sort. These skills apply to most internet-facing systems.",
+ "lessons": [
+  {
+   "title": "Linux log locations and syslog/journald",
+   "why": "Knowing where Linux keeps its evidence, and how to query it, is the starting point of any server investigation.",
+   "sections": [
+    {
+     "h": "Where logs live",
+     "p": [
+      "Most Linux logs are plain text under /var/log. On Debian and Ubuntu, /var/log/syslog holds general messages and /var/log/auth.log holds authentication events. On Red Hat, CentOS and Fedora, the equivalents are /var/log/messages and /var/log/secure. Others include /var/log/kern.log for the kernel, /var/log/dpkg.log or yum logs for package changes, /var/log/audit/audit.log for auditd, and /var/log/apache2 or /var/log/nginx for web servers. The login history is in the binary files /var/log/wtmp (read with last), /var/log/btmp (lastb, failed logins) and /var/log/lastlog. Because they are binary, use the dedicated commands rather than cat."
+     ]
+    },
+    {
+     "h": "Syslog daemons and rotation",
+     "p": [
+      "A syslog daemon such as rsyslog or syslog-ng receives messages from services, writes them to files according to rules in /etc/rsyslog.conf and /etc/rsyslog.d, and can forward them to a central collector, for example with a line like *.* @@192.0.2.100:514 for TCP. The logrotate utility rotates and compresses files, so older records appear as syslog.1 or syslog.2.gz. Use zcat or zgrep to search compressed files. When investigating, check all rotated files that cover the period of interest, because an incident may begin before the current file starts."
+     ]
+    },
+    {
+     "h": "journald and journalctl",
+     "p": [
+      "Systems using systemd also collect logs in the journal, a structured binary store queried with journalctl. Useful options are -u ssh to filter by unit, -p err to show priority error and above, --since \"2025-03-14 09:00\" and --until for time ranges, -b for the current boot, -f to follow new entries and -o json for structured output. The journal may be volatile and lost at reboot unless /var/log/journal exists or Storage=persistent is set, so confirm persistence. Many systems run both journald and rsyslog, so the same event may appear in both places."
+     ]
+    },
+    {
+     "h": "Tampering and trust",
+     "p": [
+      "An attacker with root access can edit or delete logs, so treat local files on a compromised host with caution. Signs include gaps in timestamps, truncated files, a recent modification time on a log that should be append-only, and cleared shell history. Compare with a remote copy in the SIEM, and check wtmp and auditd for contradictions. Permissions matter: logs should be writable only by privileged services. Sending logs off the host in near real time, and keeping file integrity monitoring on /var/log, make tampering both harder and easier to notice."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ journalctl -u ssh -p warning --since '2025-03-14 09:00' --until '2025-03-14 09:30' | head -3\nMar 14 09:21:07 web01 sshd[812]: Failed password for invalid user test from 203.0.113.9 port 40122 ssh2\nMar 14 09:21:09 web01 sshd[812]: Failed password for invalid user admin from 203.0.113.9 port 40124 ssh2"
+   },
+   "example": "An analyst investigates web01 for activity on 14 March. The current /var/log/auth.log begins on 13 March after rotation, but the intrusion may have started earlier. They use zgrep 'Accepted' /var/log/auth.log.*.gz to search older files, run last -i to list login history with source addresses, and compare against the central SIEM copy. The SIEM copy shows entries missing locally, which suggests log tampering.",
+   "terms": [
+    {
+     "term": "/var/log/auth.log",
+     "def": "Debian-family file with authentication and sudo events."
+    },
+    {
+     "term": "journalctl",
+     "def": "Command that queries the systemd journal."
+    },
+    {
+     "term": "logrotate",
+     "def": "Utility that rotates and compresses log files."
+    },
+    {
+     "term": "wtmp",
+     "def": "Binary file of login history read with the last command."
+    },
+    {
+     "term": "rsyslog",
+     "def": "A common Linux syslog daemon."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which file holds authentication events on Ubuntu?",
+     "options": [
+      "/var/log/auth.log",
+      "/var/log/boot.log only",
+      "/etc/passwd",
+      "/proc/net"
+     ],
+     "a": 0,
+     "why": "auth.log is the Debian-family authentication log."
+    },
+    {
+     "q": "Which command shows login history from wtmp?",
+     "options": [
+      "last",
+      "lastcomm only",
+      "ls",
+      "who -r only"
+     ],
+     "a": 0,
+     "why": "last reads /var/log/wtmp."
+    },
+    {
+     "q": "How do you search compressed rotated logs?",
+     "options": [
+      "zgrep",
+      "cat",
+      "gzip -d only manually",
+      "mount"
+     ],
+     "a": 0,
+     "why": "zgrep searches gzip files directly."
+    },
+    {
+     "q": "Why compare local logs to a central copy?",
+     "options": [
+      "Root attackers can alter local logs",
+      "Local logs are always wrong",
+      "Central logs are smaller",
+      "It is required by ssh"
+     ],
+     "a": 0,
+     "why": "A remote copy exposes tampering."
+    }
+   ],
+   "recap": [
+    "Know /var/log files, rotated archives and wtmp/btmp.",
+    "Use journalctl with -u, -p and --since.",
+    "Treat local logs on a compromised host with caution."
+   ]
+  },
+  {
+   "title": "auth.log and SSH activity",
+   "why": "SSH is the main remote door to Linux, and its log lines reveal guessing, successful access and privilege escalation.",
+   "sections": [
+    {
+     "h": "Reading sshd entries",
+     "p": [
+      "The sshd service logs each attempt. Failed password for root from 203.0.113.9 port 40122 ssh2 is a failed login for an existing account. Failed password for invalid user admin means the user does not exist on the system. Accepted password for deploy from 192.0.2.50 port 51022 ssh2 is a success, and Accepted publickey shows key authentication with the key fingerprint. Other messages include Connection closed by authenticating user, Disconnected from invalid user, and Did not receive identification string, which often indicates a scanner. The process ID in brackets ties together lines from one connection."
+     ]
+    },
+    {
+     "h": "Patterns that indicate attack",
+     "p": [
+      "A brute force attack shows many Failed password lines from one address in a short time. Distributed attacks spread attempts across many addresses, so group by target account as well. Invalid user lines for common names such as admin, test, oracle and ubuntu suggest a dictionary attack. The key sequence to find is failures followed by an Accepted line from the same source, which means a guess succeeded. Also look for logins by accounts that never log in remotely, logins from new countries and logins at unusual times."
+     ]
+    },
+    {
+     "h": "sudo and su activity",
+     "p": [
+      "After access, attackers escalate privileges. The sudo command logs lines such as sudo: deploy : TTY=pts/0 ; PWD=/home/deploy ; USER=root ; COMMAND=/bin/bash, showing who ran what as which user. Failed attempts appear as 3 incorrect password attempts. The su command logs session opened for user root by deploy. Also look at useradd, usermod and passwd entries, and pam_unix session opened and closed lines to measure session duration. Use these to answer: after the login, what did the account do, and did it become root?"
+     ]
+    },
+    {
+     "h": "Hardening and response",
+     "p": [
+      "Defensive measures include disabling password authentication and using keys, setting PermitRootLogin no, limiting which users may log in with AllowUsers, restricting access to trusted ranges with a firewall, and deploying fail2ban to ban addresses after repeated failures. Multi-factor authentication for SSH through PAM is another layer. During response, record the attacker address, identify the compromised account, check authorized_keys files for added keys, check new cron jobs and review shell history. Rotate credentials and keys after cleaning up."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "auth.log excerpt",
+    "text": "Mar 14 09:21:07 web01 sshd[812]: Failed password for invalid user admin from 203.0.113.9 port 40122 ssh2\nMar 14 09:21:12 web01 sshd[815]: Failed password for root from 203.0.113.9 port 40130 ssh2\nMar 14 09:24:41 web01 sshd[901]: Accepted password for deploy from 203.0.113.9 port 40288 ssh2\nMar 14 09:25:03 web01 sudo: deploy : USER=root ; COMMAND=/bin/bash"
+   },
+   "example": "The log shows many failed attempts from 203.0.113.9, then an Accepted password line for deploy from the same address, then a sudo to a root shell 22 seconds later. The analyst treats this as a compromised account. Actions: block the source, disable deploy, review authorized_keys and cron, check for new users, and look for outbound connections made after 09:25.",
+   "terms": [
+    {
+     "term": "Accepted password",
+     "def": "sshd line showing a successful password login."
+    },
+    {
+     "term": "Invalid user",
+     "def": "A login attempt for an account that does not exist."
+    },
+    {
+     "term": "sudo",
+     "def": "Command that runs another command with elevated privileges and logs it."
+    },
+    {
+     "term": "fail2ban",
+     "def": "A tool that bans sources after repeated failures."
+    },
+    {
+     "term": "authorized_keys",
+     "def": "File listing public keys allowed to log in as a user."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does Failed password for invalid user admin tell you?",
+     "options": [
+      "The user admin does not exist",
+      "The password was correct",
+      "SSH is disabled",
+      "The server is patched"
+     ],
+     "a": 0,
+     "why": "Invalid user means no such account."
+    },
+    {
+     "q": "Which sequence is most alarming?",
+     "options": [
+      "Many failures then Accepted from the same IP",
+      "One failure from the admin console",
+      "A session closed",
+      "A key accepted from a known IP"
+     ],
+     "a": 0,
+     "why": "Failures followed by success indicate a successful guess."
+    },
+    {
+     "q": "Where do you check for added attacker SSH keys?",
+     "options": [
+      "authorized_keys",
+      "/etc/hostname",
+      "/var/log/dpkg.log",
+      "/proc/cpuinfo"
+     ],
+     "a": 0,
+     "why": "Attackers add public keys for persistence."
+    },
+    {
+     "q": "What does fail2ban do?",
+     "options": [
+      "Bans addresses after repeated failures",
+      "Encrypts logs",
+      "Patches the kernel",
+      "Restores backups"
+     ],
+     "a": 0,
+     "why": "It reads logs and blocks abusive sources."
+    }
+   ],
+   "recap": [
+    "Read Failed, Invalid user and Accepted lines.",
+    "Failures then success from one source means compromise.",
+    "Check sudo, authorized_keys and new users after access."
+   ]
+  },
+  {
+   "title": "auditd rules and records",
+   "why": "Auditd records kernel-level facts such as which user ran which executable, which file was changed and by which system call.",
+   "sections": [
+    {
+     "h": "What auditd is",
+     "p": [
+      "The Linux Audit framework has a kernel component and the auditd daemon, which writes records to /var/log/audit/audit.log. It is configured through rules loaded by auditctl or files in /etc/audit/rules.d, compiled by augenrules. Unlike syslog, auditd observes system calls directly, so it can record actions such as opening files or executing programs regardless of what the application chose to log. Compliance standards often require it. Its drawback is volume, so rules should be targeted at sensitive files, commands and system calls."
+     ]
+    },
+    {
+     "h": "Record types",
+     "p": [
+      "A single action produces several records sharing one event ID in msg=audit(timestamp:ID). SYSCALL gives the system call, arch, success, exit code, ppid, pid, auid (the original login user ID, which persists across su and sudo), uid, comm and exe. EXECVE gives the program arguments. PATH gives the file names and inode involved. CWD shows the working directory, and PROCTITLE the process title in hexadecimal. Remember auid versus uid: uid may be root after sudo, but auid shows who originally logged in, which identifies the responsible person."
+     ]
+    },
+    {
+     "h": "Writing watch rules",
+     "p": [
+      "File watches use auditctl -w path -p permissions -k key. The permissions are r read, w write, x execute and a attribute change. For example auditctl -w /etc/passwd -p wa -k identity logs writes and attribute changes to /etc/passwd with the key identity. Other typical watches cover /etc/shadow, /etc/sudoers, /etc/ssh/sshd_config and cron directories. System call rules such as auditctl -a always,exit -F arch=b64 -S execve -k exec capture program execution. Keys make searching easy using ausearch -k identity. Rules loaded with auditctl vanish at reboot unless saved in rules.d."
+     ]
+    },
+    {
+     "h": "Searching and interpreting",
+     "p": [
+      "Use ausearch to filter records, for example ausearch -k identity -i, where -i interprets numeric IDs into names. Use aureport for summaries, such as aureport -au for authentication or aureport -x for executables. Always read all records with the same event ID together. A write to /etc/passwd might show SYSCALL with exe=/usr/sbin/useradd and auid=1001, telling you that user 1001 ran useradd. Convert timestamps with ausearch -i or date -d @epoch. Pair auditd with auth.log to tie the user session to the action."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "audit.log excerpt",
+    "text": "type=SYSCALL msg=audit(1741944301.112:5021): arch=c000003e syscall=257 success=yes exit=3 ppid=1190 pid=1204 auid=1001 uid=0 comm=\"vim\" exe=\"/usr/bin/vim.basic\" key=\"identity\"\ntype=CWD msg=audit(1741944301.112:5021): cwd=\"/home/deploy\"\ntype=PATH msg=audit(1741944301.112:5021): item=0 name=\"/etc/passwd\" nametype=NORMAL"
+   },
+   "example": "An alert for the rule key identity shows a write to /etc/passwd. Reading the three records with event ID 5021: the file is /etc/passwd, the executable is vim.basic, uid is 0 (root) but auid is 1001. Looking up 1001 gives deploy. So user deploy used sudo to edit the file with vim. The analyst checks whether a change ticket exists and diffs the file for added accounts.",
+   "terms": [
+    {
+     "term": "auditd",
+     "def": "The Linux audit daemon that records kernel audit events."
+    },
+    {
+     "term": "auid",
+     "def": "Audit user ID: the original login user, preserved across sudo and su."
+    },
+    {
+     "term": "auditctl -w",
+     "def": "Command that adds a file watch rule."
+    },
+    {
+     "term": "ausearch",
+     "def": "Tool to search audit records by key, user, time or event."
+    },
+    {
+     "term": "Audit key",
+     "def": "A label (-k) attached to rules to make searching easy."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which field identifies the original logged-in user across sudo?",
+     "options": [
+      "auid",
+      "uid",
+      "pid",
+      "ppid"
+     ],
+     "a": 0,
+     "why": "auid persists even after privilege changes."
+    },
+    {
+     "q": "What does auditctl -w /etc/passwd -p wa -k identity do?",
+     "options": [
+      "Watches writes and attribute changes to the file",
+      "Deletes the file",
+      "Blocks logins",
+      "Encrypts passwd"
+     ],
+     "a": 0,
+     "why": "-w sets the path, -p wa the permissions and -k the key."
+    },
+    {
+     "q": "Which record type holds the program arguments?",
+     "options": [
+      "EXECVE",
+      "PATH",
+      "CWD",
+      "USER_LOGIN"
+     ],
+     "a": 0,
+     "why": "EXECVE shows the command arguments."
+    },
+    {
+     "q": "Why read all records with the same event ID together?",
+     "options": [
+      "One action creates several related records",
+      "They are encrypted",
+      "They are identical",
+      "Only the first matters"
+     ],
+     "a": 0,
+     "why": "SYSCALL, PATH and CWD together describe one action."
+    }
+   ],
+   "recap": [
+    "auditd captures syscalls and file watches.",
+    "Use auid to find the real user behind root.",
+    "Use keys with ausearch and aureport."
+   ]
+  },
+  {
+   "title": "Web access logs: Apache and Nginx",
+   "why": "Web logs record every request, which makes them the main record of scanning, exploitation attempts and abuse.",
+   "sections": [
+    {
+     "h": "The combined log format",
+     "p": [
+      "Apache and Nginx commonly write the combined format: client IP, identity, user, time, request line, status, bytes, referrer and user agent. Example: 203.0.113.9 - - [14/Mar/2025:09:30:01 +0000] \"GET /index.php?id=5 HTTP/1.1\" 200 1532 \"-\" \"Mozilla/5.0\". Default locations are /var/log/apache2/access.log and error.log or /var/log/nginx/access.log and error.log. The time includes an offset. Custom formats may add response time or the X-Forwarded-For header, which matters behind a proxy or load balancer, where the logged client address may otherwise be the proxy."
+     ]
+    },
+    {
+     "h": "Status codes",
+     "p": [
+      "Status codes summarize the response. 2xx is success: 200 OK, 206 partial. 3xx are redirects: 301, 302, 304 not modified. 4xx are client errors: 400 bad request, 401 unauthorized, 403 forbidden, 404 not found, 405 method not allowed. 5xx are server errors such as 500 and 503. A burst of 404 from one address suggests content discovery. Repeated 401 or 403 against a login or admin path suggests guessing. A 200 for an attack-looking request deserves careful review, and a 500 may indicate that an injection reached the application and caused an error."
+     ]
+    },
+    {
+     "h": "User agents, referrers and methods",
+     "p": [
+      "The user agent identifies the client software, but it is attacker-controlled. Defaults from tools such as sqlmap, Nikto, Nmap Scripting Engine, curl and python-requests are easy clues, while scripts that fake browsers need behavior analysis instead. Referrers show where a visit came from. Methods matter: POST to unusual endpoints, PUT or DELETE where they are not used, and CONNECT or TRACE can signal probing. Query strings reveal parameters, but POST bodies are not logged by default, so a successful exploit through a POST may appear as only a small line."
+     ]
+    },
+    {
+     "h": "Limits and enrichment",
+     "p": [
+      "Access logs show what was asked and how the server answered, but not what the application did internally, nor the response content. Response size can help: a successful file read often returns a size that differs from normal error pages. Combine with the error log, application logs, WAF logs and file integrity data. Enrich addresses with reputation and geolocation, and remember that CDNs and proxies hide the real client unless forwarded headers are logged. Always convert times to UTC and check log rotation, because busy sites can rotate in hours."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Access log excerpt",
+    "text": "203.0.113.9 - - [14/Mar/2025:09:30:01 +0000] \"GET /admin HTTP/1.1\" 404 196 \"-\" \"Nikto/2.5\"\n203.0.113.9 - - [14/Mar/2025:09:30:02 +0000] \"GET /backup.zip HTTP/1.1\" 404 196 \"-\" \"Nikto/2.5\"\n198.51.100.4 - - [14/Mar/2025:09:31:10 +0000] \"POST /login HTTP/1.1\" 401 310 \"-\" \"python-requests/2.31\""
+   },
+   "example": "A site shows 600 requests in one minute from 203.0.113.9 with a Nikto user agent, nearly all 404 with a size of 196 bytes. Two requests returned 200: /server-status and /phpinfo.php. The analyst notes the scanner, lists probed paths, restricts the two exposed pages, blocks the address and checks error logs for anything unusual. No upload or shell paths returned 200, so there is no sign of compromise.",
+   "terms": [
+    {
+     "term": "Combined log format",
+     "def": "Standard web log with IP, time, request, status, size, referrer and user agent."
+    },
+    {
+     "term": "Status code",
+     "def": "Three digit server response outcome such as 200 or 404."
+    },
+    {
+     "term": "User agent",
+     "def": "A header identifying the client software."
+    },
+    {
+     "term": "X-Forwarded-For",
+     "def": "Header carrying the original client address behind a proxy."
+    },
+    {
+     "term": "Referrer",
+     "def": "Header naming the page that linked to the request."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does a 404 burst from one IP suggest?",
+     "options": [
+      "Content discovery or scanning",
+      "A healthy cache",
+      "A database backup",
+      "A software update"
+     ],
+     "a": 0,
+     "why": "Many not found responses indicate probing for paths."
+    },
+    {
+     "q": "What status class indicates a server error?",
+     "options": [
+      "5xx",
+      "2xx",
+      "3xx",
+      "4xx"
+     ],
+     "a": 0,
+     "why": "5xx codes are server-side errors."
+    },
+    {
+     "q": "Why can the logged client IP be wrong behind a load balancer?",
+     "options": [
+      "It shows the proxy address",
+      "Logs are encrypted",
+      "Clients change IPs",
+      "Nginx hides it by default always"
+     ],
+     "a": 0,
+     "why": "Use X-Forwarded-For to see the original client."
+    },
+    {
+     "q": "Is the user agent reliable evidence of identity?",
+     "options": [
+      "No, attackers can change it",
+      "Yes, always",
+      "Only for browsers",
+      "Only for 404"
+     ],
+     "a": 0,
+     "why": "It is a client-controlled string."
+    }
+   ],
+   "recap": [
+    "Learn the combined log fields and status classes.",
+    "User agents are clues but spoofable.",
+    "Access logs miss POST bodies and server internals."
+   ]
+  },
+  {
+   "title": "Spotting brute force and scanning",
+   "why": "Simple command-line pipelines can turn thousands of log lines into a clear list of attackers and targets.",
+   "sections": [
+    {
+     "h": "Counting and ranking",
+     "p": [
+      "The core pipeline is extract, sort, count and rank. To list the top client IPs: awk '{print $1}' access.log | sort | uniq -c | sort -rn | head. To count status codes: awk '{print $9}' access.log | sort | uniq -c. To see which paths one address requested: grep '^203.0.113.9 ' access.log | awk '{print $7}' | sort | uniq -c | sort -rn. Always sort before uniq -c, because uniq only collapses adjacent duplicates. These pipelines work on auth.log as well, using patterns for failed passwords."
+     ]
+    },
+    {
+     "h": "Credential stuffing and brute force",
+     "p": [
+      "Login attacks appear as repeated requests to the same login URL, usually POST, with 401 or 403, or 200 for a login page that re-displays on failure, so also compare response sizes. Credential stuffing uses stolen username and password pairs, so it often spreads over many accounts and many addresses with few attempts per account. Detect by counting failures per IP, per username and per time window. A successful sign-in following many failures is the key signal, and a sudden rise in 200 responses of a different size on the login URL may be the successful ones."
+     ]
+    },
+    {
+     "h": "Directory enumeration and injection patterns",
+     "p": [
+      "Directory enumeration tools request many paths from wordlists, producing a run of 404 responses and occasional 200 or 301 for found content. Injection attempts appear in query strings: SQL injection traces such as UNION SELECT, ' OR 1=1, sleep( and information_schema; path traversal such as ../ or %2e%2e%2f; and command injection characters like ; and |. Search case-insensitively and include URL-encoded forms, such as grep -iE 'union(%20|\\+| )select|\\.\\./|%2e%2e'. Not every match is an attack, but a 200 with an unusual response size makes it worth reading."
+     ]
+    },
+    {
+     "h": "Prevention and next steps",
+     "p": [
+      "For each finding, decide the action. Block or rate-limit abusive addresses at a firewall, WAF or fail2ban, add login protections such as lockout, CAPTCHA, MFA and rate limiting, and remove exposed paths like backups and phpinfo. Check application and database logs for evidence that an injection succeeded, and review the web root for new or modified files with find -mtime. Document the attacker addresses, user agents, paths, time range and response codes so that the evidence can be reused to create detection rules and to brief the application owner."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ awk '{print $1}' access.log | sort | uniq -c | sort -rn | head -3\n  612 203.0.113.9\n   48 198.51.100.4\n   12 192.0.2.77\n$ grep -iE 'union(%20|\\+| )select|\\.\\./' access.log | awk '{print $1,$9,$10}'\n203.0.113.9 404 196\n203.0.113.9 200 5120"
+   },
+   "example": "An analyst runs the top-IP pipeline and sees 612 requests from 203.0.113.9. Filtering that IP shows traversal and UNION SELECT strings. All return 404 except one request with status 200 and 5120 bytes, much larger than the usual error page. The analyst treats it as a possible successful exploit, preserves the log lines, checks the database and application logs and notifies the application owner.",
+   "terms": [
+    {
+     "term": "uniq -c",
+     "def": "Counts adjacent duplicate lines; usually used after sort."
+    },
+    {
+     "term": "Credential stuffing",
+     "def": "Logging in with stolen username and password pairs at scale."
+    },
+    {
+     "term": "Directory enumeration",
+     "def": "Requesting many paths to find hidden content."
+    },
+    {
+     "term": "Path traversal",
+     "def": "Using ../ sequences to reach files outside the web root."
+    },
+    {
+     "term": "SQL injection",
+     "def": "Inserting SQL syntax into input to alter a database query."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why run sort before uniq -c?",
+     "options": [
+      "uniq only counts adjacent duplicates",
+      "sort encrypts data",
+      "uniq cannot read files",
+      "It is faster to type"
+     ],
+     "a": 0,
+     "why": "Unsorted duplicates would not be grouped."
+    },
+    {
+     "q": "Which pattern suggests path traversal?",
+     "options": [
+      "../ or %2e%2e%2f",
+      "GET /index.html",
+      "status 304",
+      "favicon.ico"
+     ],
+     "a": 0,
+     "why": "Dot-dot-slash sequences try to leave the web root."
+    },
+    {
+     "q": "Which signal best suggests a successful injection among many 404s?",
+     "options": [
+      "A 200 with an unusual response size",
+      "Another 404",
+      "A 301 to https",
+      "A HEAD request"
+     ],
+     "a": 0,
+     "why": "Different response behavior suggests the request worked."
+    },
+    {
+     "q": "What pattern fits credential stuffing?",
+     "options": [
+      "Many accounts, many IPs, few attempts per account",
+      "One request from one IP",
+      "Only GET requests to images",
+      "No login requests"
+     ],
+     "a": 0,
+     "why": "It spreads attempts to avoid lockout thresholds."
+    }
+   ],
+   "recap": [
+    "Extract, sort, count and rank with awk, sort and uniq -c.",
+    "Look for 404 bursts, login failures and injection strings.",
+    "A 200 with odd size among attack requests needs review."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "SSH brute force hunt",
+   "sim": "terminal",
+   "scenario": "Fictional host web01 (192.0.2.30) has an auth.log with SSH activity. You must rank source IPs of failed logins and check whether any later logged in successfully.",
+   "objective": "Find the top failing source IP and any successful login from it.",
+   "steps": [
+    {
+     "do": "Type: grep -c 'Failed password' auth.log",
+     "see": "214"
+    },
+    {
+     "do": "Type: grep 'Failed password' auth.log | awk '{print $(NF-3)}' | sort | uniq -c | sort -rn | head",
+     "see": "  190 203.0.113.9\n   16 198.51.100.4\n    8 192.0.2.77"
+    },
+    {
+     "do": "Type: grep 'Accepted' auth.log",
+     "see": "Mar 14 09:24:41 web01 sshd[901]: Accepted password for deploy from 203.0.113.9 port 40288 ssh2\nMar 14 08:10:02 web01 sshd[640]: Accepted publickey for admin from 192.0.2.77 port 52211 ssh2"
+    },
+    {
+     "do": "Type: grep '203.0.113.9' auth.log | tail -3",
+     "see": "09:24:41 Accepted password for deploy\n09:24:42 pam_unix(sshd:session): session opened for user deploy\n09:25:03 sudo: deploy : USER=root ; COMMAND=/bin/bash"
+    },
+    {
+     "do": "Type: submit top IP and account",
+     "see": "Correct: 203.0.113.9, account deploy"
+    }
+   ],
+   "answer": "The top source is 203.0.113.9 with 190 failures. It later logged in successfully as deploy at 09:24:41 and ran sudo to a root shell at 09:25:03, so deploy is compromised.",
+   "hint": "Match the Accepted lines against the top failing IPs."
+  },
+  {
+   "title": "Read auditd events",
+   "sim": "log-viewer",
+   "scenario": "An auditd key alert reports a change to /etc/passwd on fictional host db01 at 2025-03-14 10:05 UTC. You must trace the records to the responsible user and executable.",
+   "objective": "Identify the user and executable that modified /etc/passwd.",
+   "steps": [
+    {
+     "do": "Search key=identity",
+     "see": "3 records, event ID 7733"
+    },
+    {
+     "do": "Open the SYSCALL record",
+     "see": "syscall=257 success=yes auid=1001 uid=0 comm=\"vim\" exe=\"/usr/bin/vim.basic\""
+    },
+    {
+     "do": "Open the PATH record",
+     "see": "name=\"/etc/passwd\" nametype=NORMAL"
+    },
+    {
+     "do": "Open the CWD record",
+     "see": "cwd=\"/home/deploy\""
+    },
+    {
+     "do": "Resolve auid 1001",
+     "see": "1001 = deploy"
+    },
+    {
+     "do": "Submit finding",
+     "see": "Accepted: user deploy (auid 1001) via sudo, executable /usr/bin/vim.basic"
+    }
+   ],
+   "answer": "User deploy (auid 1001) edited /etc/passwd with /usr/bin/vim.basic while running as root (uid 0), so they used sudo. The auid field reveals the original login identity.",
+   "hint": "Read auid, not uid, to find the person."
+  },
+  {
+   "title": "Web log scan detection",
+   "sim": "log-viewer",
+   "scenario": "A web access log from fictional site shop.example.com contains 3000 lines. One client appears to be scanning. You must find the 404 burst, the scanner user agent and the probed paths.",
+   "objective": "Identify the scanner IP, tool and paths probed.",
+   "steps": [
+    {
+     "do": "Group by status code",
+     "see": "200: 2100, 404: 820, 301: 60, 403: 20"
+    },
+    {
+     "do": "Group 404 by client IP",
+     "see": "203.0.113.9: 790, others: 30"
+    },
+    {
+     "do": "Open an event from 203.0.113.9",
+     "see": "UA: Nikto/2.5, 09:30:01Z"
+    },
+    {
+     "do": "List distinct paths for 203.0.113.9 with 200 status",
+     "see": "/server-status, /phpinfo.php"
+    },
+    {
+     "do": "List sample 404 paths",
+     "see": "/admin, /backup.zip, /.git/config, /wp-login.php"
+    },
+    {
+     "do": "Submit finding",
+     "see": "Accepted: 203.0.113.9, Nikto, 790 probes, two exposed paths"
+    }
+   ],
+   "answer": "The scanner is 203.0.113.9 using the Nikto user agent, with 790 404 responses. It found two exposed pages, /server-status and /phpinfo.php, which should be restricted.",
+   "hint": "Group by IP before reading individual lines."
+  },
+  {
+   "title": "Detect web exploitation",
+   "sim": "terminal",
+   "scenario": "An access log from fictional app.example.com contains traversal and SQL injection attempts. Using grep you must find which single suspicious request returned a 200.",
+   "objective": "Identify the one malicious request with status 200.",
+   "steps": [
+    {
+     "do": "Type: grep -ciE 'union(%20|\\+| )select' access.log",
+     "see": "14"
+    },
+    {
+     "do": "Type: grep -c '\\.\\./' access.log",
+     "see": "9"
+    },
+    {
+     "do": "Type: grep -iE 'union(%20|\\+| )select|\\.\\./' access.log | awk '{print $9}' | sort | uniq -c",
+     "see": "  22 404\n   1 200"
+    },
+    {
+     "do": "Type: grep -iE 'union(%20|\\+| )select|\\.\\./' access.log | awk '$9==200'",
+     "see": "203.0.113.9 - - [14/Mar/2025:09:41:12 +0000] \"GET /download?file=../../etc/passwd HTTP/1.1\" 200 1834"
+    },
+    {
+     "do": "Type: submit request",
+     "see": "Accepted: path traversal request returned 200 (1834 bytes)"
+    }
+   ],
+   "answer": "The one successful malicious request is GET /download?file=../../etc/passwd from 203.0.113.9 returning 200 with 1834 bytes, meaning /etc/passwd was likely disclosed. The other 22 attempts returned 404.",
+   "hint": "Filter the matches by status column 9."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which command queries the systemd journal?",
+   "options": [
+    "journalctl",
+    "logrotate",
+    "last",
+    "dmesg only"
+   ],
+   "a": 0,
+   "why": "journalctl reads the journal."
+  },
+  {
+   "q": "Which file lists failed login attempts in binary form?",
+   "options": [
+    "/var/log/btmp",
+    "/etc/hosts",
+    "/var/log/dpkg.log",
+    "/proc/loadavg"
+   ],
+   "a": 0,
+   "why": "btmp holds failed logins, read with lastb."
+  },
+  {
+   "q": "Which log line indicates a user that does not exist?",
+   "options": [
+    "Failed password for invalid user admin",
+    "Accepted publickey",
+    "session closed",
+    "Server listening"
+   ],
+   "a": 0,
+   "why": "Invalid user means no such account."
+  },
+  {
+   "q": "What does auid represent in audit records?",
+   "options": [
+    "Original login user ID",
+    "Process ID",
+    "Parent ID",
+    "Group ID"
+   ],
+   "a": 0,
+   "why": "auid survives sudo and su."
+  },
+  {
+   "q": "What does auditctl -w /etc/shadow -p wa do?",
+   "options": [
+    "Watches writes and attribute changes",
+    "Reads the file",
+    "Backs up the file",
+    "Locks the file"
+   ],
+   "a": 0,
+   "why": "-w adds a watch with write and attribute permissions."
+  },
+  {
+   "q": "In the combined log format, which field is the status code?",
+   "options": [
+    "Field after the request line",
+    "The first field",
+    "The user agent",
+    "The referrer"
+   ],
+   "a": 0,
+   "why": "The status follows the quoted request line."
+  },
+  {
+   "q": "A burst of 404 responses from one IP most likely means:",
+   "options": [
+    "Content discovery scanning",
+    "Successful backups",
+    "Cache warming",
+    "DNS failure"
+   ],
+   "a": 0,
+   "why": "Many not found responses indicate path guessing."
+  },
+  {
+   "q": "Why use sort before uniq -c?",
+   "options": [
+    "uniq counts only adjacent duplicates",
+    "sort speeds disks",
+    "uniq needs root",
+    "It is optional always"
+   ],
+   "a": 0,
+   "why": "Grouping requires adjacency."
+  },
+  {
+   "q": "Which string suggests path traversal in a URL?",
+   "options": [
+    "../",
+    "/images/",
+    "?page=2",
+    "#top"
+   ],
+   "a": 0,
+   "why": "Dot-dot-slash tries to escape the web root."
+  },
+  {
+   "q": "Which request deserves most attention among injection attempts?",
+   "options": [
+    "The one returning 200 with an unusual size",
+    "Those returning 404",
+    "Those blocked by WAF with 403",
+    "HEAD requests to the home page"
+   ],
+   "a": 0,
+   "why": "Success indicators matter most."
+  }
+ ]
+}

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Library</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+a{color:inherit}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="width:390px;height:844px;box-sizing:border-box;position:relative;overflow:hidden;display:flex;flex-direction:column;background-color:#F3F5F9;background-image:radial-gradient(#D3DAE8 1px,transparent 1px);background-size:18px 18px;font-family:'Hanken Grotesk',sans-serif;color:#101B33">
+  <div style="flex:1;min-height:0;padding:56px 20px 0;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden">
+    <h1 style="margin:0;font:700 32px/1.05 'Bricolage Grotesque',sans-serif;letter-spacing:-.01em">Library</h1>
+    <p style="margin:8px 0 0;font:400 16px/1.4 'Hanken Grotesk',sans-serif;color:#46546F">Look up any term you have met.</p>
+
+    <div style="margin-top:16px;height:52px;border-radius:16px;background:#fff;border:1px solid #C9D1E0;display:flex;align-items:center;gap:10px;padding:0 14px;box-sizing:border-box">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#46546F" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      <span style="font:400 16px/1 'Hanken Grotesk',sans-serif;color:#5B6781">Search 62 terms</span>
+    </div>
+
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <span style="padding:9px 14px;border-radius:999px;background:#101B33;color:#fff;font:600 14px/1 'Hanken Grotesk',sans-serif">All</span>
+      <span style="padding:9px 14px;border-radius:999px;background:#fff;border:1px solid #DCE2EC;font:600 14px/1 'Hanken Grotesk',sans-serif">Networking</span>
+      <span style="padding:9px 14px;border-radius:999px;background:#fff;border:1px solid #DCE2EC;font:600 14px/1 'Hanken Grotesk',sans-serif">Linux</span>
+      <span style="padding:9px 14px;border-radius:999px;background:#fff;border:1px solid #DCE2EC;font:600 14px/1 'Hanken Grotesk',sans-serif">Web</span>
+    </div>
+
+    <div style="margin-top:14px;background:#fff;border:1px solid #DCE2EC;border-radius:18px;overflow:hidden">
+      <sc-for list="{{terms}}" as="t" hint-placeholder-count="5">
+        <sc-if value="{{t.open}}" hint-placeholder-val="{{false}}">
+          <div style="padding:14px 16px;background:#FFFBE6;border-bottom:1px solid #EDF0F5">
+            <div style="display:flex;align-items:baseline;justify-content:space-between"><span style="font:700 18px/1.2 'Bricolage Grotesque',sans-serif"><span style="background:linear-gradient(transparent 52%,#FFE066 52%);padding:0 2px">{{t.name}}</span></span><span style="font:500 12px/1 'Hanken Grotesk',sans-serif;color:#5B6781">{{t.tag}}</span></div>
+            <p style="margin:8px 0 0;font:400 15px/1.45 'Hanken Grotesk',sans-serif">{{t.def}}</p>
+            <a href="Learn.dc.html" style="margin-top:4px;min-height:44px;display:inline-flex;align-items:center;gap:6px;font:600 14px/1 'Hanken Grotesk',sans-serif;color:#2347C7;text-decoration:none">Open the lesson<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2347C7" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></a>
+          </div>
+        </sc-if>
+        <sc-if value="{{t.closed}}" hint-placeholder-val="{{true}}">
+          <div style="min-height:56px;padding:8px 16px;box-sizing:border-box;display:flex;align-items:center;gap:10px;border-bottom:1px solid #EDF0F5">
+            <span style="flex:1;font:600 16px/1.2 'Hanken Grotesk',sans-serif">{{t.name}}</span>
+            <span style="font:500 12px/1 'Hanken Grotesk',sans-serif;color:#5B6781">{{t.tag}}</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5B6781" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+        </sc-if>
+      </sc-for>
+    </div>
+  </div>
+
+  <nav style="height:84px;flex:none;background:#fff;border-top:1px solid #DCE2EC;display:flex;padding:8px 12px 0;box-sizing:border-box">
+    <sc-for list="{{tabs}}" as="t" hint-placeholder-count="4">
+      <a href="{{t.href}}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;text-decoration:none;color:{{t.c}}">
+        <span style="width:60px;height:32px;border-radius:16px;background:{{t.bg}};display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="{{t.c}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{t.d}}"/></svg></span>
+        <span style="font:{{t.fw}} 12px/1 'Hanken Grotesk',sans-serif">{{t.t}}</span>
+      </a>
+    </sc-for>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const active = 2;
+    const defs = [
+      { t: 'Learn', href: 'Main.dc.html', d: 'M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14' },
+      { t: 'Refresh', href: 'Review.dc.html', d: 'M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5' },
+      { t: 'Library', href: 'Library.dc.html', d: 'M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3zM5 17a3 3 0 0 1 3-3h10' },
+      { t: 'You', href: 'Me.dc.html', d: 'M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0zM4 20c1-4 4-6 8-6s7 2 8 6' }
+    ];
+    const tabs = defs.map((x, i) => ({
+      t: x.t, href: x.href, d: x.d,
+      c: i === active ? '#101B33' : '#5B6781',
+      bg: i === active ? '#FFE066' : 'transparent',
+      fw: i === active ? 700 : 600
+    }));
+    const raw = [
+      ['DNS', 'Networking', 'The system that turns a name like example.com into an IP address.', false],
+      ['DHCP', 'Networking', 'Gives your device an address when it joins a network.', false],
+      ['IP address', 'Networking', 'A number that identifies a device on a network. Like a street address for data.', true],
+      ['MAC address', 'Networking', 'A hardware address built into a network card.', false],
+      ['Packet', 'Networking', 'A small chunk of data sent across a network.', false],
+      ['Port', 'Networking', 'A numbered door on a device. Each service listens on its own.', false]
+    ];
+    const terms = raw.map((r) => ({ name: r[0], tag: r[1], def: r[2], open: r[3], closed: !r[3] }));
+    return { tabs: tabs, terms: terms };
+  }
+}
+</script>
+</body>
+</html>

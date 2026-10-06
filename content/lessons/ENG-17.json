@@ -1,0 +1,532 @@
+{
+ "code": "ENG-17",
+ "intro": "This module teaches how to measure, plan and explain security as a business discipline. You will choose KPIs and KRIs such as MTTD, MTTR and patch SLA compliance while avoiding vanity metrics that look good but show nothing. You will build a risk-based roadmap, prioritize initiatives by risk reduction and cost, use maturity models, and justify a budget. Finally you will learn to report to executives and boards in business terms, with concise dashboards and a clear ask that supports a decision.",
+ "lessons": [
+  {
+   "title": "Security KPIs and KRIs",
+   "why": "Leaders fund and trust what they can measure, so the numbers you choose decide whether security is seen as a cost center or as a managed reduction of risk.",
+   "sections": [
+    {
+     "h": "KPIs, KRIs and outcomes",
+     "p": [
+      "A key performance indicator (KPI) measures how well a process is working, such as how quickly critical patches are installed. A key risk indicator (KRI) signals that exposure is rising, such as the count of internet-facing systems with known exploited vulnerabilities. Good measures describe outcomes, meaning a change in risk or capability, not just activity. Compare the number of firewall rules reviewed with the time an attacker stays undetected: the first shows effort, the second shows result. Each metric should have a definition, data source, owner, target and review frequency, so that two people calculating it get the same answer."
+     ]
+    },
+    {
+     "h": "Core operational metrics",
+     "p": [
+      "Several measures are widely used. Mean time to detect (MTTD) is the average time from the start of malicious activity to its detection, and mean time to respond or recover (MTTR) is the time from detection to containment or restoration. Patch SLA compliance is the share of vulnerabilities fixed within target windows, for example critical within 7 days and high within 30. Others include EDR and MFA coverage, percentage of privileged accounts with phishing-resistant MFA, phishing report rate, backup restore test success, and percentage of critical assets with an owner. Use medians or percentiles alongside means, because a few extreme incidents can distort an average."
+     ]
+    },
+    {
+     "h": "Vanity metrics and gaming",
+     "p": [
+      "Vanity metrics look impressive but do not show risk change. Examples are the number of blocked attacks on the firewall, total vulnerabilities scanned, number of alerts generated, or hours of training delivered. Blocking a million automated probes says little about whether a targeted attack would succeed. A related trap is Goodhart's law: when a measure becomes a target it ceases to be a good measure. If analysts are rewarded for closing tickets quickly, they close tickets without investigating. Pair each metric with a quality check, such as sampling closed alerts, and prefer ratios and trends over raw counts."
+     ]
+    },
+    {
+     "h": "Choosing and presenting a set",
+     "p": [
+      "Select a small set, often five to ten, that maps to the main risks and to business goals such as ransomware resilience. Tie each to a framework when helpful, for example NIST CSF functions or CIS Controls. Show trend over time, a target and a status color, and define thresholds that trigger action. State data quality honestly: a coverage metric based on an incomplete inventory is overstated. Revisit the set every year and retire measures that no longer drive a decision. If a number would not change what anyone does, it probably does not belong on the dashboard."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Metric definition card",
+    "text": "Name:      Critical patch SLA compliance\nDefinition: critical vulns fixed within 7 days / critical vulns due\nSource:    vuln scanner + ticketing, weekly\nOwner:     IT operations lead\nTarget:    >= 95%   Current: 81%   Trend: up 6 pts\nAction:    below 85% -> escalate to CIO"
+   },
+   "example": "An Example Corp security manager inherits a monthly report showing 2.1 million blocked connections, 9,400 vulnerabilities found and 98 percent training completion. None of it shows whether risk is falling. She replaces it with six measures: median time to detect, median time to contain, critical patch SLA compliance, MFA coverage for admins, EDR coverage and restore test success. Detect time falls from 14 days to 3 over two quarters, and patch compliance rises from 62 to 88 percent. The board can now see direction and decide where to invest next.",
+   "terms": [
+    {
+     "term": "KPI",
+     "def": "Key performance indicator: measures how well a process or control is performing."
+    },
+    {
+     "term": "KRI",
+     "def": "Key risk indicator: signals a rising or falling level of risk exposure."
+    },
+    {
+     "term": "MTTD",
+     "def": "Mean time to detect: average time from compromise start to detection."
+    },
+    {
+     "term": "MTTR",
+     "def": "Mean time to respond or recover after detection."
+    },
+    {
+     "term": "Vanity metric",
+     "def": "A number that looks impressive but does not reflect risk or decisions."
+    },
+    {
+     "term": "Goodhart's law",
+     "def": "When a measure becomes a target, it stops being a reliable measure."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which is an outcome metric?",
+     "options": [
+      "Number of training slides produced",
+      "Median time to detect an intrusion",
+      "Number of firewall rules",
+      "Total scan reports generated"
+     ],
+     "a": 1,
+     "why": "Detection time shows a security result, not just activity."
+    },
+    {
+     "q": "Why is blocked-attack count a poor board metric?",
+     "options": [
+      "It is illegal to report",
+      "It is too hard to collect",
+      "It measures only patching",
+      "It does not show whether a targeted attack would succeed"
+     ],
+     "a": 3,
+     "why": "High block counts mostly reflect automated noise."
+    },
+    {
+     "q": "What does Goodhart's law warn about?",
+     "options": [
+      "Targets can distort behavior and make a measure misleading",
+      "Budgets always grow",
+      "KPIs must be secret",
+      "Logs must be encrypted"
+     ],
+     "a": 0,
+     "why": "Rewarding a number invites gaming of it."
+    },
+    {
+     "q": "What should every metric have?",
+     "options": [
+      "A bright color only",
+      "A vendor logo",
+      "A definition, data source, owner and target",
+      "A secret formula"
+     ],
+     "a": 2,
+     "why": "Clear definitions make results consistent and actionable."
+    }
+   ],
+   "recap": [
+    "Choose outcome measures such as MTTD, MTTR and patch SLA compliance.",
+    "Avoid vanity metrics and pair each metric with a quality check.",
+    "Keep a small set with owners, targets, trends and honest data caveats."
+   ]
+  },
+  {
+   "title": "Roadmaps and budgets",
+   "why": "Limited money and staff mean not every risk can be addressed at once, so security leaders need a defensible way to rank initiatives and justify spend.",
+   "sections": [
+    {
+     "h": "Starting from risk",
+     "p": [
+      "A security roadmap is a time-phased plan of initiatives, usually covering 12 to 36 months. Begin with a risk assessment that lists the top risks, such as ransomware, business email compromise, cloud misconfiguration and third-party breach, with likelihood and impact estimates. Tie each initiative to the risk it reduces and to a business objective. A roadmap built from a list of tools tends to buy products that nobody operates, while one built from risks can explain why each project exists. Include regulatory obligations and audit findings as fixed items, since they have deadlines you cannot choose."
+     ]
+    },
+    {
+     "h": "Prioritizing by risk reduction and cost",
+     "p": [
+      "Rank initiatives by the risk reduction they provide per unit of cost and effort. Quantitative approaches estimate annualized loss expectancy: single loss expectancy multiplied by annual rate of occurrence, then compare the loss avoided against the cost of the control. Many teams use simpler scoring with impact, likelihood reduction, cost, effort and dependencies, and plot results on a quadrant of value and effort. Quick wins such as enforcing MFA for administrators, tested offline backups and patching exposed systems usually come first. Foundations such as asset inventory and logging go early, because later projects depend on them."
+     ]
+    },
+    {
+     "h": "Maturity models and benchmarks",
+     "p": [
+      "Maturity models describe levels of capability and help show where you are and where you should be. Examples are the NIST Cybersecurity Framework implementation tiers and profiles, the CIS Controls implementation groups, and the Cybersecurity Capability Maturity Model. Assess each area on a consistent scale, set a target level based on risk appetite rather than aiming for the top everywhere, and show the gap. Peer benchmarks, such as spend as a percentage of IT budget, can inform a conversation but should not replace risk reasoning. Maturity scores are most credible when backed by evidence, such as test results and audit reports."
+     ]
+    },
+    {
+     "h": "Building and defending the budget",
+     "p": [
+      "Split the budget into run costs (licenses, staff, managed services) and change costs (new projects), and show the three-year picture, because licenses recur. For each request, state the risk addressed, expected reduction, cost, owner, success measure and the consequence of not funding it. Offer options at different levels, such as minimum, recommended and full, so leaders can choose. Reuse existing tools before buying new ones, and count staff time and operating effort, not only license price. Report progress against the roadmap each quarter and adjust when threats or the business change. A roadmap is a living document, not a one-time proposal."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Initiative scoring (fictional)",
+    "text": "Initiative              Risk cut  Cost   Effort  Score\nAdmin MFA enforcement   High      Low    Low     9\nOffline backup + test   High      Med    Med     8\nPatch internet-facing   High      Low    Med     8\nSIEM tuning             Med       Med    Med     5\nNew sandbox appliance   Low       High   High    2\nALE example: SLE 600,000 x ARO 0.2 = 120,000 per year"
+   },
+   "example": "Example Corp has 400,000 dollars for security next year and nine requests. The manager scores each by risk reduction, cost and effort. Administrator MFA, tested offline backups and patching of internet-facing servers rank at the top, together costing about 150,000. A new sandbox appliance scores low because the cloud mail platform already provides sandboxing. Using a ransomware estimate of 600,000 per incident and a yearly likelihood of 20 percent, the expected loss is 120,000 per year, which supports funding the backup project. She presents minimum and recommended options and a maturity chart showing the target gap.",
+   "terms": [
+    {
+     "term": "Roadmap",
+     "def": "A time-phased plan of security initiatives tied to risk and business goals."
+    },
+    {
+     "term": "ALE",
+     "def": "Annualized loss expectancy: expected yearly loss, equal to SLE times ARO."
+    },
+    {
+     "term": "Risk appetite",
+     "def": "The amount of risk an organization is willing to accept."
+    },
+    {
+     "term": "Maturity model",
+     "def": "A scale describing levels of capability for a security domain."
+    },
+    {
+     "term": "Quick win",
+     "def": "A low-cost, low-effort action that reduces significant risk fast."
+    },
+    {
+     "term": "Run versus change cost",
+     "def": "Ongoing operating spend versus one-time project spend."
+    }
+   ],
+   "check": [
+    {
+     "q": "How should initiatives primarily be prioritized?",
+     "options": [
+      "By vendor popularity",
+      "By risk reduction relative to cost and effort",
+      "By alphabetical order",
+      "By who asked first"
+     ],
+     "a": 1,
+     "why": "Value per cost links spending to risk."
+    },
+    {
+     "q": "What is ALE?",
+     "options": [
+      "Annual license expense",
+      "Average log entries",
+      "Asset location estimate",
+      "Single loss expectancy multiplied by annual rate of occurrence"
+     ],
+     "a": 3,
+     "why": "ALE equals SLE times ARO."
+    },
+    {
+     "q": "What should a target maturity level be based on?",
+     "options": [
+      "Risk appetite and business need",
+      "The highest level everywhere",
+      "A competitor's logo",
+      "The newest tool"
+     ],
+     "a": 0,
+     "why": "Targets should match risk, not perfection."
+    },
+    {
+     "q": "Why offer minimum, recommended and full options?",
+     "options": [
+      "It hides costs",
+      "It avoids reporting",
+      "Leaders can choose with a clear view of risk trade-offs",
+      "It removes the need for a roadmap"
+     ],
+     "a": 2,
+     "why": "Options make the decision transparent."
+    }
+   ],
+   "recap": [
+    "Build the roadmap from top risks, regulatory needs and dependencies.",
+    "Rank by risk reduction per cost and effort, doing foundations and quick wins first.",
+    "Use maturity targets and clear budget options with consequences of not funding."
+   ]
+  },
+  {
+   "title": "Reporting to leadership",
+   "why": "Executives and boards decide on money and risk acceptance, and they can only do so if security is explained in their terms: impact, likelihood, cost and decisions.",
+   "sections": [
+    {
+     "h": "Know the audience",
+     "p": [
+      "Boards and executives are not security specialists, and they have limited time, often 10 to 20 minutes. They care about business impact: revenue, customer trust, regulatory fines, operational downtime and legal exposure. Replace jargon with plain statements. Instead of saying that a critical remote code execution flaw exists in the VPN appliance, say that an attacker could take control of the system that remote staff use, and that fixing it takes two days. Learn what the audience already knows, how they judge other risks, and which decisions are theirs. Boards also have oversight duties, and in many jurisdictions disclosure rules make cyber risk a governance matter."
+     ]
+    },
+    {
+     "h": "Translate risk into business terms",
+     "p": [
+      "Express risk with impact and likelihood, ideally in money or operational terms. A statement such as a ransomware event could stop order processing for about five days, costing roughly 1.5 million dollars, with a moderate likelihood this year, is easier to act on than a heat-map color. Use ranges and be clear about uncertainty instead of false precision. Frameworks such as FAIR support quantitative estimates, while simple tiers also work if applied consistently. Compare to risk appetite: show whether the current level is inside or outside what leaders agreed to accept, and which options reduce it."
+     ]
+    },
+    {
+     "h": "Dashboards and structure",
+     "p": [
+      "Use a concise structure: headline status, top risks, trends against targets, major incidents and lessons, progress on the roadmap, and the ask. A one-page dashboard with five to eight indicators and arrows for trend works better than forty charts. Lead with the conclusion, then the evidence. Show change over time, not isolated snapshots, and explain red items with the cause and the plan. Keep detailed appendices for those who want them. Be honest about bad news early, as surprises damage trust far more than a bad number. For incidents, give status, impact, what was done, and what will change."
+     ]
+    },
+    {
+     "h": "Making the ask",
+     "p": [
+      "Every report should end with a clear request, such as approve 180,000 dollars for offline backups and recovery testing, accept the risk of delaying an upgrade until Q3, or assign an executive owner for a vendor risk program. State the impact statement: the risk addressed, the reduction expected, the cost, the timeline, and what happens if the request is declined. Offer options and a recommendation. Record decisions and risk acceptances with an owner and review date, then follow up on results at the next meeting. Trust grows when you deliver what you promised and report outcomes, including misses."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Executive one-pager outline",
+    "text": "Status:  AMBER (improving)\nTop risk: Ransomware -> 5 days downtime, ~1.5M, likelihood medium\nTrend:   MTTD 14d -> 3d | Patch SLA 62% -> 88% | Admin MFA 100%\nIncident: 1 phishing event, contained in 6h, no data loss\nAsk:     Approve 180k for offline backups + restore tests\nIf no:   downtime risk remains outside appetite"
+   },
+   "example": "At the quarterly board meeting, the Example Corp security lead has ten minutes. She opens with one sentence: the company is at amber, improving, and the largest exposure is ransomware stopping order processing for about five days. A single slide shows three trend lines and the one incident of the quarter, handled in six hours. She asks the board to approve 180,000 dollars for offline backups and restore testing, explaining that without it the risk stays above the stated appetite. The board approves and sets a review for next quarter.",
+   "terms": [
+    {
+     "term": "Risk appetite",
+     "def": "The level of risk leaders are willing to accept to meet business goals."
+    },
+    {
+     "term": "Impact statement",
+     "def": "A short description of consequences and cost if a risk occurs or an ask is declined."
+    },
+    {
+     "term": "FAIR",
+     "def": "Factor Analysis of Information Risk, a model for quantifying risk in financial terms."
+    },
+    {
+     "term": "Risk acceptance",
+     "def": "A formal decision by an accountable owner to live with a risk."
+    },
+    {
+     "term": "Dashboard",
+     "def": "A concise display of key indicators, trends and status."
+    },
+    {
+     "term": "Heat map",
+     "def": "A grid that rates risks by likelihood and impact using colors."
+    }
+   ],
+   "check": [
+    {
+     "q": "How should a technical flaw be presented to a board?",
+     "options": [
+      "With CVE numbers only",
+      "As business impact, likelihood, cost and a decision needed",
+      "With packet captures",
+      "With raw scanner output"
+     ],
+     "a": 1,
+     "why": "Boards decide on business risk, not technical detail."
+    },
+    {
+     "q": "What belongs at the end of a leadership report?",
+     "options": [
+      "A list of tool names",
+      "A thank you only",
+      "An appendix of logs",
+      "A clear ask with impact if declined"
+     ],
+     "a": 3,
+     "why": "A request with consequences lets leaders decide."
+    },
+    {
+     "q": "Why show trends instead of single snapshots?",
+     "options": [
+      "Direction over time shows whether risk is improving",
+      "Snapshots are forbidden",
+      "Trends are easier to fake",
+      "Boards dislike numbers"
+     ],
+     "a": 0,
+     "why": "Trends reveal progress and drift."
+    },
+    {
+     "q": "What should be done with a risk acceptance?",
+     "options": [
+      "Hide it",
+      "Delete it after approval",
+      "Record it with an accountable owner and review date",
+      "Let IT sign anonymously"
+     ],
+     "a": 2,
+     "why": "Documented ownership and review keep acceptance accountable."
+    }
+   ],
+   "recap": [
+    "Speak in business terms: impact, likelihood, cost and risk appetite.",
+    "Use a concise dashboard with trends and honest status, leading with the conclusion.",
+    "End with a clear ask, options and a recorded decision."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Pick the right KPIs",
+   "sim": "scenario",
+   "scenario": "The board of Example Corp has asked for a one-page security report next month. The security manager has a list of twelve candidate metrics gathered from tools and teams. Some show real changes in risk, and others are activity counts that look impressive but cannot guide decisions. In the scenario simulator you must choose the six metrics that belong in the board report, discard the rest, and give a short reason for each decision.",
+   "objective": "Select outcome metrics for a board report and discard vanity metrics.",
+   "steps": [
+    {
+     "do": "Read the list of twelve candidate metrics.",
+     "see": "Items include MTTD, blocked connections, patch SLA compliance, alerts generated, MFA coverage and training hours."
+    },
+    {
+     "do": "Mark 'Blocked firewall connections: 2.1 million' as discard.",
+     "see": "Feedback: reflects automated noise, not risk change."
+    },
+    {
+     "do": "Mark 'Median time to detect: 3 days' as keep.",
+     "see": "Feedback: outcome metric with trend and target."
+    },
+    {
+     "do": "Mark 'Critical patch SLA compliance: 88%' as keep.",
+     "see": "Feedback: shows control performance against a defined target."
+    },
+    {
+     "do": "Discard 'Total alerts generated' and 'Hours of training delivered'.",
+     "see": "Feedback: activity measures with no link to outcome."
+    },
+    {
+     "do": "Keep 'Admin MFA coverage', 'EDR coverage' and 'Restore test success rate'.",
+     "see": "Feedback: coverage and resilience measures tied to ransomware risk."
+    },
+    {
+     "do": "Submit the selection.",
+     "see": "Score: 6 of 6 correct, with a note to add targets and owners to each metric."
+    }
+   ],
+   "answer": "Keep median time to detect, median time to contain, critical patch SLA compliance, admin MFA coverage, EDR coverage and restore test success. Discard blocked connections, alert counts, scan totals and training hours because they measure activity, not changes in risk.",
+   "hint": "Ask whether the number would change a decision or show a change in risk."
+  },
+  {
+   "title": "Brief the executive",
+   "sim": "chat-sim",
+   "scenario": "The fictional chief financial officer of Example Corp messages you before a budget meeting. She asks how likely a ransomware breach is, what it would cost, and whether a requested 180,000 dollars for backups and recovery testing is justified. You are the security lead. In the chat simulator you must answer in business terms, avoid jargon, give a range with uncertainty, and finish with a clear ask and an impact statement that explains the consequence of refusing.",
+   "objective": "Answer leadership questions on breach risk and request budget with a clear impact statement.",
+   "steps": [
+    {
+     "do": "Read the CFO's first message asking how worried she should be.",
+     "see": "Chat offers three reply styles: technical, vague, business-focused."
+    },
+    {
+     "do": "Choose the business-focused reply stating that ransomware could halt order processing for about five days.",
+     "see": "CFO asks for a cost estimate."
+    },
+    {
+     "do": "Give a range of 1.0 to 1.8 million dollars with a medium likelihood this year.",
+     "see": "CFO accepts the range and asks what reduces it."
+    },
+    {
+     "do": "Explain that offline backups and tested restores cut recovery from five days to about one.",
+     "see": "CFO asks what the 180,000 buys."
+    },
+    {
+     "do": "State the cost breakdown: storage, tooling, and two restore exercises per year.",
+     "see": "CFO asks what happens if the request is declined."
+    },
+    {
+     "do": "Deliver the impact statement: risk stays above appetite, with likely downtime of five days.",
+     "see": "CFO asks for a recommendation and options."
+    },
+    {
+     "do": "Offer minimum, recommended and full options and recommend the middle one.",
+     "see": "CFO approves and asks for a quarterly progress report."
+    }
+   ],
+   "answer": "Describe the risk as about five days of downtime costing 1.0 to 1.8 million dollars with medium likelihood. Request 180,000 dollars for offline backups and restore tests, which cut recovery to about one day. If declined, the risk stays outside appetite. Offer options and recommend one.",
+   "hint": "Use impact, likelihood, cost, a recommendation and the consequence of saying no."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which is an outcome metric?",
+   "options": [
+    "Alerts generated",
+    "Median time to detect",
+    "Training hours delivered",
+    "Firewall rule count"
+   ],
+   "a": 1,
+   "why": "It reflects security result over time."
+  },
+  {
+   "q": "What is MTTR?",
+   "options": [
+    "Mean time to respond or recover after detection",
+    "Mean time to review rules",
+    "Maximum time to restart routers",
+    "Mean test request rate"
+   ],
+   "a": 0,
+   "why": "It measures speed of containment or recovery."
+  },
+  {
+   "q": "Which is a vanity metric?",
+   "options": [
+    "Critical patch SLA compliance",
+    "Restore test success rate",
+    "Admin MFA coverage",
+    "Number of blocked automated connections"
+   ],
+   "a": 3,
+   "why": "Blocked probe counts do not show risk change."
+  },
+  {
+   "q": "What does Goodhart's law imply?",
+   "options": [
+    "Metrics must be secret",
+    "Budgets must be fixed",
+    "Targeted measures can be gamed and lose value",
+    "All KPIs are meaningless"
+   ],
+   "a": 2,
+   "why": "Pair metrics with quality checks."
+  },
+  {
+   "q": "How should initiatives be ranked?",
+   "options": [
+    "By popularity",
+    "By risk reduction relative to cost and effort",
+    "By newest technology",
+    "By team size"
+   ],
+   "a": 1,
+   "why": "This ties spend to risk."
+  },
+  {
+   "q": "What is ALE?",
+   "options": [
+    "SLE multiplied by annual rate of occurrence",
+    "Annual license fee",
+    "Alert log estimate",
+    "Asset lifecycle expense"
+   ],
+   "a": 0,
+   "why": "ALE gives expected yearly loss."
+  },
+  {
+   "q": "How should maturity targets be set?",
+   "options": [
+    "Always at the highest level",
+    "Copied from a vendor",
+    "Based on risk appetite and business need",
+    "Left undefined"
+   ],
+   "a": 2,
+   "why": "Not every area needs top maturity."
+  },
+  {
+   "q": "How should risk be explained to a board?",
+   "options": [
+    "With technical jargon",
+    "With raw logs",
+    "With tool screenshots",
+    "In impact, likelihood, cost and decisions"
+   ],
+   "a": 3,
+   "why": "Boards need business terms."
+  },
+  {
+   "q": "What should a leadership report end with?",
+   "options": [
+    "A list of vendors",
+    "A clear ask with options and impact if declined",
+    "An apology",
+    "Raw data"
+   ],
+   "a": 1,
+   "why": "A decision request makes the report actionable."
+  },
+  {
+   "q": "What should a recorded risk acceptance include?",
+   "options": [
+    "An accountable owner and a review date",
+    "No names",
+    "Only the vendor name",
+    "A technical log file"
+   ],
+   "a": 0,
+   "why": "Accountability keeps accepted risk visible."
+  }
+ ]
+}

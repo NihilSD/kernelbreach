@@ -1,0 +1,817 @@
+{
+ "code": "SOC-10",
+ "intro": "MITRE ATT&CK is the shared language defenders use to describe adversary behavior. This module teaches how the Enterprise matrix is organized, how to map incidents and detection rules to technique IDs, how to find and prioritize coverage gaps against realistic threat actors, and how to build and share ATT&CK Navigator layers. These skills turn raw alerts and reports into structured evidence that guides detection engineering, hunting and executive reporting.",
+ "lessons": [
+  {
+   "title": "ATT&CK matrix structure",
+   "why": "Every modern SOC speaks ATT&CK. Knowing how the matrix is organized lets you read threat reports, rules and incident notes without guessing.",
+   "sections": [
+    {
+     "h": "What ATT&CK is",
+     "p": [
+      "MITRE ATT&CK is a publicly maintained knowledge base of adversary behavior built from real-world observations. It is not a checklist, a product or a scoring standard. It describes what attackers do after and during an intrusion so defenders can describe, detect and compare behavior using shared vocabulary. There are separate matrices for Enterprise (Windows, macOS, Linux, cloud, containers, network), Mobile and ICS. This module focuses on Enterprise. The content is versioned, so technique names and counts change between releases; always record which version your team maps against, and do not memorize totals, memorize the structure."
+     ]
+    },
+    {
+     "h": "Tactics: the why",
+     "p": [
+      "Tactics are the columns of the matrix and represent the adversary's short-term goal at a stage of an operation. In the traditional Enterprise ordering they are: Reconnaissance (TA0043), Resource Development (TA0042), Initial Access (TA0001), Execution (TA0002), Persistence (TA0003), Privilege Escalation (TA0004), Defense Evasion (TA0005), Credential Access (TA0006), Discovery (TA0007), Lateral Movement (TA0008), Collection (TA0009), Command and Control (TA0011), Exfiltration (TA0010) and Impact (TA0040). That is 14 tactics. The order is a logical flow, not a strict sequence; attackers loop, skip and repeat tactics. Newer releases may reorganize tactics, so check the current matrix."
+     ]
+    },
+    {
+     "h": "Techniques and sub-techniques: the how",
+     "p": [
+      "A technique is how a goal is achieved, identified by a T-number such as T1059 Command and Scripting Interpreter. A sub-technique adds a dot and three digits for a more specific method: T1059.001 is PowerShell, T1059.003 is Windows Command Shell. A technique can appear under more than one tactic, for example Valid Accounts (T1078) supports Initial Access, Persistence, Privilege Escalation and Defense Evasion. The tactic is the column, the technique is the cell; to reference a cell unambiguously you may write the tactic and ID together."
+     ]
+    },
+    {
+     "h": "Reading a technique page",
+     "p": [
+      "Each technique page lists a description, procedure examples (named groups and software that used it), mitigations (M-numbers such as M1017 User Training), detection guidance and data sources with data components such as Process Creation or Network Traffic Content. Defenders mostly use three parts: procedure examples to learn how real actors implement it, data sources to learn which logs you need, and mitigations to plan prevention. Groups carry G-numbers (G0016 style) and software carries S-numbers. Treat detection text as a starting idea, not a finished rule.",
+      "Practice by taking one public threat report and listing every behavior it describes, then looking up each in the matrix. Beginners often find that a single paragraph of a report yields three or four techniques. Over time you will recognize the common ones by sight: PowerShell, scheduled tasks, Run keys, RDP, credential dumping and shadow copy deletion appear in a large share of intrusions. Keep a personal cheat sheet of the twenty IDs you meet most often and update it as you learn."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "ATT&CK IDs",
+    "text": "TA0002  Execution          (tactic)\nT1059    Command and Scripting Interpreter (technique)\nT1059.001 PowerShell          (sub-technique)\nM1017    User Training        (mitigation)\nG-numbers = groups, S-numbers = software\nData source: Process -> Process Creation"
+   },
+   "example": "An analyst reads a report saying an actor sent a macro-enabled document that launched PowerShell. She opens the technique pages for T1566.001 and T1059.001, checks the data components listed (Process Creation, Command Execution, Script Execution), notes that Process Creation with command line logging is needed, and confirms those logs exist in the SIEM before judging whether her team can see this behavior at all.",
+   "terms": [
+    {
+     "term": "Tactic",
+     "def": "The adversary's goal at a stage of the attack, shown as a matrix column."
+    },
+    {
+     "term": "Technique",
+     "def": "A specific method used to reach a tactic goal, with an ID like T1059."
+    },
+    {
+     "term": "Sub-technique",
+     "def": "A more specific variant of a technique, written T####.###."
+    },
+    {
+     "term": "Data source",
+     "def": "The type of telemetry, such as Process Creation, that can reveal a technique."
+    },
+    {
+     "term": "Mitigation",
+     "def": "A defensive control or configuration listed against a technique, with an M-number."
+    },
+    {
+     "term": "Procedure",
+     "def": "A concrete real-world implementation of a technique by a group or tool."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does a tactic represent in ATT&CK?",
+     "options": [
+      "The tool used",
+      "The adversary's goal at a stage",
+      "The log source",
+      "The detection rule"
+     ],
+     "a": 1,
+     "why": "Tactics are the why; techniques are the how."
+    },
+    {
+     "q": "Which ID is a sub-technique?",
+     "options": [
+      "TA0002",
+      "T1059",
+      "T1059.001",
+      "M1017"
+     ],
+     "a": 2,
+     "why": "Sub-techniques use the T####.### format."
+    },
+    {
+     "q": "Which tactic follows Initial Access in the traditional ordering?",
+     "options": [
+      "Impact",
+      "Execution",
+      "Exfiltration",
+      "Discovery"
+     ],
+     "a": 1,
+     "why": "The order runs Initial Access then Execution."
+    },
+    {
+     "q": "Why can Valid Accounts appear under several tactics?",
+     "options": [
+      "It is a mistake",
+      "One technique can serve multiple goals",
+      "Only the newest release lists it",
+      "It is a mitigation"
+     ],
+     "a": 1,
+     "why": "Techniques can support several tactic goals."
+    }
+   ],
+   "recap": [
+    "Tactics are goals, techniques are methods, sub-techniques are variants.",
+    "There are 14 traditional Enterprise tactics, ordered logically but not strictly.",
+    "Use procedure examples, data sources and mitigations on each technique page."
+   ]
+  },
+  {
+   "title": "Mapping incidents to techniques",
+   "why": "Mapping turns a messy narrative into structured, comparable evidence that supports reporting, hunting and trend analysis.",
+   "sections": [
+    {
+     "h": "Start from behavior, not tools",
+     "p": [
+      "Mapping begins with what the adversary did, expressed as an action on a system, not the name of a malware family or a vague label like 'hacking'. Write each observation as a short sentence: 'user opened a .docm attachment', 'winword.exe spawned powershell.exe with an encoded command', 'rundll32 accessed lsass memory'. Then find the technique whose description matches the action. Avoid mapping from tool names alone, because tools can implement many techniques and the same technique can be reached with many tools. Evidence should be attached to every mapping so a reviewer can verify it."
+     ]
+    },
+    {
+     "h": "Worked mappings",
+     "p": [
+      "Common mappings include: phishing email with a malicious attachment, T1566.001; user double-clicking the attachment, T1204.002 User Execution: Malicious File; PowerShell running an encoded command, T1059.001 plus T1027 Obfuscated Files or Information; dumping LSASS memory, T1003.001; creating a scheduled task for persistence, T1053.005; a Run key value in the registry, T1547.001; remote desktop to another host, T1021.001; archiving files before transfer, T1560; upload to a cloud storage site, T1567; encrypting files, T1486; deleting shadow copies, T1490."
+     ]
+    },
+    {
+     "h": "Choose the most specific level",
+     "p": [
+      "Prefer the sub-technique when evidence supports it, and the parent technique when it does not. If you only know a command shell was used but not which, map T1059. Map one event to several techniques when it genuinely shows several behaviors, but do not inflate: one log line rarely proves five techniques. Record confidence (confirmed, likely, possible) and the evidence source such as an EDR event ID or a packet capture. A mapping without evidence is an opinion and degrades downstream trend data."
+     ]
+    },
+    {
+     "h": "Building the attack narrative",
+     "p": [
+      "Place mapped techniques on a timeline and group them by tactic. The result is a story: Initial Access (T1566.001), Execution (T1204.002, T1059.001), Credential Access (T1003.001), Lateral Movement (T1021.001), Collection (T1560), Exfiltration (T1567), Impact (T1486). Gaps in the story are valuable: if you see lateral movement but no credential access, either logging missed it or the adversary reused known credentials (T1078). Gaps become hunting leads and logging requests.",
+      "Be careful with ambiguity. A single behavior such as 'a service was installed' can be persistence (T1543.003), privilege escalation or lateral movement via service execution (T1569.002), depending on context. When the same evidence fits more than one technique, state the competing options and the question that would settle it, for instance whether the service was created locally or remotely. Peer review of mappings is a cheap quality control: a second analyst maps the same notes independently and the team discusses differences."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Incident map",
+    "text": "Observation                                   Technique\nEmail with .docm attached                     T1566.001\nwinword.exe -> powershell.exe -enc ...        T1059.001, T1027\nrundll32 reads lsass memory                   T1003.001\nSchtasks /create on file server               T1053.005\nvssadmin delete shadows                       T1490"
+   },
+   "example": "Responders find that on host WS-14 (192.0.2.44) a Word document spawned PowerShell, and ten minutes later a new scheduled task named UpdateCheck appeared. The report maps the first event to T1204.002 and T1059.001, the task to T1053.005, and flags credential access as unknown because no memory-access telemetry was collected. The unknown becomes an action item to enable that logging.",
+   "terms": [
+    {
+     "term": "Behavior",
+     "def": "An observable action by an adversary on a system or network."
+    },
+    {
+     "term": "Evidence",
+     "def": "The log, file or capture that supports a mapping."
+    },
+    {
+     "term": "Confidence",
+     "def": "How strongly the evidence supports the mapped technique."
+    },
+    {
+     "term": "T1566.001",
+     "def": "Phishing: spearphishing attachment."
+    },
+    {
+     "term": "T1003.001",
+     "def": "OS credential dumping from LSASS memory."
+    },
+    {
+     "term": "T1059.001",
+     "def": "Command and scripting interpreter: PowerShell."
+    }
+   ],
+   "check": [
+    {
+     "q": "What should a mapping start from?",
+     "options": [
+      "The malware name",
+      "Observed behavior",
+      "The attacker's country",
+      "The tool vendor"
+     ],
+     "a": 1,
+     "why": "Behavior is tool-independent and verifiable."
+    },
+    {
+     "q": "A scheduled task created for persistence maps best to:",
+     "options": [
+      "T1053.005",
+      "T1566.001",
+      "T1486",
+      "T1003.001"
+     ],
+     "a": 0,
+     "why": "T1053.005 is Scheduled Task."
+    },
+    {
+     "q": "When evidence only shows a command shell was used, you should map:",
+     "options": [
+      "The most specific guess",
+      "The parent technique T1059",
+      "Nothing",
+      "T1486"
+     ],
+     "a": 1,
+     "why": "Use the level the evidence supports."
+    },
+    {
+     "q": "Why record confidence and evidence with each mapping?",
+     "options": [
+      "For decoration",
+      "So reviewers can verify and trends stay reliable",
+      "ATT&CK requires it for upload",
+      "To lower alert counts"
+     ],
+     "a": 1,
+     "why": "Unsupported mappings corrupt later analysis."
+    }
+   ],
+   "recap": [
+    "Map behavior with evidence, not tool names.",
+    "Use the most specific level the evidence supports.",
+    "Gaps in the mapped story are hunting leads."
+   ]
+  },
+  {
+   "title": "Mapping detections to techniques",
+   "why": "Tagging rules with technique IDs shows what you can detect, but only if the tag reflects real, working telemetry.",
+   "sections": [
+    {
+     "h": "Tagging rules",
+     "p": [
+      "Each detection rule in a SIEM or EDR should carry one or more ATT&CK technique IDs in its metadata. Many rule formats support this directly; Sigma rules use a tags list such as attack.execution and attack.t1059.001. Tags let you filter rules by technique, report coverage, and link alerts to the matrix during triage. Tag the technique the rule is designed to catch, not every technique that could ever produce a similar log. Over-tagging makes coverage look better than it is and misleads leadership."
+     ]
+    },
+    {
+     "h": "Telemetry dependency",
+     "p": [
+      "A rule only works if its data source is collected. A rule for T1003.001 that depends on process access events to lsass.exe (Sysmon event ID 10) is worthless where that event is not logged. For each rule record the required data source and component, the log source, the parsing field names, and whether collection is verified. A coverage claim has three conditions: the rule exists, the data flows, and the rule has been tested. Missing any one means the technique is not truly covered."
+     ]
+    },
+    {
+     "h": "Analytic quality",
+     "p": [
+      "Not all detections of a technique are equal. A rule matching the single string 'mimikatz' catches one tool and is trivial to evade; a rule on suspicious access rights to LSASS from unusual processes catches the behavior. Rate rules by robustness (behavior versus indicator), false positive rate, and the procedures they cover. A technique has many procedures, so one rule usually covers only a slice. Many teams score coverage as none, partial or good, and require a test, such as an atomic simulation, to move up a level."
+     ]
+    },
+    {
+     "h": "Keeping tags honest",
+     "p": [
+      "Review tags when rules change. Retire tags for rules that were disabled or tuned so heavily they no longer fire. Record the date of the last successful test. When an alert fires, record the technique so you can later measure how often each technique truly produces confirmed incidents versus noise. This feedback turns the matrix from a poster into a measurement system for the detection program.",
+      "Share the ATT&CK tags with other teams. Threat intelligence analysts tag reports, detection engineers tag rules, and incident responders tag cases. When all three use the same IDs, you can query across them: which techniques did our last five incidents use, which of those have tested rules, and which actors in our intelligence feed use them. That single question is the entire value of the framework in practice, and it only works when tags are consistent and honest."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Sigma-style tags",
+    "text": "title: Encoded PowerShell Command\nstatus: test\nlogsource:\n  category: process_creation\n  product: windows\ntags:\n  - attack.execution\n  - attack.t1059.001\n  - attack.defense_evasion\n  - attack.t1027"
+   },
+   "example": "A team claims coverage of T1003.001 because a rule exists. The reviewer checks: the rule needs Sysmon event ID 10, but only half the servers run Sysmon, and the rule was last tested a year ago. Coverage is rated partial: tagged, partly collected, untested. The action items are to deploy Sysmon to the remaining servers and run a safe simulation to confirm the alert fires.",
+   "terms": [
+    {
+     "term": "Sigma",
+     "def": "A generic, vendor-neutral rule format with ATT&CK tags."
+    },
+    {
+     "term": "Data component",
+     "def": "A specific telemetry type within a data source, such as Process Creation."
+    },
+    {
+     "term": "Robustness",
+     "def": "How hard a detection is to evade by changing tools or details."
+    },
+    {
+     "term": "Procedure coverage",
+     "def": "The share of real-world variants of a technique a rule catches."
+    },
+    {
+     "term": "Atomic test",
+     "def": "A small safe simulation of a technique to confirm a detection fires."
+    }
+   ],
+   "check": [
+    {
+     "q": "A rule counts as real coverage only when:",
+     "options": [
+      "It has a tag",
+      "The rule exists, data flows and it is tested",
+      "It is popular",
+      "It has a high severity"
+     ],
+     "a": 1,
+     "why": "All three conditions are needed."
+    },
+    {
+     "q": "Which detection is most robust?",
+     "options": [
+      "Match the string mimikatz",
+      "Match one file hash",
+      "Match suspicious LSASS access by unusual processes",
+      "Match one IP"
+     ],
+     "a": 2,
+     "why": "Behavior-based logic survives tool changes."
+    },
+    {
+     "q": "Over-tagging rules causes:",
+     "options": [
+      "Faster searches",
+      "Inflated, misleading coverage",
+      "Lower storage cost",
+      "Better tuning"
+     ],
+     "a": 1,
+     "why": "Coverage appears better than it is."
+    },
+    {
+     "q": "In Sigma, ATT&CK tags are written as:",
+     "options": [
+      "attack.t1059.001",
+      "TA0002 only",
+      "mitre=1",
+      "cve-1059"
+     ],
+     "a": 0,
+     "why": "Sigma uses attack. prefixed tags."
+    }
+   ],
+   "recap": [
+    "Tag rules with the technique they were designed to catch.",
+    "Coverage needs a rule, working telemetry and a test.",
+    "Rate detections by robustness and false positives."
+   ]
+  },
+  {
+   "title": "Coverage and gap analysis",
+   "why": "You cannot cover every technique. Gap analysis helps you spend limited engineering time on the behaviors that most threaten your organization.",
+   "sections": [
+    {
+     "h": "Start with the threat",
+     "p": [
+      "Coverage analysis begins with a threat model, not the whole matrix. Pick the threat actors and malware that realistically target your sector, using intelligence reports and the Groups and Software pages of ATT&CK. Extract their technique lists. Then compare those lists to your tagged detections. The overlap is covered; the rest are gaps. A retailer, a hospital and a bank face different actors, so their priority lists differ, and a generic 'cover everything' goal wastes effort on techniques nobody in your threat set uses."
+     ]
+    },
+    {
+     "h": "Scoring the gaps",
+     "p": [
+      "For each gap technique weigh four factors: how many relevant actors use it, how much damage it enables, whether the required data is already collected, and how reliably a detection can be written. Techniques used by many actors and by ransomware affiliates, such as T1059.001, T1003.001, T1021.001 and T1486, usually rank high. Techniques with high prevalence but no data source rank as logging projects first. Techniques with noisy, benign-looking activity, such as T1082 System Information Discovery, may rank low because a rule would drown analysts."
+     ]
+    },
+    {
+     "h": "Detection is not the only control",
+     "p": [
+      "A gap does not always require a new alert. Check mitigations: Attack Surface Reduction rules, application control, disabling macros from the internet, MFA and network segmentation may prevent the technique entirely. Prevention plus a lightweight detection can beat a complex rule. Also record where you rely on a single control; if one rule is your only view of T1021.001, a bypass leaves you blind. Layered coverage per critical technique is a better target than one-rule coverage of many techniques."
+     ]
+    },
+    {
+     "h": "Reporting and cadence",
+     "p": [
+      "Present results as a short prioritized list with owner and due date, not a rainbow heatmap alone. Revisit after each quarter or after a major intelligence change. Track metrics such as percent of top-twenty actor techniques with tested detections, mean time to implement a new detection, and confirmed true positives per technique. Avoid vanity metrics like total technique count tagged, which rewards over-tagging rather than protection.",
+      "A final caution: ATT&CK describes known behavior, so a complete green map does not mean you are safe. Adversaries invent new procedures, and some activities are not captured as techniques at all. Use the matrix to organize what you know and to expose blind spots, then supplement it with threat hunting, red team exercises and incident lessons learned. Treat coverage as a living estimate that is refreshed whenever the environment, the actors or the matrix version change."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Gap table",
+    "text": "Technique   Actors  Data?  Tested  Priority\nT1059.001   6/8     yes    yes     covered\nT1003.001   5/8     part   no      HIGH\nT1021.001   4/8     yes    no      HIGH\nT1490       4/8     yes    no      MEDIUM\nT1082       7/8     yes    -       LOW (noisy)"
+   },
+   "example": "A regional hospital identifies three ransomware affiliates as its main threat. Their shared techniques include T1003.001, T1021.001 and T1490. Detections exist for none with tests. Data for T1021.001 is already collected from Windows logon events (4624, logon type 10), so that rule is quick; T1003.001 needs Sysmon rollout first. The team schedules T1021.001 this month and the Sysmon rollout next.",
+   "terms": [
+    {
+     "term": "Gap",
+     "def": "A technique relevant to your threats with no working detection or prevention."
+    },
+    {
+     "term": "Threat model",
+     "def": "The set of actors and behaviors most likely to target your organization."
+    },
+    {
+     "term": "Prevalence",
+     "def": "How many relevant actors or incidents use a technique."
+    },
+    {
+     "term": "Layered coverage",
+     "def": "More than one control, preventive or detective, for a critical technique."
+    },
+    {
+     "term": "Vanity metric",
+     "def": "A number that looks good but does not measure protection."
+    }
+   ],
+   "check": [
+    {
+     "q": "Gap analysis should begin with:",
+     "options": [
+      "The full matrix",
+      "A threat model of relevant actors",
+      "Vendor marketing",
+      "Random sampling"
+     ],
+     "a": 1,
+     "why": "Prioritize against realistic threats."
+    },
+    {
+     "q": "A high-prevalence technique with no data source is first a:",
+     "options": [
+      "Rule-writing task",
+      "Logging project",
+      "False positive",
+      "Mitigation M1017"
+     ],
+     "a": 1,
+     "why": "Without telemetry no rule can work."
+    },
+    {
+     "q": "Which is a vanity metric?",
+     "options": [
+      "Tested detections for top actor techniques",
+      "Total number of tagged techniques",
+      "Mean time to detect",
+      "Confirmed true positives per technique"
+     ],
+     "a": 1,
+     "why": "Raw tag counts reward over-tagging."
+    },
+    {
+     "q": "A gap may be closed without an alert by:",
+     "options": [
+      "Ignoring it",
+      "A preventive mitigation such as application control",
+      "Deleting the technique",
+      "Lowering log retention"
+     ],
+     "a": 1,
+     "why": "Mitigations can prevent the technique."
+    }
+   ],
+   "recap": [
+    "Compare detections against actor technique lists.",
+    "Rank gaps by prevalence, impact, data availability and feasibility.",
+    "Prevention and layered detection both close gaps."
+   ]
+  },
+  {
+   "title": "ATT&CK Navigator and layers",
+   "why": "Navigator turns your analysis into a shareable visual, and layers keep the underlying data portable and versioned.",
+   "sections": [
+    {
+     "h": "What Navigator is",
+     "p": [
+      "ATT&CK Navigator is a free, open-source web tool that displays the matrix and lets you annotate it. You can run it from the public MITRE-hosted page or host your own copy so no data leaves your network, which matters for sensitive coverage information. Everything you annotate is saved as a layer, a JSON file you can download, share and reopen. Layers are independent of the ATT&CK content version, but each layer records the version and Navigator version it was built for, so older layers remain readable."
+     ]
+    },
+    {
+     "h": "Scores, colors and comments",
+     "p": [
+      "Each technique cell can carry a score (numeric, often 0 to 100), a color, a comment and metadata. A common scheme gives detection coverage a score from 0 to 3 or 0 to 100 and a gradient color from red to green. Comments hold the rule names, data sources and test dates. You can filter by platform, such as Windows, and hide sub-techniques you do not track. Keep a legend in the layer description so viewers know what colors mean; a heatmap without a legend invites misreading."
+     ]
+    },
+    {
+     "h": "Combining layers",
+     "p": [
+      "Create separate layers for each question: one for the threat actor technique list (score 1 for used), one for your detections (score 1 for covered), and one for prevention. Use the layer-combination expression, such as a+b, to merge scores; with actor score 1 and detection score 1, a cell scoring 1 is an uncovered threat technique. Some teams assign the actor layer 2 and detection layer 1 so that results of 2 equal gaps, 3 equal covered threats and 1 equals coverage without a known threat need. Document the expression with the layer."
+     ]
+    },
+    {
+     "h": "Exporting and presenting",
+     "p": [
+      "Export as JSON for storage in version control, and as SVG or Excel for reports. The JSON stores a list of techniques with fields techniqueID, tactic, score, color and comment. Version control gives you history of how coverage changed. In presentations, show one clear message per slide, such as the top five gaps, rather than the whole matrix. Pair the image with the prioritized action list from your gap analysis so leadership sees decisions, not decoration.",
+      "Keep the layer files small, named consistently and dated, such as detections-2026-Q3.json. Store them next to the rule repository so that a rule change and the coverage change appear in the same review. Some teams generate the detection layer automatically from rule tags with a script, which removes manual drift. Whatever you do, avoid hand-colored heatmaps that nobody can reproduce; a layer that cannot be regenerated or explained will be distrusted the first time someone challenges it."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Layer JSON fragment",
+    "text": "{\n \"name\": \"Detections 2026-Q3\",\n \"domain\": \"enterprise-attack\",\n \"techniques\": [\n  {\"techniqueID\": \"T1059.001\", \"tactic\": \"execution\",\n   \"score\": 2, \"comment\": \"Rule PS-ENC-01, tested 2026-08-14\"}\n ]\n}"
+   },
+   "example": "The analyst builds layer A with scores of 1 for every technique used by an actor group, and layer B with scores of 1 for tested detections. Combining with a+b shows cells at 2 for covered threat techniques and cells at 1 for either an untested gap or an unneeded detection. She filters to score 1 from layer A only, exports a list of five uncovered techniques, and attaches the SVG and the JSON to her quarterly review.",
+   "terms": [
+    {
+     "term": "Layer",
+     "def": "A saved JSON file holding annotations on the matrix."
+    },
+    {
+     "term": "Score",
+     "def": "A number on a technique cell used for coloring and combining."
+    },
+    {
+     "term": "Layer expression",
+     "def": "A formula like a+b that combines layers."
+    },
+    {
+     "term": "Self-hosting",
+     "def": "Running Navigator on your own server so data stays private."
+    },
+    {
+     "term": "Legend",
+     "def": "The explanation of what scores and colors mean."
+    }
+   ],
+   "check": [
+    {
+     "q": "A Navigator layer is stored as:",
+     "options": [
+      "A PDF",
+      "A JSON file",
+      "A SIEM rule",
+      "A packet capture"
+     ],
+     "a": 1,
+     "why": "Layers are JSON documents."
+    },
+    {
+     "q": "Why self-host Navigator?",
+     "options": [
+      "It is faster",
+      "Coverage data stays inside your network",
+      "It adds techniques",
+      "It is required"
+     ],
+     "a": 1,
+     "why": "Coverage information is sensitive."
+    },
+    {
+     "q": "What does a layer expression a+b do?",
+     "options": [
+      "Deletes layers",
+      "Combines scores from two layers",
+      "Exports SVG",
+      "Renames techniques"
+     ],
+     "a": 1,
+     "why": "It merges scores to show overlaps and gaps."
+    },
+    {
+     "q": "Which layer field holds free text such as rule names?",
+     "options": [
+      "techniqueID",
+      "tactic",
+      "comment",
+      "domain"
+     ],
+     "a": 2,
+     "why": "Comments carry rule names and test dates."
+    }
+   ],
+   "recap": [
+    "Navigator layers are portable JSON annotations.",
+    "Use separate layers for threat, detection and prevention, then combine.",
+    "Always include a legend and a prioritized action list."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Map the intrusion",
+   "sim": "diagram-builder",
+   "scenario": "You receive notes from a fictional incident at example.com. A phishing email delivered invoice.docm to a user on host WS-14 (192.0.2.44). The macro launched PowerShell, a credential dump followed, the attacker used RDP to reach FS-02 (192.0.2.60), zipped documents and uploaded them to a file-sharing site, then encrypted shares. The goal is a clean diagram a reviewer could audit event by event, with each placement justified by an observed action rather than assumption.",
+   "objective": "Place each observed event on the correct tactic column with the right technique ID.",
+   "steps": [
+    {
+     "do": "Drag 'phishing email with invoice.docm' to a column",
+     "see": "Placed under Initial Access. Suggested ID: T1566.001"
+    },
+    {
+     "do": "Drag 'user opened attachment, macro ran PowerShell encoded command'",
+     "see": "Placed under Execution. IDs: T1204.002, T1059.001"
+    },
+    {
+     "do": "Drag 'lsass.exe memory read by rundll32'",
+     "see": "Placed under Credential Access. ID: T1003.001"
+    },
+    {
+     "do": "Drag 'RDP logon to FS-02'",
+     "see": "Placed under Lateral Movement. ID: T1021.001"
+    },
+    {
+     "do": "Drag 'documents.zip created on FS-02'",
+     "see": "Placed under Collection. ID: T1560"
+    },
+    {
+     "do": "Drag 'upload to file-sharing site' and 'shares encrypted'",
+     "see": "Exfiltration T1567; Impact T1486. Diagram complete: 7 tactics linked in time order."
+    }
+   ],
+   "answer": "The chain is Initial Access T1566.001, Execution T1204.002 and T1059.001, Credential Access T1003.001, Lateral Movement T1021.001, Collection T1560, Exfiltration T1567 and Impact T1486, ordered by timestamp. Note the gaps in the story, such as the unknown initial access timing, and list them as follow-up questions.",
+   "hint": "Ask what the attacker was trying to achieve at each step; that is the tactic."
+  },
+  {
+   "title": "Tag the rules",
+   "sim": "siem",
+   "scenario": "Your fictional SIEM holds ten detection rules with no ATT&CK tags. Management wants a coverage report by Friday. You must assign each rule a technique ID and write the data source it needs, without over-tagging. Management expects the report to be defensible, so each tag must come with a short note about the log field the rule uses.",
+   "objective": "Tag ten rules with technique IDs and required data sources.",
+   "steps": [
+    {
+     "do": "Open rule 'Encoded PowerShell command line'",
+     "see": "Query on process_creation CommandLine contains -enc. Tag T1059.001. Needs: Process Creation with command line."
+    },
+    {
+     "do": "Open rule 'Scheduled task created via schtasks'",
+     "see": "Event ID 4698 or Sysmon 1. Tag T1053.005."
+    },
+    {
+     "do": "Open rule 'New Run key value'",
+     "see": "Sysmon event 13. Tag T1547.001. Needs: Registry Key Modification."
+    },
+    {
+     "do": "Open rule 'LSASS access with 0x1010 rights'",
+     "see": "Sysmon event 10. Tag T1003.001. Needs: Process Access."
+    },
+    {
+     "do": "Open rule 'vssadmin delete shadows'",
+     "see": "Process creation. Tag T1490."
+    },
+    {
+     "do": "Open rule 'Logon type 10 from new source'",
+     "see": "Event 4624. Tag T1021.001. Needs: Logon Session Creation."
+    },
+    {
+     "do": "Open rule 'Security log cleared (1102)'",
+     "see": "Tag T1070.001. Needs: Windows event log."
+    },
+    {
+     "do": "Save all ten and view report",
+     "see": "Report: 10 rules tagged, 3 rules flagged 'data source not collected on 40 percent of hosts'."
+    }
+   ],
+   "answer": "Tags: T1059.001, T1053.005, T1547.001, T1003.001, T1490, T1021.001, T1070.001 and the remaining rules by their behavior, each with the matching data source. Flag rules whose data source is not collected everywhere as partial coverage. Also record the test date for each rule so that partial or untested coverage is distinguishable from verified coverage.",
+   "hint": "Match the log field the rule uses to the data component, then to the technique."
+  },
+  {
+   "title": "Build a Navigator layer",
+   "sim": "scenario",
+   "scenario": "A fictional ransomware group, 'Group-X', is your top threat. You have its technique list and your list of tested detections. Build layers and read the gap view to decide where to focus next. Treat the numbers as a planning aid; the point is to read which cells are threats without detections and decide what to do about them.",
+   "objective": "Combine actor and detection scores and read the uncovered techniques.",
+   "steps": [
+    {
+     "do": "Create layer 'Actor' and score 1 for T1566.001, T1059.001, T1003.001, T1021.001, T1490, T1486",
+     "see": "Layer saved: 6 techniques scored 1."
+    },
+    {
+     "do": "Create layer 'Detections' and score 1 for T1059.001, T1486",
+     "see": "Layer saved: 2 techniques scored 1."
+    },
+    {
+     "do": "Set an expression a+b into a third layer",
+     "see": "Combined layer: T1059.001=2, T1486=2, others=1."
+    },
+    {
+     "do": "Set a comment legend: 2 covered threat, 1 gap",
+     "see": "Legend stored in layer description."
+    },
+    {
+     "do": "Filter to score 1 and view the list",
+     "see": "Gaps: T1566.001, T1003.001, T1021.001, T1490."
+    },
+    {
+     "do": "Export JSON",
+     "see": "File gap-view.json exported (6 techniques)."
+    }
+   ],
+   "answer": "Covered threat techniques are T1059.001 and T1486. Gaps are T1566.001, T1003.001, T1021.001 and T1490, which become the prioritized list pending data availability. The combined view lets you hand management a short ordered list instead of an unreadable heatmap.",
+   "hint": "Cells that only the actor layer marks are the gaps; the sum shows overlap."
+  },
+  {
+   "title": "Choose the next detection",
+   "sim": "chat-sim",
+   "scenario": "Your lead asks which one uncovered technique you will build next. Options: T1003.001 (needs Sysmon, 50 percent hosts), T1021.001 (Windows logon events already collected), T1082 (noisy). Group-X uses all three. Your lead values reasoning more than the final pick, so explain the trade-offs aloud before committing to one technique.",
+   "objective": "Justify one choice based on actor use and available logs.",
+   "steps": [
+    {
+     "do": "Ask lead: how many actors use each?",
+     "see": "Lead: 'T1003.001 and T1021.001 are used by every affiliate; T1082 by all but it is very noisy.'"
+    },
+    {
+     "do": "Ask: which logs do we already collect?",
+     "see": "Lead: 'Event 4624 with logon type is in the SIEM; Sysmon is on half the servers.'"
+    },
+    {
+     "do": "Propose T1021.001 first",
+     "see": "Lead: 'Why not LSASS?' "
+    },
+    {
+     "do": "Explain: data exists now and the rule is feasible with low noise",
+     "see": "Lead: 'Good. And LSASS?'"
+    },
+    {
+     "do": "Propose a Sysmon rollout ticket for T1003.001",
+     "see": "Lead: 'Approved. Write the rule, test it, then tag it.'"
+    },
+    {
+     "do": "Submit your plan",
+     "see": "Plan accepted: T1021.001 rule this sprint, Sysmon rollout next, T1082 deferred."
+    }
+   ],
+   "answer": "Build T1021.001 first because it is widely used by relevant actors, the required logon data is already collected and it is feasible with modest noise. Open a logging project for T1003.001 and defer noisy T1082. Document why the others were deferred so the decision can be revisited when data or threats change.",
+   "hint": "Weigh actor use, data availability and noise together."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "How many traditional Enterprise tactics are there?",
+   "options": [
+    "10",
+    "12",
+    "14",
+    "20"
+   ],
+   "a": 2,
+   "why": "The traditional matrix lists 14 tactics."
+  },
+  {
+   "q": "What is T1566.001?",
+   "options": [
+    "PowerShell",
+    "Spearphishing attachment",
+    "LSASS dumping",
+    "Scheduled task"
+   ],
+   "a": 1,
+   "why": "T1566.001 is Phishing: Spearphishing Attachment."
+  },
+  {
+   "q": "T1003.001 represents:",
+   "options": [
+    "Credential dumping from LSASS memory",
+    "Archive collected data",
+    "RDP",
+    "Web shell"
+   ],
+   "a": 0,
+   "why": "It is OS Credential Dumping: LSASS Memory."
+  },
+  {
+   "q": "Which is a tactic ID?",
+   "options": [
+    "T1059",
+    "TA0002",
+    "M1017",
+    "T1059.001"
+   ],
+   "a": 1,
+   "why": "TA numbers identify tactics."
+  },
+  {
+   "q": "Mapping should be based on:",
+   "options": [
+    "Tool names only",
+    "Observed behavior with evidence",
+    "Attacker nationality",
+    "Guess"
+   ],
+   "a": 1,
+   "why": "Evidence-backed behavior is the basis."
+  },
+  {
+   "q": "Real coverage of a technique requires:",
+   "options": [
+    "A tag only",
+    "Rule, working data and a test",
+    "A dashboard",
+    "A vendor claim"
+   ],
+   "a": 1,
+   "why": "All three conditions are needed."
+  },
+  {
+   "q": "Which detection is the most robust?",
+   "options": [
+    "Hash match",
+    "Single tool string",
+    "Behavioral logic on suspicious access",
+    "One IP match"
+   ],
+   "a": 2,
+   "why": "Behavior survives tool changes."
+  },
+  {
+   "q": "A+b in Navigator:",
+   "options": [
+    "Combines layer scores",
+    "Deletes techniques",
+    "Exports PDF",
+    "Updates ATT&CK"
+   ],
+   "a": 0,
+   "why": "Layer expressions merge scores."
+  },
+  {
+   "q": "A high-risk technique with no telemetry is first a:",
+   "options": [
+    "Logging project",
+    "Closed item",
+    "False positive",
+    "Rule retirement"
+   ],
+   "a": 0,
+   "why": "Collect data before writing rules."
+  },
+  {
+   "q": "Why self-host Navigator?",
+   "options": [
+    "Keep coverage data private",
+    "Add techniques",
+    "Run faster rules",
+    "Required by MITRE"
+   ],
+   "a": 0,
+   "why": "Coverage data is sensitive."
+  }
+ ]
+}

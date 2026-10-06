@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Onboarding: pick a goal</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+a{color:inherit}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="width:390px;height:844px;box-sizing:border-box;position:relative;overflow:hidden;display:flex;flex-direction:column;background-color:#F3F5F9;background-image:radial-gradient(#D3DAE8 1px,transparent 1px);background-size:18px 18px;font-family:'Hanken Grotesk',sans-serif;color:#101B33">
+  <div style="flex:1;min-height:0;padding:56px 20px 0;box-sizing:border-box;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <span style="font:700 22px/1 'Bricolage Grotesque',sans-serif;letter-spacing:-.01em">Kernel Breach</span>
+      <span style="font:600 13px/1 'Hanken Grotesk',sans-serif;color:#5B6781">Step 1 of 3</span>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:6px">
+      <span style="flex:1;height:6px;border-radius:3px;background:#101B33"></span>
+      <span style="flex:1;height:6px;border-radius:3px;background:#DCE2EC"></span>
+      <span style="flex:1;height:6px;border-radius:3px;background:#DCE2EC"></span>
+    </div>
+    <h1 style="margin:28px 0 0;font:700 32px/1.1 'Bricolage Grotesque',sans-serif;letter-spacing:-.01em">What do you want to be able to do?</h1>
+    <p style="margin:10px 0 0;font:400 16px/1.45 'Hanken Grotesk',sans-serif;color:#46546F">Pick one. You can change it any time.</p>
+
+    <div style="margin-top:22px;display:flex;flex-direction:column;gap:12px">
+      <button type="button" style="width:100%;display:flex;align-items:center;gap:14px;padding:14px 16px;min-height:76px;box-sizing:border-box;text-align:left;background:#fff;border:1px solid #DCE2EC;border-radius:18px;color:#101B33;cursor:pointer">
+        <span style="width:48px;height:48px;border-radius:14px;background:#DDF3EF;display:flex;align-items:center;justify-content:center;flex:none"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#101B33" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg></span>
+        <span style="flex:1;min-width:0"><span style="display:block;font:600 17px/1.2 'Hanken Grotesk',sans-serif">Understand how computers and the internet work</span><span style="display:block;margin-top:4px;font:400 14px/1.2 'Hanken Grotesk',sans-serif;color:#5B6781">Start with Cybersecurity Rookie</span></span>
+      </button>
+
+      <button type="button" aria-pressed="true" style="width:100%;display:flex;align-items:center;gap:14px;padding:13px 15px;min-height:76px;box-sizing:border-box;text-align:left;background:#fff;border:2px solid #101B33;border-radius:18px;color:#101B33;cursor:pointer;box-shadow:0 10px 24px -14px rgba(16,27,51,.35)">
+        <span style="width:48px;height:48px;border-radius:14px;background:#E1E8FF;display:flex;align-items:center;justify-content:center;flex:none"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#101B33" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg></span>
+        <span style="flex:1;min-width:0"><span style="display:block;font:600 17px/1.2 'Hanken Grotesk',sans-serif">Start a career in cybersecurity</span><span style="display:block;margin-top:4px;font:400 14px/1.2 'Hanken Grotesk',sans-serif;color:#5B6781">Cybersecurity Rookie, then Security Core</span></span>
+        <span style="width:28px;height:28px;border-radius:50%;background:#FFE066;display:flex;align-items:center;justify-content:center;flex:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#101B33" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+      </button>
+
+      <button type="button" style="width:100%;display:flex;align-items:center;gap:14px;padding:14px 16px;min-height:76px;box-sizing:border-box;text-align:left;background:#fff;border:1px solid #DCE2EC;border-radius:18px;color:#101B33;cursor:pointer">
+        <span style="width:48px;height:48px;border-radius:14px;background:#FBEFC7;display:flex;align-items:center;justify-content:center;flex:none"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#101B33" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/></svg></span>
+        <span style="flex:1;min-width:0"><span style="display:block;font:600 17px/1.2 'Hanken Grotesk',sans-serif">Protect myself and my team</span><span style="display:block;margin-top:4px;font:400 14px/1.2 'Hanken Grotesk',sans-serif;color:#5B6781">Security Core essentials</span></span>
+      </button>
+
+      <button type="button" style="width:100%;display:flex;align-items:center;gap:14px;padding:14px 16px;min-height:76px;box-sizing:border-box;text-align:left;background:#fff;border:1px solid #DCE2EC;border-radius:18px;color:#101B33;cursor:pointer">
+        <span style="width:48px;height:48px;border-radius:14px;background:#ECE5FF;display:flex;align-items:center;justify-content:center;flex:none"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#101B33" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".8"/></svg></span>
+        <span style="flex:1;min-width:0"><span style="display:block;font:600 17px/1.2 'Hanken Grotesk',sans-serif">Prepare for a specific role</span><span style="display:block;margin-top:4px;font:400 14px/1.2 'Hanken Grotesk',sans-serif;color:#5B6781">Analyst, pentesting, engineering or AI</span></span>
+      </button>
+    </div>
+
+    <a href="Main.dc.html" style="margin-top:10px;min-height:44px;display:inline-flex;align-items:center;gap:6px;font:600 15px/1 'Hanken Grotesk',sans-serif;color:#2347C7;text-decoration:none;align-self:flex-start">Not sure? Take a 3-minute placement check<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2347C7" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></a>
+  </div>
+
+  <div style="flex:none;padding:12px 20px 34px;box-sizing:border-box">
+    <a href="Main.dc.html" style="height:56px;border-radius:16px;background:#101B33;color:#fff;text-decoration:none;font:600 17px/1 'Hanken Grotesk',sans-serif;display:flex;align-items:center;justify-content:center">Continue</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,954 @@
+{
+ "code": "CORE-01",
+ "intro": "This module builds the vocabulary used everywhere else in security. You will learn the CIA triad, AAA and non-repudiation, defense in depth, least privilege and zero trust, then two ways of describing attacks (the kill chain and MITRE ATT&CK) and three frameworks organizations use to structure programs: NIST CSF, ISO 27001 and CIS Controls. These ideas let you classify any incident, choose sensible controls and speak the same language as auditors and analysts.",
+ "lessons": [
+  {
+   "title": "CIA triad and its failure modes",
+   "why": "Every security control exists to protect at least one of three properties, so the triad is the vocabulary you use to describe any incident.",
+   "sections": [
+    {
+     "h": "Confidentiality",
+     "p": [
+      "Confidentiality means only authorized parties can read information. It fails when data is disclosed: a misconfigured storage bucket exposes customer records, an attacker sniffs unencrypted traffic, or an employee emails a spreadsheet to the wrong person. Typical controls are encryption at rest and in transit, access control lists, data classification and need-to-know policies.",
+      "Confidentiality is not only about attackers. Shoulder surfing, discarded printouts and verbose error messages that reveal file paths are all disclosure failures. Because a leaked secret cannot be un-leaked, confidentiality controls lean heavily on prevention rather than recovery."
+     ]
+    },
+    {
+     "h": "Integrity",
+     "p": [
+      "Integrity means data and systems are accurate and changed only in authorized ways. It fails when a record is altered: an attacker modifies a payroll amount, malware patches a binary, or a man in the middle rewrites a download. Controls include hashing and checksums, digital signatures, file integrity monitoring, input validation, version control and change management.",
+      "Integrity covers both data and system integrity. A tampered configuration file is an integrity failure even if nobody reads it. Detection is a core theme: you often cannot stop every change, but you can notice that a hash no longer matches the known good value."
+     ]
+    },
+    {
+     "h": "Availability",
+     "p": [
+      "Availability means systems and data are usable when needed. It fails through denial of service floods, ransomware that encrypts files, hardware failure, power loss or a mistaken configuration change. Controls include redundancy, load balancing, backups tested by restore, DDoS mitigation, patching and capacity planning, plus disaster recovery plans with defined recovery time objectives.",
+      "Notice that ransomware is mostly an availability attack, though double extortion adds a confidentiality failure. Real incidents rarely touch just one property, so analysts name every property affected. Controls also trade off: heavy encryption and strict access can reduce availability if keys are lost."
+     ]
+    },
+    {
+     "h": "Beyond the triad",
+     "p": [
+      "Some models add authenticity, accountability and privacy, and the Parkerian hexad adds possession, utility and authenticity. For study purposes the three core properties are enough, but notice that they interact. Making data available to everyone helps availability and destroys confidentiality; locking everything down does the opposite. Risk assessment decides the right balance for each asset, which is why classification (public, internal, confidential, restricted) comes first. When you read an incident report, ask which property the business cares about most for that asset: a hospital scheduling system prioritizes availability, a legal archive prioritizes confidentiality, and a financial ledger prioritizes integrity."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Triad mapping",
+    "text": "Incident                         Property   Control\nS3 bucket public read           C          Block public access\nPayroll value changed in DB     I          Audit log + hashes\nWeb server flooded with SYNs    A          Rate limit / CDN\nLaptop stolen, disk unlocked    C          Full-disk encryption"
+   },
+   "example": "A hospital finds that an attacker encrypted its patient scheduling server and copied 40,000 records first. Analysts tag availability (system unusable) and confidentiality (records copied). Integrity is unproven until files are checked against known hashes. Controls follow: offline tested backups for availability, encryption and egress monitoring for confidentiality, and file integrity monitoring so any silent change is noticed. Naming the violated properties first makes the response plan obvious and gives leadership a clear impact statement.",
+   "terms": [
+    {
+     "term": "Confidentiality",
+     "def": "Preventing unauthorized disclosure of information."
+    },
+    {
+     "term": "Integrity",
+     "def": "Assurance that data and systems are accurate and only changed by authorized actions."
+    },
+    {
+     "term": "Availability",
+     "def": "Timely, reliable access to systems and data for authorized users."
+    },
+    {
+     "term": "Hashing",
+     "def": "Producing a fixed-size fingerprint of data used to detect change."
+    },
+    {
+     "term": "DoS",
+     "def": "An attack that exhausts resources to make a service unavailable."
+    }
+   ],
+   "check": [
+    {
+     "q": "An attacker modifies invoice amounts in a database. Which property is violated?",
+     "options": [
+      "Integrity",
+      "Availability",
+      "Authentication",
+      "Confidentiality"
+     ],
+     "a": 0,
+     "why": "Unauthorized modification is an integrity failure."
+    },
+    {
+     "q": "Which control best supports availability?",
+     "options": [
+      "Digital signatures",
+      "Data classification labels",
+      "Full-disk encryption",
+      "Tested offsite backups"
+     ],
+     "a": 3,
+     "why": "Backups that are tested by restore let you recover from loss or ransomware."
+    },
+    {
+     "q": "A laptop with an unencrypted disk is stolen. The primary failure is of:",
+     "options": [
+      "Non-repudiation",
+      "Confidentiality",
+      "Integrity",
+      "Availability"
+     ],
+     "a": 1,
+     "why": "Readable data in unauthorized hands is disclosure."
+    },
+    {
+     "q": "Why do analysts often name more than one CIA property per incident?",
+     "options": [
+      "It reduces cost",
+      "Standards require exactly three",
+      "Attacks often affect several properties at once",
+      "Only availability matters"
+     ],
+     "a": 2,
+     "why": "Ransomware with data theft hits both availability and confidentiality."
+    }
+   ],
+   "recap": [
+    "Confidentiality, integrity and availability describe what is being protected.",
+    "Each property has typical attacks and matching controls.",
+    "Real incidents usually affect more than one property."
+   ]
+  },
+  {
+   "title": "AAA and non-repudiation",
+   "why": "Knowing who did what, and being able to prove it, underpins access control, auditing and legal accountability.",
+   "sections": [
+    {
+     "h": "Authentication, authorization, accounting",
+     "p": [
+      "Authentication proves identity: something you know (password), have (hardware token, authenticator app) or are (fingerprint). Authorization decides what the proven identity may do, for example read but not delete a share. Accounting records what happened: logins, commands, file access and changes, with timestamps and user IDs. The order matters: authenticate first, authorize second, account throughout.",
+      "Protocols such as RADIUS and TACACS+ centralize AAA for network devices. TACACS+ separates the three functions and encrypts the whole payload, which is why it is common for administrator access to routers, while RADIUS is common for network access such as Wi-Fi and VPN."
+     ]
+    },
+    {
+     "h": "Common AAA failures",
+     "p": [
+      "Authentication fails with weak or reused passwords and missing MFA. Authorization fails when users hold more rights than their job needs, or when an application checks login but not permission, letting user A open user B's record by changing an ID in the URL. Accounting fails when logs are not collected, are overwritten after a day, or share an account such as admin so actions cannot be tied to a person.",
+      "Shared accounts are particularly damaging because they break attribution. Good practice is unique IDs, centralized log storage, synchronized clocks through NTP and log retention that matches policy and regulation."
+     ]
+    },
+    {
+     "h": "Non-repudiation",
+     "p": [
+      "Non-repudiation means a party cannot credibly deny an action. A digital signature made with a private key that only the signer controls proves origin and integrity of a message, because verification with the public key succeeds only for the matching key and unmodified content. Audit logs support non-repudiation when they are tamper-resistant, time-stamped and tied to unique identities.",
+      "A plain hash or a shared secret does not provide it, because either party could have created the value. Only asymmetric signatures, trusted timestamps and protected logs approach legal proof."
+     ]
+    },
+    {
+     "h": "Multi-factor and accounting in practice",
+     "p": [
+      "Multi-factor authentication combines at least two different factor types, so a password plus a security question is still one factor. Strong options are FIDO2 security keys and authenticator apps; SMS codes are weaker because of SIM swapping. On the accounting side, useful records answer who, what, when, where and from which system. Windows Security events such as 4624 (successful logon) and 4625 (failed logon) and Linux files like /var/log/auth.log are everyday sources. Retention must be long enough to investigate slow intrusions, and logs should be shipped off the host quickly because attackers often try to clear local logs to hide their actions."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Auth log excerpt",
+    "text": "2025-03-02T09:14:07Z sshd[811]: Accepted publickey for alice from 192.0.2.44\n2025-03-02T09:14:31Z sudo: alice : COMMAND=/usr/bin/cat /etc/shadow\n2025-03-02T09:15:02Z sshd[811]: session closed for alice"
+   },
+   "example": "A finance app logs 'admin deleted vendor record 8812' but five staff share the admin password. When the record vanishes, nobody can be held accountable. The fix: give each person a unique account, require MFA, forward logs to a central server with write-once storage, and sign critical approvals. Now the log reads 'bob approved at 14:02 from 198.51.100.7 with token ending 4F', and Bob cannot plausibly deny the action.",
+   "terms": [
+    {
+     "term": "Authentication",
+     "def": "Verifying that a claimed identity is genuine."
+    },
+    {
+     "term": "Authorization",
+     "def": "Granting or denying specific permissions to an authenticated identity."
+    },
+    {
+     "term": "Accounting",
+     "def": "Recording user activity for audit and investigation."
+    },
+    {
+     "term": "Non-repudiation",
+     "def": "Preventing a party from credibly denying an action they performed."
+    },
+    {
+     "term": "TACACS+",
+     "def": "A protocol for centralized AAA, commonly used for device administration."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which step proves who you are?",
+     "options": [
+      "Authorization",
+      "Accounting",
+      "Authentication",
+      "Auditing policy"
+     ],
+     "a": 2,
+     "why": "Authentication verifies identity."
+    },
+    {
+     "q": "What makes shared admin accounts a problem?",
+     "options": [
+      "They break attribution",
+      "They cannot use MFA ever",
+      "They disable logging",
+      "They are slower"
+     ],
+     "a": 0,
+     "why": "Actions cannot be tied to one person."
+    },
+    {
+     "q": "Which mechanism best provides non-repudiation?",
+     "options": [
+      "Digital signature",
+      "Port knocking",
+      "Symmetric shared key",
+      "Plain SHA-256 hash"
+     ],
+     "a": 0,
+     "why": "Only the private key holder can produce the signature."
+    },
+    {
+     "q": "User A changes an ID in a URL and sees user B's data. Which AAA element failed?",
+     "options": [
+      "Encryption",
+      "Availability",
+      "Authorization",
+      "Authentication"
+     ],
+     "a": 2,
+     "why": "The app did not check that A may access B's record."
+    }
+   ],
+   "recap": [
+    "AAA = prove identity, grant rights, record actions.",
+    "Unique accounts and protected logs enable accountability.",
+    "Signatures, not hashes or shared secrets, give non-repudiation."
+   ]
+  },
+  {
+   "title": "Defense in depth and least privilege",
+   "why": "No single control is perfect, so layered and minimal-rights designs limit how far one failure can go.",
+   "sections": [
+    {
+     "h": "Layers and control types",
+     "p": [
+      "Defense in depth stacks independent controls so an attacker must defeat several. Layers include policy and awareness, physical security, perimeter firewalls, network segmentation, host hardening and endpoint protection, application security, and data protection such as encryption. If phishing gets past the mail filter, endpoint detection, MFA and segmentation still stand in the way.",
+      "Controls are also classed by function. Preventive controls stop an event (firewall rule, lock). Detective controls notice it (IDS, log monitoring, cameras). Corrective controls repair afterward (restore from backup, patch). Others you will meet are deterrent, compensating and directive controls such as policy. A balanced program has all three main types, not only prevention."
+     ]
+    },
+    {
+     "h": "Least privilege",
+     "p": [
+      "Least privilege gives each user, process and service only the access required for its task and no more, for only as long as needed. Practical forms: standard accounts for daily work with separate admin accounts, sudo rules scoped to specific commands, database accounts with only SELECT on needed tables, and just-in-time elevation that expires.",
+      "Excess privilege turns small compromises into large ones. If a web server runs as root, a bug in it gives the attacker the whole host; if it runs as a restricted user, the damage is contained. Regular access reviews remove privilege creep, the slow accumulation of rights as people change roles."
+     ]
+    },
+    {
+     "h": "Separation of duties",
+     "p": [
+      "Separation of duties splits a sensitive task so no single person can complete it alone, for example one person requests a payment and another approves it, or developers write code but a different role deploys to production. It reduces fraud and error because abuse requires collusion.",
+      "Related ideas are job rotation, mandatory vacation (which can reveal hidden fraud) and dual control, where two people must act together such as two key custodians. These human-process controls complement technical ones and are frequently tested in certification exams."
+     ]
+    },
+    {
+     "h": "Compensating and deterrent controls",
+     "p": [
+      "Not every control fits every situation. A compensating control substitutes when the preferred control is impractical, for example network isolation and enhanced monitoring for an old medical device that cannot be patched. A deterrent control discourages action without physically stopping it, such as warning banners or visible cameras. Directive controls are policies and procedures. Auditors look for evidence that each risk has at least one preventive and one detective control, plus a corrective path. When you design layers, make sure they are truly independent: two firewalls managed with the same password are one layer in practice, because one stolen credential defeats both."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "sudoers rule (least privilege)",
+    "text": "# /etc/sudoers.d/webops\nwebops ALL=(root) NOPASSWD: /usr/bin/systemctl restart nginx\n# no shell, no other commands allowed"
+   },
+   "example": "A small company lets one accountant create vendors, approve invoices and release payments. An insider adds a fake vendor and pays it. Applying separation of duties (creator, approver, payer are different people), least privilege (each role sees only its screens) and detective controls (weekly report of new vendors paid over a threshold) makes the fraud harder and quicker to notice. A corrective control, such as clawback procedures, limits loss when it still happens.",
+   "terms": [
+    {
+     "term": "Defense in depth",
+     "def": "Using multiple independent layers of controls so one failure does not cause compromise."
+    },
+    {
+     "term": "Preventive control",
+     "def": "A control that blocks an unwanted event."
+    },
+    {
+     "term": "Detective control",
+     "def": "A control that identifies an event after or while it occurs."
+    },
+    {
+     "term": "Least privilege",
+     "def": "Granting only the minimum access needed for a task."
+    },
+    {
+     "term": "Separation of duties",
+     "def": "Dividing a critical task among people so none can complete it alone."
+    }
+   ],
+   "check": [
+    {
+     "q": "An IDS alert is which control type?",
+     "options": [
+      "Deterrent only",
+      "Preventive",
+      "Detective",
+      "Corrective"
+     ],
+     "a": 2,
+     "why": "It identifies activity rather than blocking it."
+    },
+    {
+     "q": "A web service runs as an unprivileged user. This applies:",
+     "options": [
+      "Least privilege",
+      "Non-repudiation",
+      "Salting",
+      "Federation"
+     ],
+     "a": 0,
+     "why": "The process has only the rights it needs."
+    },
+    {
+     "q": "Requiring one person to request and another to approve payments is:",
+     "options": [
+      "Separation of duties",
+      "Privilege creep",
+      "Defense in width",
+      "Job rotation"
+     ],
+     "a": 0,
+     "why": "Two roles must act, preventing single-person fraud."
+    },
+    {
+     "q": "Why layer controls?",
+     "options": [
+      "Any single control can fail",
+      "Regulators ban single controls",
+      "Layers remove need for logs",
+      "Cheaper than one control"
+     ],
+     "a": 0,
+     "why": "Layers keep protection when one control fails."
+    }
+   ],
+   "recap": [
+    "Layer preventive, detective and corrective controls.",
+    "Grant minimum rights for minimum time.",
+    "Split critical tasks so collusion is required."
+   ]
+  },
+  {
+   "title": "Zero trust fundamentals",
+   "why": "Perimeter-only security fails once users, apps and data live outside the office network, so access decisions must be made per request.",
+   "sections": [
+    {
+     "h": "Never trust, always verify",
+     "p": [
+      "Zero trust drops the assumption that anything inside the network is safe. NIST SP 800-207 defines it as a set of principles that move defenses from network perimeters to focus on users, assets and resources. Every access request is authenticated and authorized using identity, device health, location and other context, regardless of network location.",
+      "It is an architecture and strategy, not a single product. Core tenets include treating all data sources and services as resources, securing all communication, granting access per session, using dynamic policy, monitoring device posture and continuously collecting telemetry to improve decisions."
+     ]
+    },
+    {
+     "h": "Policy engine and enforcement point",
+     "p": [
+      "The 800-207 logical model separates a control plane and a data plane. The Policy Decision Point is made of a Policy Engine that decides to grant or deny, and a Policy Administrator that tells the enforcement point to open or close the path. The Policy Enforcement Point sits in front of the resource and permits or terminates connections.",
+      "Inputs to the engine include identity provider data, device compliance from endpoint management, threat intelligence and activity logs. A subject on 198.51.100.20 with an unpatched laptop may be denied or given read-only access even with a valid password."
+     ]
+    },
+    {
+     "h": "Microsegmentation and adoption",
+     "p": [
+      "Microsegmentation divides the network into small zones, often per workload, with explicit allow rules between them. A compromised print server then cannot reach the database tier because no policy permits it. This limits lateral movement, a favorite attacker technique after initial access.",
+      "Adoption is gradual: inventory identities and assets, enforce strong MFA, map data flows, apply least privilege, then segment and monitor. Common pitfalls are buying a product labeled zero trust without changing policy and ignoring legacy systems that cannot support modern authentication."
+     ]
+    },
+    {
+     "h": "Identity, devices and common misunderstandings",
+     "p": [
+      "Identity becomes the new perimeter, so strong authentication, conditional access and privileged access management carry much of the load. Device trust relies on inventory, patch level, disk encryption and endpoint detection signals. Network location is no longer sufficient, yet networks still matter: segmentation, encrypted traffic (TLS everywhere) and DNS controls remain essential. A common misunderstanding is that zero trust means trusting nobody at all or replacing firewalls. In reality it means no implicit trust: access is explicitly granted, as narrowly as possible, and re-evaluated continuously. Another is treating it as a one-time project; it is a long journey measured by shrinking implicit trust zones."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Access decision (illustrative)",
+    "text": "request: user=carol device=laptop-17 res=hr-db\nidp: MFA=passed   device: patched=false\npolicy: hr-db requires patched=true\ndecision: DENY (remediate device)"
+   },
+   "example": "An employee on a coffee shop network opens the finance portal. Under a perimeter model, a VPN login might grant broad internal access. Under zero trust, the Policy Engine checks MFA, device compliance and risk, then the Policy Enforcement Point grants access to only the finance portal for that session. If the laptop later shows malware, telemetry triggers a policy change and the session ends, while other segments remain unreachable.",
+   "terms": [
+    {
+     "term": "Zero trust",
+     "def": "A security model that requires verification of every request regardless of network location."
+    },
+    {
+     "term": "Policy Decision Point",
+     "def": "The component (engine plus administrator) that decides and authorizes access."
+    },
+    {
+     "term": "Policy Enforcement Point",
+     "def": "The component that enables, monitors and terminates connections to a resource."
+    },
+    {
+     "term": "Microsegmentation",
+     "def": "Fine-grained network zoning that restricts lateral movement."
+    },
+    {
+     "term": "Lateral movement",
+     "def": "Attacker movement from one compromised system to others."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which document defines zero trust architecture?",
+     "options": [
+      "RFC 791",
+      "PCI DSS",
+      "NIST SP 800-207",
+      "ISO 9001"
+     ],
+     "a": 2,
+     "why": "NIST SP 800-207 is the Zero Trust Architecture publication."
+    },
+    {
+     "q": "The core idea of zero trust is:",
+     "options": [
+      "Use only VPNs",
+      "Trust internal IPs",
+      "Never trust, always verify",
+      "Block all traffic"
+     ],
+     "a": 2,
+     "why": "Every request is verified regardless of location."
+    },
+    {
+     "q": "Microsegmentation mainly reduces:",
+     "options": [
+      "Disk usage",
+      "Lateral movement",
+      "Password length",
+      "DNS latency"
+     ],
+     "a": 1,
+     "why": "Explicit allow rules stop movement between segments."
+    },
+    {
+     "q": "Which component actually permits or terminates the connection?",
+     "options": [
+      "Policy Enforcement Point",
+      "Identity provider logo",
+      "Policy log archive",
+      "Syslog server"
+     ],
+     "a": 0,
+     "why": "The PEP enforces the decision at the resource."
+    }
+   ],
+   "recap": [
+    "Verify every request using identity, device and context.",
+    "PDP decides, PEP enforces.",
+    "Microsegmentation contains lateral movement."
+   ]
+  },
+  {
+   "title": "Kill chain and MITRE ATT&CK",
+   "why": "Mapping activity to a common model lets defenders find where to break an intrusion and communicate precisely.",
+   "sections": [
+    {
+     "h": "Lockheed Martin Cyber Kill Chain",
+     "p": [
+      "The kill chain describes seven stages of an intrusion: reconnaissance (research the target), weaponization (pair an exploit with a payload), delivery (email, web, USB), exploitation (trigger the vulnerability), installation (establish persistence), command and control (remote channel to the attacker), and actions on objectives (theft, destruction, encryption).",
+      "Its value is defensive: breaking any link stops the chain. Email filtering disrupts delivery, patching disrupts exploitation, application allow-listing disrupts installation, egress filtering and DNS monitoring disrupt command and control. Its limits are a linear, perimeter-era view that fits insider threats and cloud abuse poorly."
+     ]
+    },
+    {
+     "h": "MITRE ATT&CK",
+     "p": [
+      "ATT&CK is a knowledge base of real adversary behavior organized as tactics (the why, such as Initial Access, Execution, Persistence, Privilege Escalation, Defense Evasion, Credential Access, Discovery, Lateral Movement, Collection, Command and Control, Exfiltration, Impact) and techniques (the how). Techniques have IDs, for example T1566 Phishing and T1059 Command and Scripting Interpreter, with sub-techniques like T1566.001 Spearphishing Attachment.",
+      "Matrices exist for Enterprise, Mobile and ICS. Each technique lists data sources for detection, mitigations and known groups that use it, which makes it practical for detection engineering and gap analysis."
+     ]
+    },
+    {
+     "h": "Using the models together",
+     "p": [
+      "Use the kill chain for a simple narrative and ATT&CK for detail. A phishing email with a macro document maps to Delivery and ATT&CK T1566.001; the macro launching PowerShell is Execution via T1059.001; a scheduled task for persistence is T1053.005; beaconing over HTTPS is T1071.001.",
+      "Analysts record these mappings in reports and threat intelligence so teams can ask: which techniques do our logs actually detect? A heat map of covered techniques shows blind spots to prioritize."
+     ]
+    },
+    {
+     "h": "Courses of action and common pitfalls",
+     "p": [
+      "Lockheed Martin pairs each stage with defender actions: detect, deny, disrupt, degrade, deceive and destroy. For example, a honeypot can deceive at the C2 stage, and a proxy block can deny. Using ATT&CK well means mapping detections rather than collecting technique counts. One log source may cover many techniques poorly, while a single well-tuned rule may cover one technique well, so quality matters more than the number of colored cells. Remember also that ATT&CK describes observed behavior, not a checklist every attacker follows; real intrusions skip, repeat and reorder tactics, and the Unified Kill Chain extends the model to include pivoting inside a network."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Event to technique",
+    "text": "Event                          Tactic            Technique\nDoc macro spawns powershell    Execution         T1059.001\nNew scheduled task on host     Persistence       T1053.005\nHTTPS beacon every 60 s        C2                T1071.001"
+   },
+   "example": "Logs show a user opened invoice.docm, powershell.exe ran an encoded command, and 10 minutes later host 10.0.0.15 contacts 203.0.113.9 every 60 seconds. Kill chain: delivery, exploitation or execution, installation, then C2. ATT&CK: T1566.001, T1059.001, T1071.001. A defender chooses controls such as blocking macros from the internet, script block logging and egress monitoring, each aimed at a specific mapped step and each testable later.",
+   "terms": [
+    {
+     "term": "Kill chain",
+     "def": "A seven-stage model of an intrusion from reconnaissance to actions on objectives."
+    },
+    {
+     "term": "Tactic",
+     "def": "The adversary goal in ATT&CK, the why."
+    },
+    {
+     "term": "Technique",
+     "def": "How a tactic is achieved, identified by a T-number."
+    },
+    {
+     "term": "Persistence",
+     "def": "Methods to keep access across reboots or credential changes."
+    },
+    {
+     "term": "Command and control",
+     "def": "The channel an attacker uses to remotely direct compromised systems."
+    }
+   ],
+   "check": [
+    {
+     "q": "How many stages are in the Lockheed Martin kill chain?",
+     "options": [
+      "7",
+      "9",
+      "14",
+      "5"
+     ],
+     "a": 0,
+     "why": "It has seven stages."
+    },
+    {
+     "q": "T1566 in ATT&CK is:",
+     "options": [
+      "Kerberoasting",
+      "DLL injection",
+      "Phishing",
+      "Port scanning"
+     ],
+     "a": 2,
+     "why": "T1566 is Phishing."
+    },
+    {
+     "q": "In ATT&CK, a tactic is:",
+     "options": [
+      "A CVE",
+      "The tool used",
+      "The adversary goal",
+      "A malware family"
+     ],
+     "a": 2,
+     "why": "Tactics are the why; techniques are the how."
+    },
+    {
+     "q": "Egress filtering most directly disrupts which kill chain stage?",
+     "options": [
+      "Delivery",
+      "Reconnaissance",
+      "Command and control",
+      "Weaponization"
+     ],
+     "a": 2,
+     "why": "It blocks outbound attacker channels."
+    }
+   ],
+   "recap": [
+    "Seven stages: recon to actions on objectives.",
+    "ATT&CK catalogs tactics, techniques and sub-techniques.",
+    "Map events to find detection gaps and where to break the chain."
+   ]
+  },
+  {
+   "title": "NIST CSF, ISO 27001 and CIS Controls",
+   "why": "Frameworks give organizations a shared structure for building and proving a security program.",
+   "sections": [
+    {
+     "h": "NIST Cybersecurity Framework",
+     "p": [
+      "The NIST CSF is voluntary guidance organized by functions. Version 1.1 has five: Identify, Protect, Detect, Respond, Recover. CSF 2.0 (2024) adds Govern as a sixth function covering strategy, roles, risk management and policy. Each function breaks into categories and subcategories, and organizations describe a Current Profile and a Target Profile to plan gap closure.",
+      "Implementation tiers describe rigor, from Partial to Adaptive. The CSF is outcome-based and technology neutral, which makes it good for communicating with executives and mapping to other standards."
+     ]
+    },
+    {
+     "h": "ISO/IEC 27001",
+     "p": [
+      "ISO/IEC 27001 specifies requirements for an Information Security Management System (ISMS), a management process that uses risk assessment, a Statement of Applicability and continual improvement (plan, do, check, act). Organizations can be certified by an accredited auditor, unlike the CSF which has no certification.",
+      "Annex A lists reference controls. The 2022 edition has 93 controls in four themes: organizational, people, physical and technological. Companion standard ISO/IEC 27002 gives implementation guidance. Leadership commitment, scope definition and internal audits are mandatory clauses."
+     ]
+    },
+    {
+     "h": "CIS Critical Security Controls",
+     "p": [
+      "The CIS Controls are a prioritized set of practical actions. Version 8 has 18 controls, such as inventory of enterprise assets, inventory of software, data protection, secure configuration, account management and access control, continuous vulnerability management, audit log management, malware defenses and incident response.",
+      "Safeguards are grouped into Implementation Groups. IG1 is essential cyber hygiene for small organizations with limited expertise; IG2 adds safeguards for organizations with dedicated IT staff; IG3 targets mature organizations facing targeted attacks. Start with IG1, then grow."
+     ]
+    },
+    {
+     "h": "Choosing and combining frameworks",
+     "p": [
+      "Compliance is not the same as security. A framework helps you choose and organize controls, but evidence of real operation matters more than documents. Mappings exist between all three: a CIS safeguard such as multi-factor authentication corresponds to a CSF Protect subcategory and to an ISO 27001 Annex A access control. Related regulations and standards include PCI DSS for card data, HIPAA for health information in the United States and GDPR for personal data in the EU; they require outcomes that frameworks help deliver. Pick one as your backbone, map the others to it, and review the program at least annually or after major change."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Framework comparison",
+    "text": "Framework   Purpose                  Certifiable\nNIST CSF    Outcomes, risk language  No\nISO 27001   ISMS management system   Yes\nCIS v8      Prioritized safeguards   No"
+   },
+   "example": "A 40-person company with one IT admin wants a plan. They adopt CIS IG1 safeguards as a to-do list (asset inventory, MFA, backups), use the NIST CSF to report progress to the board by function, and consider ISO 27001 later because a large customer demands a certificate. Each framework fills a different need: tactical checklist, communication structure, formal assurance. They complement rather than compete.",
+   "terms": [
+    {
+     "term": "NIST CSF",
+     "def": "A voluntary framework of security outcomes grouped into functions."
+    },
+    {
+     "term": "ISMS",
+     "def": "A systematic management approach to information security under ISO 27001."
+    },
+    {
+     "term": "Annex A",
+     "def": "The ISO 27001 reference list of security controls."
+    },
+    {
+     "term": "Implementation Group",
+     "def": "A CIS tier (IG1-IG3) scoping safeguards to organization maturity."
+    },
+    {
+     "term": "Statement of Applicability",
+     "def": "ISO 27001 document listing chosen controls and justification."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which framework can an organization be certified against?",
+     "options": [
+      "NIST CSF",
+      "CIS Controls",
+      "ISO/IEC 27001",
+      "MITRE ATT&CK"
+     ],
+     "a": 2,
+     "why": "ISO 27001 supports accredited certification."
+    },
+    {
+     "q": "Which function did CSF 2.0 add?",
+     "options": [
+      "Isolate",
+      "Audit",
+      "Patch",
+      "Govern"
+     ],
+     "a": 3,
+     "why": "Govern was added in version 2.0."
+    },
+    {
+     "q": "Which CIS group suits small organizations with limited expertise?",
+     "options": [
+      "IG4",
+      "Tier 4",
+      "IG1",
+      "IG3"
+     ],
+     "a": 2,
+     "why": "IG1 is essential cyber hygiene."
+    },
+    {
+     "q": "Which CSF function covers backups and restoring operations?",
+     "options": [
+      "Recover",
+      "Protect",
+      "Identify",
+      "Detect"
+     ],
+     "a": 0,
+     "why": "Recover restores capabilities after an incident."
+    }
+   ],
+   "recap": [
+    "CSF gives outcomes, ISO 27001 a certifiable ISMS, CIS prioritized actions.",
+    "CSF functions: Govern, Identify, Protect, Detect, Respond, Recover.",
+    "IG1 to IG3 scale safeguards by maturity."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Tag scenarios by CIA property",
+   "sim": "scenario",
+   "scenario": "You are a junior analyst at Example Corp reviewing eight incident snippets from the weekly ticket queue. Each ticket describes what happened but not the classification. Your manager wants each tagged by the violated CIA property and a fitting control for the lessons-learned report. The queue is displayed in a ticket viewer with a property selector and a control dropdown for each ticket. A score is shown after submission, and an incorrect answer shows a short explanation so you can revisit it.",
+   "objective": "Classify eight incidents by CIA property and choose a matching control for each.",
+   "steps": [
+    {
+     "do": "Open ticket 1: public storage bucket lists customer files",
+     "see": "Tag options shown: C, I, A. Hint: data readable by anyone."
+    },
+    {
+     "do": "Tag ticket 1 as Confidentiality",
+     "see": "Correct. Suggested control list appears: block public access, access review."
+    },
+    {
+     "do": "Open ticket 2: invoice totals changed in the database",
+     "see": "Log shows UPDATE by unknown account at 02:11."
+    },
+    {
+     "do": "Tag ticket 2 as Integrity, choose control 'audit logging and hashes'",
+     "see": "Correct. Control matches property."
+    },
+    {
+     "do": "Open ticket 3: web server unreachable under SYN flood from many IPs",
+     "see": "Traffic graph spikes to 900k packets per second."
+    },
+    {
+     "do": "Tag ticket 3 as Availability, choose 'rate limiting and DDoS service'",
+     "see": "Correct."
+    },
+    {
+     "do": "Open ticket 4: ransomware note on file server with 30 GB uploaded to 203.0.113.50",
+     "see": "Two properties may apply."
+    },
+    {
+     "do": "Tag ticket 4 as Availability and Confidentiality",
+     "see": "Correct. Remaining tickets 5-8 follow the same pattern; score 8/8."
+    }
+   ],
+   "answer": "Public bucket: confidentiality (block public access). Altered invoices: integrity (audit logs, hashing). SYN flood: availability (rate limiting, DDoS service). Ransomware with exfiltration: availability and confidentiality (tested backups, egress monitoring and encryption).",
+   "hint": "Ask what happened to the data: read, changed, or made unusable."
+  },
+  {
+   "title": "Map an intrusion to ATT&CK",
+   "sim": "diagram-builder",
+   "scenario": "A sandbox host in the example.com lab network was compromised. You have six observed events in a tray and a blank kill chain diagram. Place each event on a stage and attach the matching ATT&CK technique ID. The goal is a report-ready diagram for the SOC lead. The diagram has seven stage lanes. Each placement is checked immediately and wrong placements bounce back with a short hint, so you can experiment safely.",
+   "objective": "Place six events on kill chain stages and attach correct ATT&CK technique IDs.",
+   "steps": [
+    {
+     "do": "Drag 'email with invoice.docm from 203.0.113.25' to Delivery",
+     "see": "Snapped to Delivery. Tag prompt appears."
+    },
+    {
+     "do": "Attach T1566.001",
+     "see": "Accepted: Spearphishing Attachment."
+    },
+    {
+     "do": "Drag 'macro starts powershell -enc ...' to Exploitation",
+     "see": "Snapped; the sim notes execution of user-run content."
+    },
+    {
+     "do": "Attach T1059.001",
+     "see": "Accepted: PowerShell."
+    },
+    {
+     "do": "Drag 'scheduled task Updater created' to Installation and attach T1053.005",
+     "see": "Accepted: Scheduled Task."
+    },
+    {
+     "do": "Drag 'HTTPS beacon to 203.0.113.25 every 60 s' to Command and Control and attach T1071.001",
+     "see": "Accepted: Web Protocols."
+    },
+    {
+     "do": "Drag 'zip of Documents uploaded' to Actions on Objectives and attach T1041",
+     "see": "Accepted: Exfiltration Over C2 Channel."
+    },
+    {
+     "do": "Submit diagram",
+     "see": "Score 6/6. Suggested breakpoints: macro blocking, egress filtering."
+    }
+   ],
+   "answer": "Delivery T1566.001; Exploitation or execution T1059.001; Installation T1053.005; C2 T1071.001; Actions on objectives T1041. Breaking the chain early with attachment filtering or macro policy prevents the later stages and saves the response team effort.",
+   "hint": "Technique IDs describe how; kill chain stage describes when."
+  },
+  {
+   "title": "Match controls to NIST CSF functions",
+   "sim": "scenario",
+   "scenario": "Example Retail has a security program on paper. You receive twelve controls and five CSF function bins. Sort each control and then compare the filled bins to spot gaps in the program. The CFO wants a one-line summary of the weakest function. The company is a small online shop with a part-time administrator, so some gaps are expected. Each bin shows a count and the analysis view compares it to a balanced sample program.",
+   "objective": "Sort twelve controls into CSF functions and identify the weakest function.",
+   "steps": [
+    {
+     "do": "Drag 'asset inventory' to Identify",
+     "see": "Accepted."
+    },
+    {
+     "do": "Drag 'MFA' and 'patch management' to Protect",
+     "see": "Accepted both."
+    },
+    {
+     "do": "Drag 'SIEM alerting' and 'IDS sensors' to Detect",
+     "see": "Accepted both."
+    },
+    {
+     "do": "Drag 'incident response plan' and 'communications playbook' to Respond",
+     "see": "Accepted both."
+    },
+    {
+     "do": "Drag 'tested backups' to Recover",
+     "see": "Accepted."
+    },
+    {
+     "do": "Drag 'risk assessment' and 'vendor inventory' to Identify, 'security training' to Protect",
+     "see": "Accepted."
+    },
+    {
+     "do": "Press Analyze gaps",
+     "see": "Bin counts: Identify 3, Protect 4, Detect 2, Respond 2, Recover 1."
+    },
+    {
+     "do": "Select weakest function",
+     "see": "Prompt: Recover has one control, no restore testing evidence."
+    }
+   ],
+   "answer": "Recover is the weakest function: only tested backups exist, with no recovery plan or restore-time objectives. Recommend a disaster recovery plan, restore exercises and lessons-learned process. Detect is second weakest with only two controls.",
+   "hint": "Count controls in each bin and look for the thinnest one."
+  },
+  {
+   "title": "Review an access log for AAA gaps",
+   "sim": "log-viewer",
+   "scenario": "You have an audit log extract from the Example Corp file portal. It mixes normal activity with AAA problems: requests with no authentication, a service account with excess rights, and missing records. Review it and list the findings for the audit team. The log viewer supports text filters and column sorting. All addresses are from documentation ranges and no real accounts are involved.",
+   "objective": "Find unauthenticated requests, over-privileged accounts and missing accounting entries.",
+   "steps": [
+    {
+     "do": "Filter log for user='-'",
+     "see": "3 entries: GET /reports/q3.xlsx from 198.51.100.77 returned 200."
+    },
+    {
+     "do": "Flag as authentication failure",
+     "see": "Finding recorded: authentication not enforced on /reports."
+    },
+    {
+     "do": "Filter by role=admin",
+     "see": "Account svc-backup holds admin and logged into interactive session."
+    },
+    {
+     "do": "Flag as authorization issue",
+     "see": "Finding recorded: service account over-privileged."
+    },
+    {
+     "do": "Sort by time and look for gaps",
+     "see": "No entries between 02:00 and 05:30 on 2025-03-02."
+    },
+    {
+     "do": "Flag as accounting gap",
+     "see": "Finding recorded: possible log loss or disabled logging."
+    },
+    {
+     "do": "Check user 'admin' sources",
+     "see": "Same account used from 192.0.2.10 and 192.0.2.88 within 2 minutes."
+    },
+    {
+     "do": "Flag shared account and submit",
+     "see": "Four findings submitted; report generated."
+    }
+   ],
+   "answer": "Findings: unauthenticated access to /reports (authentication), svc-backup holding admin rights (authorization, least privilege), a three-and-a-half hour log gap (accounting), and a shared admin account used from two sources (attribution). Fix with enforced login, scoped roles, central logging and unique IDs.",
+   "hint": "Search for empty user fields, high-privilege service accounts and time gaps."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which property does full-disk encryption primarily protect?",
+   "options": [
+    "Authorization",
+    "Confidentiality",
+    "Availability",
+    "Accounting"
+   ],
+   "a": 1,
+   "why": "It prevents reading data from a lost device."
+  },
+  {
+   "q": "Authorization answers which question?",
+   "options": [
+    "Who are you?",
+    "What may you do?",
+    "What did you do?",
+    "Where are you?"
+   ],
+   "a": 1,
+   "why": "Authorization grants rights to an authenticated identity."
+  },
+  {
+   "q": "A digital signature provides all EXCEPT:",
+   "options": [
+    "Authenticity",
+    "Non-repudiation",
+    "Confidentiality of the message",
+    "Integrity"
+   ],
+   "a": 2,
+   "why": "Signing does not hide content."
+  },
+  {
+   "q": "Detective controls include:",
+   "options": [
+    "Log monitoring",
+    "Door lock",
+    "Restore from backup",
+    "Firewall deny rule"
+   ],
+   "a": 0,
+   "why": "Monitoring detects events."
+  },
+  {
+   "q": "Zero trust enforcement happens at the:",
+   "options": [
+    "Backup server",
+    "Domain registrar",
+    "Policy Enforcement Point",
+    "Spreadsheet"
+   ],
+   "a": 2,
+   "why": "The PEP applies decisions to connections."
+  },
+  {
+   "q": "Which kill chain stage comes immediately after delivery?",
+   "options": [
+    "Weaponization",
+    "Exploitation",
+    "Reconnaissance",
+    "Actions on objectives"
+   ],
+   "a": 1,
+   "why": "Delivery is followed by exploitation."
+  },
+  {
+   "q": "ATT&CK technique IDs begin with:",
+   "options": [
+    "T",
+    "CVE",
+    "CWE",
+    "RFC"
+   ],
+   "a": 0,
+   "why": "Techniques use T numbers such as T1059."
+  },
+  {
+   "q": "Which framework offers certification?",
+   "options": [
+    "ISO/IEC 27001",
+    "NIST CSF",
+    "CIS Controls",
+    "Cyber Kill Chain"
+   ],
+   "a": 0,
+   "why": "Organizations are certified against ISO 27001."
+  },
+  {
+   "q": "CIS IG1 is aimed at:",
+   "options": [
+    "Only governments",
+    "Cloud providers only",
+    "Mature SOCs only",
+    "Small organizations needing basic hygiene"
+   ],
+   "a": 3,
+   "why": "IG1 is essential cyber hygiene."
+  },
+  {
+   "q": "Least privilege reduces risk by:",
+   "options": [
+    "Speeding networks",
+    "Removing logs",
+    "Limiting damage from a compromised account",
+    "Encrypting disks"
+   ],
+   "a": 2,
+   "why": "Fewer rights means less impact."
+  }
+ ]
+}

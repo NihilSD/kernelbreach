@@ -1,0 +1,34 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-10-05T11:10:00Z" },
+  "title": "Cybersecurity learning app design",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Onboarding.dc.html": { "x": 0, "y": 0, "w": 390, "h": 844, "title": "1  Pick a goal", "is_interactive": true },
+    "Main.dc.html": { "x": 470, "y": 0, "w": 390, "h": 844, "title": "2  Home: today's plan", "is_interactive": true },
+    "Map.dc.html": { "x": 940, "y": 0, "w": 390, "h": 1034, "title": "3  Learning map", "is_interactive": true },
+    "Module.dc.html": { "x": 1410, "y": 0, "w": 390, "h": 844, "title": "4  Module page", "is_interactive": true },
+    "Learn.dc.html": { "x": 0, "y": 1354, "w": 390, "h": 844, "title": "5  Learn: pick your depth", "is_interactive": true },
+    "Watch.dc.html": { "x": 470, "y": 1354, "w": 390, "h": 844, "title": "6  Watch it step by step", "is_interactive": true },
+    "Try.dc.html": { "x": 940, "y": 1354, "w": 390, "h": 844, "title": "7  Try it: question and feedback", "is_interactive": true },
+    "Label.dc.html": { "x": 1410, "y": 1354, "w": 390, "h": 844, "title": "8  Try it: label the parts", "is_interactive": true },
+    "Complete.dc.html": { "x": 1880, "y": 1354, "w": 390, "h": 844, "title": "9  Lesson complete", "is_interactive": true },
+    "Review.dc.html": { "x": 0, "y": 2518, "w": 390, "h": 844, "title": "10  Refresh", "is_interactive": true },
+    "Library.dc.html": { "x": 470, "y": 2518, "w": 390, "h": 844, "title": "11  Library", "is_interactive": true },
+    "Me.dc.html": { "x": 940, "y": 2518, "w": 390, "h": 844, "title": "12  You: progress and settings", "is_interactive": true },
+    "System.dc.html": { "x": 0, "y": 3682, "w": 1280, "h": 1040, "title": "Design language" }
+  },
+  "order": [
+    "Onboarding.dc.html", "Main.dc.html", "Map.dc.html", "Module.dc.html",
+    "Learn.dc.html", "Watch.dc.html", "Try.dc.html", "Label.dc.html", "Complete.dc.html",
+    "Review.dc.html", "Library.dc.html", "Me.dc.html", "System.dc.html"
+  ],
+  "notes": {
+    "t1": { "x": 0, "y": -260, "text": "Start and find your way", "kind": "title1", "maxW": 1800 },
+    "t2": { "x": 0, "y": 1094, "text": "Learn it, try it, remember it", "kind": "title1", "maxW": 2270 },
+    "t3": { "x": 0, "y": 2258, "text": "Review, look up, track progress", "kind": "title1", "maxW": 1330 },
+    "t4": { "x": 0, "y": 3422, "text": "Design language", "kind": "title1", "maxW": 1280 }
+  },
+  "designSystems": []
+}

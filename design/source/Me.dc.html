@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>You: progress and settings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+a{color:inherit}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="width:390px;height:844px;box-sizing:border-box;position:relative;overflow:hidden;display:flex;flex-direction:column;background-color:#F3F5F9;background-image:radial-gradient(#D3DAE8 1px,transparent 1px);background-size:18px 18px;font-family:'Hanken Grotesk',sans-serif;color:#101B33">
+  <div style="flex:1;min-height:0;padding:56px 20px 0;box-sizing:border-box;display:flex;flex-direction:column;gap:14px;overflow:hidden">
+    <h1 style="margin:0;font:700 32px/1.05 'Bricolage Grotesque',sans-serif;letter-spacing:-.01em">You</h1>
+
+    <div style="display:flex;gap:10px">
+      <div style="flex:1;background:#fff;border:1px solid #DCE2EC;border-radius:16px;padding:12px 14px"><div style="font:700 26px/1 'Bricolage Grotesque',sans-serif">13</div><div style="margin-top:6px;font:500 13px/1.2 'Hanken Grotesk',sans-serif;color:#5B6781">lessons done</div></div>
+      <div style="flex:1;background:#fff;border:1px solid #DCE2EC;border-radius:16px;padding:12px 14px"><div style="font:700 26px/1 'Bricolage Grotesque',sans-serif">52 min</div><div style="margin-top:6px;font:500 13px/1.2 'Hanken Grotesk',sans-serif;color:#5B6781">learned</div></div>
+      <div style="flex:1;background:#fff;border:1px solid #DCE2EC;border-radius:16px;padding:12px 14px"><div style="font:700 26px/1 'Bricolage Grotesque',sans-serif">4 days</div><div style="margin-top:6px;font:500 13px/1.2 'Hanken Grotesk',sans-serif;color:#5B6781">in a row</div></div>
+    </div>
+
+    <div style="background:#fff;border:1px solid #DCE2EC;border-radius:18px;padding:14px 16px">
+      <div style="font:700 17px/1 'Bricolage Grotesque',sans-serif">How well you know it</div>
+      <div style="margin-top:12px;display:flex;flex-direction:column;gap:12px">
+        <sc-for list="{{strength}}" as="s" hint-placeholder-count="4">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="width:118px;flex:none;font:500 14px/1.2 'Hanken Grotesk',sans-serif">{{s.t}}</span>
+            <span style="flex:1;height:8px;border-radius:4px;background:#E6EAF2"><span style="display:block;width:{{s.w}}%;height:100%;border-radius:4px;background:{{s.c}}"></span></span>
+            <span style="width:44px;flex:none;text-align:right;font:600 12px/1 'Hanken Grotesk',sans-serif;color:#46546F">{{s.l}}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="background:#fff;border:1px solid #DCE2EC;border-radius:18px;padding:4px 16px">
+      <div style="padding:12px 0 4px;font:600 12px/1 'Hanken Grotesk',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#5B6781">Make it easier to read</div>
+      <sc-for list="{{toggles}}" as="g" hint-placeholder-count="3">
+        <div style="min-height:56px;display:flex;align-items:center;gap:12px;border-top:1px solid #EDF0F5">
+          <span style="flex:1;font:500 16px/1.2 'Hanken Grotesk',sans-serif">{{g.t}}</span>
+          <button type="button" role="switch" aria-checked="{{g.on}}" aria-label="{{g.t}}" style="{{g.track}}" onClick="{{g.flip}}"><span style="{{g.knob}}"></span></button>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <nav style="height:84px;flex:none;background:#fff;border-top:1px solid #DCE2EC;display:flex;padding:8px 12px 0;box-sizing:border-box">
+    <sc-for list="{{tabs}}" as="t" hint-placeholder-count="4">
+      <a href="{{t.href}}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;text-decoration:none;color:{{t.c}}">
+        <span style="width:60px;height:32px;border-radius:16px;background:{{t.bg}};display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="{{t.c}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{t.d}}"/></svg></span>
+        <span style="font:{{t.fw}} 12px/1 'Hanken Grotesk',sans-serif">{{t.t}}</span>
+      </a>
+    </sc-for>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  state = { on: [true, false, true] };
+  renderVals() {
+    const active = 3;
+    const defs = [
+      { t: 'Learn', href: 'Main.dc.html', d: 'M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14' },
+      { t: 'Refresh', href: 'Review.dc.html', d: 'M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5' },
+      { t: 'Library', href: 'Library.dc.html', d: 'M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3zM5 17a3 3 0 0 1 3-3h10' },
+      { t: 'You', href: 'Me.dc.html', d: 'M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0zM4 20c1-4 4-6 8-6s7 2 8 6' }
+    ];
+    const tabs = defs.map((x, i) => ({
+      t: x.t, href: x.href, d: x.d,
+      c: i === active ? '#101B33' : '#5B6781',
+      bg: i === active ? '#FFE066' : 'transparent',
+      fw: i === active ? 700 : 600
+    }));
+    const strength = [
+      { t: 'Computers', w: 90, c: '#0F9D8A', l: 'Solid' },
+      { t: 'IP and MAC', w: 70, c: '#0F9D8A', l: 'Good' },
+      { t: 'Ports', w: 45, c: '#E0A100', l: 'Okay' },
+      { t: 'DNS', w: 20, c: '#E5532D', l: 'New' }
+    ];
+    const labels = ['Larger text', 'Reduce motion', 'Read aloud'];
+    const on = this.state.on;
+    const toggles = labels.map((t, i) => ({
+      t: t, on: on[i],
+      track: "width:52px;height:32px;border-radius:16px;border:0;padding:0;position:relative;cursor:pointer;flex:none;background:" + (on[i] ? '#101B33' : '#C9D1E0') + ';',
+      knob: 'position:absolute;top:4px;left:' + (on[i] ? 24 : 4) + 'px;width:24px;height:24px;border-radius:50%;background:' + (on[i] ? '#FFE066' : '#fff') + ';',
+      flip: () => {
+        const n = on.slice();
+        n[i] = !n[i];
+        this.setState({ on: n });
+      }
+    }));
+    return { tabs: tabs, strength: strength, toggles: toggles };
+  }
+}
+</script>
+</body>
+</html>

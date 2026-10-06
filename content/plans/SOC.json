@@ -1,0 +1,1063 @@
+{
+ "key": "SOC",
+ "capstone": {
+  "title": "Operation Quiet Beacon: Full Incident Investigation",
+  "desc": "Triage a mixed alert queue, then investigate a phishing-led intrusion using SIEM logs, a PCAP and an email, map to ATT&CK, contain, and write the report."
+ },
+ "cert_note": "Overlaps CompTIA CySA+ and BTL1 topics (logs, SIEM, IR, phishing, forensics). Study guide only, not official prep.",
+ "modules": [
+  {
+   "code": "SOC-01",
+   "can_do": [
+    "Describe SOC tiers, roles and the tools each uses",
+    "Walk an alert through its lifecycle within SLA targets",
+    "Calculate and interpret MTTD, MTTR and related metrics"
+   ],
+   "lessons": [
+    {
+     "title": "SOC structure and Tier 1-3 roles",
+     "goal": "Explain how L1, L2, L3, SOC manager and engineering roles divide work and escalate."
+    },
+    {
+     "title": "The SOC toolset",
+     "goal": "Identify the purpose of SIEM, EDR, NDR, SOAR, ticketing and threat intel platforms in a SOC."
+    },
+    {
+     "title": "Alert lifecycle and triage",
+     "goal": "Walk an alert through detection, triage, enrichment, verdict, escalation and closure."
+    },
+    {
+     "title": "SLAs, playbooks and shift handoffs",
+     "goal": "Apply severity-based SLAs, follow a playbook step list and write a clear shift handoff note."
+    },
+    {
+     "title": "SOC metrics: MTTD, MTTR and quality",
+     "goal": "Compute MTTD, MTTR, false positive rate and alert volume, and explain what each reveals."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Sort the alert queue",
+     "sim": "siem",
+     "task": "Rank 10 queued alerts by severity and asset criticality, then assign each to a tier."
+    },
+    {
+     "title": "Follow the phishing playbook",
+     "sim": "scenario",
+     "task": "Choose the correct playbook step at each decision point for a reported email and record the outcome."
+    },
+    {
+     "title": "Write a shift handoff",
+     "sim": "chat-sim",
+     "task": "Summarize open cases, pending actions and risks for the incoming analyst in a structured handoff."
+    },
+    {
+     "title": "Compute SOC metrics",
+     "sim": "diagram-builder",
+     "task": "Place incident timestamps on a timeline and derive MTTD and MTTR for three cases."
+    }
+   ],
+   "checkpoint": {
+    "focus": "SOC roles, alert lifecycle, SLA reasoning and computing MTTD/MTTR from timestamps"
+   }
+  },
+  {
+   "code": "SOC-02",
+   "can_do": [
+    "Recognize syslog, JSON and CEF log formats and their fields",
+    "Write regex to extract IPs, users and timestamps from logs",
+    "Correlate events from several sources into a timeline"
+   ],
+   "lessons": [
+    {
+     "title": "Log sources and types",
+     "goal": "Classify OS, application, network device, authentication and cloud logs and what each can prove."
+    },
+    {
+     "title": "Syslog format and severity levels",
+     "goal": "Decode an RFC 5424 syslog line: PRI, facility, severity, timestamp, host and message."
+    },
+    {
+     "title": "Structured logs: JSON and CEF",
+     "goal": "Read JSON and CEF key-value records and map their fields to a common schema."
+    },
+    {
+     "title": "Parsing and normalization",
+     "goal": "Split raw lines into fields using delimiters, grok-style patterns and field renaming."
+    },
+    {
+     "title": "Regex for log analysis",
+     "goal": "Write regex with groups, quantifiers and anchors to pull IPv4 addresses, usernames and status codes."
+    },
+    {
+     "title": "Correlation and timelines",
+     "goal": "Align events by synchronized UTC time and pivot on IP, user or host to build an incident timeline."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Decode syslog priority",
+     "sim": "log-viewer",
+     "task": "Compute facility and severity from PRI values and filter a feed to severity 3 and below."
+    },
+    {
+     "title": "Parse a CEF event",
+     "sim": "code-editor",
+     "task": "Complete a parser that splits a CEF header and extension into named fields."
+    },
+    {
+     "title": "Regex extraction drill",
+     "sim": "terminal",
+     "task": "Use grep -oE and awk to extract failed-login source IPs and count them from a sample log."
+    },
+    {
+     "title": "Build a timeline",
+     "sim": "log-viewer",
+     "task": "Merge firewall, auth and web logs, correct a timezone offset and order the events of an intrusion."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Log formats, regex extraction, timestamp normalization and cross-source correlation"
+   }
+  },
+  {
+   "code": "SOC-03",
+   "can_do": [
+    "Map key Windows event IDs to attacker behavior",
+    "Distinguish logon types and spot suspicious authentication",
+    "Use Sysmon and PowerShell logs to find execution and persistence"
+   ],
+   "lessons": [
+    {
+     "title": "Windows logging architecture",
+     "goal": "Locate Security, System, Application and Operational logs and explain audit policy and channels."
+    },
+    {
+     "title": "Authentication events: 4624, 4625, 4634, 4672",
+     "goal": "Interpret successful, failed and privileged logons and the fields that identify the source."
+    },
+    {
+     "title": "Logon types and Kerberos/NTLM events",
+     "goal": "Tell logon types 2, 3, 5, 10 apart and read 4768, 4769 and 4776 for ticket and NTLM activity."
+    },
+    {
+     "title": "Account and group change events",
+     "goal": "Detect 4720, 4728, 4732, 4740 and 1102 to spot account creation, privilege change and log clearing."
+    },
+    {
+     "title": "Sysmon configuration and key events",
+     "goal": "Read Sysmon IDs 1, 3, 7, 8, 10, 11 and 13 and explain what a config such as SwiftOnSecurity adds."
+    },
+    {
+     "title": "Process creation and PowerShell logging",
+     "goal": "Use 4688 with command line, plus 4103/4104 script block logs, to decode encoded PowerShell."
+    },
+    {
+     "title": "Persistence artifacts",
+     "goal": "Find Run keys, scheduled tasks (4698), services (7045), WMI subscriptions and startup folder entries."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Failed logon triage",
+     "sim": "log-viewer",
+     "task": "Filter 4625 events, identify brute force against one account and find the first success afterward."
+    },
+    {
+     "title": "Classify logon types",
+     "sim": "siem",
+     "task": "Query 4624 by LogonType and flag a type 10 logon from an external IP outside business hours."
+    },
+    {
+     "title": "Decode PowerShell",
+     "sim": "terminal",
+     "task": "Base64-decode an -enc command from event 4104 and list the download URL and behavior."
+    },
+    {
+     "title": "Sysmon process tree",
+     "sim": "log-viewer",
+     "task": "Follow ParentProcessId from winword.exe to cmd.exe to powershell.exe using Sysmon event 1 records."
+    },
+    {
+     "title": "Find persistence",
+     "sim": "file-explorer",
+     "task": "Inspect Run keys, scheduled tasks and services in an exported host image and mark the malicious entries."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Event ID recall, logon types, Sysmon fields and persistence artifact identification"
+   }
+  },
+  {
+   "code": "SOC-04",
+   "can_do": [
+    "Read auth.log, syslog and auditd records",
+    "Identify brute force, scanning and web attacks in access logs",
+    "Extract IOCs from Linux and web server logs with command-line tools"
+   ],
+   "lessons": [
+    {
+     "title": "Linux log locations and syslog/journald",
+     "goal": "Find /var/log files and query journalctl by unit, priority and time range."
+    },
+    {
+     "title": "auth.log and SSH activity",
+     "goal": "Read sshd, sudo and su entries to find failed passwords, invalid users and accepted logins."
+    },
+    {
+     "title": "auditd rules and records",
+     "goal": "Interpret auditd SYSCALL, EXECVE and PATH records and write watch rules with auditctl -w."
+    },
+    {
+     "title": "Web access logs: Apache and Nginx",
+     "goal": "Parse combined log format fields and interpret status codes, user agents and referrers."
+    },
+    {
+     "title": "Spotting brute force and scanning",
+     "goal": "Detect credential stuffing, directory enumeration, SQLi and traversal patterns with grep, awk and sort|uniq."
+    }
+   ],
+   "labs": [
+    {
+     "title": "SSH brute force hunt",
+     "sim": "terminal",
+     "task": "Use grep, awk and sort to rank source IPs of failed SSH logins and find any later success."
+    },
+    {
+     "title": "Read auditd events",
+     "sim": "log-viewer",
+     "task": "Trace a file edit of /etc/passwd through auditd records to the responsible user and executable."
+    },
+    {
+     "title": "Web log scan detection",
+     "sim": "log-viewer",
+     "task": "Spot a 404 burst from one IP, identify the scanner user agent and list probed paths."
+    },
+    {
+     "title": "Detect web exploitation",
+     "sim": "terminal",
+     "task": "Grep an access log for UNION SELECT and ../ patterns and identify the one request that returned 200."
+    }
+   ],
+   "checkpoint": {
+    "focus": "auth.log and auditd fields, web log status codes and command-line pattern detection"
+   }
+  },
+  {
+   "code": "SOC-05",
+   "can_do": [
+    "Explain SIEM data flow from collection to alert",
+    "Write basic SPL and KQL searches with filters, stats and time ranges",
+    "Build dashboards and tune noisy detection rules"
+   ],
+   "lessons": [
+    {
+     "title": "SIEM architecture and data flow",
+     "goal": "Describe collectors, forwarders, indexers, search heads, retention tiers and hot/warm/cold storage."
+    },
+    {
+     "title": "Ingestion, parsing and normalization",
+     "goal": "Explain agents vs agentless, syslog and API ingestion, and mapping to schemas such as CIM and ECS."
+    },
+    {
+     "title": "Search basics in SPL",
+     "goal": "Write SPL with index, sourcetype, field filters, table, sort and time modifiers."
+    },
+    {
+     "title": "Aggregation in SPL and KQL",
+     "goal": "Use stats count by, dedup, top and timechart in SPL, and summarize and bin in KQL."
+    },
+    {
+     "title": "KQL fundamentals",
+     "goal": "Write KQL with where, project, extend, summarize and join against SecurityEvent and SigninLogs."
+    },
+    {
+     "title": "Dashboards and visualizations",
+     "goal": "Choose panels, thresholds and drilldowns that show detection health and key hunting views."
+    },
+    {
+     "title": "Alert rules and correlation",
+     "goal": "Build threshold, sequence and anomaly rules with suppression, throttling and severity mapping."
+    },
+    {
+     "title": "Tuning false positives",
+     "goal": "Use allowlists, baselines and rule-level metrics to cut noise without losing true positives."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Search failed logons in SPL",
+     "sim": "siem",
+     "task": "Write an SPL query returning failed logons per user over 24 hours sorted by count."
+    },
+    {
+     "title": "Translate SPL to KQL",
+     "sim": "code-editor",
+     "task": "Convert a given SPL stats search into the equivalent KQL summarize query."
+    },
+    {
+     "title": "Fix the broken parser",
+     "sim": "config-editor",
+     "task": "Correct a field extraction so source IP and user populate and the search returns results."
+    },
+    {
+     "title": "Build a detection dashboard",
+     "sim": "diagram-builder",
+     "task": "Arrange panels for top failed logons, new admins and outbound volume on a mobile layout."
+    },
+    {
+     "title": "Create a threshold alert",
+     "sim": "siem",
+     "task": "Configure a rule that fires on 10 failed logons in 5 minutes per source with 15 minute throttling."
+    },
+    {
+     "title": "Tune a noisy rule",
+     "sim": "siem",
+     "task": "Review 50 alerts, find the vulnerability scanner source causing 90 percent and add a safe exclusion."
+    }
+   ],
+   "checkpoint": {
+    "focus": "SPL and KQL syntax, SIEM pipeline stages, alert logic and false positive tuning"
+   }
+  },
+  {
+   "code": "SOC-06",
+   "can_do": [
+    "Read packet headers and follow TCP streams in Wireshark",
+    "Triage a PCAP for DNS, HTTP and SMB abuse",
+    "Recognize beaconing and exfiltration with Zeek and Suricata output"
+   ],
+   "lessons": [
+    {
+     "title": "Packet and protocol basics",
+     "goal": "Read Ethernet, IP, TCP and UDP headers, TCP flags and the three-way handshake in a capture."
+    },
+    {
+     "title": "Wireshark workflow",
+     "goal": "Apply capture vs display filters, follow streams, use Statistics menus and export objects."
+    },
+    {
+     "title": "PCAP triage method",
+     "goal": "Start with Conversations, Protocol Hierarchy and Endpoints to find the interesting host quickly."
+    },
+    {
+     "title": "DNS analysis",
+     "goal": "Spot DNS tunneling, DGA names, long TXT queries, high NXDOMAIN rates and fast-flux behavior."
+    },
+    {
+     "title": "HTTP analysis",
+     "goal": "Identify C2 over HTTP, odd user agents, POST uploads, file downloads and exportable payloads."
+    },
+    {
+     "title": "SMB and lateral movement traffic",
+     "goal": "Recognize SMB sessions, admin share access (ADMIN$, IPC$), named pipes and PsExec patterns."
+    },
+    {
+     "title": "Zeek logs and Suricata alerts",
+     "goal": "Read conn.log, dns.log, http.log and eve.json alerts and pivot using the uid field."
+    },
+    {
+     "title": "Beaconing and exfiltration patterns",
+     "goal": "Detect fixed-interval connections, jitter and large outbound transfers using flow statistics."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Filter a capture",
+     "sim": "packet-viewer",
+     "task": "Apply display filters such as ip.addr, tcp.flags.syn and http.request to isolate a host's traffic."
+    },
+    {
+     "title": "Follow the TCP stream",
+     "sim": "packet-viewer",
+     "task": "Follow a stream, read the plaintext HTTP exchange and extract the downloaded file name."
+    },
+    {
+     "title": "Find the DNS tunnel",
+     "sim": "packet-viewer",
+     "task": "Identify the domain with abnormally long subdomain labels and count the queries it received."
+    },
+    {
+     "title": "Spot SMB lateral movement",
+     "sim": "packet-viewer",
+     "task": "Locate ADMIN$ writes and a service creation over SMB and name the source and target hosts."
+    },
+    {
+     "title": "Pivot through Zeek logs",
+     "sim": "log-viewer",
+     "task": "Join conn.log and dns.log by uid to link an outbound connection to the domain it resolved."
+    },
+    {
+     "title": "Detect beaconing",
+     "sim": "scenario",
+     "task": "Compare connection interval charts for three hosts and select the one beaconing every 60 seconds."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Wireshark filters, protocol anomalies, Zeek/Suricata fields and beacon or exfiltration recognition"
+   }
+  },
+  {
+   "code": "SOC-07",
+   "can_do": [
+    "Explain how EDR collects telemetry and generates detections",
+    "Read a process tree and identify living-off-the-land abuse",
+    "Triage an EDR alert and decide whether to isolate the host"
+   ],
+   "lessons": [
+    {
+     "title": "EDR architecture and telemetry",
+     "goal": "Describe agent sensors, kernel callbacks, cloud analysis and what EDR sees compared with AV."
+    },
+    {
+     "title": "Process trees and parent-child analysis",
+     "goal": "Judge parent-child pairs such as winword to powershell, and use command lines, hashes and signers."
+    },
+    {
+     "title": "Living-off-the-land binaries",
+     "goal": "Recognize LOLBin abuse of certutil, mshta, rundll32, regsvr32, bitsadmin and wmic using LOLBAS."
+    },
+    {
+     "title": "EDR alert triage",
+     "goal": "Apply a triage checklist: scope, user, prior activity, prevalence, reputation and verdict."
+    },
+    {
+     "title": "Containment and host isolation",
+     "goal": "Decide when to isolate, kill processes, quarantine files, and document response actions."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Read the process tree",
+     "sim": "log-viewer",
+     "task": "Trace a process tree from a phishing attachment to a child shell and name the suspicious step."
+    },
+    {
+     "title": "Spot the LOLBin",
+     "sim": "terminal",
+     "task": "Review five command lines and flag the certutil download and the rundll32 proxy execution."
+    },
+    {
+     "title": "Triage an EDR alert",
+     "sim": "siem",
+     "task": "Check host history, file prevalence and user context, then label the alert true or false positive."
+    },
+    {
+     "title": "Isolate the host",
+     "sim": "scenario",
+     "task": "Choose containment actions in order, then confirm isolation and record them in the case notes."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Process tree reasoning, LOLBin recognition and EDR triage and containment decisions"
+   }
+  },
+  {
+   "code": "SOC-08",
+   "can_do": [
+    "Read email headers to trace sender path and spoofing",
+    "Interpret SPF, DKIM and DMARC results",
+    "Analyze URLs and attachments and run the user-report workflow"
+   ],
+   "lessons": [
+    {
+     "title": "Email flow and header fields",
+     "goal": "Trace Received headers bottom-up and compare From, Reply-To, Return-Path and Message-ID."
+    },
+    {
+     "title": "SPF, DKIM and DMARC",
+     "goal": "Read Authentication-Results and explain alignment, DNS TXT records and DMARC policies."
+    },
+    {
+     "title": "URL analysis",
+     "goal": "Defang and unwind URLs, detect lookalike domains, redirects and shorteners, and check reputation safely."
+    },
+    {
+     "title": "Attachment analysis and sandboxing",
+     "goal": "Identify risky types (OLE macros, ISO, LNK, HTML), hash files and read sandbox verdicts."
+    },
+    {
+     "title": "User-report workflow",
+     "goal": "Handle a reported phish: acknowledge, analyze, search for other recipients, purge, block and report."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Trace the headers",
+     "sim": "log-viewer",
+     "task": "Order Received headers, find the true originating IP and spot the mismatched Return-Path."
+    },
+    {
+     "title": "Read auth results",
+     "sim": "config-editor",
+     "task": "Interpret SPF, DKIM and DMARC lines and fix a failing SPF TXT record in a sample zone."
+    },
+    {
+     "title": "Analyze the URL",
+     "sim": "web-proxy",
+     "task": "Unwind a redirect chain in a sandbox, defang each hop and identify the credential harvesting page."
+    },
+    {
+     "title": "Phish response",
+     "sim": "scenario",
+     "task": "Work a reported email end to end: verdict, mailbox search, purge, indicator block and user reply."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Header analysis, SPF/DKIM/DMARC outcomes, URL and attachment indicators and response steps"
+   }
+  },
+  {
+   "code": "SOC-09",
+   "can_do": [
+    "Differentiate strategic, operational and tactical intelligence",
+    "Use IOCs, TTPs, STIX/TAXII and MISP to enrich and share intel",
+    "Apply the Diamond Model and OSINT to scope a threat"
+   ],
+   "lessons": [
+    {
+     "title": "Intelligence types and the intel cycle",
+     "goal": "Separate strategic, operational, tactical and technical intel and describe direction through feedback."
+    },
+    {
+     "title": "IOCs vs TTPs",
+     "goal": "Explain the Pyramid of Pain and why behaviors outlast hashes, IPs and domains."
+    },
+    {
+     "title": "Intel formats: STIX and TAXII",
+     "goal": "Read STIX 2.1 objects (indicator, malware, relationship) and explain TAXII collections."
+    },
+    {
+     "title": "MISP and intel platforms",
+     "goal": "Use MISP events, attributes, tags, galaxies and correlations, and decide what to share under TLP."
+    },
+    {
+     "title": "Diamond Model and intel-driven defense",
+     "goal": "Map adversary, capability, infrastructure and victim, and convert intel into detections and blocks."
+    },
+    {
+     "title": "OSINT for analysts",
+     "goal": "Enrich IPs, domains and hashes with WHOIS, passive DNS, VirusTotal, Shodan and URLScan safely."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Enrich the indicator",
+     "sim": "web-proxy",
+     "task": "Look up a suspicious IP and domain in simulated VT, WHOIS and passive DNS and record the findings."
+    },
+    {
+     "title": "Sort IOCs and TTPs",
+     "sim": "diagram-builder",
+     "task": "Place indicators on the Pyramid of Pain and mark which are fragile and which are durable."
+    },
+    {
+     "title": "Read a STIX bundle",
+     "sim": "code-editor",
+     "task": "Read a STIX 2.1 JSON bundle and extract the indicator pattern and linked malware."
+    },
+    {
+     "title": "Build a Diamond model",
+     "sim": "diagram-builder",
+     "task": "Fill the four vertices from an incident report and pivot to a related infrastructure node."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Intel types, Pyramid of Pain, STIX/TAXII structure, MISP use and enrichment judgment"
+   }
+  },
+  {
+   "code": "SOC-10",
+   "can_do": [
+    "Navigate ATT&CK tactics, techniques and sub-techniques",
+    "Map detections and incidents to technique IDs",
+    "Find coverage gaps using ATT&CK Navigator"
+   ],
+   "lessons": [
+    {
+     "title": "ATT&CK matrix structure",
+     "goal": "Name the Enterprise tactics in order and read technique, sub-technique, data source and mitigation entries."
+    },
+    {
+     "title": "Mapping incidents to techniques",
+     "goal": "Translate observed behaviors into IDs such as T1059.001, T1566.001 and T1003.001."
+    },
+    {
+     "title": "Mapping detections to techniques",
+     "goal": "Tag rules with technique IDs and judge detection quality from telemetry and analytic detail."
+    },
+    {
+     "title": "Coverage and gap analysis",
+     "goal": "Compare detections against threat actor technique lists and prioritize by risk and data availability."
+    },
+    {
+     "title": "ATT&CK Navigator and layers",
+     "goal": "Build and export Navigator layers with scores, colors and comments to present coverage."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Map the intrusion",
+     "sim": "diagram-builder",
+     "task": "Place the observed events of an incident onto the correct tactic columns and technique IDs."
+    },
+    {
+     "title": "Tag the rules",
+     "sim": "siem",
+     "task": "Assign technique IDs to ten existing detection rules and note the data source each requires."
+    },
+    {
+     "title": "Build a Navigator layer",
+     "sim": "scenario",
+     "task": "Score techniques for a threat actor and detections, then read the gap view."
+    },
+    {
+     "title": "Choose the next detection",
+     "sim": "chat-sim",
+     "task": "Justify which uncovered technique to build next based on actor use and available logs."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Tactic and technique recall, behavior-to-ID mapping and coverage gap prioritization"
+   }
+  },
+  {
+   "code": "SOC-11",
+   "can_do": [
+    "Triage a suspicious file with hashes, strings and metadata",
+    "Read sandbox reports to describe malware behavior",
+    "Handle samples safely and look up reputation correctly"
+   ],
+   "lessons": [
+    {
+     "title": "Safe handling and lab hygiene",
+     "goal": "Apply isolation, defanging, password-protected archives (infected) and never executing on production."
+    },
+    {
+     "title": "Hashes and file identification",
+     "goal": "Calculate MD5, SHA-256 and ssdeep, check file type by magic bytes and spot extension tricks."
+    },
+    {
+     "title": "Strings and static triage",
+     "goal": "Use strings, PE headers, imports, packers and entropy to form a hypothesis without running the file."
+    },
+    {
+     "title": "Sandbox reports and behavior",
+     "goal": "Read process, file, registry and network behavior from Any.Run, Cuckoo or Joe Sandbox output."
+    },
+    {
+     "title": "VirusTotal and reputation",
+     "goal": "Interpret detection ratios, behavior tabs, relations and why privacy matters when uploading samples."
+    },
+    {
+     "title": "Common malware families",
+     "goal": "Recognize loaders, infostealers, RATs, ransomware and webshells and their typical behaviors."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Hash and identify",
+     "sim": "terminal",
+     "task": "Run sha256sum and file on a sample, detect the double extension and look up the hash."
+    },
+    {
+     "title": "Strings triage",
+     "sim": "terminal",
+     "task": "Search strings output for URLs, API names and mutexes and write a short verdict."
+    },
+    {
+     "title": "Read a sandbox report",
+     "sim": "log-viewer",
+     "task": "Extract dropped files, persistence keys and C2 domains from a sandbox report."
+    },
+    {
+     "title": "Classify the family",
+     "sim": "scenario",
+     "task": "Match behavior sets (encrypting files, keylogging, beaconing) to the right malware class."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Static triage, sandbox report reading, reputation lookup judgment and safe handling"
+   }
+  },
+  {
+   "code": "SOC-12",
+   "can_do": [
+    "Run the IR lifecycle from preparation to lessons learned",
+    "Choose containment, eradication and recovery actions",
+    "Preserve evidence and communicate during an incident"
+   ],
+   "lessons": [
+    {
+     "title": "IR frameworks and lifecycle",
+     "goal": "Compare NIST SP 800-61 and SANS phases and describe the roles in an IR team."
+    },
+    {
+     "title": "Preparation and detection",
+     "goal": "Describe IR plans, retainers, tooling, asset inventory and incident classification and severity criteria."
+    },
+    {
+     "title": "Containment strategies",
+     "goal": "Weigh short-term vs long-term containment, network isolation, account disablement and business impact."
+    },
+    {
+     "title": "Eradication and recovery",
+     "goal": "Remove persistence, patch root cause, rebuild from known-good images and monitor after restore."
+    },
+    {
+     "title": "Evidence handling",
+     "goal": "Collect volatile data first, record who, what, when, hash images and keep chain of custody."
+    },
+    {
+     "title": "Communication and escalation",
+     "goal": "Notify legal, management and regulators on schedule and use need-to-know and out-of-band channels."
+    },
+    {
+     "title": "Post-incident review and playbooks",
+     "goal": "Run a blameless review, record timeline and root cause, and update playbooks and detections."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Classify the incident",
+     "sim": "scenario",
+     "task": "Assign type and severity for four events and select the matching IR playbook."
+    },
+    {
+     "title": "Contain the outbreak",
+     "sim": "scenario",
+     "task": "Select containment steps for a ransomware spread, weighing impact on critical services."
+    },
+    {
+     "title": "Eradicate persistence",
+     "sim": "terminal",
+     "task": "Find and remove a rogue scheduled task and service on a sandbox host and verify clean state."
+    },
+    {
+     "title": "Evidence collection order",
+     "sim": "diagram-builder",
+     "task": "Order data sources by volatility and record chain of custody entries for each item."
+    },
+    {
+     "title": "Write the lessons learned",
+     "sim": "chat-sim",
+     "task": "Draft a blameless review with timeline, root cause and three corrective actions."
+    }
+   ],
+   "checkpoint": {
+    "focus": "IR phases, containment tradeoffs, evidence order of volatility and post-incident practice"
+   }
+  },
+  {
+   "code": "SOC-13",
+   "can_do": [
+    "Explain disk and memory forensics workflows",
+    "Build timelines from filesystem and log artifacts",
+    "Maintain chain of custody and use Autopsy and Volatility concepts"
+   ],
+   "lessons": [
+    {
+     "title": "Forensic principles and chain of custody",
+     "goal": "Apply order of volatility, write blockers, hashing, documentation and admissibility basics."
+    },
+    {
+     "title": "Disk acquisition and file systems",
+     "goal": "Create a forensic image, verify hashes and explain NTFS structures such as MFT and $UsnJrnl."
+    },
+    {
+     "title": "Windows artifacts",
+     "goal": "Interpret Prefetch, Shimcache, Amcache, LNK, jump lists, browser history and registry hives."
+    },
+    {
+     "title": "Timeline analysis",
+     "goal": "Build a super timeline from MAC times and logs and pivot around a time of interest."
+    },
+    {
+     "title": "Memory forensics with Volatility",
+     "goal": "Use pslist, psscan, netscan, malfind and cmdline plugins to spot injected or hidden processes."
+    },
+    {
+     "title": "Autopsy and reporting",
+     "goal": "Use Autopsy keyword search, hash sets and timeline view, and write a defensible findings report."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Verify the image",
+     "sim": "terminal",
+     "task": "Compute and compare hashes of an evidence image and log the custody entry."
+    },
+    {
+     "title": "Build a timeline",
+     "sim": "log-viewer",
+     "task": "Merge MFT, event log and browser records and identify the minute data was staged."
+    },
+    {
+     "title": "Volatility triage",
+     "sim": "terminal",
+     "task": "Run pslist and malfind output review to find the injected process and its parent."
+    },
+    {
+     "title": "Autopsy keyword search",
+     "sim": "file-explorer",
+     "task": "Search an image for keywords, filter by hash set and flag the exfiltrated archive."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Chain of custody, Windows artifacts, timeline building and basic memory plugin interpretation"
+   }
+  },
+  {
+   "code": "SOC-14",
+   "can_do": [
+    "Write Sigma, YARA and Suricata rules from observed behavior",
+    "Test and tune detections against benign and malicious data",
+    "Manage detections as code with version control"
+   ],
+   "lessons": [
+    {
+     "title": "Detection engineering lifecycle",
+     "goal": "Describe the cycle: requirement, hypothesis, build, test, deploy, measure and retire."
+    },
+    {
+     "title": "Sigma rules",
+     "goal": "Write Sigma logsource, detection selection, condition and falsepositives, then convert to SIEM queries."
+    },
+    {
+     "title": "Detection logic design",
+     "goal": "Balance specificity and resilience: command-line patterns, parent-child, rarity and thresholds."
+    },
+    {
+     "title": "YARA rules",
+     "goal": "Write YARA strings, hex and regex, conditions with filesize and uint16(0) and avoid slow rules."
+    },
+    {
+     "title": "Snort and Suricata rules",
+     "goal": "Write rules with action, header, content, pcre, flow, sid and understand their buffers."
+    },
+    {
+     "title": "Testing and tuning",
+     "goal": "Validate with Atomic Red Team, replayed logs and benign sets, then measure precision and noise."
+    },
+    {
+     "title": "Detection as code",
+     "goal": "Store rules in Git, use pull requests, CI validation, mapping tags and release changelogs."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Write a Sigma rule",
+     "sim": "code-editor",
+     "task": "Complete a Sigma rule that detects encoded PowerShell launched from an Office process."
+    },
+    {
+     "title": "Fix an over-broad rule",
+     "sim": "siem",
+     "task": "Narrow a noisy detection with parent and command-line conditions and re-run to confirm."
+    },
+    {
+     "title": "Write a YARA rule",
+     "sim": "code-editor",
+     "task": "Create a rule matching a packed sample's unique strings and run it against a clean set."
+    },
+    {
+     "title": "Suricata signature",
+     "sim": "config-editor",
+     "task": "Write a rule that alerts on HTTP POST to a given URI with a specific user agent and test it on a PCAP."
+    },
+    {
+     "title": "Review a detection PR",
+     "sim": "chat-sim",
+     "task": "Review a pull request for a rule, find the missing logsource and untested false positives."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Sigma, YARA and Suricata syntax, rule precision tradeoffs, testing methods and detection as code"
+   }
+  },
+  {
+   "code": "SOC-15",
+   "can_do": [
+    "Form testable hunt hypotheses from threat intel and ATT&CK",
+    "Select data sources and methods such as stacking and baselining",
+    "Document hunt results and convert findings into detections"
+   ],
+   "lessons": [
+    {
+     "title": "Hunting concepts and hypotheses",
+     "goal": "Distinguish hunting from alert triage and write a testable hypothesis tied to a technique."
+    },
+    {
+     "title": "Data sources and hunt scoping",
+     "goal": "Match hypotheses to telemetry such as Sysmon, DNS and proxy logs and note collection gaps."
+    },
+    {
+     "title": "Hunt methods: stacking and baselining",
+     "goal": "Use least frequency analysis, grouping and baselines to surface rare processes and logons."
+    },
+    {
+     "title": "Anomaly detection and beacon hunting",
+     "goal": "Apply statistical thresholds, rare parent-child pairs, long connection and rare domain analysis."
+    },
+    {
+     "title": "Hunt reporting and operationalizing",
+     "goal": "Write findings with scope, evidence, gaps and recommendations and promote results to detections."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Write a hypothesis",
+     "sim": "chat-sim",
+     "task": "Turn a threat report on scheduled task persistence into a hypothesis with data sources and scope."
+    },
+    {
+     "title": "Stack the processes",
+     "sim": "siem",
+     "task": "Run a least-frequency search over process names and spot the single masquerading binary."
+    },
+    {
+     "title": "Hunt for beacons",
+     "sim": "log-viewer",
+     "task": "Group proxy logs by host and destination to find regular interval callbacks."
+    },
+    {
+     "title": "Write the hunt report",
+     "sim": "scenario",
+     "task": "Complete a hunt report listing evidence, a conclusion and the detection to create."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Hypothesis quality, data source selection, stacking and baselining and hunt reporting"
+   }
+  },
+  {
+   "code": "SOC-16",
+   "can_do": [
+    "Read CloudTrail and Entra ID sign-in logs to trace activity",
+    "Detect password spraying, token theft and risky sign-ins",
+    "Triage SaaS and identity alerts and respond with correct actions"
+   ],
+   "lessons": [
+    {
+     "title": "Cloud logging fundamentals",
+     "goal": "Explain CloudTrail management vs data events, Entra sign-in and audit logs and log retention."
+    },
+    {
+     "title": "Reading CloudTrail",
+     "goal": "Interpret eventName, userIdentity, sourceIPAddress and errorCode to trace API activity and role assumption."
+    },
+    {
+     "title": "Entra ID sign-in analysis",
+     "goal": "Read result codes, conditional access status, MFA details and risk levels for each sign-in."
+    },
+    {
+     "title": "Password spraying and token theft",
+     "goal": "Detect one-password-many-accounts patterns, AiTM phishing, session cookie replay and MFA fatigue."
+    },
+    {
+     "title": "SaaS alerts and identity response",
+     "goal": "Triage impossible travel, inbox rules and OAuth grants, then revoke sessions and reset credentials."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Trace CloudTrail activity",
+     "sim": "log-viewer",
+     "task": "Follow an access key through AssumeRole to a bucket policy change and name the actor."
+    },
+    {
+     "title": "Detect a password spray",
+     "sim": "siem",
+     "task": "Query sign-in failures by IP across accounts to show one source trying one password on many users."
+    },
+    {
+     "title": "Spot token replay",
+     "sim": "log-viewer",
+     "task": "Compare two sign-ins with the same session ID from different IPs and flag token theft."
+    },
+    {
+     "title": "Respond to account takeover",
+     "sim": "scenario",
+     "task": "Choose revoke sessions, reset password, remove malicious inbox rule and review OAuth grants in order."
+    }
+   ],
+   "checkpoint": {
+    "focus": "CloudTrail and Entra log fields, spray and token theft indicators and identity response steps"
+   }
+  },
+  {
+   "code": "SOC-17",
+   "can_do": [
+    "Write clear incident reports with facts, impact and timeline",
+    "Escalate with the right content to the right audience",
+    "Document cases in a ticketing system with consistent detail"
+   ],
+   "lessons": [
+    {
+     "title": "Incident report structure",
+     "goal": "Write a report with summary, scope, timeline in UTC, evidence, root cause and recommendations."
+    },
+    {
+     "title": "Escalation and executive summaries",
+     "goal": "Separate facts from assumptions and tailor a short business-impact summary for non-technical leaders."
+    },
+    {
+     "title": "Ticketing and case documentation",
+     "goal": "Record observables, actions, verdict and handoff details so another analyst can continue without questions."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Write the incident report",
+     "sim": "chat-sim",
+     "task": "Turn raw case notes into a structured report with a UTC timeline and a plain-language summary."
+    },
+    {
+     "title": "Draft the escalation",
+     "sim": "scenario",
+     "task": "Choose which facts, impact and ask belong in an escalation to the incident manager."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Report structure, factual precision, audience-appropriate escalation and case documentation"
+   }
+  },
+  {
+   "code": "SOC-18",
+   "can_do": [
+    "Triage a mixed alert queue and prioritize by risk",
+    "Pivot across logs, a PCAP and an email to scope an incident",
+    "Deliver a verdict, response actions and a written report"
+   ],
+   "lessons": [
+    {
+     "title": "Alert queue triage and initial scoping",
+     "goal": "Prioritize multiple alerts, decide what is related and open a case with initial hypotheses."
+    },
+    {
+     "title": "Cross-source investigation",
+     "goal": "Pivot between SIEM logs, a PCAP and a phishing email, mapping each finding to ATT&CK."
+    },
+    {
+     "title": "Response, report and review",
+     "goal": "Select containment, write the incident report with timeline and recommendations, and note detection gaps."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Capstone investigation",
+     "sim": "scenario",
+     "task": "Triage an alert queue, pivot across logs, a PCAP and a phishing email, and build the full attack timeline."
+    },
+    {
+     "title": "Capstone report and response",
+     "sim": "chat-sim",
+     "task": "Submit containment actions, an ATT&CK mapping and a summary for a manager, then answer review questions."
+    }
+   ],
+   "checkpoint": {
+    "focus": "End-to-end investigation: prioritization, cross-source correlation, containment and reporting"
+   }
+  }
+ ]
+}

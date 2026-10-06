@@ -1,0 +1,796 @@
+{
+ "code": "ENG-15",
+ "intro": "This module prepares an organization for the day something goes wrong. You will build an incident response plan around NIST SP 800-61, test it with tabletop exercises, design backups and disaster recovery that meet stated RTO and RPO targets, run a business impact analysis and plan for ransomware, and validate detections with purple team exercises. Readiness is not a document on a shelf; it is practiced, measured and corrected before a real attacker forces the test.",
+ "lessons": [
+  {
+   "title": "IR plan and roles",
+   "why": "When an incident starts, nobody has time to decide who is in charge; a written, rehearsed plan removes confusion at the worst moment.",
+   "sections": [
+    {
+     "h": "The lifecycle and the plan",
+     "p": [
+      "NIST SP 800-61 Revision 2 describes four phases: preparation; detection and analysis; containment, eradication and recovery; and post-incident activity. The newer Revision 3 aligns incident response with the NIST Cybersecurity Framework 2.0 functions, but the same ideas remain. An IR plan states the mission, scope, definitions of event versus incident, severity levels, and the authority of the response team to act, including taking systems offline. Executive sign-off matters, because responders will need to make disruptive decisions quickly."
+     ]
+    },
+    {
+     "h": "Roles and escalation",
+     "p": [
+      "A plan names roles, not only people, because people go on holiday. Typical roles are the incident commander who owns decisions, a technical lead for investigation, a communications lead, a legal and privacy contact, a scribe who keeps the timeline, and liaisons from IT operations, HR and the business. Escalation criteria tie severity to who is notified and how fast: for example a severity 1 incident, such as confirmed data theft, pages the commander within 15 minutes and informs the executive team within an hour. Keep a current contact list with out-of-band methods."
+     ]
+    },
+    {
+     "h": "Communications and legal duties",
+     "p": [
+      "Communication has three audiences: the response team, internal stakeholders and external parties such as customers, regulators, insurers and law enforcement. Assume the corporate chat and email may be compromised, so define a fallback channel. Legal duties differ by region and sector; GDPR requires notifying the supervisory authority within 72 hours of becoming aware of a personal data breach where required, and many contracts set shorter windows. Route outside statements through one approved spokesperson and use templates prepared in advance."
+     ]
+    },
+    {
+     "h": "Playbooks, tools and evidence",
+     "p": [
+      "Beneath the plan sit playbooks for common scenarios such as ransomware, business email compromise, lost laptop and web application compromise. Each lists triggers, first actions, decision points and who to call. Prepare a jump kit: forensic tools, clean workstations, write blockers, access to logs and a documented chain of custody process so evidence stays usable. Review the plan at least yearly and after every incident or major infrastructure change, and keep a printed or offline copy for when systems are unavailable."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Plan excerpt",
+    "text": "Severity 1: confirmed data loss or active ransomware\n  Notify: Incident Commander within 15 min\n  Notify: CISO, Legal within 60 min\n  Decision rights: IC may isolate any system\n  Backup channel: phone bridge 555-0100 (fictional)\n  Regulatory clock: privacy officer assesses 72h duty"
+   },
+   "example": "A fictional company, Example Corp, detects encrypted files on a file server at 02:10. The on-call analyst declares severity 1 under the plan, which automatically pages the incident commander. The commander opens the phone bridge because email is suspect, assigns a scribe, tasks IT to isolate the file server's VLAN, and asks legal to start the 72 hour breach assessment clock. Because roles, thresholds and contact details were already written down, the first hour is spent acting, not arguing.",
+   "terms": [
+    {
+     "term": "Incident commander",
+     "def": "The person with overall authority for decisions during an incident."
+    },
+    {
+     "term": "Severity level",
+     "def": "A classification that determines urgency, escalation and notification."
+    },
+    {
+     "term": "Playbook",
+     "def": "A scenario specific checklist of response actions."
+    },
+    {
+     "term": "Chain of custody",
+     "def": "Documentation of who handled evidence and when."
+    },
+    {
+     "term": "Out-of-band channel",
+     "def": "A communication path independent of the possibly compromised network."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which are the four NIST SP 800-61 Rev 2 phases?",
+     "options": [
+      "Preparation; detection and analysis; containment, eradication and recovery; post-incident activity",
+      "Plan, Do, Check, Act",
+      "Scan, Exploit, Persist, Exfiltrate",
+      "Identify, Protect, Detect, Respond"
+     ],
+     "a": 0,
+     "why": "That is the Rev 2 lifecycle."
+    },
+    {
+     "q": "Why define roles rather than names?",
+     "options": [
+      "Cheaper",
+      "Law requires it",
+      "People may be unavailable",
+      "Names are secret"
+     ],
+     "a": 2,
+     "why": "Roles can be filled by deputies."
+    },
+    {
+     "q": "Why a backup communications channel?",
+     "options": [
+      "Faster email",
+      "Lower cost",
+      "Normal channels may be compromised",
+      "Fewer people"
+     ],
+     "a": 2,
+     "why": "Attackers may read corporate chat or email."
+    },
+    {
+     "q": "The scribe's job is to...",
+     "options": [
+      "Fix servers",
+      "Talk to press",
+      "Keep the timeline of events and decisions",
+      "Approve budget"
+     ],
+     "a": 2,
+     "why": "A timeline supports analysis and later review."
+    }
+   ],
+   "recap": [
+    "Follow the NIST lifecycle and get executive authority in writing.",
+    "Define roles, severity levels, escalation and contact paths.",
+    "Keep scenario playbooks, an evidence process and an offline plan copy."
+   ]
+  },
+  {
+   "title": "Tabletop exercises",
+   "why": "A plan only proves its worth when people rehearse it; tabletops expose gaps cheaply, without risking production.",
+   "sections": [
+    {
+     "h": "What a tabletop is",
+     "p": [
+      "A tabletop exercise is a facilitated discussion in which participants walk through a realistic scenario and describe what they would do. No systems are touched. It differs from a full simulation or a technical red team test, and it is the cheapest way to test decisions, roles, communication and the plan itself. Include not only security staff but also IT operations, legal, communications, HR, a business owner and an executive sponsor, because most real incident delays come from decisions, approvals and handoffs rather than from technology."
+     ]
+    },
+    {
+     "h": "Designing scenarios and injects",
+     "p": [
+      "Start with an objective, such as testing the ransomware playbook or the breach notification decision. Write a believable scenario drawn from your threat landscape, then script injects, the new pieces of information fed in at timed intervals: 'Backups appear to be encrypted', 'A journalist emails asking about a leak', 'The attacker posts sample data'. Good injects force trade-offs, create time pressure and introduce ambiguity. Prepare facilitator notes with expected actions, so the discussion can be compared against the plan, and keep the scenario fictional or anonymized."
+     ]
+    },
+    {
+     "h": "Running the session",
+     "p": [
+      "A facilitator keeps time, reads injects, asks open questions such as 'who decides that, and how do you reach them at 3 a.m.?' and stops arguments that drift into blame. An observer records decisions, delays and assumptions. Sessions typically last two to three hours. Use a no-fault rule: the purpose is to find weaknesses in the process, and people who admit they do not know something are helping. Rotate scenarios so different teams and plans, including cloud and third-party failures, are tested over the year."
+     ]
+    },
+    {
+     "h": "Capturing and closing gaps",
+     "p": [
+      "Immediately after, hold a hot wash to gather impressions, then write a short report listing findings, evidence from the notes, a severity, a named owner and a due date. Track actions in the same ticket system used for engineering work and review them at a regular meeting until closed. Examples include an outdated contact list, no authority to shut down a production line, or no template for customer notice. Measure improvement by repeating a similar scenario later and checking that earlier gaps no longer appear."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Inject card",
+    "text": "T+00 Alert: file server shows .locked extensions\nT+20 Inject: backups console unreachable\nT+45 Inject: ransom note demands payment, 72h deadline\nT+70 Inject: customer asks if their data is affected\nQuestions: who isolates? who informs legal? who speaks?"
+   },
+   "example": "During a tabletop, the group reaches the inject about customer data and discovers nobody knows who may approve a public statement. The legal lead assumes communications decides, while communications assumes the CEO decides. The observer records a gap titled 'No approval path for external statements', assigns it to the communications director, and sets a due date four weeks out. At the next quarterly exercise the group checks that a one page approval flow exists and that it works.",
+   "terms": [
+    {
+     "term": "Inject",
+     "def": "A scripted piece of new information introduced during an exercise."
+    },
+    {
+     "term": "Hot wash",
+     "def": "A quick debrief right after an exercise."
+    },
+    {
+     "term": "Facilitator",
+     "def": "The person who guides the exercise and keeps it on track."
+    },
+    {
+     "term": "No-fault rule",
+     "def": "A ground rule that the exercise tests process, not individuals."
+    },
+    {
+     "term": "Action item",
+     "def": "A tracked task with an owner and due date that closes a gap."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is an inject?",
+     "options": [
+      "A log type",
+      "A software patch",
+      "A firewall rule",
+      "New information fed during the exercise"
+     ],
+     "a": 3,
+     "why": "Injects drive the scenario forward."
+    },
+    {
+     "q": "A tabletop primarily tests...",
+     "options": [
+      "Encryption strength",
+      "Network speed",
+      "Decisions, roles and communication",
+      "Antivirus signatures"
+     ],
+     "a": 2,
+     "why": "It is a discussion based exercise."
+    },
+    {
+     "q": "Why include legal and communications?",
+     "options": [
+      "Many incident delays involve decisions and notices",
+      "Cost sharing",
+      "They write code",
+      "Tradition"
+     ],
+     "a": 0,
+     "why": "Incidents are business events, not only technical."
+    },
+    {
+     "q": "Best way to treat findings?",
+     "options": [
+      "Owner, due date and tracking",
+      "Email once",
+      "Remember them",
+      "Ignore minor ones"
+     ],
+     "a": 0,
+     "why": "Tracked actions get closed."
+    }
+   ],
+   "recap": [
+    "Tabletops are low cost discussions that test the plan.",
+    "Use timed injects, mixed participants and a no-fault rule.",
+    "Record gaps as owned, dated actions and re-test later."
+   ]
+  },
+  {
+   "title": "Backups and disaster recovery",
+   "why": "Backups are the last line of defense against ransomware and failure, but only if they are intact, isolated and proven to restore.",
+   "sections": [
+    {
+     "h": "3-2-1-1-0 and immutability",
+     "p": [
+      "The classic 3-2-1 rule says keep three copies of data, on two different media types, with one copy off site. The modern extension 3-2-1-1-0 adds one copy that is offline, air-gapped or immutable, and zero errors after verification. Immutable storage uses write once, read many features such as object lock in compliance mode, so even an administrator with stolen credentials cannot delete or encrypt backups before the retention period ends. Separate backup credentials from the domain, and require multi person approval to change retention."
+     ]
+    },
+    {
+     "h": "RPO and RTO",
+     "p": [
+      "Two numbers drive design. The recovery point objective (RPO) is the maximum tolerable data loss measured in time: an RPO of one hour means backups or replication must occur at least hourly. The recovery time objective (RTO) is the maximum tolerable time to restore service: an RTO of four hours means the restore process, bandwidth and staffing must be capable of that. Tighter targets cost more, for example continuous replication versus nightly backup, so business owners should set them based on the cost of downtime and data loss."
+     ]
+    },
+    {
+     "h": "Backup types and retention",
+     "p": [
+      "A full backup copies everything; an incremental copies changes since the last backup of any type; a differential copies changes since the last full. Incrementals are small and fast to take but need the chain to restore, while differentials restore with two sets. Snapshots are quick but usually live on the same storage and do not replace backups. Retention should cover both operational needs and hidden compromise: if an attacker lived in the network for 60 days, you may need clean restore points older than that. Encrypt backups and protect the keys separately."
+     ]
+    },
+    {
+     "h": "Restore testing and DR sites",
+     "p": [
+      "A backup that has never been restored is only a hope. Schedule restore tests, automate integrity checks, and time a full recovery of a critical system against its RTO. Disaster recovery sites come as hot (running, near instant failover), warm (partly provisioned) or cold (space and hardware only), trading cost against recovery time. In the cloud, use separate accounts and regions for copies, and document runbooks so that recovery does not depend on the knowledge of one person. Record every test result and fix failures."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Backup policy",
+    "text": "dataset: erp-db\nrpo: 1h        rto: 4h\nschedule: full weekly, incremental hourly\ncopies: 3  media: disk + object storage\noffsite: region-b   immutable: 35 days (object lock)\nrestore_test: monthly, result logged"
+   },
+   "example": "A finance database must lose no more than one hour of data and be back within four hours. The team takes hourly incrementals with a weekly full, keeps a copy in another region with object lock for 35 days, and tests restores monthly. A drill shows the restore takes six hours because of slow transfer. That exceeds the RTO, so they stage the latest full backup in the recovery region and retest, bringing the time to three and a half hours.",
+   "terms": [
+    {
+     "term": "RPO",
+     "def": "The maximum acceptable amount of data loss measured in time."
+    },
+    {
+     "term": "RTO",
+     "def": "The maximum acceptable time to restore a service."
+    },
+    {
+     "term": "Immutable backup",
+     "def": "A copy that cannot be altered or deleted until retention expires."
+    },
+    {
+     "term": "Air gap",
+     "def": "Isolation of a copy from the network."
+    },
+    {
+     "term": "Hot site",
+     "def": "A fully equipped recovery site that can take over almost immediately."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does the final 0 in 3-2-1-1-0 mean?",
+     "options": [
+      "Zero cost",
+      "Zero encryption",
+      "Zero copies on site",
+      "Zero errors after verification"
+     ],
+     "a": 3,
+     "why": "Backups are verified, with no errors."
+    },
+    {
+     "q": "An RPO of 1 hour means...",
+     "options": [
+      "Restore takes 1 hour",
+      "At most 1 hour of data loss is tolerable",
+      "Backups last 1 hour",
+      "1 hour of downtime per year"
+     ],
+     "a": 1,
+     "why": "RPO measures data loss."
+    },
+    {
+     "q": "Why are snapshots on the same array not enough?",
+     "options": [
+      "They are slow",
+      "They are encrypted",
+      "They share the failure and attack domain",
+      "They are too big"
+     ],
+     "a": 2,
+     "why": "If storage or credentials fall, snapshots go too."
+    },
+    {
+     "q": "What proves a backup is usable?",
+     "options": [
+      "Compression",
+      "A large file size",
+      "Green job status",
+      "A tested restore"
+     ],
+     "a": 3,
+     "why": "Only restore testing proves recoverability."
+    }
+   ],
+   "recap": [
+    "Follow 3-2-1-1-0 with an immutable or offline copy.",
+    "Set RPO and RTO with the business and design to meet them.",
+    "Test restores on a schedule and keep recovery runbooks."
+   ]
+  },
+  {
+   "title": "Business continuity and ransomware resilience",
+   "why": "Recovery is not only about restoring files; it is about restoring the right systems, in the right order, while the business keeps functioning.",
+   "sections": [
+    {
+     "h": "Business impact analysis",
+     "p": [
+      "A business impact analysis (BIA) identifies critical business processes and measures the effect of their interruption over time: lost revenue, regulatory penalties, safety impacts and reputational harm. From it you derive the maximum tolerable downtime, then an RTO and RPO for each process and supporting system. Interview process owners, not only IT, because the people who run payroll or order fulfilment know what breaks first. Rank services into tiers, such as tier 0 for identity and networking, tier 1 for revenue systems and tier 2 for internal tools."
+     ]
+    },
+    {
+     "h": "Dependencies and recovery order",
+     "p": [
+      "Systems depend on others, and recovery must follow that graph. Almost everything needs identity services (Active Directory or an identity provider), DNS, DHCP, networking and time before applications can work, so those come first. Next are databases and storage, then application servers, then front ends, then user facing integrations. Map third-party dependencies such as payment providers and SaaS. Record the order in a recovery runbook with owners and estimated times, and note any circular dependency, for example a backup system that needs the very directory it must restore."
+     ]
+    },
+    {
+     "h": "Ransomware scenarios",
+     "p": [
+      "Modern ransomware often combines data theft with encryption, so recovery from backup solves only part of the problem; you may still face extortion and notification duties. Plan for loss of the domain, hypervisors and backup consoles at once. Prepare an isolated clean room to rebuild and scan restored systems before reconnecting, and keep offline copies of golden images, configurations and the runbook itself. Decide in advance who may authorize negotiations or payment, and consult legal counsel and law enforcement guidance, since sanctions and policy considerations apply."
+     ]
+    },
+    {
+     "h": "Continuity planning and testing",
+     "p": [
+      "Business continuity plans cover people, premises, process and technology: manual workarounds such as paper forms, alternative offices, a staff call tree and priority customer communication. Define the threshold for declaring a disaster and activating the plan. Exercise it with both tabletop and technical recovery tests, and update it when systems change. Cyber insurance may require specific controls and prompt notice, so know the policy requirements ahead of time. Success means critical services return within tolerance, not that every server is restored."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "BIA table",
+    "text": "Process        MTD   RTO   RPO   Depends on\nPayroll        72h   24h   4h    AD, DB, HR app\nOnline orders  4h    2h    15m   DNS, DB, API, payments\nIntranet       7d    3d    24h   AD, web server\nTier order: identity/DNS -> databases -> apps -> front ends"
+   },
+   "example": "After a fictional ransomware attack, Example Corp finds the domain controllers encrypted. The runbook says identity comes first, so the team restores an offline copy of a domain controller into the clean room, validates it, and brings up DNS. Only then are the order database, API servers and payment integration restored, matching the BIA tiers. Online ordering resumes in six hours, inside its tolerance of eight, while the intranet waits two days, exactly as the business had agreed beforehand.",
+   "terms": [
+    {
+     "term": "BIA",
+     "def": "An analysis of how interruptions to business processes affect the organization over time."
+    },
+    {
+     "term": "MTD",
+     "def": "Maximum tolerable downtime before the impact becomes unacceptable."
+    },
+    {
+     "term": "Recovery tier",
+     "def": "A ranking that sets restoration priority."
+    },
+    {
+     "term": "Clean room",
+     "def": "An isolated environment used to rebuild and inspect systems safely."
+    },
+    {
+     "term": "Double extortion",
+     "def": "Ransomware that both encrypts and steals data for leverage."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does a BIA produce?",
+     "options": [
+      "Exploit list",
+      "Process criticality and recovery targets",
+      "Firewall rules",
+      "Password policy"
+     ],
+     "a": 1,
+     "why": "It sets priorities and tolerances."
+    },
+    {
+     "q": "Which is usually restored first?",
+     "options": [
+      "Intranet",
+      "Identity, DNS and networking",
+      "Test systems",
+      "Reports"
+     ],
+     "a": 1,
+     "why": "Most services depend on them."
+    },
+    {
+     "q": "Why is restoring from backup alone not enough against double extortion?",
+     "options": [
+      "Backups are slow",
+      "Data may also have been stolen",
+      "Encryption is weak",
+      "Backups are secret"
+     ],
+     "a": 1,
+     "why": "Stolen data creates extortion and notification duties."
+    },
+    {
+     "q": "Why include process owners in a BIA?",
+     "options": [
+      "Cheaper",
+      "They know business impact and workarounds",
+      "Required by TCP",
+      "They approve patches"
+     ],
+     "a": 1,
+     "why": "IT alone cannot judge business impact."
+    }
+   ],
+   "recap": [
+    "Run a BIA to set tiers, RTO and RPO per process.",
+    "Map dependencies and restore identity and networking first.",
+    "Plan for ransomware with a clean room and offline runbooks."
+   ]
+  },
+  {
+   "title": "Purple team exercises",
+   "why": "Purple teaming joins attackers and defenders to measure which behaviors your controls actually detect, then fixes the gaps on the spot.",
+   "sections": [
+    {
+     "h": "Red, blue and purple",
+     "p": [
+      "A red team emulates an adversary, a blue team defends and detects, and a purple team exercise has both work together in real time rather than in secret. The red side runs a technique, the blue side checks whether the right telemetry and alert appeared, and together they tune until it does. The goal is not to win but to improve detection coverage. This is far faster than a classic red team engagement, where findings arrive in a report weeks later."
+     ]
+    },
+    {
+     "h": "MITRE ATT&CK and Atomic Red Team",
+     "p": [
+      "MITRE ATT&CK is a knowledge base of adversary tactics and techniques, each with an ID such as T1059.001 (PowerShell) or T1003.001 (LSASS memory credential dumping). Atomic Red Team is an open library of small, scripted tests mapped to those technique IDs, designed to run safely on a lab system so defenders can verify detection. Invoke-AtomicTest T1059.001 runs the tests for that technique, and a cleanup step reverses changes. Always run tests only on authorized lab or test systems, with written approval and rollback."
+     ]
+    },
+    {
+     "h": "Running an exercise",
+     "p": [
+      "Choose techniques based on threat intelligence about groups that target your sector, and agree scope and safety rules. For each test, record the time and expected data source, execute it, and look in the SIEM or EDR. Classify the outcome: logged and alerted, logged but no alert, or no telemetry. Each result suggests a fix: enable a missing log source such as Sysmon or PowerShell script block logging, write a detection rule, or adjust response. Re-run the same test to confirm the new rule fires."
+     ]
+    },
+    {
+     "h": "Measuring and sustaining",
+     "p": [
+      "Track detection coverage as a share of tested techniques with working alerts, mean time to detect for the simulated activity, and the false positive rate of new rules. Store rules and test mappings in version control and replay the tests automatically after changes so that detections do not quietly break, a practice often called detection as code. Rotate through ATT&CK tactics over the year, and feed lessons into the IR plan and tabletop scenarios. A single run is a snapshot; regular repetition builds confidence."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Test and result",
+    "text": "> Invoke-AtomicTest T1059.001 -TestNumbers 1   (lab host ws-lab01)\n12:04:10 executed, encoded PowerShell command\nSIEM: event 4104 present, rule 'Suspicious PowerShell' = no alert\nGap: logged but not alerted\nFix: add rule for -EncodedCommand with long base64\n12:41:55 re-run -> alert fired"
+   },
+   "example": "A purple team picks T1059.001 because a fictional threat group relevant to Example Corp uses encoded PowerShell. The red operator runs an Atomic test on a lab host, and the blue analyst sees script block event 4104 in the SIEM but no alert. Together they write a rule that matches long encoded commands from non-admin parent processes, test it against 24 hours of benign data to keep false positives low, deploy it, and re-run the test. The alert fires, and the coverage chart improves by one technique.",
+   "terms": [
+    {
+     "term": "Purple team",
+     "def": "A collaborative exercise where attack emulation and defense tune detections together."
+    },
+    {
+     "term": "ATT&CK",
+     "def": "A knowledge base of adversary tactics and techniques."
+    },
+    {
+     "term": "Atomic Red Team",
+     "def": "A library of small tests mapped to ATT&CK techniques."
+    },
+    {
+     "term": "Detection gap",
+     "def": "An attack behavior that produces no useful alert."
+    },
+    {
+     "term": "Detection as code",
+     "def": "Managing detection rules and tests in version control with automated checks."
+    }
+   ],
+   "check": [
+    {
+     "q": "What distinguishes purple from classic red teaming?",
+     "options": [
+      "Attackers and defenders collaborate in real time",
+      "It uses no tools",
+      "It is only reporting",
+      "It is illegal"
+     ],
+     "a": 0,
+     "why": "Immediate feedback speeds tuning."
+    },
+    {
+     "q": "What is a technique ID like T1003.001?",
+     "options": [
+      "Hash",
+      "ATT&CK technique identifier",
+      "Port",
+      "CVE number"
+     ],
+     "a": 1,
+     "why": "ATT&CK uses T-prefixed IDs."
+    },
+    {
+     "q": "Logged but not alerted means...",
+     "options": [
+      "Test failed",
+      "Rule fires",
+      "Telemetry exists, a rule is missing",
+      "No data exists"
+     ],
+     "a": 2,
+     "why": "The fix is a detection rule."
+    },
+    {
+     "q": "Where may Atomic tests be run?",
+     "options": [
+      "The internet",
+      "Customer laptops",
+      "Authorized lab or test systems",
+      "Any production server"
+     ],
+     "a": 2,
+     "why": "They simulate real behavior and need approval."
+    }
+   ],
+   "recap": [
+    "Purple teams test and tune detections together.",
+    "Map tests to ATT&CK and classify results as alerted, logged or blind.",
+    "Fix gaps, re-run to confirm and automate replay."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Tabletop a ransomware case",
+   "sim": "scenario",
+   "scenario": "Example Corp, a fictional firm, faces a ransomware outbreak. You are the incident commander and will receive timed injects. At each step you must decide on containment, communication and recovery, balancing business impact against risk. The plan names a legal lead and a communications lead, and backups are in an unknown state.",
+   "objective": "Make sound containment, communication and recovery decisions across timed injects.",
+   "steps": [
+    {
+     "do": "Inject T+00: file server shows .locked extensions. Choose an action.",
+     "see": "Options: isolate VLAN, power off, ignore. You choose isolate VLAN. Feedback: good, preserves memory and stops spread."
+    },
+    {
+     "do": "Inject T+20: backup console is unreachable. Choose.",
+     "see": "Options: assume backups fine, check immutable copy, rebuild blindly. You check the immutable copy. Feedback: object lock copy verified from 03:00."
+    },
+    {
+     "do": "Inject T+45: ransom note with a 72 hour deadline. Choose who to notify.",
+     "see": "Choose legal, CISO and insurer. Feedback: correct, regulatory clock and policy notice start."
+    },
+    {
+     "do": "Inject T+70: customer asks if their data is affected. Choose a response.",
+     "see": "Options: deny, say nothing, holding statement approved by legal. You choose the holding statement. Feedback: correct."
+    },
+    {
+     "do": "Inject T+120: attacker posts sample data online. Choose.",
+     "see": "Confirm data theft; privacy officer starts breach assessment. Feedback: recovery alone does not close the incident."
+    },
+    {
+     "do": "Choose the recovery order.",
+     "see": "Identity, DNS, databases, apps. Feedback: matches BIA tiers. Score: 5 of 5 decisions on plan."
+    }
+   ],
+   "answer": "Best decisions: isolate the affected VLAN, verify the immutable backups, notify legal, the CISO and the insurer, send an approved holding statement, treat the data posting as a breach, and restore identity and DNS before applications.",
+   "hint": "Think containment first, evidence second, communications through one approved voice."
+  },
+  {
+   "title": "Pick backup strategy",
+   "sim": "config-editor",
+   "scenario": "A logistics company needs its order database to meet an RPO of 30 minutes and an RTO of 4 hours, and must survive ransomware that steals admin credentials. You edit a backup configuration for schedule, retention, immutability and testing.",
+   "objective": "Configure backups that meet the stated RPO and RTO and resist credential theft.",
+   "steps": [
+    {
+     "do": "Open backup.yaml",
+     "see": "Fields: schedule, retention_days, immutable, offsite, restore_test. Current: daily full, 7 days, immutable false."
+    },
+    {
+     "do": "Set schedule to incremental every 15 minutes plus nightly full",
+     "see": "Validator: RPO 15m satisfies target 30m"
+    },
+    {
+     "do": "Set offsite to true with a second region",
+     "see": "Validator: copy count 3, offsite present"
+    },
+    {
+     "do": "Set immutable true, 35 days, compliance mode",
+     "see": "Validator: deletion blocked until expiry, ransomware resistant"
+    },
+    {
+     "do": "Set restore_test to monthly full restore with timing",
+     "see": "Validator: expected restore 3h10m, under RTO 4h"
+    },
+    {
+     "do": "Save and run validation",
+     "see": "All checks passed: RPO ok, RTO ok, immutability ok"
+    }
+   ],
+   "answer": "Use 15 minute incrementals with a nightly full, an off-site copy in another region, 35 day immutable retention in compliance mode, and monthly timed restore tests showing recovery under 4 hours.",
+   "hint": "The schedule interval must be no longer than the RPO, and immutability defeats stolen credentials."
+  },
+  {
+   "title": "Recovery order",
+   "sim": "diagram-builder",
+   "scenario": "After a BIA at Example Corp, you must sequence the restoration of seven systems following a ransomware event: identity service, DNS and DHCP, order database, payment gateway, web front end, payroll app and intranet. Drag them into the correct order on the dependency diagram.",
+   "objective": "Sequence recovery by dependency and business criticality.",
+   "steps": [
+    {
+     "do": "Drag Identity service to position 1",
+     "see": "Accepted: no dependencies"
+    },
+    {
+     "do": "Drag DNS and DHCP to position 2",
+     "see": "Accepted: needs network only"
+    },
+    {
+     "do": "Drag Order database to position 3",
+     "see": "Accepted: depends on identity and DNS"
+    },
+    {
+     "do": "Drag Payment gateway to position 4",
+     "see": "Accepted: depends on database"
+    },
+    {
+     "do": "Drag Web front end to position 5",
+     "see": "Accepted: depends on API and payments"
+    },
+    {
+     "do": "Place Payroll app then Intranet last",
+     "see": "Accepted: lower tiers. Validation passed: all dependencies satisfied before each step"
+    }
+   ],
+   "answer": "Correct order: identity service, DNS and DHCP, order database, payment gateway, web front end, payroll app, intranet. Foundational services precede dependent ones, and higher tier revenue systems precede internal tools.",
+   "hint": "Restore what everything else depends on before the applications."
+  },
+  {
+   "title": "Purple team detection gap",
+   "sim": "siem",
+   "scenario": "In a lab, the red operator will run an Atomic Red Team test for T1059.001 (encoded PowerShell) on host ws-lab01. You monitor the SIEM and must determine whether the technique is detected and, if not, write the missing rule.",
+   "objective": "Find the undetected technique and create a detection that fires on re-test.",
+   "steps": [
+    {
+     "do": "Start the simulated technique",
+     "see": "Red: executed T1059.001 test 1 at 12:04:10"
+    },
+    {
+     "do": "Search SIEM: host=ws-lab01 earliest=-15m",
+     "see": "3 events: process create, event 4104 script block, network connect"
+    },
+    {
+     "do": "Check alerts for the same window",
+     "see": "0 alerts. Coverage: T1059.001 = not detected"
+    },
+    {
+     "do": "Open event 4104 and note fields",
+     "see": "Fields: ScriptBlockText, powershell.exe -EncodedCommand JAB..., ParentImage winword.exe"
+    },
+    {
+     "do": "Write rule: powershell with -EncodedCommand, base64 length over 100, parent not an admin tool",
+     "see": "Rule saved; backtest on 24h: 0 false positives"
+    },
+    {
+     "do": "Ask red to re-run the test",
+     "see": "Alert fired: Suspicious Encoded PowerShell, ws-lab01, 12:41:55"
+    }
+   ],
+   "answer": "The technique was logged (event 4104) but not alerted. The fix is a rule on encoded PowerShell with long base64 content and an unusual parent process, validated by a backtest and a re-run that produced an alert.",
+   "hint": "Telemetry existed, so the gap is a rule, not a log source."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which document defines incident response phases in NIST SP 800-61?",
+   "options": [
+    "Rev 2 lifecycle",
+    "ISO 9001",
+    "PCI DSS",
+    "RFC 791"
+   ],
+   "a": 0,
+   "why": "800-61 defines the IR lifecycle."
+  },
+  {
+   "q": "Why define severity levels in an IR plan?",
+   "options": [
+    "Billing",
+    "Backups",
+    "To set urgency, escalation and notification",
+    "Branding"
+   ],
+   "a": 2,
+   "why": "They drive who is told and how quickly."
+  },
+  {
+   "q": "A tabletop exercise primarily...",
+   "options": [
+    "Discusses a scenario to test decisions and roles",
+    "Changes production systems",
+    "Encrypts disks",
+    "Scans ports"
+   ],
+   "a": 0,
+   "why": "No systems are touched."
+  },
+  {
+   "q": "What is the best output of a tabletop?",
+   "options": [
+    "A longer plan",
+    "Applause",
+    "Findings with owners and due dates",
+    "Fewer participants"
+   ],
+   "a": 2,
+   "why": "Tracked actions close the gaps."
+  },
+  {
+   "q": "What does 3-2-1-1-0 add to 3-2-1?",
+   "options": [
+    "Two more sites",
+    "An offline or immutable copy and zero verification errors",
+    "Cloud only",
+    "Daily deletion"
+   ],
+   "a": 1,
+   "why": "The extra 1 is offline or immutable, 0 is errors."
+  },
+  {
+   "q": "An RTO of 4 hours means...",
+   "options": [
+    "Service must be restored within 4 hours",
+    "Backups kept 4 hours",
+    "Up to 4h of data loss",
+    "4 backups"
+   ],
+   "a": 0,
+   "why": "RTO is time to restore."
+  },
+  {
+   "q": "What does a BIA help determine?",
+   "options": [
+    "Critical processes and recovery priorities",
+    "IP ranges",
+    "Password length",
+    "Exploits"
+   ],
+   "a": 0,
+   "why": "It ranks processes and sets tolerances."
+  },
+  {
+   "q": "Which service typically comes back first after a total outage?",
+   "options": [
+    "Identity, DNS and networking",
+    "Intranet",
+    "Reports",
+    "Wiki"
+   ],
+   "a": 0,
+   "why": "Other systems depend on these."
+  },
+  {
+   "q": "Which ID format names an ATT&CK technique?",
+   "options": [
+    "CVE-2024-1",
+    "SHA256",
+    "T1059.001",
+    "TCP/443"
+   ],
+   "a": 2,
+   "why": "Techniques use T-numbers."
+  },
+  {
+   "q": "An event is logged but no alert fires. The fix is...",
+   "options": [
+    "Reboot",
+    "Turn off the SIEM",
+    "Write or tune a detection rule",
+    "Delete the log"
+   ],
+   "a": 2,
+   "why": "Telemetry exists; detection logic is missing."
+  }
+ ]
+}

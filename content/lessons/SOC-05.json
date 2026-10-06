@@ -1,0 +1,1196 @@
+{
+ "code": "SOC-05",
+ "intro": "A SIEM turns scattered logs into searchable evidence and automated alerts. This module follows data from collection to alert: SIEM architecture and storage tiers, ingestion and normalization, then hands-on search in Splunk SPL and Microsoft KQL, including aggregation, joins and time handling. You then build dashboards, write threshold, sequence and anomaly rules, and tune out false positives while keeping true detections. These are daily skills for analysts and detection engineers.",
+ "lessons": [
+  {
+   "title": "SIEM architecture and data flow",
+   "why": "Understanding the pipeline helps you find where an event was lost, delayed or mangled before blaming the detection.",
+   "sections": [
+    {
+     "h": "Components in order",
+     "p": [
+      "Data starts at sources such as servers, firewalls and cloud services. Collectors or forwarders gather it: agents such as the Splunk Universal Forwarder, Elastic Agent or Winlogbeat, syslog receivers, and API pulls for cloud and SaaS. Data may pass through an intermediate layer, for example heavy forwarders, Logstash or a message queue like Kafka, which parse, filter and buffer. Indexers or data nodes parse, store and index events. A search head or console lets analysts query, build dashboards and run scheduled searches. A correlation engine evaluates detection rules and raises alerts that flow to a case system or SOAR."
+     ]
+    },
+    {
+     "h": "Storage tiers and retention",
+     "p": [
+      "Log volume is large, so SIEMs tier storage. Hot storage is fast and recent, often 7 to 30 days, and is searched constantly. Warm is slightly older and still online. Cold uses cheaper, slower storage for older data, and frozen or archive tiers keep data for compliance, sometimes in object storage that must be restored before searching. Retention decisions balance cost, investigation needs and regulation: many teams keep 90 days searchable and a year or more archived, since intrusions are often found long after they start. Knowing the tier affects how quickly an old search will run."
+     ]
+    },
+    {
+     "h": "Latency, volume and licensing",
+     "p": [
+      "Every stage adds delay. Events may arrive seconds or minutes after they occur, so a rule that looks at the last five minutes may miss late events, and time-based searches should use event time with some lag allowance. Volume affects licensing: Splunk licenses often count gigabytes ingested per day, while Sentinel charges by data ingested and retained. Filtering noisy low-value data at the edge reduces cost, but dropping a log that an investigation later needs creates a gap. Prioritize authentication, endpoint, network boundary, DNS, proxy, email and cloud audit sources."
+     ]
+    },
+    {
+     "h": "Health and availability",
+     "p": [
+      "A SIEM is only as good as its data. Monitor ingestion health: events per second per source, last event time, parsing failures, queue depth and license use. Alert when a critical source goes silent, because silence can mean an outage or an attacker disabling logging. Plan for redundancy with clustered indexers and buffering on forwarders, so short outages do not lose data. Document each source's owner, format, retention and detection coverage in a data source inventory so analysts know what they can and cannot search."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Pipeline",
+    "text": "Source -> Forwarder/Agent -> (Queue/Parser) -> Indexer/Data store\n  -> Search head / Console -> Correlation rules -> Alert -> Case / SOAR\n\nStorage: hot (7-30d) -> warm -> cold -> frozen/archive"
+   },
+   "example": "At 14:00 an analyst finds no firewall events since 12:40 for an expected busy source. The pipeline check shows the syslog receiver queue full and the forwarder buffering. Engineering expands the queue and events arrive in a burst at 14:20. The analyst notes that detections between 12:40 and 14:20 ran on incomplete data, so a manual search for that window is scheduled to confirm no alerts were missed.",
+   "terms": [
+    {
+     "term": "Forwarder",
+     "def": "An agent or service that sends log data to the SIEM."
+    },
+    {
+     "term": "Indexer",
+     "def": "A component that parses, stores and indexes events."
+    },
+    {
+     "term": "Search head",
+     "def": "The interface and engine used to query and visualize data."
+    },
+    {
+     "term": "Hot/warm/cold",
+     "def": "Storage tiers ordered from fast and recent to slow and old."
+    },
+    {
+     "term": "Retention",
+     "def": "How long data is kept and searchable."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which component runs analyst queries and dashboards?",
+     "options": [
+      "Search head",
+      "Forwarder",
+      "Syslog source",
+      "Load balancer only"
+     ],
+     "a": 0,
+     "why": "The search head provides the query interface."
+    },
+    {
+     "q": "What is hot storage for?",
+     "options": [
+      "Recent, frequently searched data",
+      "Archived compliance data",
+      "Backups only",
+      "Deleted data"
+     ],
+     "a": 0,
+     "why": "Hot tiers hold recent, fast-access data."
+    },
+    {
+     "q": "Why alert when a log source goes silent?",
+     "options": [
+      "It may be an outage or tampering",
+      "Silence is always normal",
+      "It lowers license cost",
+      "It speeds up searches"
+     ],
+     "a": 0,
+     "why": "A missing source creates a blind spot."
+    },
+    {
+     "q": "Late-arriving events can cause which problem?",
+     "options": [
+      "Rules over short windows miss them",
+      "Higher precision",
+      "Smaller logs",
+      "Faster indexing"
+     ],
+     "a": 0,
+     "why": "Latency means a recent-window rule may run before the data arrives."
+    }
+   ],
+   "recap": [
+    "Data flows source, collector, indexer, search, correlation, alert.",
+    "Tier storage by age and monitor retention.",
+    "Monitor ingestion health and silent sources."
+   ]
+  },
+  {
+   "title": "Ingestion, parsing and normalization",
+   "why": "The way data is brought in and mapped decides whether searches and rules work across all sources.",
+   "sections": [
+    {
+     "h": "Agents versus agentless",
+     "p": [
+      "Agent-based collection installs software on each host, giving rich data, buffering when offline, filtering, and sometimes encryption and compression. It adds an agent to manage and patch. Agentless methods include syslog sent to a collector, Windows Event Forwarding, API polling for cloud services, and network taps. Agentless is easier to deploy for appliances where agents cannot run, but offers less control and may lose data on UDP. Many environments use both: agents on servers and endpoints, syslog from network devices and APIs for cloud and SaaS sources."
+     ]
+    },
+    {
+     "h": "Syslog, API and file ingestion",
+     "p": [
+      "Syslog ingestion needs a listener on UDP or TCP 514, or TLS 6514, with firewall rules allowing only known senders. API ingestion polls cloud services such as Microsoft 365, AWS CloudTrail through S3 and SQS, or an identity provider, and is subject to rate limits and token expiry that can silently stop collection. File monitoring tails log files, tracking the read position so that rotation does not cause missed or duplicated lines. Each method needs a defined sourcetype or table so the correct parsing rules apply to the data."
+     ]
+    },
+    {
+     "h": "Schemas: CIM and ECS",
+     "p": [
+      "Normalization maps source-specific fields to a common model. Splunk's Common Information Model (CIM) defines data models such as Authentication, Network Traffic and Endpoint with standard field names like src, dest, user and action. Elastic Common Schema (ECS) uses names such as source.ip, user.name and event.action. Microsoft Sentinel uses ASIM parsers. With normalization, a single search for failed authentication works across Windows, Linux and VPN logs. Without it, each source needs its own query, which is slow and error prone, and detections are brittle."
+     ]
+    },
+    {
+     "h": "Verifying ingestion",
+     "p": [
+      "After onboarding a source, check: events arrive with the right timestamp and time zone, fields are extracted, the sourcetype is correct, and normalization maps the key fields. Compare event counts against the source, and spot-check raw and parsed values. Watch for timestamp errors, which place events in the wrong time, and for truncated events. Document the onboarding, and add a health detection to alert if the source stops or the parse rate drops. A well-ingested source is trusted by analysts, while an unreliable one is ignored or misread."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Config sketch (props.conf style)",
+    "text": "[linux_auth]\nTIME_FORMAT = %b %d %H:%M:%S\nSHOULD_LINEMERGE = false\nEXTRACT-failed = Failed password for (?:invalid user )?(?<user>\\S+) from (?<src>\\S+) port\nFIELDALIAS-ip = src AS src_ip"
+   },
+   "example": "A new VPN appliance sends syslog over UDP. The analyst checks the first hour: events arrive but the time is eight hours off because the device reports local time without a zone. Fields user and src_ip are empty because the vendor changed the format. The engineer sets the time zone for the sourcetype, fixes the extraction, switches to TCP and adds a health alert for no VPN events for 15 minutes.",
+   "terms": [
+    {
+     "term": "Agent",
+     "def": "Software on a host that collects and forwards logs."
+    },
+    {
+     "term": "Agentless",
+     "def": "Collection without a host agent, such as syslog or API polling."
+    },
+    {
+     "term": "CIM",
+     "def": "Splunk's Common Information Model of standard field names."
+    },
+    {
+     "term": "ECS",
+     "def": "Elastic Common Schema."
+    },
+    {
+     "term": "Sourcetype",
+     "def": "A label that selects the parsing rules for incoming data."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which is an advantage of agent-based collection?",
+     "options": [
+      "Buffering when the host is offline",
+      "No software to manage",
+      "Works on appliances always",
+      "Never loses data"
+     ],
+     "a": 0,
+     "why": "Agents can buffer and resend after outages."
+    },
+    {
+     "q": "Why normalize to CIM or ECS?",
+     "options": [
+      "One query works across sources",
+      "It deletes raw logs",
+      "It removes the need for parsing",
+      "It increases license cost"
+     ],
+     "a": 0,
+     "why": "Standard field names make detection portable."
+    },
+    {
+     "q": "Which risk is specific to API ingestion?",
+     "options": [
+      "Expired tokens or rate limits stopping collection",
+      "Packet loss on UDP",
+      "Disk rotation",
+      "Spanning ports"
+     ],
+     "a": 0,
+     "why": "API polling can fail silently."
+    },
+    {
+     "q": "After onboarding a source, which check matters most?",
+     "options": [
+      "Timestamps and key fields parse correctly",
+      "Dashboard colors",
+      "The vendor logo",
+      "Retention of the manual"
+     ],
+     "a": 0,
+     "why": "Wrong time or empty fields break searches and rules."
+    }
+   ],
+   "recap": [
+    "Choose agents, syslog or APIs by source type.",
+    "Map data to CIM, ECS or ASIM.",
+    "Verify timestamps and fields and alert on source health."
+   ]
+  },
+  {
+   "title": "Search basics in SPL",
+   "why": "SPL is the Splunk query language; a few commands answer most investigative questions.",
+   "sections": [
+    {
+     "h": "Anatomy of a search",
+     "p": [
+      "An SPL search begins with filters on the data set, then pipes results through commands. For example: index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4625 earliest=-24h | table _time, user, src_ip. The index and sourcetype narrow the data, EventCode=4625 filters events, earliest sets the time range and table selects columns. Time can be set by the picker or with earliest and latest modifiers such as -15m@m, which snaps to the minute. Put the most selective filters first to make the search fast, and always specify an index to avoid scanning everything."
+     ]
+    },
+    {
+     "h": "Filters and wildcards",
+     "p": [
+      "Field filters use equals and wildcards: user=\"admin*\", src_ip=203.0.113.*. Boolean operators AND, OR and NOT must be uppercase. The search command filters later in the pipeline, and where uses expressions, such as where bytes_out > 1000000. Quoting matters for values with spaces. Searching for a bare word without a field looks through the raw text, which is slower. Use the fields command to keep only needed fields, and rename to give friendly names. Learn the field names for your data, which you can inspect in the sidebar or with | fieldsummary."
+     ]
+    },
+    {
+     "h": "Shaping results",
+     "p": [
+      "Useful commands include table to show columns, sort - count to sort descending, head 10 to limit results, dedup user to keep the first event per user, eval to create fields such as eval hour=strftime(_time,\"%H\"), rex to extract with regex, and lookup to enrich using a table. For example: ... | rex field=_raw \"from (?<ip>\\d+\\.\\d+\\.\\d+\\.\\d+)\" | table _time, ip. Use the Splunk time range for efficiency rather than filtering _time in the pipeline. Save a useful search as a report or alert so that others can reuse it."
+     ]
+    },
+    {
+     "h": "Habits for reliable searches",
+     "p": [
+      "Check the data first: run a broad search for a minute to see fields and values, then refine. Verify that the result count is plausible, as a mistake in quotes or field names can silently return zero or too many events. Use the job inspector when a search is slow. Comment complex pipelines with triple backtick comments in newer versions, and document intent. Beware of timezone display, since the interface shows the user's time zone while _time is stored in UTC epoch. Searching over all time is costly and should be avoided in a production SIEM."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "SPL search",
+    "text": "index=wineventlog EventCode=4625 earliest=-24h\n| stats count by user\n| sort - count\n| head 10\n\n# fields: user, count"
+   },
+   "example": "The analyst wants failed logons in the last 24 hours by user. They start with index=wineventlog EventCode=4625 earliest=-24h and see 1840 events. Adding | stats count by user | sort - count | head 10 shows the account administrator with 1500 failures. A follow-up | search user=administrator | stats count by src_ip identifies one source address, giving the investigation a clear starting point.",
+   "terms": [
+    {
+     "term": "SPL",
+     "def": "Splunk Processing Language."
+    },
+    {
+     "term": "index",
+     "def": "A repository of events searched first to narrow results."
+    },
+    {
+     "term": "sourcetype",
+     "def": "The data format label used for parsing."
+    },
+    {
+     "term": "earliest/latest",
+     "def": "Time range modifiers in a search."
+    },
+    {
+     "term": "eval",
+     "def": "Command that creates or modifies fields with expressions."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does earliest=-24h do?",
+     "options": [
+      "Limits the search to the last 24 hours",
+      "Deletes old data",
+      "Sorts by time",
+      "Sets retention"
+     ],
+     "a": 0,
+     "why": "It sets the start of the time range."
+    },
+    {
+     "q": "Which command limits output to ten results?",
+     "options": [
+      "head 10",
+      "dedup 10",
+      "eval 10",
+      "lookup 10"
+     ],
+     "a": 0,
+     "why": "head returns the first N results."
+    },
+    {
+     "q": "Why include index= in searches?",
+     "options": [
+      "It narrows the data scanned and speeds the search",
+      "It encrypts data",
+      "It is a comment",
+      "It rewrites events"
+     ],
+     "a": 0,
+     "why": "Specific indexes reduce the search scope."
+    },
+    {
+     "q": "Boolean operators in SPL must be:",
+     "options": [
+      "Uppercase",
+      "Lowercase only",
+      "Quoted",
+      "Numeric"
+     ],
+     "a": 0,
+     "why": "AND, OR and NOT are uppercase."
+    }
+   ],
+   "recap": [
+    "Start with index, sourcetype and a time range.",
+    "Pipe through table, sort, head, dedup, eval and rex.",
+    "Check result counts and fields before trusting them."
+   ]
+  },
+  {
+   "title": "Aggregation in SPL and KQL",
+   "why": "Aggregation turns many events into counts, rates and trends that reveal patterns such as brute force or beaconing.",
+   "sections": [
+    {
+     "h": "stats, top and dedup in SPL",
+     "p": [
+      "The stats command computes aggregates: count, dc (distinct count), sum, avg, min, max, values and list, optionally by one or more fields. Example: index=auth action=failure | stats count dc(user) as users by src_ip. This shows each source with failure count and how many different users it tried, which separates brute force (one user) from spraying (many users). The top command returns the most common values with counts and percentages, and rare returns the least common. dedup removes duplicates and keeps the first event, while sort orders results."
+     ]
+    },
+    {
+     "h": "Time-based aggregation with timechart",
+     "p": [
+      "timechart buckets events by time and produces a series ready for a line or column chart. Example: index=auth action=failure | timechart span=1h count by src_ip limit=5. The span sets the bucket size. Related commands are bin _time span=5m followed by stats, which gives more control for custom groupings, and streamstats and eventstats for running or overall statistics. Time bucketing is the basis for detecting rate-based activity such as 50 failures in five minutes, as well as for spotting regular beacon intervals."
+     ]
+    },
+    {
+     "h": "summarize and bin in KQL",
+     "p": [
+      "Kusto Query Language (KQL) used in Microsoft Sentinel and Defender uses summarize for aggregation: SecurityEvent | where EventID == 4625 | summarize Failures = count(), Users = dcount(TargetUserName) by IpAddress. Use bin() to bucket time: summarize count() by bin(TimeGenerated, 1h). Aggregate functions include count, dcount, sum, avg, min, max, make_set and make_list. The equivalents are stats to summarize, dc to dcount, timechart span=1h to summarize by bin(TimeGenerated, 1h) with render timechart, and top to top N by or take with sort."
+     ]
+    },
+    {
+     "h": "Choosing the right aggregation",
+     "p": [
+      "Pick by the question. How many failures per source? count by src. How many distinct accounts did a source try? distinct count by src. When did activity peak? bucket by time. Which values are unusual? rare or a count sorted ascending. For comparison across entities, compute a ratio. Beware of high-cardinality fields such as full URLs, since grouping by them yields huge results. Also remember that stats drops fields you do not carry through, so include everything you need in the by clause or an aggregation like values()."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "SPL vs KQL",
+    "text": "SPL:\nindex=auth action=failure | stats count dc(user) as users by src_ip | sort - count\n\nKQL:\nSecurityEvent | where EventID == 4625\n| summarize Failures=count(), Users=dcount(TargetUserName) by IpAddress\n| sort by Failures desc"
+   },
+   "example": "An analyst needs to separate brute force from spraying. The aggregation shows 203.0.113.50 with 900 failures against 1 user, and 198.51.100.40 with 120 failures against 95 users. The first source is a classic brute force on one account, the second is a spraying pattern. Charting with timechart by hour shows the spray runs at a slow steady rate designed to avoid lockouts.",
+   "terms": [
+    {
+     "term": "stats",
+     "def": "SPL command for aggregate statistics."
+    },
+    {
+     "term": "dc / dcount",
+     "def": "Distinct count in SPL or KQL."
+    },
+    {
+     "term": "timechart",
+     "def": "SPL command that aggregates events into time buckets."
+    },
+    {
+     "term": "summarize",
+     "def": "KQL operator that aggregates rows."
+    },
+    {
+     "term": "bin",
+     "def": "KQL function that rounds a value into buckets, often time."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which KQL operator performs aggregation?",
+     "options": [
+      "summarize",
+      "project",
+      "extend",
+      "take"
+     ],
+     "a": 0,
+     "why": "summarize groups and aggregates."
+    },
+    {
+     "q": "A source with high failures and one distinct user suggests:",
+     "options": [
+      "Brute force",
+      "Password spraying",
+      "Normal use",
+      "DNS failure"
+     ],
+     "a": 0,
+     "why": "Many attempts against one account is brute force."
+    },
+    {
+     "q": "What is the SPL command to chart counts over time?",
+     "options": [
+      "timechart",
+      "table",
+      "rex",
+      "lookup"
+     ],
+     "a": 0,
+     "why": "timechart buckets events by time."
+    },
+    {
+     "q": "Which KQL function buckets time into hours?",
+     "options": [
+      "bin(TimeGenerated, 1h)",
+      "head 1h",
+      "dedup 1h",
+      "span(1h)"
+     ],
+     "a": 0,
+     "why": "bin rounds the timestamp to a bucket."
+    }
+   ],
+   "recap": [
+    "Use stats or summarize with count and distinct count.",
+    "Bucket time with timechart or bin().",
+    "Pick aggregation by the question you ask."
+   ]
+  },
+  {
+   "title": "KQL fundamentals",
+   "why": "KQL is used across Microsoft Sentinel, Defender and Azure Data Explorer, so it is essential for cloud-centered SOCs.",
+   "sections": [
+    {
+     "h": "Structure and basic operators",
+     "p": [
+      "A KQL query starts with a table name and pipes through operators. Example: SecurityEvent | where TimeGenerated > ago(24h) | where EventID == 4625 | project TimeGenerated, Account, IpAddress. The where operator filters, project selects columns, extend adds computed columns, sort by orders results, take limits rows and count counts them. String operators include == (case sensitive), =~ (case insensitive), contains, has (faster, matches whole terms), startswith and matches regex. Time is filtered with ago(), for example ago(7d), and between(). KQL is case sensitive for table and column names."
+     ]
+    },
+    {
+     "h": "Common security tables",
+     "p": [
+      "In Sentinel, SecurityEvent holds Windows Security events collected by agents, with columns such as EventID, Account, Computer, LogonType and IpAddress. SigninLogs holds Microsoft Entra ID sign-ins with UserPrincipalName, IPAddress, ResultType (0 means success), AppDisplayName, ConditionalAccessStatus and Location. Others include AuditLogs, AzureActivity, DeviceProcessEvents in Defender, CommonSecurityLog for CEF, and Syslog. Knowing a table's columns lets you query accurately, and the schema browser or | getschema lists them."
+     ]
+    },
+    {
+     "h": "Joins and enrichment",
+     "p": [
+      "The join operator combines tables on a key: SigninLogs | where ResultType != 0 | join kind=inner (AuditLogs | where OperationName == \"Add member to role\") on $left.UserPrincipalName == $right.InitiatedBy. Common kinds are inner, leftouter and leftanti. Put the smaller table on the left side for performance. The in operator works with lists, and lookups of external data use externaldata or watchlists. extend can compute values such as hour = hourofday(TimeGenerated), and iff or case create conditional fields. Use let to name values or sub-queries for readability."
+     ]
+    },
+    {
+     "h": "Writing efficient, correct queries",
+     "p": [
+      "Filter by time first, then by selective columns, before expensive operations like join and summarize. Project early to reduce columns. Prefer has over contains for performance. Verify with a count before and after each stage. Remember that SigninLogs ResultType is a string in some versions, so compare accordingly, and that times are UTC. Save common queries as functions or hunting queries, and add comments with //. In Sentinel, analytic rules are KQL queries scheduled to run, so a clean, efficient query is also the foundation of a reliable detection."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "KQL query",
+    "text": "SigninLogs\n| where TimeGenerated > ago(24h)\n| where ResultType != 0\n| summarize Failures=count(), Users=dcount(UserPrincipalName) by IPAddress\n| where Users > 10\n| sort by Failures desc"
+   },
+   "example": "To find spraying, the analyst queries SigninLogs for failures in the last day, summarizes by IPAddress counting distinct users and keeps sources with more than ten users. One address, 203.0.113.50, appears with 4 failures on each of 80 accounts. They then join to successful sign-ins from the same IP to see if any account was breached, finding one success for a user with no MFA registered.",
+   "terms": [
+    {
+     "term": "where",
+     "def": "KQL operator that filters rows."
+    },
+    {
+     "term": "project",
+     "def": "KQL operator that selects columns."
+    },
+    {
+     "term": "extend",
+     "def": "KQL operator that adds computed columns."
+    },
+    {
+     "term": "SigninLogs",
+     "def": "Sentinel table with Microsoft Entra ID sign-in events."
+    },
+    {
+     "term": "join",
+     "def": "KQL operator that combines two tables on a key."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which KQL operator selects specific columns?",
+     "options": [
+      "project",
+      "where",
+      "summarize",
+      "take"
+     ],
+     "a": 0,
+     "why": "project chooses output columns."
+    },
+    {
+     "q": "In SigninLogs, ResultType 0 means:",
+     "options": [
+      "Successful sign-in",
+      "Failed sign-in",
+      "Blocked by policy",
+      "MFA required only"
+     ],
+     "a": 0,
+     "why": "0 indicates success."
+    },
+    {
+     "q": "Which operator is faster for whole-term matching?",
+     "options": [
+      "has",
+      "contains",
+      "matches regex",
+      "extend"
+     ],
+     "a": 0,
+     "why": "has uses the term index."
+    },
+    {
+     "q": "What function filters to the last 24 hours?",
+     "options": [
+      "ago(24h)",
+      "last(24h)",
+      "now(24h)",
+      "since(24h)"
+     ],
+     "a": 0,
+     "why": "ago() produces a time relative to now."
+    }
+   ],
+   "recap": [
+    "Queries are table, then pipes with where, project, extend, summarize.",
+    "Know SecurityEvent and SigninLogs columns.",
+    "Filter time and selective columns first."
+   ]
+  },
+  {
+   "title": "Dashboards and visualizations",
+   "why": "Dashboards make detection health and hunting views visible at a glance, but only if each panel answers a real question.",
+   "sections": [
+    {
+     "h": "Choosing panels",
+     "p": [
+      "Match the chart to the data. Single value tiles show a current count, such as alerts open now. Line or area charts show trends over time, such as failed logons per hour. Bar charts rank categories, such as top source IPs. Tables show details for action, such as new local administrators. Maps show geographic spread but can mislead. Pie charts work only for a few categories. Each panel should answer one question, with a clear title that states it, for example Failed logons by hour, last 24h, and use consistent time ranges."
+     ]
+    },
+    {
+     "h": "Thresholds, colors and drilldowns",
+     "p": [
+      "Add thresholds so that urgent values stand out: for example green below 50 failures per hour, amber 50 to 200 and red above. Use color sparingly and with labels, as color alone is not accessible. Drilldowns let an analyst click a value to open a pre-filled search, such as clicking an IP to see all of its events. Add filters for time range, host and user at the top. Good dashboards support the workflow from overview to detail, reducing the time to pivot from a spike to the underlying events."
+     ]
+    },
+    {
+     "h": "Detection health and hunting views",
+     "p": [
+      "Different audiences need different dashboards. A SOC operations dashboard shows alerts by severity, ageing against SLAs, queue size and top rules. A detection health dashboard shows log source volumes, last event times, parse failures and rule run errors. Hunting views show top failed logons, new admin accounts, rare processes and outbound data volume by host. Executive views show trends, mean times and risk. Build them from saved searches, and keep each limited to what the audience needs, since cluttered dashboards hide the signal."
+     ]
+    },
+    {
+     "h": "Maintenance and mobile layout",
+     "p": [
+      "Dashboards decay as data changes. Review them regularly, remove unused panels, document each search's intent and owner, and test with realistic time ranges since heavy searches slow the system. Use scheduled searches or summary indexes for expensive panels. For mobile or small displays, order panels by importance in a single column, keep text short and avoid wide tables. Control access, because dashboards can reveal sensitive data. A simple, reliable dashboard viewed daily is more useful than a complex one nobody trusts."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Panel plan",
+    "text": "Panel                        Chart   Query idea\nOpen alerts by severity      Tiles   count by severity\nFailed logons by hour        Line    timechart span=1h\nTop failed logon sources     Bar     stats count by src | head 10\nNew admins (7d)              Table   EventCode=4732\nOutbound GB by host          Bar     stats sum(bytes_out) by src"
+   },
+   "example": "A manager asks for a dashboard to spot account attacks. The analyst builds three panels: a line chart of failed logons per hour, a bar chart of the top ten source IPs, and a table of accounts added to Administrators in the last seven days. Thresholds turn the line red above 200 failures per hour, and clicking a source IP opens a search of that address. The layout is a single column so it works on a phone.",
+   "terms": [
+    {
+     "term": "Panel",
+     "def": "One visual element on a dashboard that answers a question."
+    },
+    {
+     "term": "Threshold",
+     "def": "A value at which a panel changes color or state."
+    },
+    {
+     "term": "Drilldown",
+     "def": "A click action that opens related detail."
+    },
+    {
+     "term": "Detection health",
+     "def": "Monitoring of data sources and rules rather than threats."
+    },
+    {
+     "term": "Summary index",
+     "def": "Precomputed results used to speed up heavy dashboards."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which chart best shows a trend over time?",
+     "options": [
+      "Line chart",
+      "Pie chart",
+      "Map",
+      "Single value"
+     ],
+     "a": 0,
+     "why": "Line charts show change over time."
+    },
+    {
+     "q": "What does a drilldown do?",
+     "options": [
+      "Opens related detail when clicked",
+      "Deletes the panel",
+      "Encrypts data",
+      "Changes retention"
+     ],
+     "a": 0,
+     "why": "It links a summary to detailed events."
+    },
+    {
+     "q": "Which dashboard monitors log source volumes and parse failures?",
+     "options": [
+      "Detection health",
+      "Executive",
+      "Phishing",
+      "Marketing"
+     ],
+     "a": 0,
+     "why": "Health dashboards show data quality."
+    },
+    {
+     "q": "Why avoid relying on color alone?",
+     "options": [
+      "Accessibility and clarity",
+      "Color slows searches",
+      "Colors are not supported",
+      "It raises costs"
+     ],
+     "a": 0,
+     "why": "Labels help users who cannot distinguish colors."
+    }
+   ],
+   "recap": [
+    "One panel, one question, clear titles.",
+    "Use thresholds and drilldowns to speed pivots.",
+    "Separate operations, health and hunting dashboards."
+   ]
+  },
+  {
+   "title": "Alert rules and correlation",
+   "why": "Well designed rules convert detections into actionable alerts without flooding analysts.",
+   "sections": [
+    {
+     "h": "Rule types",
+     "p": [
+      "Threshold rules fire when a count passes a limit in a window, for example 10 failed logons from one source within five minutes. Sequence or multi-stage rules detect ordered events, such as five failures followed by a success, or a new admin followed by a log clear. Anomaly rules compare against a baseline, for example an account downloading ten times its normal volume, using statistics or machine learning. Signature rules match known bad indicators such as a file hash or domain. Each type has a role: thresholds are simple and transparent, sequences are precise, anomalies find the unknown but need tuning."
+     ]
+    },
+    {
+     "h": "Rule logic building blocks",
+     "p": [
+      "A rule includes a data source, filter conditions, a grouping key (such as source IP or user), a time window, a threshold and an action. Scheduling determines how often it runs and how far back it looks, and the lookback should slightly exceed the schedule interval to avoid gaps from latency. Group by the entity that matters, so an alert is per source rather than per event. Add fields to the alert, such as the host, user, count and a link to the search, so that the analyst can start triage immediately without reconstructing the logic."
+     ]
+    },
+    {
+     "h": "Suppression, throttling and severity",
+     "p": [
+      "Throttling or suppression prevents repeated alerts for the same entity during a period, for example one alert per source every 15 minutes, which avoids a flood from one ongoing attack while keeping the case visible. Severity should reflect confidence and impact: a failed logon burst on a test host is low, the same on a domain controller is higher, and a success after the burst is high. Map rules to ATT&CK techniques and to playbooks so that analysts know the expected response. Document the rule's purpose, data needs, known false positives and an owner."
+     ]
+    },
+    {
+     "h": "Testing and deployment",
+     "p": [
+      "Test each rule against historical data to see how many alerts it would have produced, and against known attack simulations to confirm that it fires. Estimate analyst workload: a rule that alerts 200 times a day will be ignored. Deploy first in a monitor-only or low severity mode, review results for a week, then promote. Version rules, record changes and re-test after log format updates. Monitor rule execution for errors, as a rule that fails to run is a silent gap in detection coverage."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Rule definition",
+    "text": "name: Brute force, then success\nsource: auth logs\nwindow: 5m   group_by: src_ip\nlogic: failures >= 10 THEN success same src_ip\nthrottle: 15m per src_ip\nseverity: high   attack: T1110\nplaybook: PB-AUTH-01"
+   },
+   "example": "A rule fires when one source has 10 failed logons within 5 minutes. During testing against last month's data it creates 600 alerts, mostly from a vulnerability scanner at 192.0.2.99. The engineer adds a 15 minute throttle per source, raises the threshold on service accounts and builds a second high-severity rule: 10 failures followed by a success from the same source. Alert volume falls to 14 a week with every true attack still caught.",
+   "terms": [
+    {
+     "term": "Threshold rule",
+     "def": "A rule that fires when a count passes a limit within a time window."
+    },
+    {
+     "term": "Sequence rule",
+     "def": "A rule that detects an ordered series of events."
+    },
+    {
+     "term": "Throttling",
+     "def": "Limiting repeat alerts for the same entity for a period."
+    },
+    {
+     "term": "Lookback",
+     "def": "How far back a scheduled rule searches each run."
+    },
+    {
+     "term": "Anomaly rule",
+     "def": "A rule that flags deviation from a baseline."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does throttling do?",
+     "options": [
+      "Limits repeated alerts for the same entity",
+      "Deletes events",
+      "Raises severity",
+      "Encrypts alerts"
+     ],
+     "a": 0,
+     "why": "It prevents floods from one ongoing activity."
+    },
+    {
+     "q": "Which rule best detects 10 failures then a success from one IP?",
+     "options": [
+      "Sequence rule",
+      "Signature on a hash",
+      "Dashboard panel",
+      "Retention policy"
+     ],
+     "a": 0,
+     "why": "An ordered pattern needs a sequence rule."
+    },
+    {
+     "q": "Why should lookback slightly exceed the schedule interval?",
+     "options": [
+      "To avoid gaps from latency",
+      "To raise costs",
+      "To hide alerts",
+      "To delete data"
+     ],
+     "a": 0,
+     "why": "Late events could otherwise fall between runs."
+    },
+    {
+     "q": "Before promoting a new rule you should:",
+     "options": [
+      "Test on historical data and estimate volume",
+      "Disable logging",
+      "Skip review",
+      "Set severity to critical"
+     ],
+     "a": 0,
+     "why": "Testing prevents noisy or broken rules reaching production."
+    }
+   ],
+   "recap": [
+    "Use threshold, sequence, anomaly and signature rules where each fits.",
+    "Group by entity and set sensible windows.",
+    "Throttle, map severity and test before deployment."
+   ]
+  },
+  {
+   "title": "Tuning false positives",
+   "why": "Tuning keeps analysts focused: it removes noise while protecting the ability to catch real attacks.",
+   "sections": [
+    {
+     "h": "Measure before changing",
+     "p": [
+      "Tuning starts with data. For each rule, record alert count, true positive rate, false positive rate, closure reasons and time spent. Identify the top noisy rules, since a few rules often create most of the alerts. Within a rule, group alerts by source, user, host and other fields to find the cause. For example, if 90 percent of alerts come from one address that belongs to the vulnerability scanner, that is a clear tuning target. Without measurement, changes are guesses that can hide real threats."
+     ]
+    },
+    {
+     "h": "Allowlists and baselines",
+     "p": [
+      "An allowlist or exclusion removes known benign activity: a scanner address, a backup account, or a signed management tool. Make exclusions narrow, such as the scanner address plus the specific rule, not a broad rule off switch. Record the owner, reason, date and an expiry or review date. Baselines describe normal behavior, for example the usual hours and hosts for an admin, and let a rule compare current activity against them. Where an attacker could imitate the excluded item, for instance by spoofing a user agent, combine multiple attributes in the exclusion."
+     ]
+    },
+    {
+     "h": "Adjusting logic",
+     "p": [
+      "Other options are raising a threshold, lengthening or shortening the time window, adding conditions such as parent process or destination, requiring a sequence, or lowering severity for low-risk assets while raising it for critical ones. Enrich the alert with context so that analysts can decide faster. Sometimes the right choice is to move a noisy rule to a dashboard or hunting query instead of an alert. Test every change against historical data to confirm that the known true positives still fire."
+     ]
+    },
+    {
+     "h": "Governance and review",
+     "p": [
+      "Tuning needs process. Use change control with review by another engineer, track exclusions in version control, and re-review them periodically because environments change. Watch for a drift where exclusions accumulate until the rule is useless. Keep a set of regression test cases that represent real attacks and run it after each tuning change. Share results with analysts, since they can explain why alerts were noisy. The goal is high precision and high recall together, and each tuning decision should be explainable to an auditor."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Alert review (50 alerts)",
+    "text": "Group by src_ip:\n 192.0.2.99  (vuln scanner)  45 alerts  90%\n 203.0.113.50                 3 alerts\n 198.51.100.4                 2 alerts\n\nProposed exclusion: src_ip=192.0.2.99 AND rule=AUTH-014\nReview date: +90 days   Owner: detection-eng"
+   },
+   "example": "The analyst reviews 50 alerts from a rule and finds 45 come from 192.0.2.99, the documented vulnerability scanner. They propose excluding that address for this rule only, with the owner and a 90 day review date. Before applying, they replay last month's data and confirm that the three real brute force alerts from 203.0.113.50 and 198.51.100.4 still fire, while volume drops by about 90 percent.",
+   "terms": [
+    {
+     "term": "Allowlist",
+     "def": "A list of known benign entities excluded from a rule."
+    },
+    {
+     "term": "Baseline",
+     "def": "A model of normal behavior used for comparison."
+    },
+    {
+     "term": "Precision",
+     "def": "The share of alerts that are true positives."
+    },
+    {
+     "term": "Recall",
+     "def": "The share of real attacks that the rule detects."
+    },
+    {
+     "term": "Regression test",
+     "def": "A test confirming known true positives still fire after a change."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the best first step in tuning?",
+     "options": [
+      "Measure alert sources and outcomes",
+      "Disable the rule",
+      "Raise severity",
+      "Delete logs"
+     ],
+     "a": 0,
+     "why": "Data shows where the noise originates."
+    },
+    {
+     "q": "Which exclusion is safest?",
+     "options": [
+      "Scanner IP for one rule with an owner and review date",
+      "All alerts from the 192.0.2.0/24 range",
+      "Turning the rule off",
+      "Excluding all admins from every rule"
+     ],
+     "a": 0,
+     "why": "Narrow, documented, time-limited exclusions limit risk."
+    },
+    {
+     "q": "After tuning, what should you verify?",
+     "options": [
+      "Known true positives still fire",
+      "The dashboard colors",
+      "Disk space only",
+      "Nothing"
+     ],
+     "a": 0,
+     "why": "Tuning must not remove real detections."
+    },
+    {
+     "q": "What is recall?",
+     "options": [
+      "Share of real attacks detected",
+      "Share of alerts that are false",
+      "Number of rules",
+      "Alert speed"
+     ],
+     "a": 0,
+     "why": "High recall means few missed attacks."
+    }
+   ],
+   "recap": [
+    "Measure first, then tune narrowly.",
+    "Document exclusions with owner and review date.",
+    "Test against known true positives after each change."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Search failed logons in SPL",
+   "sim": "siem",
+   "scenario": "The Splunk-like console holds Windows Security events in index=wineventlog for fictional domain EXAMPLE. You need failed logons per user over the last 24 hours, sorted by count.",
+   "objective": "Write an SPL query that returns failed logons per user for 24 hours sorted descending.",
+   "steps": [
+    {
+     "do": "Type: index=wineventlog EventCode=4625",
+     "see": "Time range: all time. 18,402 events (slow)"
+    },
+    {
+     "do": "Add earliest=-24h",
+     "see": "1,840 events in 24 hours"
+    },
+    {
+     "do": "Append: | stats count by user",
+     "see": "user=administrator count=1500; jsmith count=210; svc-print count=130"
+    },
+    {
+     "do": "Append: | sort - count",
+     "see": "Sorted descending: administrator first"
+    },
+    {
+     "do": "Append: | head 10",
+     "see": "3 rows shown (fewer than 10 users)"
+    },
+    {
+     "do": "Click Check query",
+     "see": "Accepted: filter, time range, stats and sort present"
+    }
+   ],
+   "answer": "The final query is index=wineventlog EventCode=4625 earliest=-24h | stats count by user | sort - count | head 10. The top result is administrator with 1500 failures, a likely brute force target.",
+   "hint": "Add the time range before the first pipe."
+  },
+  {
+   "title": "Translate SPL to KQL",
+   "sim": "code-editor",
+   "scenario": "You are given the SPL search: index=auth action=failure | stats count dc(user) as users by src_ip | sort - count. Convert it to KQL for the Sentinel table SigninLogs, where failure means ResultType != 0.",
+   "objective": "Write the equivalent KQL summarize query.",
+   "steps": [
+    {
+     "do": "Type table name: SigninLogs",
+     "see": "Editor: table recognized"
+    },
+    {
+     "do": "Add filter: | where ResultType != 0",
+     "see": "Rows filtered to failures"
+    },
+    {
+     "do": "Add: | summarize Failures=count(), Users=dcount(UserPrincipalName) by IPAddress",
+     "see": "Columns: IPAddress, Failures, Users"
+    },
+    {
+     "do": "Add: | sort by Failures desc",
+     "see": "Sorted descending"
+    },
+    {
+     "do": "Click Run on sample data",
+     "see": "203.0.113.50: 900 failures, 1 user\n198.51.100.40: 120 failures, 95 users"
+    },
+    {
+     "do": "Click Check",
+     "see": "Accepted: equivalent to the SPL query"
+    }
+   ],
+   "answer": "The KQL is SigninLogs | where ResultType != 0 | summarize Failures=count(), Users=dcount(UserPrincipalName) by IPAddress | sort by Failures desc. It maps stats to summarize and dc to dcount.",
+   "hint": "stats maps to summarize and dc maps to dcount."
+  },
+  {
+   "title": "Fix the broken parser",
+   "sim": "config-editor",
+   "scenario": "A new Linux source sends SSH logs, but the search returns no results for src_ip and user because the field extraction does not match. A sample line is: Mar 14 09:21:07 web01 sshd[812]: Failed password for invalid user admin from 203.0.113.9 port 40122 ssh2.",
+   "objective": "Correct the extraction so src_ip and user populate.",
+   "steps": [
+    {
+     "do": "Open props.conf and read EXTRACT-failed",
+     "see": "EXTRACT-failed = Failed login for (?<user>\\S+) from (?<src_ip>\\S+) port"
+    },
+    {
+     "do": "Run test search: sourcetype=linux_auth | table user src_ip",
+     "see": "Rows returned, user and src_ip are empty"
+    },
+    {
+     "do": "Compare with the sample line",
+     "see": "Pattern says 'Failed login' but the log says 'Failed password'"
+    },
+    {
+     "do": "Edit to: Failed password for (?:invalid user )?(?<user>\\S+) from (?<src_ip>\\S+) port",
+     "see": "Saved, configuration reloaded"
+    },
+    {
+     "do": "Re-run the test search",
+     "see": "user=admin src_ip=203.0.113.9 (and 211 more rows)"
+    },
+    {
+     "do": "Click Verify",
+     "see": "Accepted: fields populated for valid and invalid user lines"
+    }
+   ],
+   "answer": "The text in the regex did not match the actual log message. The fix is EXTRACT-failed = Failed password for (?:invalid user )?(?<user>\\S+) from (?<src_ip>\\S+) port, which handles both valid and invalid usernames.",
+   "hint": "Compare the regex word for word with a raw event."
+  },
+  {
+   "title": "Build a detection dashboard",
+   "sim": "diagram-builder",
+   "scenario": "You must design a small mobile-friendly dashboard with three panels for a SOC: top failed logons, new administrators and outbound volume. The builder offers panel types and a single column phone layout.",
+   "objective": "Arrange the three panels with suitable chart types and thresholds for a mobile layout.",
+   "steps": [
+    {
+     "do": "Drag a panel to slot 1 and choose Bar chart",
+     "see": "Panel 1 added: bar chart"
+    },
+    {
+     "do": "Set panel 1 search to top failed logons by user and set title",
+     "see": "Title: Top failed logons by user, 24h"
+    },
+    {
+     "do": "Drag a panel to slot 2 and choose Table",
+     "see": "Panel 2 added: table"
+    },
+    {
+     "do": "Set panel 2 to EventCode=4732 group Administrators, 7d",
+     "see": "Title: New administrators, 7 days"
+    },
+    {
+     "do": "Drag a panel to slot 3 and choose Line chart",
+     "see": "Panel 3 added: line chart"
+    },
+    {
+     "do": "Set panel 3 to outbound bytes per hour, threshold red at 5 GB",
+     "see": "Title: Outbound volume per hour; threshold red above 5 GB"
+    },
+    {
+     "do": "Switch to Mobile preview and click Check",
+     "see": "Accepted: single column, titles clear, thresholds set"
+    }
+   ],
+   "answer": "Use a bar chart for top failed logons, a table for new administrators and a line chart with a red threshold for outbound volume. In the mobile layout the panels are stacked in a single column in order of urgency.",
+   "hint": "Match each question to a chart type, then order by urgency."
+  },
+  {
+   "title": "Create a threshold alert",
+   "sim": "siem",
+   "scenario": "In the SIEM rule editor you must configure a rule firing when a source IP records 10 or more failed logons in 5 minutes, with a 15 minute throttle. The data source is authentication events.",
+   "objective": "Create the rule with correct window, threshold, grouping and throttle.",
+   "steps": [
+    {
+     "do": "Set data source to authentication, action=failure",
+     "see": "Source set: 1,840 events in last 24h"
+    },
+    {
+     "do": "Set group by to src_ip",
+     "see": "Group key: src_ip"
+    },
+    {
+     "do": "Set threshold: count >= 10",
+     "see": "Threshold saved"
+    },
+    {
+     "do": "Set time window to 5 minutes and schedule every 5 minutes",
+     "see": "Window 5m, lookback 6m recommended"
+    },
+    {
+     "do": "Set throttle: 15 minutes per src_ip",
+     "see": "Throttle saved"
+    },
+    {
+     "do": "Set severity medium and map to T1110",
+     "see": "Severity medium, ATT&CK T1110 added"
+    },
+    {
+     "do": "Click Test against last 7 days",
+     "see": "Would have fired 6 times: 203.0.113.50 (3), 198.51.100.4 (3)"
+    }
+   ],
+   "answer": "The rule groups by src_ip, uses count >= 10 in a 5 minute window, runs every 5 minutes with a slightly longer lookback, throttles for 15 minutes per source and maps to T1110. The test shows 6 plausible alerts.",
+   "hint": "Group by source and set the throttle per source, not globally."
+  },
+  {
+   "title": "Tune a noisy rule",
+   "sim": "siem",
+   "scenario": "A rule produced 50 alerts last week. You need to find the cause of most of the noise and add a safe exclusion without losing true positives.",
+   "objective": "Identify the scanner source causing 90 percent of alerts and add a narrow exclusion.",
+   "steps": [
+    {
+     "do": "Open the rule's alert list",
+     "see": "50 alerts, 3 true positives, 47 false positives"
+    },
+    {
+     "do": "Group by src_ip",
+     "see": "192.0.2.99: 45; 203.0.113.50: 3; 198.51.100.4: 2"
+    },
+    {
+     "do": "Look up 192.0.2.99 in the asset inventory",
+     "see": "Owner: vuln-mgmt, type: authenticated vulnerability scanner"
+    },
+    {
+     "do": "Add exclusion src_ip=192.0.2.99 for this rule only, with owner and 90 day review",
+     "see": "Exclusion saved with metadata"
+    },
+    {
+     "do": "Replay last 30 days",
+     "see": "Alerts: 6 (was 50). True positives retained: 3 of 3"
+    },
+    {
+     "do": "Click Submit",
+     "see": "Accepted: narrow exclusion, true positives preserved"
+    }
+   ],
+   "answer": "The scanner at 192.0.2.99 causes 45 of 50 alerts (90 percent). A rule-specific exclusion with an owner and review date removes the noise while the three real alerts still fire.",
+   "hint": "Exclude the one address for the one rule, and replay to confirm."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which component stores and indexes events?",
+   "options": [
+    "Indexer",
+    "Dashboard",
+    "Playbook",
+    "Phish report"
+   ],
+   "a": 0,
+   "why": "Indexers store and index data."
+  },
+  {
+   "q": "Which storage tier holds recent, quickly searchable data?",
+   "options": [
+    "Hot",
+    "Cold",
+    "Frozen",
+    "Archive"
+   ],
+   "a": 0,
+   "why": "Hot is fast and recent."
+  },
+  {
+   "q": "Why normalize logs to a schema such as ECS?",
+   "options": [
+    "One query works across sources",
+    "To delete raw data",
+    "To increase license usage",
+    "To disable parsing"
+   ],
+   "a": 0,
+   "why": "Standard names make queries reusable."
+  },
+  {
+   "q": "Which SPL command aggregates counts by a field?",
+   "options": [
+    "stats",
+    "table",
+    "head",
+    "rex"
+   ],
+   "a": 0,
+   "why": "stats computes aggregates."
+  },
+  {
+   "q": "Which KQL operator aggregates rows?",
+   "options": [
+    "summarize",
+    "project",
+    "take",
+    "where"
+   ],
+   "a": 0,
+   "why": "summarize aggregates."
+  },
+  {
+   "q": "A source with many failures against many users suggests:",
+   "options": [
+    "Password spraying",
+    "Brute force on one account",
+    "Normal use",
+    "Disk failure"
+   ],
+   "a": 0,
+   "why": "Spraying hits many accounts."
+  },
+  {
+   "q": "In SigninLogs, which ResultType indicates success?",
+   "options": [
+    "0",
+    "50126",
+    "1",
+    "500"
+   ],
+   "a": 0,
+   "why": "ResultType 0 is a successful sign-in."
+  },
+  {
+   "q": "What does throttling an alert do?",
+   "options": [
+    "Limits repeated alerts for the same entity",
+    "Raises severity",
+    "Deletes the rule",
+    "Hides the data source"
+   ],
+   "a": 0,
+   "why": "It avoids floods from one continuing activity."
+  },
+  {
+   "q": "Which is the safest tuning exclusion?",
+   "options": [
+    "One scanner IP for one rule with an owner and review date",
+    "All traffic from an entire /16",
+    "Disabling the rule",
+    "Excluding every admin"
+   ],
+   "a": 0,
+   "why": "Narrow, documented, reviewed exclusions are safest."
+  },
+  {
+   "q": "After tuning a rule, you should confirm that:",
+   "options": [
+    "Known true positives still fire",
+    "Dashboards are blue",
+    "Retention is shorter",
+    "Logging is off"
+   ],
+   "a": 0,
+   "why": "Tuning should not reduce true detections."
+  }
+ ]
+}

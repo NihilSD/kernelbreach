@@ -1,0 +1,812 @@
+{
+ "code": "ROOK-02",
+ "intro": "Before you can secure a computer you need a clear picture of what is inside one. This module covers the CPU, memory and storage, the operating system kernel, and how numbers and text are represented in binary, hex and ASCII. You will learn how files identify themselves, how running programs become processes, and how virtual machines isolate work. These ideas explain why malware behaves as it does and why analysts do their work inside disposable virtual labs.",
+ "lessons": [
+  {
+   "title": "CPU, RAM and Storage",
+   "why": "Every attack and every defense plays out on three resources: processing, memory and storage.",
+   "sections": [
+    {
+     "h": "The CPU executes instructions",
+     "p": [
+      "The central processing unit, or CPU, is the component that executes instructions. A program is ultimately a long list of simple operations such as add, compare, move data and jump to another instruction. The CPU fetches an instruction, decodes it, executes it and repeats this cycle billions of times per second. Speed is measured in gigahertz, and modern chips contain several cores, each able to run its own stream of instructions. Cores let a computer run many programs at once. For security, the key point is that the CPU runs whatever instructions it is given, which is why untrusted code is dangerous."
+     ]
+    },
+    {
+     "h": "RAM: fast but temporary",
+     "p": [
+      "Random access memory, or RAM, is the working space where the CPU keeps the programs and data it is using right now. It is fast, measured in nanoseconds, but volatile, meaning its contents vanish when power is lost. A running program, a document being edited and a password typed into a login form all exist in RAM. This has a security side: sensitive data in memory can be read by other code with enough privilege, and investigators capture a memory image from a live machine because it holds evidence, such as running malware and network connections, that never reaches disk."
+     ]
+    },
+    {
+     "h": "Storage: persistent but slower",
+     "p": [
+      "Storage keeps data when the power is off. A hard disk drive, or HDD, stores bits magnetically on spinning platters and is cheap but slow. A solid state drive, or SSD, uses flash memory with no moving parts and is much faster. Both hold the operating system, applications and user files. Storage is divided into partitions and organized by a file system such as NTFS, ext4 or APFS. Because storage persists, it is where attackers plant malware that must survive a reboot, and where defenders look for logs. Full disk encryption protects stored data if a laptop is stolen."
+     ]
+    },
+    {
+     "h": "How they cooperate",
+     "p": [
+      "When you launch a program, the operating system copies its instructions from storage into RAM. The CPU then fetches those instructions from RAM, often via small, very fast caches built into the chip. Results are held in RAM until you save, which writes them back to storage. If RAM fills up, the system may use swap or a page file on disk, which is much slower and can leave fragments of memory on disk. Remember the hierarchy: registers and cache are fastest and smallest, RAM is next, and storage is the slowest and largest."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Memory hierarchy",
+    "text": "Registers/cache : fastest, tiny, volatile\nRAM            : fast, GBs, volatile\nSSD            : slower, 100s of GBs, persistent\nHDD            : slowest, TBs, persistent"
+   },
+   "example": "You open a spreadsheet on a laptop. The operating system reads the file from the SSD into RAM, and the CPU runs the spreadsheet program's instructions against that data. You type new numbers, which exist only in RAM until you press save. Suddenly the battery dies. The unsaved edits are gone because RAM is volatile, but the older saved file remains on the SSD. A forensic examiner would find a different story on a live, infected machine: the malware process, visible only in RAM, would vanish on shutdown, so capturing memory first preserves that evidence.",
+   "terms": [
+    {
+     "term": "CPU",
+     "def": "The processor that fetches, decodes and executes program instructions."
+    },
+    {
+     "term": "RAM",
+     "def": "Fast, volatile memory holding data and programs currently in use."
+    },
+    {
+     "term": "Volatile",
+     "def": "Losing contents when power is removed."
+    },
+    {
+     "term": "SSD",
+     "def": "Solid state drive using flash memory, faster than an HDD."
+    },
+    {
+     "term": "Swap",
+     "def": "Disk space used as overflow when RAM is full."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which component loses its data when power is cut?",
+     "options": [
+      "SSD",
+      "HDD",
+      "RAM",
+      "USB stick"
+     ],
+     "a": 2,
+     "why": "RAM is volatile."
+    },
+    {
+     "q": "Why do forensic investigators often capture RAM from a live machine?",
+     "options": [
+      "It is cheap",
+      "It holds evidence that never reaches disk",
+      "It is permanent",
+      "It encrypts files"
+     ],
+     "a": 1,
+     "why": "Running processes and connections exist only in memory."
+    },
+    {
+     "q": "What is the main difference between HDD and SSD?",
+     "options": [
+      "HDD uses flash memory",
+      "SSD has no moving parts and is faster",
+      "SSD is volatile",
+      "HDD is faster"
+     ],
+     "a": 1,
+     "why": "SSDs use flash memory without spinning platters."
+    },
+    {
+     "q": "When you open a program, where does the OS first load its instructions to run them?",
+     "options": [
+      "Into RAM",
+      "Into the monitor",
+      "Into the network card",
+      "Into the BIOS"
+     ],
+     "a": 0,
+     "why": "Programs are copied from storage into RAM for the CPU."
+    }
+   ],
+   "recap": [
+    "The CPU executes instructions; RAM holds what is in use; storage persists data.",
+    "RAM is fast and volatile, while storage is slower and persistent.",
+    "Memory holds evidence that disk may not."
+   ]
+  },
+  {
+   "title": "Operating Systems and the Kernel",
+   "why": "The operating system decides what every program may do, so it is the main security boundary on a computer.",
+   "sections": [
+    {
+     "h": "What an operating system does",
+     "p": [
+      "An operating system, or OS, manages the hardware and gives programs a safe, consistent way to use it. It schedules the CPU among many programs, allocates RAM, manages files on storage, controls devices and enforces which users may do what. Without an OS each application would need to talk to every disk and network card directly. The OS also provides the user interface, whether a graphical desktop or a command line. The main families are Windows, macOS, Linux and Unix variants, and the mobile systems Android, which is Linux based, and iOS."
+     ]
+    },
+    {
+     "h": "Kernel space and user space",
+     "p": [
+      "The kernel is the core of the OS and runs with the highest privilege, directly controlling hardware and memory. Ordinary applications run in user space with restricted privilege. Modern CPUs enforce this split with privilege rings: the kernel runs in ring 0 and applications in ring 3. A program in user space cannot read another program's memory or touch hardware directly. This separation means a crash or compromise in one application should not take down the whole system. It also explains why attackers prize kernel-level access: code running in the kernel can hide files, processes and network connections from the rest of the system."
+     ]
+    },
+    {
+     "h": "System calls and drivers",
+     "p": [
+      "When an application needs something privileged, such as opening a file or sending a packet, it asks the kernel through a system call. On Linux examples include open, read, write and fork. The kernel checks permissions, performs the action and returns the result. Drivers are kernel components that know how to talk to a specific device such as a graphics card or network adapter. Because drivers run with high privilege, a flawed or malicious driver is dangerous, which is why modern Windows requires signed drivers. Monitoring system calls is a common technique defenders use to observe what a program is really doing."
+     ]
+    },
+    {
+     "h": "Main OS families",
+     "p": [
+      "Windows dominates corporate desktops and uses the NT kernel with the NTFS file system and a central configuration database called the registry. Linux is a free kernel combined with tools in distributions such as Debian, Ubuntu and Red Hat, and it powers most servers, cloud workloads and network devices. macOS is built on a Unix foundation called Darwin. Each family has its own file layout, user model and tools, so a security professional learns the basics of all three. Later modules in this path cover Linux and Windows in detail, starting from the concepts you learned here."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Privilege rings",
+    "text": "Ring 3  user space   : browsers, editors, scripts\nRing 0  kernel       : scheduler, memory, drivers\n\nApp -> system call (open, read, write) -> kernel -> hardware"
+   },
+   "example": "A text editor wants to save a file. It cannot write to the disk itself because it runs in user space. It issues a write system call. The kernel checks that the logged-in user has permission to modify that folder. If the check passes, the kernel instructs the disk driver to store the bytes. If the user lacks permission, the kernel returns an error such as permission denied and the editor shows a message. This checkpoint, repeated for every file, network and device request, is the foundation of OS security.",
+   "terms": [
+    {
+     "term": "Kernel",
+     "def": "The core of the OS that controls hardware, memory and processes at the highest privilege."
+    },
+    {
+     "term": "User space",
+     "def": "The restricted environment where ordinary applications run."
+    },
+    {
+     "term": "System call",
+     "def": "A request from an application asking the kernel to perform a privileged action."
+    },
+    {
+     "term": "Driver",
+     "def": "Kernel-level software that lets the OS communicate with a hardware device."
+    },
+    {
+     "term": "Distribution",
+     "def": "A packaged Linux system combining the kernel with tools and software."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which runs with the highest privilege?",
+     "options": [
+      "A web browser",
+      "The kernel",
+      "A text editor",
+      "A game"
+     ],
+     "a": 1,
+     "why": "The kernel runs in ring 0."
+    },
+    {
+     "q": "How does an app ask the OS to open a file?",
+     "options": [
+      "By a system call",
+      "By editing RAM directly",
+      "By rebooting",
+      "By overwriting the BIOS"
+     ],
+     "a": 0,
+     "why": "System calls are the controlled gateway to the kernel."
+    },
+    {
+     "q": "Why are drivers a security concern?",
+     "options": [
+      "They run with high privilege",
+      "They are slow",
+      "They are visual",
+      "They use no memory"
+     ],
+     "a": 0,
+     "why": "Drivers run in kernel mode, so flaws or malicious drivers are powerful."
+    },
+    {
+     "q": "Android is based on which kernel?",
+     "options": [
+      "Windows NT",
+      "Linux",
+      "Darwin",
+      "DOS"
+     ],
+     "a": 1,
+     "why": "Android uses the Linux kernel."
+    }
+   ],
+   "recap": [
+    "The OS schedules resources and enforces permissions.",
+    "Kernel space is privileged; user space is restricted.",
+    "System calls are the controlled gateway between apps and the kernel."
+   ]
+  },
+  {
+   "title": "Binary, Hex and ASCII",
+   "why": "Analysts read addresses, packet bytes and file headers in hex, so converting by hand is a daily skill.",
+   "sections": [
+    {
+     "h": "Binary and decimal",
+     "p": [
+      "Computers store everything as bits, each either 0 or 1. Binary is base 2, so each position is a power of two. Reading from the right, the places are 1, 2, 4, 8, 16, 32, 64 and 128 for one byte of eight bits. To convert 01000001 to decimal, add the places that hold a 1: 64 plus 1 equals 65. To convert decimal to binary, subtract the largest power of two that fits and repeat. For example 200 is 128 plus 64 plus 8, which gives 11001000. One byte can represent 256 values, from 0 to 255."
+     ]
+    },
+    {
+     "h": "Hexadecimal",
+     "p": [
+      "Hexadecimal is base 16 and uses digits 0 to 9 and letters A to F, where A is 10 and F is 15. It is popular because one hex digit equals exactly four bits, so one byte is two hex digits. Binary 1111 0000 is hex F0. Hex is written with a prefix 0x or a suffix h in many tools. To convert hex to decimal multiply each digit by its place value: 0x2F is 2 times 16 plus 15, which equals 47. MAC addresses, IPv6 addresses, color codes, memory addresses and file signatures are all shown in hex, so fluency pays off immediately."
+     ]
+    },
+    {
+     "h": "ASCII and text",
+     "p": [
+      "ASCII is a table that maps numbers to characters. Capital A is 65, which is 0x41, lowercase a is 97, which is 0x61, and the digit 0 is 48, or 0x30. A space is 32, or 0x20, and a newline is 10, or 0x0A. To decode bytes 48 69 21 in hex, look up each: 0x48 is H, 0x69 is i and 0x21 is an exclamation mark, giving Hi!. Modern text often uses UTF-8, which is compatible with ASCII for the first 128 values but can use several bytes for other characters. Encoding is not encryption: anyone can reverse it."
+     ]
+    },
+    {
+     "h": "Why this matters for security",
+     "p": [
+      "Security tools constantly show raw bytes. A packet capture displays payloads in hex beside their ASCII rendering, and an analyst can spot plain text such as a username in the right-hand column. Malware authors may hide strings by encoding them, so recognizing that 0x41 is A helps you decode simple tricks. Network masks, IP addresses and permissions also rely on binary reasoning. A subnet mask of 255.255.255.0 is simply 24 ones followed by 8 zeros. Practice until the powers of two up to 128 and the hex digits A to F feel automatic."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Hex dump",
+    "text": "Offset  Hex                       ASCII\n0000    48 65 6C 6C 6F 20 53 65   Hello Se\n0008    63 21                     c!\n\n0x48 = 0100 1000 = 72 = H"
+   },
+   "example": "Decode the byte string 53 45 43 with a simple method. Each pair is hex. 0x53 is 5 times 16 plus 3, which equals 83, and ASCII 83 is S. 0x45 is 4 times 16 plus 5, which equals 69, the letter E. 0x43 is 67, the letter C. The result is SEC. Now convert in the other direction: the letter a is decimal 97. Subtract 64 to get 33, subtract 32 to get 1, and so 97 is 64 plus 32 plus 1, which is binary 01100001, or 0x61.",
+   "terms": [
+    {
+     "term": "Bit",
+     "def": "A single binary digit, 0 or 1."
+    },
+    {
+     "term": "Byte",
+     "def": "Eight bits, able to hold 256 values."
+    },
+    {
+     "term": "Hexadecimal",
+     "def": "Base 16 notation where one digit represents four bits."
+    },
+    {
+     "term": "ASCII",
+     "def": "A character encoding table mapping numbers 0 to 127 to characters."
+    },
+    {
+     "term": "UTF-8",
+     "def": "A variable-length text encoding compatible with ASCII for the first 128 values."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is binary 00001010 in decimal?",
+     "options": [
+      "8",
+      "10",
+      "12",
+      "5"
+     ],
+     "a": 1,
+     "why": "8 plus 2 equals 10."
+    },
+    {
+     "q": "What is 0xFF in decimal?",
+     "options": [
+      "155",
+      "256",
+      "255",
+      "15"
+     ],
+     "a": 2,
+     "why": "15 times 16 plus 15 equals 255."
+    },
+    {
+     "q": "Which ASCII character has hex value 0x41?",
+     "options": [
+      "a",
+      "A",
+      "1",
+      "!"
+     ],
+     "a": 1,
+     "why": "0x41 is decimal 65, capital A."
+    },
+    {
+     "q": "How many hex digits represent one byte?",
+     "options": [
+      "1",
+      "2",
+      "4",
+      "8"
+     ],
+     "a": 1,
+     "why": "Each hex digit is four bits, so a byte is two."
+    }
+   ],
+   "recap": [
+    "Binary is base 2, hex is base 16, and one hex digit equals four bits.",
+    "ASCII maps numbers to characters, for example 0x41 is A.",
+    "Encoding is reversible and is not encryption."
+   ]
+  },
+  {
+   "title": "Files, Extensions and Processes",
+   "why": "Attackers disguise files and hide in processes, so you must know how to check what a file or a running program really is.",
+   "sections": [
+    {
+     "h": "File extensions versus signatures",
+     "p": [
+      "A file extension such as .pdf or .jpg is just part of the name, and anyone can change it. The real type of a file is indicated by its signature, also called magic bytes, a short fixed pattern at the start of the content. A PDF begins with 25 50 44 46, which is the text %PDF. A PNG begins with 89 50 4E 47. A ZIP archive, and therefore modern Office documents, begins with 50 4B. A Windows executable begins with 4D 5A, the letters MZ, and a Linux executable begins with 7F 45 4C 46, which spells ELF after a control byte. The Linux file command reads these signatures."
+     ]
+    },
+    {
+     "h": "Why mismatches matter",
+     "p": [
+      "If a file named invoice.pdf begins with 4D 5A, it is a Windows program wearing a disguise. Attackers rename executables, or use double extensions such as report.pdf.exe, hoping users trust the visible name. Windows may hide known extensions by default, which makes this trick work. Defenders check signatures with tools, and mail gateways and scanners compare the claimed type with the real one. When examining a suspicious file, never rely on the icon or extension. Check the header, compute a cryptographic hash such as SHA-256 and look up that hash in a reputation service rather than opening the file."
+     ]
+    },
+    {
+     "h": "Programs and processes",
+     "p": [
+      "A program is a file on disk containing instructions. A process is a running instance of that program, with its own memory, open files and an identity. Starting a program twice creates two processes. Each has a process ID, or PID, a number assigned by the kernel. Processes also have an owner, the user account that started them, and that owner determines what the process may access. Tools such as ps and top on Linux, and Task Manager on Windows, list processes. Seeing which process owns a network connection is a core investigative step."
+     ]
+    },
+    {
+     "h": "Parent and child processes",
+     "p": [
+      "Every process except the first is started by another process, its parent, and the child records the parent's PID, or PPID. On Linux the first process is init or systemd with PID 1. When you open a terminal and run a command, the shell is the parent and the command is the child. Parent-child relationships are a powerful detection clue. A word processor launching a command shell is unusual and often signals a malicious document. Defenders learn the normal process tree, for instance services spawning from the service manager, and investigate deviations."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ file invoice.pdf\ninvoice.pdf: PE32 executable (GUI) Intel 80386, for MS Windows\n$ xxd -l 4 invoice.pdf\n00000000: 4d5a 9000                                MZ..\n$ ps -o pid,ppid,user,comm\n  PID  PPID USER  COMMAND\n 2210  2190 alice bash\n 2301  2210 alice sleep"
+   },
+   "example": "An employee receives report.pdf and reports that it opens nothing. An analyst checks the first bytes and sees 4D 5A, the MZ signature, so the file is a Windows executable renamed as a PDF. The analyst records the SHA-256 hash, which matches a known downloader in a reputation database. On the employee's PC, the process list shows report.pdf with parent PID belonging to the mail client, an unexpected relationship. The analyst isolates the host, kills the process and searches the mail server for other recipients of the same attachment.",
+   "terms": [
+    {
+     "term": "Magic bytes",
+     "def": "A fixed byte pattern at the start of a file that identifies its real format."
+    },
+    {
+     "term": "Process",
+     "def": "A running instance of a program with its own memory and identity."
+    },
+    {
+     "term": "PID",
+     "def": "The numeric process ID assigned by the kernel."
+    },
+    {
+     "term": "PPID",
+     "def": "The process ID of the parent that started a process."
+    },
+    {
+     "term": "Hash",
+     "def": "A fixed-length fingerprint of data used to identify identical files."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which bytes begin a Windows executable?",
+     "options": [
+      "25 50 44 46",
+      "4D 5A",
+      "89 50 4E 47",
+      "7F 45 4C 46"
+     ],
+     "a": 1,
+     "why": "MZ, hex 4D 5A, starts a Windows PE file."
+    },
+    {
+     "q": "What best identifies the real type of a file?",
+     "options": [
+      "Its extension",
+      "Its icon",
+      "Its signature bytes",
+      "Its size in MB"
+     ],
+     "a": 2,
+     "why": "Magic bytes show the true format."
+    },
+    {
+     "q": "What is the difference between a program and a process?",
+     "options": [
+      "None",
+      "A program is a file; a process is a running instance",
+      "A process is a file",
+      "A program only runs once"
+     ],
+     "a": 1,
+     "why": "A process is a program in execution."
+    },
+    {
+     "q": "What is unusual about a word processor spawning a command shell?",
+     "options": [
+      "It is normal",
+      "It may indicate a malicious document",
+      "It means a hardware fault",
+      "It is a printer driver"
+     ],
+     "a": 1,
+     "why": "Office apps rarely launch shells, so this is a detection clue."
+    }
+   ],
+   "recap": [
+    "Extensions can be faked; file signatures reveal the real type.",
+    "A process is a running program with a PID and a parent PPID.",
+    "Unusual parent-child relationships are strong detection clues."
+   ]
+  },
+  {
+   "title": "Virtual Machines and Hypervisors",
+   "why": "Virtual machines let you run risky samples and build labs without endangering your real computer.",
+   "sections": [
+    {
+     "h": "What a virtual machine is",
+     "p": [
+      "A virtual machine, or VM, is a complete software-defined computer that runs inside a physical one. It has its own virtual CPU, RAM, disk and network card, and runs its own guest operating system. The physical computer is the host. Several VMs can share one host, each isolated from the others. Because the VM disk is usually just a file, you can copy, move or delete it easily. Cloud providers rent VMs by the hour, and organizations use them to consolidate servers. For security learners, VMs are the safe practice room: you can break a system and rebuild it in minutes."
+     ]
+    },
+    {
+     "h": "Hypervisors: Type 1 and Type 2",
+     "p": [
+      "The software that creates and runs VMs is the hypervisor. A Type 1 hypervisor, also called bare metal, runs directly on the hardware and is used in data centers. Examples are VMware ESXi, Microsoft Hyper-V and KVM. A Type 2 hypervisor runs as an application on top of a normal operating system and is common on laptops. Examples are VirtualBox and VMware Workstation. Type 1 generally offers better performance and a smaller attack surface, while Type 2 is convenient for learning. Both share the host CPU and RAM among guests by allocating slices."
+     ]
+    },
+    {
+     "h": "Snapshots and networking",
+     "p": [
+      "A snapshot saves a VM's state at a moment in time, including its disk and optionally its memory. You can take a snapshot before running a risky test and revert to the clean state afterward, which undoes any damage. Virtual networks can be configured in modes. NAT lets the VM reach the internet through the host. Bridged mode places the VM directly on your real network. Host-only mode connects the VM only to the host, and internal mode connects VMs to each other only. For malware analysis, a host-only or internal network with no route to your home network is the safe choice."
+     ]
+    },
+    {
+     "h": "Isolation and its limits",
+     "p": [
+      "Hypervisors enforce isolation so that a guest cannot read the memory of the host or another guest. Isolation is strong but not perfect. Rare flaws called VM escapes have allowed code in a guest to break out, and shared folders, clipboard sharing and drag and drop can leak data or malware between guest and host. Good practice for analysis labs is to disable shared folders and clipboard, use a dedicated lab network, keep the hypervisor patched, take a clean snapshot first and avoid placing personal data in the guest. Never assume a VM makes a dangerous sample harmless."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "VM lab settings",
+    "text": "VM name:       analysis-01\nNetwork mode:  Host-only (no NAT, no bridge)\nShared folders: disabled\nClipboard:     disabled\nSnapshot:      clean-baseline (taken before sample)"
+   },
+   "example": "A student wants to examine a suspicious file. She creates a VM, installs a fresh guest OS and takes a snapshot called clean-baseline. She sets the network to host-only so the sample cannot reach her home router, and disables shared folders and the clipboard. She copies the file in through a controlled method and runs it. Afterward she reverts to the snapshot, which restores the clean state in seconds. She also keeps the hypervisor updated, because the isolation she depends on is only as strong as that software.",
+   "terms": [
+    {
+     "term": "Hypervisor",
+     "def": "Software that creates and runs virtual machines."
+    },
+    {
+     "term": "Type 1 hypervisor",
+     "def": "A bare-metal hypervisor that runs directly on hardware."
+    },
+    {
+     "term": "Type 2 hypervisor",
+     "def": "A hypervisor that runs as an application inside a host operating system."
+    },
+    {
+     "term": "Snapshot",
+     "def": "A saved VM state that can be restored later."
+    },
+    {
+     "term": "VM escape",
+     "def": "A flaw that lets code in a guest break out to the host."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which is a Type 1 hypervisor?",
+     "options": [
+      "VirtualBox",
+      "VMware ESXi",
+      "A web browser",
+      "Notepad"
+     ],
+     "a": 1,
+     "why": "ESXi runs directly on hardware."
+    },
+    {
+     "q": "What does a snapshot allow you to do?",
+     "options": [
+      "Speed up the CPU",
+      "Revert a VM to an earlier state",
+      "Encrypt the host",
+      "Delete the hypervisor"
+     ],
+     "a": 1,
+     "why": "Snapshots restore a known-good state."
+    },
+    {
+     "q": "Which network mode best keeps a malware sample away from your home network?",
+     "options": [
+      "Bridged",
+      "Host-only",
+      "NAT with sharing",
+      "Public"
+     ],
+     "a": 1,
+     "why": "Host-only gives no route to other networks."
+    },
+    {
+     "q": "Which setting should be disabled in a malware lab?",
+     "options": [
+      "Shared folders and clipboard",
+      "The screen",
+      "The keyboard",
+      "The snapshot"
+     ],
+     "a": 0,
+     "why": "These channels can leak data or malware to the host."
+    }
+   ],
+   "recap": [
+    "VMs are isolated virtual computers running on a host.",
+    "Type 1 runs on hardware; Type 2 runs on an OS.",
+    "Use snapshots and host-only networks, and disable sharing, for safe analysis."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Binary and Hex Converter Drill",
+   "sim": "scenario",
+   "scenario": "You are working through a conversion worksheet in a practice simulator for a junior analyst. The worksheet gives you ten values to convert among binary, decimal and hex, then a short string of hex bytes that you must decode character by character using an ASCII table shown on the side. The simulator checks every entry and shows your running score, so you can see where your method needs correction before moving to harder material such as packet payloads.",
+   "objective": "Convert values among binary, decimal and hex, and decode a short ASCII string.",
+   "steps": [
+    {
+     "do": "Enter the decimal value of binary 00001101.",
+     "see": "Correct: 13."
+    },
+    {
+     "do": "Enter the binary form of decimal 200.",
+     "see": "Correct: 11001000."
+    },
+    {
+     "do": "Enter the decimal value of hex 0x2F.",
+     "see": "Correct: 47."
+    },
+    {
+     "do": "Enter the hex form of decimal 255.",
+     "see": "Correct: 0xFF."
+    },
+    {
+     "do": "Enter the decimal form of binary 11110000, then its hex form.",
+     "see": "Correct: 240 and 0xF0. Score: 5 of 5 conversions."
+    },
+    {
+     "do": "Open the ASCII table and look up 0x53, 0x45 and 0x43.",
+     "see": "Table shows S, E and C."
+    },
+    {
+     "do": "Type the decoded string for 53 45 43 20 31.",
+     "see": "Correct: SEC 1 (0x20 is a space, 0x31 is the digit 1). Worksheet complete."
+    }
+   ],
+   "answer": "13, 11001000, 47, 0xFF, 240 and 0xF0 for the conversions. The byte string 53 45 43 20 31 decodes to SEC 1, because 0x20 is a space and 0x31 is the digit 1. Each hex digit is four bits, and a byte is two hex digits.",
+   "hint": "Convert hex pairs to decimal first, then look up the number in the ASCII table."
+  },
+  {
+   "title": "Spot the Fake Extension",
+   "sim": "file-explorer",
+   "scenario": "A fictional user, bob, reports odd files in his Downloads folder at Example Corp. The file explorer lets you view each file's first bytes in a header panel beside its name. Four files are listed: invoice.pdf, photo.jpg, notes.zip and setup.png. Some extensions do not match the real signature. Use the magic-byte reference chart shown in the simulator to decide which files are disguised and what they really are.",
+   "objective": "Identify which files have extensions that do not match their magic bytes.",
+   "steps": [
+    {
+     "do": "Select invoice.pdf and open the header panel.",
+     "see": "Header: 25 50 44 46 2D 31 2E 34 (%PDF-1.4)."
+    },
+    {
+     "do": "Compare to the reference chart.",
+     "see": "25 50 44 46 matches PDF. Extension is consistent."
+    },
+    {
+     "do": "Select photo.jpg and open its header.",
+     "see": "Header: 4D 5A 90 00 03 00 00 00 (MZ...)."
+    },
+    {
+     "do": "Compare to the chart.",
+     "see": "4D 5A is a Windows executable. MISMATCH: photo.jpg is not an image."
+    },
+    {
+     "do": "Select notes.zip and open its header.",
+     "see": "Header: 50 4B 03 04. Matches ZIP."
+    },
+    {
+     "do": "Select setup.png and open its header.",
+     "see": "Header: 7F 45 4C 46 02 01 01 00 (.ELF...)."
+    },
+    {
+     "do": "Compare to the chart and flag mismatches.",
+     "see": "7F 45 4C 46 is a Linux ELF executable. MISMATCH. Flagged: photo.jpg, setup.png."
+    }
+   ],
+   "answer": "Two files are disguised. photo.jpg starts with 4D 5A, so it is a Windows executable. setup.png starts with 7F 45 4C 46, so it is a Linux ELF executable. invoice.pdf and notes.zip match their signatures. Neither disguised file should be opened; hash them and quarantine.",
+   "hint": "Compare the first two to four bytes with the chart rather than the file name."
+  },
+  {
+   "title": "Process Tree Walkthrough",
+   "sim": "terminal",
+   "scenario": "You have a shell on a fictional Linux training machine, host lab01. A user named alice complains that a file called /tmp/backup.sh seems to be in use and that something is slowing the system. You will list processes with ps, trace a child process back to its parent using the PPID column, and find which process holds a given file open, in order to identify what started it.",
+   "objective": "Find a process parent and the process that owns a given file.",
+   "steps": [
+    {
+     "do": "Run: ps -ef",
+     "see": "Lists UID PID PPID CMD. Shows 14 processes including bash (PID 2190), backup.sh (PID 2301, PPID 2190) and sleep (PID 2305, PPID 2301)."
+    },
+    {
+     "do": "Locate backup.sh in the list.",
+     "see": "PID 2301, PPID 2190, owner alice."
+    },
+    {
+     "do": "Find the process with PID 2190.",
+     "see": "2190 alice bash, PPID 2150."
+    },
+    {
+     "do": "Run: ps -p 2150 -o pid,comm",
+     "see": "PID 2150 sshd. The shell was started by an SSH session."
+    },
+    {
+     "do": "Run: lsof /tmp/backup.sh",
+     "see": "COMMAND bash, PID 2301, USER alice, FD 255r, NAME /tmp/backup.sh."
+    },
+    {
+     "do": "Run: ps -o pid,ppid,user,comm -p 2305",
+     "see": "2305 2301 alice sleep: a child of backup.sh."
+    },
+    {
+     "do": "Summarize the tree.",
+     "see": "sshd (2150) -> bash (2190) -> backup.sh (2301) -> sleep (2305)."
+    }
+   ],
+   "answer": "The file /tmp/backup.sh is held by process 2301, run by alice. The tree is sshd (2150) -> bash (2190) -> backup.sh (2301) -> sleep (2305). The script started from an SSH login shell, and sleep is just its child. No unexpected parent was found.",
+   "hint": "Use the PPID column to climb the tree one step at a time."
+  },
+  {
+   "title": "Design a Safe Analysis Lab",
+   "sim": "diagram-builder",
+   "scenario": "You are building a malware analysis lab on a canvas for a fictional training team. The palette includes a physical host, a VM named analysis-01, a host-only virtual switch, a bridged switch, a NAT switch, a snapshot icon and the home network. The objective is a layout in which a malware sample cannot reach the host network or the internet, and the VM can be restored to a clean state.",
+   "objective": "Place components so the sample cannot reach the host network and the VM can be reverted.",
+   "steps": [
+    {
+     "do": "Drag the Host computer onto the canvas.",
+     "see": "Host placed. Hypervisor node attached automatically."
+    },
+    {
+     "do": "Drag a VM named analysis-01 into the hypervisor.",
+     "see": "VM added with a default NAT adapter."
+    },
+    {
+     "do": "Click the VM adapter and view network options.",
+     "see": "Options: NAT, Bridged, Host-only, Internal. Warning shown: NAT and Bridged reach other networks."
+    },
+    {
+     "do": "Drag a Host-only switch onto the canvas and connect analysis-01 to it.",
+     "see": "Connected. Route to home network: none. Route to internet: none."
+    },
+    {
+     "do": "Remove the default NAT adapter.",
+     "see": "Adapter removed. Checker: no outbound path."
+    },
+    {
+     "do": "Attach a snapshot named clean-baseline to analysis-01.",
+     "see": "Snapshot attached. Revert available."
+    },
+    {
+     "do": "Toggle shared folders and clipboard to Off, then run the checker.",
+     "see": "Checker: PASS. Isolated, revertible, no sharing channels."
+    }
+   ],
+   "answer": "The VM analysis-01 connects only to a host-only switch, with the NAT and bridged adapters removed, shared folders and clipboard disabled, and a clean-baseline snapshot attached. This blocks any route to the home network or internet and lets you revert after each run.",
+   "hint": "Use host-only networking and remove every adapter that can reach outside."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which statement about RAM is correct?",
+   "options": [
+    "It keeps data without power",
+    "It is volatile working memory",
+    "It is slower than a hard disk",
+    "It stores the BIOS only"
+   ],
+   "a": 1,
+   "why": "RAM is fast, volatile working memory."
+  },
+  {
+   "q": "Which runs with the highest privilege?",
+   "options": [
+    "User application",
+    "Kernel",
+    "Browser tab",
+    "Script"
+   ],
+   "a": 1,
+   "why": "The kernel runs in ring 0."
+  },
+  {
+   "q": "A user program needs to read a file. How does it request this?",
+   "options": [
+    "System call",
+    "Direct disk write",
+    "Pinging the router",
+    "Editing the registry"
+   ],
+   "a": 0,
+   "why": "System calls are the controlled gateway to the kernel."
+  },
+  {
+   "q": "What is binary 11111111 in decimal?",
+   "options": [
+    "127",
+    "255",
+    "256",
+    "128"
+   ],
+   "a": 1,
+   "why": "All eight bits set equals 255."
+  },
+  {
+   "q": "What is the ASCII character for 0x61?",
+   "options": [
+    "A",
+    "a",
+    "1",
+    "!"
+   ],
+   "a": 1,
+   "why": "0x61 is decimal 97, lowercase a."
+  },
+  {
+   "q": "How many bits does one hex digit represent?",
+   "options": [
+    "2",
+    "4",
+    "8",
+    "16"
+   ],
+   "a": 1,
+   "why": "One hex digit is four bits."
+  },
+  {
+   "q": "A file named photo.jpg begins with 4D 5A. What is it most likely?",
+   "options": [
+    "A real JPEG",
+    "A Windows executable",
+    "A PDF",
+    "A text file"
+   ],
+   "a": 1,
+   "why": "4D 5A is the MZ header of a Windows PE file."
+  },
+  {
+   "q": "What does PPID identify?",
+   "options": [
+    "The parent process",
+    "The program size",
+    "The port",
+    "The user password"
+   ],
+   "a": 0,
+   "why": "PPID is the parent's process ID."
+  },
+  {
+   "q": "Which is a Type 1 hypervisor?",
+   "options": [
+    "VirtualBox",
+    "Hyper-V",
+    "Excel",
+    "Chrome"
+   ],
+   "a": 1,
+   "why": "Hyper-V runs on bare metal."
+  },
+  {
+   "q": "Which VM network mode best isolates a malware sample?",
+   "options": [
+    "Bridged",
+    "Host-only",
+    "NAT",
+    "Public bridged"
+   ],
+   "a": 1,
+   "why": "Host-only restricts traffic to the host."
+  }
+ ]
+}

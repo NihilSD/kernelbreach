@@ -1,0 +1,812 @@
+{
+ "code": "ROOK-05",
+ "intro": "Linux runs most servers, cloud workloads, routers and security tools, so every defender needs to be comfortable in its terminal. This module explains what Linux actually is, how to read a prompt and break a command into parts, and how to move around with pwd, ls and cd. You will learn the standard directory layout, the difference between absolute and relative paths, and how to find answers yourself with man pages and help flags, a skill that never stops being useful.",
+ "lessons": [
+  {
+   "title": "What Linux Is: Kernel, Distros, Shells",
+   "why": "Knowing the pieces that make up a Linux system tells you what you are actually running and where to look when something goes wrong.",
+   "sections": [
+    {
+     "h": "The kernel",
+     "p": [
+      "Strictly speaking, Linux is a kernel, the core program that manages hardware, memory, processes and files. Linus Torvalds began it in 1991, and thousands of contributors now maintain it as open source software under the GNU General Public License. Open source means anyone may read, modify and share the code, which allows broad review and rapid fixes, though it does not by itself guarantee security. The kernel alone is not a usable system. It needs a set of tools around it, such as the GNU utilities for files and text, libraries and a way for users to give commands."
+     ]
+    },
+    {
+     "h": "Distributions",
+     "p": [
+      "A Linux distribution, or distro, packages the kernel with tools, a package manager, default settings and often a desktop. Debian is a long-established, stable community distribution. Ubuntu is based on Debian and widely used on servers and laptops. Red Hat Enterprise Linux, Rocky Linux and Fedora form another family using the rpm and dnf tools. Kali Linux is a Debian-based distribution bundling security testing tools, and Parrot is similar. Distros differ mainly in package management, release cycles and defaults, but the core commands you learn in this path work on nearly all of them. Check your version with cat /etc/os-release."
+     ]
+    },
+    {
+     "h": "Shells and bash",
+     "p": [
+      "A shell is a program that reads commands you type, runs them and shows the results. Bash, the Bourne Again Shell, is the default on most distributions. Others include zsh and sh, a minimal standard shell often used for scripts. The shell is separate from the terminal, which is the window that displays text. A shell can run single commands and also scripts, text files of commands, which is how administrators automate work. Typing is faster and more repeatable than clicking, and servers often have no graphical interface at all, so the command line is the primary way to work."
+     ]
+    },
+    {
+     "h": "Why Linux matters for security",
+     "p": [
+      "Many security tools, such as Nmap, Wireshark and Metasploit, are built for or run best on Linux, and most web servers, containers and cloud instances run it. Attackers and defenders both meet Linux constantly. Logs, configuration files and permissions are all plain files that you can read and search with simple commands, which makes investigations transparent. Everything in Linux is treated as a file or a process, a design idea that you will use repeatedly. Practice safely in a virtual machine, where a mistake costs nothing, and learn to be careful with any command run as the administrator account called root."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Identify the system",
+    "text": "$ uname -sr\nLinux 6.1.0-18-amd64\n$ cat /etc/os-release | head -2\nPRETTY_NAME=\"Debian GNU/Linux 12 (bookworm)\"\nNAME=\"Debian GNU/Linux\"\n$ echo $SHELL\n/bin/bash"
+   },
+   "example": "A junior analyst receives access to an unfamiliar server at 192.0.2.30 and needs to know what it runs before touching anything. She runs uname -sr, which prints the kernel name and release, then reads /etc/os-release to learn the distribution and version. She checks the shell with echo $SHELL and sees /bin/bash. With that, she knows to use apt rather than dnf for packages and where to look for documentation. These three read-only commands changed nothing on the system and gave her the baseline she needs for the investigation.",
+   "terms": [
+    {
+     "term": "Kernel",
+     "def": "The core of the operating system managing hardware, memory and processes."
+    },
+    {
+     "term": "Distribution",
+     "def": "A packaged Linux system with kernel, tools and package manager."
+    },
+    {
+     "term": "Shell",
+     "def": "A program that interprets typed commands."
+    },
+    {
+     "term": "Bash",
+     "def": "The Bourne Again Shell, the default shell on most distributions."
+    },
+    {
+     "term": "Open source",
+     "def": "Software whose source code is available to read, change and share."
+    }
+   ],
+   "check": [
+    {
+     "q": "Strictly speaking, what is Linux?",
+     "options": [
+      "A full desktop",
+      "A kernel",
+      "A shell",
+      "A browser"
+     ],
+     "a": 1,
+     "why": "Linux is the kernel at the core of the system."
+    },
+    {
+     "q": "Which is a Debian-based distribution?",
+     "options": [
+      "Ubuntu",
+      "Windows",
+      "macOS",
+      "Solaris"
+     ],
+     "a": 0,
+     "why": "Ubuntu is derived from Debian."
+    },
+    {
+     "q": "What is bash?",
+     "options": [
+      "A kernel",
+      "A shell",
+      "A file system",
+      "A firewall"
+     ],
+     "a": 1,
+     "why": "Bash is the Bourne Again Shell."
+    },
+    {
+     "q": "Which file shows the distribution name and version?",
+     "options": [
+      "/etc/os-release",
+      "/tmp",
+      "/dev/null",
+      "/bin/ls"
+     ],
+     "a": 0,
+     "why": "/etc/os-release holds distro identification."
+    }
+   ],
+   "recap": [
+    "Linux is a kernel; distributions add tools and a package manager.",
+    "Bash is a shell that runs commands and scripts.",
+    "Most servers and security tools run on Linux."
+   ]
+  },
+  {
+   "title": "The Prompt and Command Anatomy",
+   "why": "Reading the prompt and a command line correctly prevents mistakes, especially when running as root.",
+   "sections": [
+    {
+     "h": "Reading the prompt",
+     "p": [
+      "When the shell is ready it prints a prompt. A typical one looks like alice@lab01:~$. It shows the user name, alice, the host name, lab01, and the current directory, where the tilde means the home directory. The final character matters. A dollar sign means a normal user, while a hash sign means the root account. Commands run as root can change or delete anything, so a hash prompt calls for extra care. Prompts can be customized, so confirm who you are with whoami and where you are with pwd before any risky action."
+     ]
+    },
+    {
+     "h": "Program, options and arguments",
+     "p": [
+      "A command line has up to three parts separated by spaces. The program is the first word, such as ls. Options, also called flags or switches, modify behavior and usually begin with a dash. A short option uses one dash and one letter, such as -l, and short options can be combined, so -la means -l and -a. A long option uses two dashes and a word, such as --all. Arguments say what to act on, such as a file or directory name. In ls -l /var/log, the program is ls, the option is -l and the argument is /var/log."
+     ]
+    },
+    {
+     "h": "Options that take values and quoting",
+     "p": [
+      "Some options require a value, for example grep -m 5 error log.txt where 5 belongs to -m. Spaces separate words, so a file name containing a space must be quoted, as in ls \"My Notes\", or the shell will treat the pieces as two arguments. Single quotes keep text literal, and double quotes allow variables to expand. Commands and file names are case sensitive: Notes and notes are different files. The shell also expands special characters such as the asterisk before the program runs, which you will study when working with files in the next module."
+     ]
+    },
+    {
+     "h": "Working efficiently and safely",
+     "p": [
+      "Use the Tab key to complete names, which is faster and prevents typos. The up and down arrows recall earlier commands, history lists them and Ctrl+R searches them. Ctrl+C interrupts a running command, Ctrl+L clears the screen and Ctrl+D ends input or logs out. The echo command prints text, and the exit status of the last command is available in $?, where 0 means success. Before running a command you found online, read what it does and avoid pasting commands you do not understand, particularly those starting with sudo, because a single character can change the result completely."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Prompt and command",
+    "text": "alice@lab01:~$ ls -l /var/log\n  |     |   |  |  |   |\n  |     |   |  |  |   +-- argument (what to act on)\n  |     |   |  |  +------ option (how)\n  |     |   |  +--------- program (what)\n  |     |   +------------ $ = normal user, # = root\n  |     +---------------- host\n  +---------------------- user"
+   },
+   "example": "You see the prompt root@lab01:/etc# and decide to remove an old file. Before doing so you notice the hash sign and recall that this is the administrator account. You run whoami, which prints root, and pwd, which prints /etc, confirming you are in the system configuration directory. Rather than risk an irreversible mistake, you switch to your normal account, practice the command on a copy in your home directory and only then repeat it with the proper privileges. Reading the prompt took two seconds and avoided a potential system outage.",
+   "terms": [
+    {
+     "term": "Prompt",
+     "def": "Text shown by the shell indicating it is ready for a command."
+    },
+    {
+     "term": "Option",
+     "def": "A flag, usually starting with a dash, that changes how a command behaves."
+    },
+    {
+     "term": "Argument",
+     "def": "The item a command acts on, such as a file or directory."
+    },
+    {
+     "term": "Root",
+     "def": "The all-powerful administrator account on Linux."
+    },
+    {
+     "term": "Exit status",
+     "def": "A number returned by a command; 0 means success."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does a # at the end of the prompt usually mean?",
+     "options": [
+      "Normal user",
+      "Root user",
+      "Comment",
+      "Error"
+     ],
+     "a": 1,
+     "why": "A hash prompt indicates the root account."
+    },
+    {
+     "q": "In ls -l /var/log, what is /var/log?",
+     "options": [
+      "Program",
+      "Option",
+      "Argument",
+      "Prompt"
+     ],
+     "a": 2,
+     "why": "It is the target the command acts on."
+    },
+    {
+     "q": "What does -la mean?",
+     "options": [
+      "The option -l and the option -a combined",
+      "A file named la",
+      "An error",
+      "Long listing only"
+     ],
+     "a": 0,
+     "why": "Short options can be combined."
+    },
+    {
+     "q": "Which key combination interrupts a running command?",
+     "options": [
+      "Ctrl+C",
+      "Ctrl+L",
+      "Tab",
+      "Ctrl+D"
+     ],
+     "a": 0,
+     "why": "Ctrl+C sends an interrupt."
+    }
+   ],
+   "recap": [
+    "A prompt shows user, host, directory and privilege level.",
+    "A command is program, options and arguments.",
+    "Check whoami and pwd before risky commands."
+   ]
+  },
+  {
+   "title": "pwd, ls and cd",
+   "why": "These three commands are how you see where you are, what is around you and how to move.",
+   "sections": [
+    {
+     "h": "pwd: where am I",
+     "p": [
+      "The pwd command, short for print working directory, shows your current location in the file system as a full path. A freshly opened terminal usually starts in your home directory, such as /home/alice. Knowing your location matters because many commands act on the current directory by default. If you run a command in the wrong place, you may read or change the wrong files. Get in the habit of running pwd whenever you are unsure, particularly before deleting or copying files. The output is a single line and, like most Linux tools, it prints nothing extra when successful."
+     ]
+    },
+    {
+     "h": "ls: what is here",
+     "p": [
+      "The ls command lists the contents of a directory. With no argument it lists the current directory. Useful options include -l for the long format showing permissions, owner, size and modification date, -a for all files including hidden ones whose names begin with a dot, and -h for human-readable sizes such as 4.0K or 2.3M when combined with -l. The options combine: ls -lah is common. Add -t to sort by modification time, newest first, and -r to reverse the order. You can also give a path, as in ls -l /etc, to list a directory other than the current one."
+     ]
+    },
+    {
+     "h": "cd: moving around",
+     "p": [
+      "The cd command changes the current directory. cd /var/log moves to that absolute path. cd with no argument, or cd ~, goes to your home directory. cd .. goes up one level, since the double dot means the parent directory, and a single dot means the current directory. cd - returns to the previous directory, handy for toggling between two places. If a directory name contains spaces, quote it. A message such as No such file or directory means the path is wrong or you have a typo, and Permission denied means you are not allowed to enter it. Tab completion avoids most errors."
+     ]
+    },
+    {
+     "h": "Hidden files and a working rhythm",
+     "p": [
+      "Hidden files start with a dot, such as .bashrc, which configures your shell, and .ssh, which holds keys. They are hidden only to reduce clutter and are not secret or protected, but attackers like to place files there, so security staff always list with -a. A good rhythm is to run pwd to see where you are, ls to see what is there, then cd to move, and repeat. In long listings the first character shows the type, d for directory and a dash for a regular file. You will study the remaining permission characters in a later module."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal session",
+    "text": "alice@lab01:~$ pwd\n/home/alice\nalice@lab01:~$ ls -lah\ntotal 28K\ndrwxr-xr-x 5 alice alice 4.0K Oct  5 09:12 .\ndrwxr-xr-x 3 root  root  4.0K Oct  1 08:00 ..\n-rw-r--r-- 1 alice alice  220 Oct  1 08:00 .bash_logout\ndrwxr-xr-x 2 alice alice 4.0K Oct  5 09:10 projects\nalice@lab01:~$ cd projects && pwd\n/home/alice/projects"
+   },
+   "example": "You are asked to find a folder named .hidden-notes somewhere under your home directory. Plain ls shows only projects and reports, so the folder is not listed. You run ls -a and now see .hidden-notes with a leading dot. You then run cd .hidden-notes and confirm your new location with pwd, which prints /home/alice/.hidden-notes. Later cd - takes you straight back to /home/alice. This small routine of listing with -a, moving with cd and verifying with pwd is how you explore any unfamiliar system without changing anything.",
+   "terms": [
+    {
+     "term": "pwd",
+     "def": "Prints the full path of the current working directory."
+    },
+    {
+     "term": "ls",
+     "def": "Lists the contents of a directory."
+    },
+    {
+     "term": "cd",
+     "def": "Changes the current working directory."
+    },
+    {
+     "term": "Hidden file",
+     "def": "A file or directory whose name starts with a dot."
+    },
+    {
+     "term": "Home directory",
+     "def": "A user's personal directory, often /home/username, abbreviated ~."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which command prints your current directory?",
+     "options": [
+      "pwd",
+      "ls",
+      "cd",
+      "man"
+     ],
+     "a": 0,
+     "why": "pwd prints the working directory."
+    },
+    {
+     "q": "Which option makes ls show hidden files?",
+     "options": [
+      "-a",
+      "-l",
+      "-h",
+      "-t"
+     ],
+     "a": 0,
+     "why": "-a lists all files including dotfiles."
+    },
+    {
+     "q": "What does cd - do?",
+     "options": [
+      "Goes to the previous directory",
+      "Goes to root",
+      "Deletes a directory",
+      "Lists files"
+     ],
+     "a": 0,
+     "why": "It switches back to the last directory."
+    },
+    {
+     "q": "What does .. mean in a path?",
+     "options": [
+      "Current directory",
+      "Parent directory",
+      "Home directory",
+      "Root"
+     ],
+     "a": 1,
+     "why": "Double dot refers to the parent directory."
+    }
+   ],
+   "recap": [
+    "pwd shows where you are, ls shows what is there, cd moves you.",
+    "ls -a reveals hidden files; -l and -h give detail.",
+    "cd ~, cd .. and cd - are the key shortcuts."
+   ]
+  },
+  {
+   "title": "The Filesystem Hierarchy and Paths",
+   "why": "Knowing where things live and how to write a path lets you find logs, configs and evidence on any Linux machine.",
+   "sections": [
+    {
+     "h": "One tree starting at root",
+     "p": [
+      "Linux has a single directory tree that starts at the root directory, written /. There are no drive letters. Other disks and devices are attached into the tree at mount points. The Filesystem Hierarchy Standard defines the common layout, so a similar structure appears on all distributions. Learning it is like learning a map of a city: once you know the districts, you can find anything. The tree uses forward slashes to separate names, and names are case sensitive. The root user's home is /root, which is separate from the /home directory used by ordinary users."
+     ]
+    },
+    {
+     "h": "Key directories",
+     "p": [
+      "Memorize these. /etc holds system configuration files, for example /etc/passwd and /etc/ssh/sshd_config. /var holds variable data, and /var/log contains log files such as auth.log or syslog. /home contains users' personal directories. /tmp is temporary space readable by all users and often cleared at reboot, a common place for attackers to drop files. /bin and /usr/bin hold commands such as ls and cat. /sbin holds administration programs. /dev holds device files, /proc exposes process and kernel information, and /opt holds optional third-party software."
+     ]
+    },
+    {
+     "h": "Absolute and relative paths",
+     "p": [
+      "An absolute path starts with a slash and gives the full route from the root, such as /home/alice/projects/report.txt. It means the same thing wherever you are. A relative path does not start with a slash and is interpreted from the current directory. If you are in /home/alice, projects/report.txt is the same file. Use .. to go up: from /home/alice/projects, ../notes refers to /home/alice/notes. The tilde expands to your home directory, so ~/projects is /home/alice/projects. Use absolute paths in scripts and configuration for clarity, and relative paths for quick interactive work."
+     ]
+    },
+    {
+     "h": "Using paths well",
+     "p": [
+      "Paths can be given to any command, not just cd. ls /var/log lists logs from anywhere, and cat /etc/hostname prints a file regardless of location. When a path fails, check the spelling, check whether you started with a slash by mistake, and verify each directory exists with ls. Symbolic links act like shortcuts and may point elsewhere, which ls -l shows with an arrow. For investigation, remember that attackers hide in unusual places, such as hidden directories in /tmp or /var/tmp, so reading paths carefully matters. Combine knowledge of the layout with ls -a to review suspicious spots quickly."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Directory map",
+    "text": "/\n|-- etc/      configuration (passwd, ssh/, hostname)\n|-- var/log/  logs (auth.log, syslog)\n|-- home/     alice/  bob/\n|-- tmp/      temporary, world-writable\n|-- bin/ usr/bin/  commands\n|-- dev/ proc/     devices, process info\n+-- root/     root user's home"
+   },
+   "example": "You are in /home/alice/projects and want to read /var/log/auth.log. As an absolute path, it works as is. A relative path would be ../../../var/log/auth.log, climbing three levels to the root and then down, which is clumsy, so the absolute form is better. To open a note two levels away, ../notes/todo.txt is fine. If you type var/log/auth.log without a leading slash, the shell looks inside /home/alice/projects/var/log and reports No such file or directory. Understanding this difference resolves most beginner path errors.",
+   "terms": [
+    {
+     "term": "Root directory",
+     "def": "The top of the Linux file tree, written /."
+    },
+    {
+     "term": "Absolute path",
+     "def": "A path starting from / that is valid from any location."
+    },
+    {
+     "term": "Relative path",
+     "def": "A path interpreted from the current directory."
+    },
+    {
+     "term": "/etc",
+     "def": "Directory holding system configuration files."
+    },
+    {
+     "term": "/var/log",
+     "def": "Directory where system and application logs are stored."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which directory normally holds system configuration?",
+     "options": [
+      "/etc",
+      "/tmp",
+      "/dev",
+      "/home"
+     ],
+     "a": 0,
+     "why": "/etc contains configuration files."
+    },
+    {
+     "q": "Which is an absolute path?",
+     "options": [
+      "notes/a.txt",
+      "../a.txt",
+      "/home/alice/a.txt",
+      "./a.txt"
+     ],
+     "a": 2,
+     "why": "Absolute paths begin with a slash."
+    },
+    {
+     "q": "Where are log files typically found?",
+     "options": [
+      "/var/log",
+      "/bin",
+      "/proc/log",
+      "/boot/logs"
+     ],
+     "a": 0,
+     "why": "/var/log holds logs."
+    },
+    {
+     "q": "Which directory is world-writable temporary space?",
+     "options": [
+      "/tmp",
+      "/etc",
+      "/bin",
+      "/sbin"
+     ],
+     "a": 0,
+     "why": "/tmp is shared temporary storage."
+    }
+   ],
+   "recap": [
+    "The tree begins at /; know /etc, /var/log, /home, /tmp and /bin.",
+    "Absolute paths start with /; relative paths start from where you are.",
+    "Attackers often hide files in temporary and hidden locations."
+   ]
+  },
+  {
+   "title": "man Pages and Getting Help",
+   "why": "Nobody memorizes every option, so the ability to look up commands quickly is a core professional skill.",
+   "sections": [
+    {
+     "h": "Manual pages",
+     "p": [
+      "Most Linux commands have a manual page, a built-in reference opened with the man command. Typing man ls opens the page for ls in a pager, a viewer that shows one screen at a time. Press the space bar to go forward, b to go back, q to quit, a slash followed by a word to search forward and n for the next match. The manual works offline, which helps on isolated servers. A page is organized into sections such as NAME, SYNOPSIS, DESCRIPTION, OPTIONS, EXAMPLES and SEE ALSO. Reading the first lines tells you what the command does in a sentence."
+     ]
+    },
+    {
+     "h": "Reading the synopsis",
+     "p": [
+      "The SYNOPSIS section shows how to write the command. Square brackets mean an item is optional, and an ellipsis means it may repeat. For ls, the synopsis looks like ls [OPTION]... [FILE]..., meaning options and file names are both optional and can be repeated. Words in capitals are placeholders for your own values. A vertical bar means choose one. The OPTIONS section lists each flag with its meaning, for example -t sort by time and -S sort by size. Search inside the page for the letter you are looking for, and read the example if one is provided."
+     ]
+    },
+    {
+     "h": "--help, apropos and other tools",
+     "p": [
+      "Many commands print a short summary when run with --help, for instance ls --help, which is faster than man for a quick reminder. The apropos command, equivalent to man -k, searches manual page descriptions by keyword, so apropos copy finds commands related to copying even if you do not know their names. whatis gives a one-line description. The type and which commands show where a program is located and whether it is an alias or a built-in. For shell built-ins like cd, use help cd. Online documentation and the tldr pages provide practical examples."
+     ]
+    },
+    {
+     "h": "Learning independently and safely",
+     "p": [
+      "Make lookup a habit: when you meet an unfamiliar flag in a command from a tutorial, a script or an attacker's shell history, read its manual entry before running it. Manual sections are numbered, and man 5 passwd shows the file format of /etc/passwd while man 1 passwd documents the command, so section numbers disambiguate names. Take notes of options you needed, because repetition builds recall. When a tool offers dry run or verbose flags, such as -n or -v, use them to preview effects. If the answer is not in the manual, search carefully and prefer official documentation."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Getting help",
+    "text": "$ ls --help | head -3\nUsage: ls [OPTION]... [FILE]...\nList information about the FILEs (the current directory by default).\n$ apropos -s 1 copy | head -2\ncp (1) - copy files and directories\n$ man -k passwd\npasswd (1) - change user password\npasswd (5) - password file"
+   },
+   "example": "A tutorial tells you to run ls -ltrh but you do not know what it does. You open man ls, press slash and type time, and find -t sort by time, newest first, and -r reverse the order. A search for human shows -h prints sizes like 1K, 234M. Combined with -l, the command lists files in long format, with the oldest first and the newest last, using readable sizes. You then run it in your home directory to confirm. In under a minute you understood the flags and avoided guessing.",
+   "terms": [
+    {
+     "term": "man page",
+     "def": "The built-in manual entry that documents a command."
+    },
+    {
+     "term": "Synopsis",
+     "def": "The manual section showing the command's syntax."
+    },
+    {
+     "term": "--help",
+     "def": "A common flag that prints a brief usage summary."
+    },
+    {
+     "term": "apropos",
+     "def": "A command that searches manual descriptions by keyword."
+    },
+    {
+     "term": "Pager",
+     "def": "A program that displays long text one screen at a time."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which command opens the manual for ls?",
+     "options": [
+      "man ls",
+      "help ls",
+      "ls man",
+      "info ls only"
+     ],
+     "a": 0,
+     "why": "man ls opens the manual page."
+    },
+    {
+     "q": "In a synopsis, what do square brackets mean?",
+     "options": [
+      "Optional item",
+      "Required item",
+      "Comment",
+      "Error"
+     ],
+     "a": 0,
+     "why": "Brackets mark optional parts."
+    },
+    {
+     "q": "Which command searches manual pages by keyword?",
+     "options": [
+      "apropos",
+      "pwd",
+      "cd",
+      "cat"
+     ],
+     "a": 0,
+     "why": "apropos, or man -k, searches descriptions."
+    },
+    {
+     "q": "How do you quit a man page?",
+     "options": [
+      "q",
+      "x",
+      "Ctrl+Z",
+      "Enter"
+     ],
+     "a": 0,
+     "why": "The q key exits the pager."
+    }
+   ],
+   "recap": [
+    "man pages are the built-in reference; read NAME and SYNOPSIS first.",
+    "Use --help for quick reminders and apropos to find commands.",
+    "Look up unfamiliar flags before running them."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "First Terminal Session",
+   "sim": "terminal",
+   "scenario": "You have a terminal on a fictional Linux training machine, lab01, logged in as alice. A teammate left a note saying that project files are in a hidden folder somewhere under the home directory, but did not give the name. Use pwd, ls and cd to explore, reveal hidden entries, enter the folder and report its full path. Do not change or delete anything while exploring.",
+   "objective": "Reach a hidden project folder and report its full path.",
+   "steps": [
+    {
+     "do": "Run: pwd",
+     "see": "/home/alice"
+    },
+    {
+     "do": "Run: ls",
+     "see": "Desktop  Documents  notes.txt  projects"
+    },
+    {
+     "do": "Run: ls -a",
+     "see": "., .., .bash_logout, .bashrc, .profile, .project-x, Desktop, Documents, notes.txt, projects"
+    },
+    {
+     "do": "Run: cd .project-x",
+     "see": "(no output; prompt changes to alice@lab01:~/.project-x$)"
+    },
+    {
+     "do": "Run: ls -l",
+     "see": "-rw-r--r-- 1 alice alice 412 Oct 1 09:00 README.md"
+    },
+    {
+     "do": "Run: pwd",
+     "see": "/home/alice/.project-x"
+    },
+    {
+     "do": "Run: cd - and then pwd",
+     "see": "/home/alice"
+    }
+   ],
+   "answer": "The hidden folder is .project-x, and its full path is /home/alice/.project-x. It appeared only with ls -a because its name starts with a dot. It contains README.md.",
+   "hint": "Plain ls hides names that start with a dot."
+  },
+  {
+   "title": "Path Puzzle",
+   "sim": "terminal",
+   "scenario": "In a fictional training shell, you start in /home/alice/projects/web. Five target directories must be reached twice: first with relative paths only, then with absolute paths. The simulator prints your location after each move and tells you when a target is reached. Work out how many levels to climb with .. and how to descend, and notice when a path with or without a leading slash behaves differently.",
+   "objective": "Reach five directories using relative paths, then repeat with absolute paths.",
+   "steps": [
+    {
+     "do": "Run: cd ..",
+     "see": "Now in /home/alice/projects."
+    },
+    {
+     "do": "Run: cd ../../Documents",
+     "see": "Target 1 reached: /home/alice/Documents."
+    },
+    {
+     "do": "Run: cd ../projects/web/css",
+     "see": "Target 2 reached: /home/alice/projects/web/css."
+    },
+    {
+     "do": "Run: cd ../../../../..",
+     "see": "Target 3 reached: / (root)."
+    },
+    {
+     "do": "Run: cd etc/ssh",
+     "see": "Target 4 reached: /etc/ssh."
+    },
+    {
+     "do": "Run: cd ../../var/log",
+     "see": "Target 5 reached: /var/log."
+    },
+    {
+     "do": "Repeat with absolute paths: cd /home/alice/Documents, /var/log, /etc/ssh",
+     "see": "All accepted. Tip: an absolute path works from any directory."
+    }
+   ],
+   "answer": "Relative routes depend on the starting directory, while absolute paths such as /home/alice/Documents, /home/alice/projects/web/css, /, /etc/ssh and /var/log work from anywhere. Each .. climbs one level toward root.",
+   "hint": "Count the slashes from your location up to the common parent."
+  },
+  {
+   "title": "Find Where Logs Live",
+   "sim": "file-explorer",
+   "scenario": "A file explorer for a fictional Debian server shows the directories /var/log and /etc. Each file has a description hidden until you click it. You must match six files to their purposes: authentication events, general system messages, web server access records, user account list, SSH server settings and the hostname. Identify which are logs in /var/log and which are configuration in /etc.",
+   "objective": "Match each file in /var/log and /etc to its purpose.",
+   "steps": [
+    {
+     "do": "Open /var/log and select auth.log.",
+     "see": "Description: login attempts and sudo use. Match: authentication events."
+    },
+    {
+     "do": "Select syslog.",
+     "see": "General system messages."
+    },
+    {
+     "do": "Open /var/log/apache2 and select access.log.",
+     "see": "Web requests handled by the server."
+    },
+    {
+     "do": "Open /etc and select passwd.",
+     "see": "Lists user accounts, one per line."
+    },
+    {
+     "do": "Select /etc/ssh/sshd_config.",
+     "see": "SSH server configuration options."
+    },
+    {
+     "do": "Select /etc/hostname.",
+     "see": "Contains the machine name: lab01."
+    },
+    {
+     "do": "Submit matches.",
+     "see": "6 of 6 correct. Logs are in /var/log; settings are in /etc."
+    }
+   ],
+   "answer": "auth.log records authentication events, syslog general messages and access.log web requests, all under /var/log. passwd lists accounts, sshd_config configures SSH and hostname stores the machine name, all under /etc.",
+   "hint": "Logs change over time and live in /var; settings live in /etc."
+  },
+  {
+   "title": "Decode the Flags",
+   "sim": "terminal",
+   "scenario": "A fictional training terminal asks you to produce a listing that is sorted by modification time, shows human-readable sizes and includes hidden files. You do not remember the options, so you should consult the manual with man and the built-in help instead of guessing. After finding the three flags, combine them in one command and run it in the current directory to confirm the result.",
+   "objective": "Find and combine the ls options for time sort, readable sizes and hidden files.",
+   "steps": [
+    {
+     "do": "Run: man ls",
+     "see": "Manual page opens. Press / to search."
+    },
+    {
+     "do": "Search for hidden: type /hidden then Enter.",
+     "see": "Match: -a, --all do not ignore entries starting with ."
+    },
+    {
+     "do": "Search for time: type /sort by.",
+     "see": "Match: -t sort by time, newest first."
+    },
+    {
+     "do": "Search for human: type /human.",
+     "see": "Match: -h, --human-readable with -l, print sizes like 1K 234M."
+    },
+    {
+     "do": "Press q, then run: ls -lath",
+     "see": "Lists all files with sizes like 4.0K and 12K, newest first, hidden files included."
+    },
+    {
+     "do": "Run: ls --help | head -2",
+     "see": "Usage: ls [OPTION]... [FILE]..."
+    },
+    {
+     "do": "Report the command.",
+     "see": "Accepted: ls -lath."
+    }
+   ],
+   "answer": "The command is ls -lath: -l long format, -a includes hidden files, -t sorts by time, newest first, and -h gives human-readable sizes when combined with -l. Searching the man page with / found each option.",
+   "hint": "Search the manual for the key word of each requirement."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "What is Linux strictly speaking?",
+   "options": [
+    "A kernel",
+    "A desktop",
+    "A browser",
+    "A shell"
+   ],
+   "a": 0,
+   "why": "Linux is the kernel."
+  },
+  {
+   "q": "What does a # prompt usually indicate?",
+   "options": [
+    "Root user",
+    "Normal user",
+    "Error",
+    "Comment mode"
+   ],
+   "a": 0,
+   "why": "A hash prompt is typical for root."
+  },
+  {
+   "q": "In ls -l /etc, what is -l?",
+   "options": [
+    "An option",
+    "An argument",
+    "The program",
+    "A path"
+   ],
+   "a": 0,
+   "why": "It is a flag modifying ls."
+  },
+  {
+   "q": "Which command prints the current directory?",
+   "options": [
+    "pwd",
+    "ls",
+    "cd",
+    "whoami"
+   ],
+   "a": 0,
+   "why": "pwd prints the working directory."
+  },
+  {
+   "q": "Which command lists hidden files too?",
+   "options": [
+    "ls -a",
+    "ls -d",
+    "ls -x",
+    "ls -n"
+   ],
+   "a": 0,
+   "why": "-a includes names beginning with a dot."
+  },
+  {
+   "q": "What does cd .. do?",
+   "options": [
+    "Moves to the parent directory",
+    "Goes home",
+    "Goes to root",
+    "Lists files"
+   ],
+   "a": 0,
+   "why": "Double dot is the parent."
+  },
+  {
+   "q": "Which is an absolute path?",
+   "options": [
+    "/var/log/syslog",
+    "var/log/syslog",
+    "../log",
+    "./syslog"
+   ],
+   "a": 0,
+   "why": "A leading slash makes it absolute."
+  },
+  {
+   "q": "Where are system log files usually kept?",
+   "options": [
+    "/var/log",
+    "/etc",
+    "/bin",
+    "/dev"
+   ],
+   "a": 0,
+   "why": "/var/log holds logs."
+  },
+  {
+   "q": "Which directory holds configuration files?",
+   "options": [
+    "/etc",
+    "/tmp",
+    "/proc",
+    "/home"
+   ],
+   "a": 0,
+   "why": "/etc is for configuration."
+  },
+  {
+   "q": "Which command finds commands by keyword in manual descriptions?",
+   "options": [
+    "apropos",
+    "pwd",
+    "cd",
+    "tail"
+   ],
+   "a": 0,
+   "why": "apropos searches manual descriptions."
+  }
+ ]
+}

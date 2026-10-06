@@ -1,0 +1,948 @@
+{
+ "code": "CORE-02",
+ "intro": "This module surveys who attacks, how, and with what. You will compare threat actors by resources and motive, review attack surface and common password and supply chain attacks, then study malware families: viruses, worms, trojans, ransomware, spyware, RATs and botnets with their command and control. Finally you analyze five well-known incidents for root cause and missed controls, turning a list of scary names into patterns you can defend against.",
+ "lessons": [
+  {
+   "title": "Threat actors and motives",
+   "why": "Knowing who attacks and why tells you what they will target, how persistent they will be and which defenses are proportionate.",
+   "sections": [
+    {
+     "h": "Nation-state actors",
+     "p": [
+      "Nation-state groups, often called advanced persistent threats (APTs), work for governments and have large budgets, custom tools and patience. Their goals are espionage, theft of intellectual property, disruption of critical infrastructure and influence operations. They may spend months inside a network, use zero-day vulnerabilities and abuse trusted software suppliers.",
+      "Defending against them means assuming breach: strong logging, segmentation, threat hunting and rapid patching. Most organizations cannot stop a determined state actor, but good hygiene raises their cost and shortens how long they stay."
+     ]
+    },
+    {
+     "h": "Criminals and hacktivists",
+     "p": [
+      "Organized cybercriminals are driven by money. They run ransomware, business email compromise, card fraud and credential theft, often as a business with affiliates, support desks and tooling sold as a service. They favor the easiest victims, so basic controls such as MFA and patching push them toward other targets.",
+      "Hacktivists are motivated by ideology or politics. Typical actions are website defacement, distributed denial of service and leaks of embarrassing data to draw attention. Their capability varies widely, and their targeting follows news events, so public-facing organizations should expect spikes around controversial announcements."
+     ]
+    },
+    {
+     "h": "Insiders and script kiddies",
+     "p": [
+      "Insiders are current or former employees, contractors or partners with legitimate access. A malicious insider may steal data before leaving or sabotage systems; an unintentional insider clicks a phishing link or misconfigures storage. Because their access is authorized, controls include least privilege, user activity monitoring, data loss prevention and prompt offboarding.",
+      "Script kiddies, or unskilled attackers, run ready-made tools without understanding them. They are low in resources but high in volume, and they are the reason an unpatched, internet-facing server is probed within minutes of appearing online."
+     ]
+    },
+    {
+     "h": "Comparing actors",
+     "p": [
+      "Compare actors on resources, persistence, motivation and typical targets. Nation-states have the highest resources and persistence; criminals have medium to high resources and strong financial focus; hacktivists have variable resources and short campaigns; insiders have low technical needs but high access; script kiddies have the least skill. Threat modeling asks which of these are realistic for your organization.",
+      "A regional bakery worries about criminals and script kiddies; a defense contractor must plan for nation-states as well. Shadow IT, unsanctioned tools used outside IT oversight, adds risk from every category because it hides assets from defenders."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Actor comparison",
+    "text": "Actor         Resources  Motive        Typical action\nNation-state  Very high  Espionage     Long-term access\nCriminal      High       Money         Ransomware, BEC\nHacktivist    Variable   Ideology      DDoS, defacement\nInsider       Access     Revenge/gain  Data theft\nScript kiddie Low        Notoriety     Public tools"
+   },
+   "example": "A dental chain with 12 offices sees an unknown login from 203.0.113.5 and a ransom note two days later. Analysis points to a criminal affiliate: financial motive, a commodity toolkit, no interest in intellectual property. An espionage actor would have stayed quiet. Knowing the profile guides the response: assume data was copied, check backups, prepare for extortion contact, and harden remote access with MFA, the most likely entry route for this actor class.",
+   "terms": [
+    {
+     "term": "APT",
+     "def": "Advanced persistent threat: a well-resourced actor that maintains long-term access."
+    },
+    {
+     "term": "Hacktivist",
+     "def": "An attacker motivated by political or social causes."
+    },
+    {
+     "term": "Insider threat",
+     "def": "Risk from people with authorized access who misuse it or err."
+    },
+    {
+     "term": "Threat actor",
+     "def": "An individual or group that conducts or intends to conduct harmful activity."
+    },
+    {
+     "term": "Shadow IT",
+     "def": "Technology used without approval or visibility from the IT department."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which actor is most likely to pursue long-term espionage?",
+     "options": [
+      "Nation-state APT",
+      "Opportunistic hobbyist",
+      "Spam bot",
+      "Script kiddie"
+     ],
+     "a": 0,
+     "why": "State groups have resources and strategic goals."
+    },
+    {
+     "q": "A fired employee deletes files. This is:",
+     "options": [
+      "Supply chain",
+      "Zero-day",
+      "Insider threat",
+      "Hacktivism"
+     ],
+     "a": 2,
+     "why": "The person had authorized access and misused it."
+    },
+    {
+     "q": "What mainly drives organized cybercriminals?",
+     "options": [
+      "Government orders",
+      "Financial gain",
+      "Political belief",
+      "Curiosity only"
+     ],
+     "a": 1,
+     "why": "They run operations for profit."
+    },
+    {
+     "q": "Which control best addresses insider data theft?",
+     "options": [
+      "Longer ping timeout",
+      "Data loss prevention and monitoring",
+      "Larger monitors",
+      "Wi-Fi guest network"
+     ],
+     "a": 1,
+     "why": "DLP and activity monitoring detect abnormal data movement."
+    }
+   ],
+   "recap": [
+    "Actors differ in resources, persistence and motive.",
+    "Defenses should be proportionate to realistic actors.",
+    "Insiders already hold legitimate access."
+   ]
+  },
+  {
+   "title": "Attack surface and common attack types",
+   "why": "Every exposed entry point is a place an attacker can try something, and password-based attacks remain the most common way in.",
+   "sections": [
+    {
+     "h": "Attack surface",
+     "p": [
+      "The attack surface is the sum of all points where an unauthorized party could try to enter or extract data. It includes internet-facing servers and open ports, web applications and APIs, email, remote access such as RDP and VPN, cloud services, employee accounts, third-party connections and physical access. Reducing it means removing what you do not need: close unused ports, disable unused services, retire old systems and limit exposed admin panels.",
+      "Maintaining an asset inventory is the first step, because you cannot protect what you do not know exists. Regular external scans from a defender's view show what the internet sees."
+     ]
+    },
+    {
+     "h": "Password attacks",
+     "p": [
+      "Brute force tries many passwords against one account, usually blocked by lockout or rate limiting. Credential stuffing replays username and password pairs leaked from other sites, exploiting reuse; it looks like many accounts each failing or succeeding once from many sources. Password spraying tries one or few common passwords such as Winter2025! across many accounts, staying under lockout thresholds.",
+      "Detection looks for patterns: many failures from one source (brute force), many different usernames from one source (spraying), and a high ratio of failures across many accounts from rotating addresses (stuffing). MFA, breached-password screening, rate limiting and CAPTCHA help most."
+     ]
+    },
+    {
+     "h": "Supply chain and zero-day",
+     "p": [
+      "A supply chain attack compromises a trusted vendor, library or update channel so that the malicious code reaches many victims through a trusted path. Examples include tampered software updates and poisoned open-source packages. Defenses include software bills of materials (SBOM), code signing verification, dependency pinning, vendor risk reviews and monitoring for unexpected behavior from trusted software.",
+      "A zero-day is a vulnerability unknown to the vendor, so no patch exists. You cannot patch it, but you can limit impact with segmentation, least privilege, exploit mitigations, behavior-based detection and a fast process to deploy patches once released."
+     ]
+    },
+    {
+     "h": "Other common attacks",
+     "p": [
+      "Other frequent techniques include phishing, man-in-the-middle interception, denial of service, SQL injection and cross-site scripting, covered in later modules. Attackers chain them: phishing to obtain credentials, then valid-account login, then privilege escalation.",
+      "Vulnerability management ties it together. Track vulnerabilities through CVE identifiers, rate them with CVSS scores from 0.0 to 10.0 and prioritize those that are internet-facing and known to be exploited. The CISA Known Exploited Vulnerabilities catalog is a practical source for deciding what to patch first."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Auth log pattern",
+    "text": "10:01:02 FAIL user=alice src=198.51.100.9\n10:01:03 FAIL user=bob   src=198.51.100.9\n10:01:04 FAIL user=carol src=198.51.100.9\n10:01:05 FAIL user=dave  src=198.51.100.9\n# one source, many users, one password -> spraying"
+   },
+   "example": "A VPN gateway at 192.0.2.1 logs 400 failed logins in an hour. Looking closer, 380 distinct usernames appear, each tried once or twice, all from three addresses in 198.51.100.0/24. That is password spraying, not brute force against one account. The responder blocks the sources, enforces MFA on the VPN, checks the 20 successful logins from those addresses, and forces password resets for accounts that succeeded.",
+   "terms": [
+    {
+     "term": "Attack surface",
+     "def": "All points where an attacker could attempt to gain access or extract data."
+    },
+    {
+     "term": "Credential stuffing",
+     "def": "Automated login attempts using username and password pairs leaked elsewhere."
+    },
+    {
+     "term": "Password spraying",
+     "def": "Trying a few common passwords across many accounts to avoid lockouts."
+    },
+    {
+     "term": "Supply chain attack",
+     "def": "Compromise of a trusted vendor or component to reach downstream victims."
+    },
+    {
+     "term": "Zero-day",
+     "def": "A vulnerability unknown to the vendor and unpatched at the time of attack."
+    }
+   ],
+   "check": [
+    {
+     "q": "Many usernames, one password, same source describes:",
+     "options": [
+      "Password spraying",
+      "Brute force on one account",
+      "Zero-day",
+      "Smurf attack"
+     ],
+     "a": 0,
+     "why": "Spraying tries one password across many accounts."
+    },
+    {
+     "q": "Credential stuffing succeeds mainly because of:",
+     "options": [
+      "Weak Wi-Fi",
+      "Kernel bugs",
+      "DNS caching",
+      "Password reuse"
+     ],
+     "a": 3,
+     "why": "Users reuse leaked passwords on other sites."
+    },
+    {
+     "q": "Best first step to reduce attack surface:",
+     "options": [
+      "Rename the domain",
+      "Disable logging",
+      "Inventory assets and remove unneeded exposure",
+      "Buy more licenses"
+     ],
+     "a": 2,
+     "why": "You must know and shrink what is exposed."
+    },
+    {
+     "q": "An SBOM helps with:",
+     "options": [
+      "Blocking DDoS",
+      "Encrypting disks",
+      "Knowing which components software contains",
+      "Resetting passwords"
+     ],
+     "a": 2,
+     "why": "It lists components so affected software can be identified quickly."
+    }
+   ],
+   "recap": [
+    "Shrink the attack surface by inventory and removal.",
+    "Distinguish brute force, stuffing and spraying by log pattern.",
+    "Supply chain and zero-day risks need containment, not just patching."
+   ]
+  },
+  {
+   "title": "Viruses, worms and trojans",
+   "why": "The three classic malware types differ in how they spread, and that difference decides how you detect and contain them.",
+   "sections": [
+    {
+     "h": "Viruses",
+     "p": [
+      "A virus attaches itself to a host file or program and needs a user or process to run that host. It replicates by infecting other files, so spread requires human action such as sharing a file or running an infected executable. Types include file infectors, macro viruses in Office documents and boot sector viruses. Polymorphic and metamorphic viruses change their code to evade signature matching.",
+      "Classic antivirus detects them through signatures, hashes of known malicious content, and heuristics that flag suspicious structure. Modern endpoint protection adds behavioral monitoring."
+     ]
+    },
+    {
+     "h": "Worms",
+     "p": [
+      "A worm is self-replicating and spreads across networks without user action, usually by exploiting a vulnerability in a network service or by weak credentials. Worms can saturate bandwidth and infect thousands of hosts in hours. The 2003 SQL Slammer worm and the 2017 WannaCry worm component, which used the SMB flaw EternalBlue (MS17-010), are well-known cases.",
+      "Indicators include sudden scanning traffic to one port from internal hosts, rapid growth in connections, and many hosts showing the same new process. Containment relies on isolating infected segments, blocking the abused port, and patching the vulnerability."
+     ]
+    },
+    {
+     "h": "Trojans",
+     "p": [
+      "A trojan masquerades as legitimate software, such as a cracked game or a fake invoice viewer, and relies on the user installing it. It does not self-replicate. Once running it may open a backdoor, steal credentials, download further malware (a downloader or dropper) or install ransomware. Remote access trojans and banking trojans are common categories.",
+      "Prevention is mostly about user and source control: install software only from trusted repositories, verify signatures, use application allow-listing and block executables from email. Detection watches for new persistence entries and unusual outbound connections."
+     ]
+    },
+    {
+     "h": "Detection approaches",
+     "p": [
+      "Signature-based detection is fast and accurate for known samples but misses new ones. Heuristic and behavioral detection looks at actions: a document spawning a command shell, a process modifying many files, or a binary writing to startup locations. Sandboxing detonates suspicious files in an isolated environment and records behavior.",
+      "Sources of evidence include endpoint detection and response (EDR) telemetry, DNS logs, proxy logs and network flow data. Static analysis inspects a file without running it (strings, hashes, headers); dynamic analysis runs it in a lab. Analysts record indicators of compromise such as file hashes, domains and registry keys for sharing."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Behavior summary",
+    "text": "Type    Needs host file  Needs user action  Spreads by\nVirus   yes              yes                infected files\nWorm    no               no                 network exploits\nTrojan  no               yes (install)      deception"
+   },
+   "example": "Within an hour, 50 workstations show high traffic to TCP port 445 on random internal addresses and a new service named msupdt. Nobody opened anything unusual. That behavior is a worm: it spreads without user action by exploiting a network service. The responder blocks SMB between segments, isolates affected hosts, applies the vendor patch, scans for the service name and hash, and removes persistence before reconnecting machines.",
+   "terms": [
+    {
+     "term": "Virus",
+     "def": "Malware that infects host files and spreads when infected content is run."
+    },
+    {
+     "term": "Worm",
+     "def": "Self-propagating malware that spreads over networks without user action."
+    },
+    {
+     "term": "Trojan",
+     "def": "Malware disguised as legitimate software that does not self-replicate."
+    },
+    {
+     "term": "Polymorphic malware",
+     "def": "Malware that alters its code to evade signature detection."
+    },
+    {
+     "term": "IOC",
+     "def": "Indicator of compromise: an observable artifact such as a hash or domain showing compromise."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which malware spreads without user action?",
+     "options": [
+      "Adware",
+      "Worm",
+      "Trojan",
+      "Macro virus"
+     ],
+     "a": 1,
+     "why": "Worms self-propagate over networks."
+    },
+    {
+     "q": "A trojan differs from a virus because it:",
+     "options": [
+      "Does not self-replicate",
+      "Always encrypts files",
+      "Only infects boot sectors",
+      "Uses IPv6 only"
+     ],
+     "a": 0,
+     "why": "Trojans rely on deception rather than replication."
+    },
+    {
+     "q": "Sudden internal scanning on port 445 suggests:",
+     "options": [
+      "Printer error",
+      "DNS update",
+      "NTP sync",
+      "Worm activity"
+     ],
+     "a": 3,
+     "why": "SMB worms scan for vulnerable hosts."
+    },
+    {
+     "q": "Which technique detects previously unseen malware by actions?",
+     "options": [
+      "Exact hash match",
+      "Port number lookup",
+      "MAC filtering",
+      "Behavioral analysis"
+     ],
+     "a": 3,
+     "why": "Behavior catches unknown samples."
+    }
+   ],
+   "recap": [
+    "Virus needs a host, worm spreads alone, trojan deceives.",
+    "Signatures catch known samples; behavior catches new ones.",
+    "Isolation and patching contain worms."
+   ]
+  },
+  {
+   "title": "Ransomware and extortion",
+   "why": "Ransomware is the most disruptive criminal threat to organizations, and its stages show where defenders can interrupt it.",
+   "sections": [
+    {
+     "h": "The ransomware chain",
+     "p": [
+      "Typical stages: initial access (phishing, exposed RDP, stolen VPN credentials or an unpatched edge device), execution and persistence, privilege escalation to administrator, discovery of file shares and backups, lateral movement, data theft, then the final payload that encrypts files. Operators often wait days between access and encryption, and deploy at night or on weekends.",
+      "Many families delete volume shadow copies (for example with vssadmin delete shadows) and stop backup and database services before encrypting, so that recovery is harder. Encrypted files may get a new extension and a ransom note appears in each folder."
+     ]
+    },
+    {
+     "h": "Double extortion and RaaS",
+     "p": [
+      "In double extortion the attackers steal data before encrypting, then threaten to publish it on a leak site if the victim does not pay, even when the victim could restore from backup. Some add triple pressure with DDoS or by contacting customers.",
+      "Ransomware as a service (RaaS) splits roles: developers maintain the malware and payment portal and take a share, while affiliates break into victims. This is why many different intrusion styles lead to the same malware family. Initial access brokers sell footholds to affiliates."
+     ]
+    },
+    {
+     "h": "Defending",
+     "p": [
+      "Controls map to the chain. Prevent: MFA on remote access, rapid patching of internet-facing systems, email filtering, application allow-listing and removal of exposed RDP. Limit: least privilege, network segmentation and protected admin credentials. Detect: EDR alerts on mass file modification, shadow copy deletion and unusual use of admin tools.",
+      "Recover: follow the 3-2-1 rule (three copies, two media types, one offsite), keep at least one copy offline or immutable, and test restores regularly. An incident response plan with prewritten contacts reduces chaos."
+     ]
+    },
+    {
+     "h": "Response and the payment question",
+     "p": [
+      "When ransomware is found, isolate affected hosts from the network but avoid powering them off if memory evidence is needed, preserve logs, identify patient zero and the entry path, and notify legal, insurance and regulators as required. Law enforcement agencies advise against paying: payment funds crime, does not guarantee decryption and may violate sanctions rules.",
+      "Rebuild from clean images, reset credentials including service accounts and the Kerberos krbtgt account in domain compromise cases, and close the entry point before reconnecting. Review lessons learned so the same path is not reused."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Sysmon-style process chain",
+    "text": "WINWORD.EXE -> powershell.exe -enc JAB...\npowershell.exe -> cmd.exe /c vssadmin delete shadows /all /quiet\ncmd.exe -> encryptor.exe (8,200 files renamed .locked in 4 min)"
+   },
+   "example": "A manufacturer's file server shows thousands of renamed files. Logs reveal an RDP login from 203.0.113.77 three days earlier using a reused password, a tool run to dump credentials, and a copy of 60 GB to an external host. This is double extortion. The team isolates the server, restores from offline backups, resets all admin credentials, closes RDP behind a VPN with MFA, and prepares breach notifications because data left the network.",
+   "terms": [
+    {
+     "term": "Ransomware",
+     "def": "Malware that denies access to data or systems until a ransom is paid."
+    },
+    {
+     "term": "Double extortion",
+     "def": "Stealing data and encrypting it, threatening publication if unpaid."
+    },
+    {
+     "term": "RaaS",
+     "def": "Ransomware as a service, where developers lease malware to affiliates."
+    },
+    {
+     "term": "Initial access broker",
+     "def": "A criminal who sells network access to others."
+    },
+    {
+     "term": "3-2-1 backup rule",
+     "def": "Keep three copies on two media types with one offsite."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why do attackers delete shadow copies?",
+     "options": [
+      "To update Windows",
+      "To hide DNS",
+      "To prevent easy recovery",
+      "To speed up the CPU"
+     ],
+     "a": 2,
+     "why": "It removes local restore points."
+    },
+    {
+     "q": "Double extortion means:",
+     "options": [
+      "Two encryption keys",
+      "Data theft plus encryption",
+      "Two ransom notes only",
+      "Paying twice"
+     ],
+     "a": 1,
+     "why": "Victims face both loss of access and leak threats."
+    },
+    {
+     "q": "Which backup practice best counters ransomware?",
+     "options": [
+      "Offline or immutable tested copies",
+      "Backups on the same share",
+      "One copy on the desktop",
+      "No testing"
+     ],
+     "a": 0,
+     "why": "Attackers cannot encrypt or delete offline copies."
+    },
+    {
+     "q": "In RaaS, affiliates typically:",
+     "options": [
+      "Break into victims and deploy the malware",
+      "Write the kernel",
+      "Sell antivirus",
+      "Operate DNS roots"
+     ],
+     "a": 0,
+     "why": "Developers provide the tool, affiliates carry out the intrusions."
+    }
+   ],
+   "recap": [
+    "Ransomware is a chain, and each step can be interrupted.",
+    "Double extortion makes backups necessary but not sufficient.",
+    "Offline tested backups and MFA are high-value controls."
+   ]
+  },
+  {
+   "title": "Spyware, RATs, botnets and C2",
+   "why": "Attackers who stay hidden rely on a channel back to their infrastructure, and that channel is often the easiest thing to spot.",
+   "sections": [
+    {
+     "h": "Spyware and keyloggers",
+     "p": [
+      "Spyware secretly collects information about a user or system. Keyloggers record keystrokes, either in software or via a hardware device inserted between keyboard and computer. Related tools capture screenshots, clipboard contents, browser cookies and saved passwords. Infostealers focus on credentials and session tokens and sell them in criminal markets.",
+      "Indicators include unknown processes hooking input, new startup entries, unexpected outbound uploads of small files and password manager alerts. Prevention includes MFA (a stolen password alone is not enough), least privilege, trusted software sources and endpoint protection."
+     ]
+    },
+    {
+     "h": "Remote access trojans",
+     "p": [
+      "A remote access trojan (RAT) gives an attacker interactive control: file browsing, command execution, webcam and microphone access, and further tool installation. It achieves persistence through registry run keys, scheduled tasks, services or startup folders. Legitimate remote administration tools are also abused because they look normal.",
+      "Detect by baselining approved remote tools, alerting on new ones, watching for persistence changes (Sysmon event ID 13 for registry values, Windows event 4698 for new scheduled tasks) and reviewing unusual child processes."
+     ]
+    },
+    {
+     "h": "Botnets and C2 channels",
+     "p": [
+      "A botnet is a group of compromised devices controlled through command and control (C2) infrastructure. Bots are used for DDoS, spam, proxying and credential attacks. C2 channels include HTTP and HTTPS to attacker servers, DNS queries and responses, IRC historically, peer-to-peer designs and abuse of cloud services or social media to blend in.",
+      "Attackers hide C2 with domain generation algorithms (DGA), which create many pseudo-random domain names, fast-flux DNS that rapidly changes IP addresses, and legitimate platforms. The Mirai botnet in 2016 recruited IoT devices with default passwords."
+     ]
+    },
+    {
+     "h": "Beaconing indicators",
+     "p": [
+      "Compromised hosts periodically check in with the C2 server, called beaconing. Signs are connections at regular intervals (for example every 60 seconds with small random jitter), consistent small request and response sizes, an unusual user-agent, rare destination domains and long or high-entropy DNS names. Analysts review proxy and DNS logs and network flow data to find repeated patterns.",
+      "Blocking known bad domains helps, but behavior-based hunting finds new ones. Egress filtering, DNS sinkholes and TLS inspection where policy allows reduce attacker comfort, and isolating the host stops the check-ins while you investigate."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Proxy log excerpt (fictional)",
+    "text": "10:00:00 10.0.0.15 GET hxxp://update-cdn.example.net/a.php 200 312B\n10:01:01 10.0.0.15 GET hxxp://update-cdn.example.net/a.php 200 312B\n10:02:00 10.0.0.15 GET hxxp://update-cdn.example.net/a.php 200 312B\n# ~60s interval, same size -> beaconing"
+   },
+   "example": "A hunter sorts DNS logs by number of queries per host and finds 10.0.0.15 asking for 400 distinct random-looking subdomains of one domain in a day, each answered with a short TXT record. That fits DNS-based C2 or tunneling. The team blocks the domain at the resolver, isolates the host, collects memory and disk artifacts, searches other hosts for the same domain, and rotates credentials used on that machine.",
+   "terms": [
+    {
+     "term": "C2",
+     "def": "Command and control: the channel through which attackers direct compromised systems."
+    },
+    {
+     "term": "Beaconing",
+     "def": "Periodic check-in traffic from malware to its controller."
+    },
+    {
+     "term": "DGA",
+     "def": "Domain generation algorithm that produces many pseudo-random domains for C2."
+    },
+    {
+     "term": "RAT",
+     "def": "Remote access trojan giving an attacker interactive control."
+    },
+    {
+     "term": "Botnet",
+     "def": "A network of compromised devices controlled by an attacker."
+    }
+   ],
+   "check": [
+    {
+     "q": "Connections every 60 seconds with identical size suggest:",
+     "options": [
+      "Video streaming",
+      "Windows update",
+      "Printing",
+      "Beaconing"
+     ],
+     "a": 3,
+     "why": "Regular intervals and sizes are typical of malware check-ins."
+    },
+    {
+     "q": "What do DGAs do?",
+     "options": [
+      "Patch kernels",
+      "Assign IP addresses",
+      "Generate many domains for C2",
+      "Encrypt disks"
+     ],
+     "a": 2,
+     "why": "They make blocking by domain harder."
+    },
+    {
+     "q": "Mirai mainly recruited:",
+     "options": [
+      "Smart cards",
+      "IoT devices with default passwords",
+      "Mainframes",
+      "Printers with fax only"
+     ],
+     "a": 1,
+     "why": "Default credentials on IoT devices were abused."
+    },
+    {
+     "q": "An effective step against C2 is:",
+     "options": [
+      "Disabling screensavers",
+      "Egress filtering and DNS monitoring",
+      "Longer passwords on Wi-Fi",
+      "Larger log files"
+     ],
+     "a": 1,
+     "why": "Controlling outbound traffic disrupts attacker channels."
+    }
+   ],
+   "recap": [
+    "Spyware steals data quietly, RATs give control, botnets scale it.",
+    "C2 traffic often has regular timing.",
+    "Egress and DNS visibility are key defenses."
+   ]
+  },
+  {
+   "title": "Incident case studies",
+   "why": "Real breaches show that most damage comes from missed basics, which is where your attention should go.",
+   "sections": [
+    {
+     "h": "WannaCry and NotPetya",
+     "p": [
+      "WannaCry (May 2017) was ransomware with a worm component using the EternalBlue exploit against SMBv1, patched by Microsoft in MS17-010 two months earlier. It hit hundreds of thousands of systems, including parts of the UK National Health Service. Root causes: unpatched systems, exposed SMB, and flat networks. A kill switch domain in the code slowed it.",
+      "NotPetya (June 2017) spread via a compromised update of Ukrainian accounting software, then used EternalBlue and credential theft tools. It looked like ransomware but destroyed data, with no real decryption possible. Causes: supply chain compromise, flat networks and credential reuse. Segmentation and patching were the missed controls."
+     ]
+    },
+    {
+     "h": "SolarWinds",
+     "p": [
+      "In 2020 attackers inserted a backdoor (SUNBURST) into SolarWinds Orion software updates, which were digitally signed and delivered to thousands of customers. A small number were selected for follow-on activity by a state-linked actor. This is a software supply chain attack.",
+      "Missed or helpful controls: build pipeline integrity, vendor risk management, egress filtering (the backdoor needed to reach its C2), network segmentation of management software and monitoring for anomalous behavior from trusted tools. It drove adoption of SBOMs and secure build practices."
+     ]
+    },
+    {
+     "h": "Colonial Pipeline and Equifax",
+     "p": [
+      "Colonial Pipeline (May 2021): the DarkSide ransomware group used a compromised VPN account that reportedly lacked MFA. The company shut down pipeline operations proactively, causing fuel shortages in the US Southeast. Missed controls: MFA, credential hygiene and segmentation between business IT and operational technology.",
+      "Equifax (2017): attackers exploited a known flaw in Apache Struts (CVE-2017-5638) on an internet-facing portal. The patch had been available but was not applied, and an expired certificate on a monitoring device left traffic uninspected for months. About 147 million people were affected. Missed controls: patch management, asset inventory, certificate management and network segmentation."
+     ]
+    },
+    {
+     "h": "Lessons across cases",
+     "p": [
+      "Patterns repeat: unpatched known vulnerabilities (WannaCry, Equifax), missing MFA (Colonial), supply chain trust (NotPetya, SolarWinds), flat networks and weak monitoring. A useful method is to build a timeline, find the root cause, then ask at each step which control would have broken the chain and why it was absent.",
+      "Notice also the business impact: operations halted, fines and lawsuits, executive resignations and loss of trust. A post-incident review should record what failed, what worked, and specific owner-assigned actions rather than blame."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Root-cause summary",
+    "text": "Incident   Entry              Missed control\nWannaCry   SMBv1 exploit      Patching, segmentation\nSolarWinds Trojanized update  Supply chain checks, egress\nColonial   VPN credential     MFA\nEquifax    Struts CVE-2017-5638 Patching, asset inventory"
+   },
+   "example": "Take Equifax as a model. Timeline: vulnerability disclosed in March 2017, patch available, internet-facing portal left unpatched, attackers gain access in May, data pulled for months, discovered in late July after an expired certificate was renewed and traffic became visible. Breaking points: scanning and patching within days, inventory showing the portal existed, working traffic inspection and segmentation between the portal and databases. Each is inexpensive compared with the final damage.",
+   "terms": [
+    {
+     "term": "EternalBlue",
+     "def": "An exploit for the SMBv1 flaw fixed in MS17-010, used by WannaCry and NotPetya."
+    },
+    {
+     "term": "SUNBURST",
+     "def": "The backdoor placed in SolarWinds Orion updates in 2020."
+    },
+    {
+     "term": "Root cause",
+     "def": "The underlying failure that, if fixed, would have prevented the incident."
+    },
+    {
+     "term": "Wiper",
+     "def": "Malware designed to destroy data rather than extort."
+    },
+    {
+     "term": "Patch management",
+     "def": "The process of identifying, testing and deploying software fixes."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which control would most directly have prevented the Colonial Pipeline entry?",
+     "options": [
+      "MFA on VPN",
+      "Faster disks",
+      "Bigger firewall logs",
+      "Static routes"
+     ],
+     "a": 0,
+     "why": "The stolen VPN password alone granted access."
+    },
+    {
+     "q": "WannaCry exploited:",
+     "options": [
+      "Heartbleed",
+      "Log4Shell",
+      "BlueKeep only",
+      "SMBv1 via EternalBlue"
+     ],
+     "a": 3,
+     "why": "EternalBlue targeted SMBv1."
+    },
+    {
+     "q": "SolarWinds is an example of:",
+     "options": [
+      "Smishing",
+      "Insider fraud",
+      "Supply chain attack",
+      "Brute force"
+     ],
+     "a": 2,
+     "why": "Malicious code arrived inside a trusted vendor update."
+    },
+    {
+     "q": "Equifax's breach involved an unpatched flaw in:",
+     "options": [
+      "Chrome",
+      "Kerberos",
+      "Apache Struts",
+      "OpenSSH"
+     ],
+     "a": 2,
+     "why": "CVE-2017-5638 affected Apache Struts."
+    }
+   ],
+   "recap": [
+    "Most major breaches trace back to basic control failures.",
+    "Build timelines and mark where a control breaks the chain.",
+    "Supply chain, patching and MFA recur as lessons."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Classify malware samples",
+   "sim": "scenario",
+   "scenario": "A sandbox produced six behavior reports for files submitted to the Example Corp analysis queue. Each report lists file changes, network calls and persistence. Using the family traits from the lessons, label each sample as virus, worm, trojan, ransomware, spyware or RAT, and cite the evidence that decided it. Reports contain process names, file paths, registry keys and destination addresses, all fictional. You can open a short glossary panel while labeling.",
+   "objective": "Label six behavior reports with the correct malware family and the evidence.",
+   "steps": [
+    {
+     "do": "Open report 1: modifies other .exe files, adds code, no network",
+     "see": "Report shows infected file count rising from 1 to 14."
+    },
+    {
+     "do": "Label report 1 as Virus",
+     "see": "Correct: host file infection with replication."
+    },
+    {
+     "do": "Open report 2: scans TCP 445 across 10.0.0.0/24 and copies itself to hosts",
+     "see": "Connections to 254 addresses in 30 seconds."
+    },
+    {
+     "do": "Label report 2 as Worm",
+     "see": "Correct: self-propagation without user action."
+    },
+    {
+     "do": "Open report 3: renames documents to .locked, deletes shadow copies, drops note",
+     "see": "Note text references payment to a wallet."
+    },
+    {
+     "do": "Label report 3 as Ransomware",
+     "see": "Correct."
+    },
+    {
+     "do": "Open report 4: registers run key, polls 203.0.113.40 every 60 s, accepts shell commands",
+     "see": "Beacon plus command execution observed."
+    },
+    {
+     "do": "Label report 4 as RAT; reports 5 and 6 as Trojan and Spyware by the same method",
+     "see": "All six correct; score 6/6."
+    }
+   ],
+   "answer": "Report 1 virus (infects host files), 2 worm (network self-spread over SMB), 3 ransomware (encryption, shadow copy deletion, note), 4 RAT (persistence plus periodic C2 and remote commands), 5 trojan (fake installer dropping a payload), 6 spyware (keystroke capture and uploads).",
+   "hint": "Ask first how it spreads, then what it does after running."
+  },
+  {
+   "title": "Spot C2 beaconing in packets",
+   "sim": "packet-viewer",
+   "scenario": "The SOC captured 10 minutes of traffic from a workstation segment at example.com. Hundreds of normal packets hide a periodic callback. Use filters and the timeline view to identify the infected host, the beacon interval and the domain it contacts, then recommend a containment action. The viewer provides filters, a conversation table and a time-delta graph. Addresses are from documentation ranges and the domain names are not real.",
+   "objective": "Identify the infected host, beacon interval and C2 domain from a capture.",
+   "steps": [
+    {
+     "do": "Open capture and apply filter dns",
+     "see": "412 DNS packets listed; summary sorts by query name."
+    },
+    {
+     "do": "Sort by query name count",
+     "see": "Top name: sync.update-check.example.net with 10 queries from 10.0.0.15."
+    },
+    {
+     "do": "Open the conversation view for 10.0.0.15",
+     "see": "HTTPS flows to 203.0.113.60 every 60 seconds, 300-320 bytes each."
+    },
+    {
+     "do": "Plot time delta between flows",
+     "see": "Graph shows peaks at 60 s with jitter under 3 s."
+    },
+    {
+     "do": "Compare with host 10.0.0.22",
+     "see": "Browsing traffic is irregular, no repeating destination."
+    },
+    {
+     "do": "Mark 10.0.0.15 as infected and record domain",
+     "see": "Entry saved: sync.update-check.example.net, 203.0.113.60."
+    },
+    {
+     "do": "Choose containment",
+     "see": "Options listed; correct choice isolate host and block domain at DNS."
+    }
+   ],
+   "answer": "Infected host is 10.0.0.15, beaconing about every 60 seconds with small constant payloads to sync.update-check.example.net (203.0.113.60). Contain by isolating the host, blocking the domain and IP at DNS and proxy, and checking other hosts for the same destination.",
+   "hint": "Look for repetition: same destination, same size, same interval."
+  },
+  {
+   "title": "Read a ransomware process tree",
+   "sim": "log-viewer",
+   "scenario": "A Sysmon log from a file server shows a chain of events beginning with a user opening an email attachment. Analysts need the exact order of events to explain the incident. Trace from the attachment to shadow copy deletion and encryption, noting the process relationships and timestamps for the report. Timestamps are in local time of the server. Columns include Image, ParentImage and CommandLine, and the viewer allows sorting and text search.",
+   "objective": "Trace the process chain from phishing attachment to encryption and note key indicators.",
+   "steps": [
+    {
+     "do": "Filter Event ID 1 (process creation) for host FS01",
+     "see": "14 events listed in time order."
+    },
+    {
+     "do": "Find the first suspicious parent",
+     "see": "WINWORD.EXE at 09:12:03 spawns powershell.exe with an encoded command."
+    },
+    {
+     "do": "Follow powershell.exe children",
+     "see": "It starts rundll32.exe and downloads loader.dll from 198.51.100.30."
+    },
+    {
+     "do": "Filter Event ID 13 (registry value set)",
+     "see": "A Run key named Updater points to C:\\Users\\Public\\loader.dll."
+    },
+    {
+     "do": "Search command lines for vssadmin",
+     "see": "09:41:50 cmd.exe /c vssadmin delete shadows /all /quiet."
+    },
+    {
+     "do": "Filter Event ID 11 (file create) after 09:42",
+     "see": "Over 8,000 files with extension .locked created in four minutes."
+    },
+    {
+     "do": "Mark persistence, deletion of shadow copies and encryption on the timeline",
+     "see": "Timeline accepted; summary generated."
+    }
+   ],
+   "answer": "Chain: WINWORD.EXE -> powershell.exe (encoded) -> loader.dll from 198.51.100.30 -> Run key persistence -> vssadmin delete shadows -> mass file creation with .locked. Key controls: block Office child processes, script logging, and offline backups.",
+   "hint": "Follow ParentImage to Image in the process creation events."
+  },
+  {
+   "title": "Build the case study timeline",
+   "sim": "diagram-builder",
+   "scenario": "You are preparing a lessons-learned briefing on the Equifax breach for a training class. A tray holds event cards and a blank timeline. Order the events and then place control markers where a safeguard would have stopped or exposed the attack, with a short reason for each marker. Cards describe publicly documented events in simplified form. You can reposition cards freely and the checker only scores the final layout.",
+   "objective": "Order the Equifax events and place controls that would break the chain.",
+   "steps": [
+    {
+     "do": "Drag 'Struts flaw CVE-2017-5638 disclosed and patch released' to the start",
+     "see": "Placed at March 2017."
+    },
+    {
+     "do": "Drag 'Portal left unpatched' next",
+     "see": "Placed; sim suggests a control marker slot."
+    },
+    {
+     "do": "Add marker 'Patch within days' on this event",
+     "see": "Marker accepted."
+    },
+    {
+     "do": "Drag 'Attackers gain access' then 'Data queried for months'",
+     "see": "Placed in order, May to July 2017."
+    },
+    {
+     "do": "Add marker 'Segmentation and egress monitoring' on the data query event",
+     "see": "Marker accepted."
+    },
+    {
+     "do": "Drag 'Expired certificate renewed, traffic visible, breach found' last",
+     "see": "Placed late July 2017."
+    },
+    {
+     "do": "Add marker 'Certificate and inspection health checks' there and submit",
+     "see": "Score 6/6 events and 3 valid markers."
+    }
+   ],
+   "answer": "Order: disclosure and patch, unpatched portal, attackers gain access, months of data theft, certificate renewed and detection. Controls: rapid patching, segmentation and egress monitoring, and monitoring tool upkeep including certificates. Any one earlier control shortens exposure.",
+   "hint": "Each event should have a control that would have changed its outcome."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "A group with a government sponsor and long-term goals is called:",
+   "options": [
+    "Hacktivist",
+    "APT",
+    "Script kiddie",
+    "Insider"
+   ],
+   "a": 1,
+   "why": "APT describes advanced persistent threats, typically state-backed."
+  },
+  {
+   "q": "Which attack tries few passwords across many accounts?",
+   "options": [
+    "Password spraying",
+    "Brute force",
+    "SQL injection",
+    "Smurf"
+   ],
+   "a": 0,
+   "why": "Spraying avoids lockouts by limiting attempts per account."
+  },
+  {
+   "q": "A worm differs from a virus because it:",
+   "options": [
+    "Needs a host file",
+    "Cannot cause damage",
+    "Only affects phones",
+    "Spreads without user action"
+   ],
+   "a": 3,
+   "why": "Worms self-propagate over networks."
+  },
+  {
+   "q": "Which indicates ransomware activity?",
+   "options": [
+    "One failed login",
+    "Normal DNS query",
+    "Patch install",
+    "Shadow copy deletion and mass file renames"
+   ],
+   "a": 3,
+   "why": "These are classic pre-encryption and encryption signs."
+  },
+  {
+   "q": "Double extortion adds which threat?",
+   "options": [
+    "DNS poisoning",
+    "Wi-Fi jamming",
+    "Publishing stolen data",
+    "Reformatting the disk"
+   ],
+   "a": 2,
+   "why": "Victims are pressured by leak threats."
+  },
+  {
+   "q": "What does beaconing look like in logs?",
+   "options": [
+    "Local print jobs",
+    "Regular interval connections of similar size",
+    "Random large downloads",
+    "One-time ping"
+   ],
+   "a": 1,
+   "why": "Regularity is the signature of check-ins."
+  },
+  {
+   "q": "DGAs are used to:",
+   "options": [
+    "Create many fallback C2 domains",
+    "Encrypt backups",
+    "Patch routers",
+    "Sign code"
+   ],
+   "a": 0,
+   "why": "Many generated domains make blocking harder."
+  },
+  {
+   "q": "WannaCry spread using:",
+   "options": [
+    "EternalBlue on SMBv1",
+    "Phishing only",
+    "USB only",
+    "Bluetooth"
+   ],
+   "a": 0,
+   "why": "It exploited the SMBv1 vulnerability."
+  },
+  {
+   "q": "The SolarWinds attack was:",
+   "options": [
+    "A DDoS",
+    "Credential stuffing",
+    "A hardware implant",
+    "A software supply chain attack"
+   ],
+   "a": 3,
+   "why": "A trojanized update reached customers."
+  },
+  {
+   "q": "Which control would have most helped at Colonial Pipeline?",
+   "options": [
+    "More DHCP leases",
+    "Wi-Fi 6",
+    "MFA on remote access",
+    "Bigger monitors"
+   ],
+   "a": 2,
+   "why": "A stolen VPN password would not be enough with MFA."
+  }
+ ]
+}

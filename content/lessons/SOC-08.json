@@ -1,0 +1,800 @@
+{
+ "code": "SOC-08",
+ "intro": "Phishing and Email Analysis shows how to investigate suspicious messages from the first report to final cleanup. You will trace message paths through headers, interpret SPF, DKIM and DMARC results, safely unwind URLs and redirect chains, examine attachments with static tools and sandboxes, and run a complete user-report workflow including search, purge and blocking. Email remains the most common intrusion path, so doing this quickly and consistently reduces real risk.",
+ "lessons": [
+  {
+   "title": "Email flow and header fields",
+   "why": "Phishing is the leading way in for attackers. Headers are the evidence trail that shows where a message really came from and whether the sender is who they claim.",
+   "sections": [
+    {
+     "h": "How email travels",
+     "p": [
+      "A sender's mail client submits a message to its mail server (MSA) over SMTP, usually port 587 with authentication. The server looks up the recipient domain's MX record in DNS and relays the message over SMTP port 25 to the destination mail transfer agent (MTA), possibly through gateways and filters. The final server stores it for the user, who reads it through IMAP, POP3 or a web client. Each server that handles the message adds a Received header at the top. Because of this stacking, the first hop is at the bottom of the header block and the last hop is at the top."
+     ]
+    },
+    {
+     "h": "Reading Received headers",
+     "p": [
+      "Trace the path bottom-up. Each Received line states which host received the message (by), from which host it claims to have come (from) and the connecting IP in brackets, plus a timestamp and protocol such as ESMTPS. The sending server's own claim in the from part can be forged, but the IP recorded by your own trusted server is reliable. Your reliability stops at the first server you control: lines below that boundary were written by outsiders and can be fabricated. Compare timestamps for odd delays or time zones that do not match the supposed origin."
+     ]
+    },
+    {
+     "h": "Sender identity fields",
+     "p": [
+      "Several fields describe the sender, and they can differ. The envelope sender is the MAIL FROM used in SMTP and recorded as Return-Path. The header From is the address displayed to the user. Reply-To tells the mail client where replies go, and scammers set it to an address they control. Message-ID is a unique identifier normally ending in the sending system's domain; a Message-ID domain that does not match the From domain, or a format from a bulk mailer, is a clue. X-Originating-IP, X-Mailer and User-Agent headers can add information but are easily forged."
+     ]
+    },
+    {
+     "h": "What mismatches mean",
+     "p": [
+      "A mismatch is a lead, not proof. Legitimate mailing platforms often send with a different Return-Path domain than the visible From. Concern rises when several mismatches line up: a display name claiming to be the CEO, a From address at a free mail domain, a Reply-To at a third domain, a Received chain from an unrelated country, and a first hop that is a residential address. Always read the full raw headers from the original message source rather than the summarized view, and save the message as an .eml file for evidence."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Raw headers (excerpt)",
+    "text": "Received: from mail.example.net (mail.example.net [198.51.100.25])\n  by mx.example.com with ESMTPS; Mon, 2 Mar 2026 08:12:41 +0000\nReceived: from [203.0.113.77] (unknown [203.0.113.77])\n  by mail.example.net with ESMTP; Mon, 2 Mar 2026 08:12:39 +0000\nReturn-Path: <bounce@mailer.example.net>\nFrom: \"Fake CEO\" <ceo@example.com>\nReply-To: <ceo.office@mail.example.org>"
+   },
+   "example": "A user reports an email from the apparent CEO asking for gift cards. The headers show the lowest Received line was created by 203.0.113.77, an unknown host, and the message was relayed through mail.example.net, whose own record is the trustworthy one. The Return-Path is bounce@mailer.example.net, which does not match example.com, and Reply-To points to mail.example.org. Three identity fields disagree, so the analyst treats it as spoofing and begins the report workflow.",
+   "terms": [
+    {
+     "term": "Received header",
+     "def": "A header added by each mail server recording the hop and time."
+    },
+    {
+     "term": "Return-Path",
+     "def": "The envelope sender address used for bounces."
+    },
+    {
+     "term": "Reply-To",
+     "def": "The address that replies are directed to, which can differ from From."
+    },
+    {
+     "term": "Message-ID",
+     "def": "A unique message identifier typically ending in the sender system's domain."
+    },
+    {
+     "term": "MX record",
+     "def": "A DNS record that names the mail servers for a domain."
+    }
+   ],
+   "check": [
+    {
+     "q": "In which order should Received headers be read to trace the path?",
+     "options": [
+      "Top to bottom to find the origin",
+      "Bottom to top",
+      "Alphabetically",
+      "Only the first"
+     ],
+     "a": 1,
+     "why": "The origin is at the bottom; the newest hop is at the top."
+    },
+    {
+     "q": "Which header displays the sender name most users see?",
+     "options": [
+      "Return-Path",
+      "From",
+      "Received",
+      "Message-ID"
+     ],
+     "a": 1,
+     "why": "The From header is shown in the mail client."
+    },
+    {
+     "q": "Which is the most reliable source for the connecting IP?",
+     "options": [
+      "The claimed from name in a forged Received line",
+      "The Received line added by your own trusted server",
+      "X-Mailer",
+      "The display name"
+     ],
+     "a": 1,
+     "why": "Your own server records the IP it actually saw."
+    },
+    {
+     "q": "A Reply-To at a different domain than From is",
+     "options": [
+      "Always malicious",
+      "A warning sign to weigh with other clues",
+      "Impossible",
+      "A DKIM result"
+     ],
+     "a": 1,
+     "why": "It is a common scam trick but also has legitimate uses."
+    }
+   ],
+   "recap": [
+    "Email passes through MSA and MTA hops, each adding Received headers.",
+    "Read Received lines bottom-up and trust only your own servers' entries.",
+    "Compare From, Return-Path, Reply-To and Message-ID for mismatches."
+   ]
+  },
+  {
+   "title": "SPF, DKIM and DMARC",
+   "why": "Email was built without sender verification. SPF, DKIM and DMARC add it, and their results are among the first things a phishing analyst reads.",
+   "sections": [
+    {
+     "h": "SPF",
+     "p": [
+      "Sender Policy Framework lets a domain publish, in a DNS TXT record, which servers may send mail for it. Example: v=spf1 ip4:192.0.2.0/24 include:_spf.example.net -all. The receiver checks the connecting IP against the record for the envelope domain (MAIL FROM or HELO). Results include pass, fail, softfail (~all), neutral and none. The qualifier -all means reject others, ~all means treat as suspicious. SPF has a limit of 10 DNS lookups, and it breaks on forwarding because the forwarder's IP is not in the original record. SPF authenticates the envelope domain, not the visible From."
+     ]
+    },
+    {
+     "h": "DKIM",
+     "p": [
+      "DomainKeys Identified Mail signs selected headers and the body with a private key. The signature appears in a DKIM-Signature header with fields d= (signing domain), s= (selector), h= (signed headers), bh= (body hash) and b= (signature). The receiver fetches the public key from DNS at selector._domainkey.d, for example sel1._domainkey.example.com, and verifies it. A pass means the message was signed by that domain and not altered in the signed parts. DKIM survives forwarding but not modifications such as mailing list footers, and an attacker can sign with their own domain."
+     ]
+    },
+    {
+     "h": "DMARC and alignment",
+     "p": [
+      "DMARC ties these together. It is published at _dmarc.example.com as a TXT record such as v=DMARC1; p=reject; rua=mailto:dmarc@example.com; adkim=s; aspf=r. DMARC passes if SPF or DKIM passes and the passing domain aligns with the header From domain (strict means exact match, relaxed allows the same organizational domain). The policy p= tells receivers what to do on failure: none (monitor), quarantine or reject. Reports in rua give owners visibility. Alignment closes the gap where a spoofer passes SPF for their own domain but shows another domain in From."
+     ]
+    },
+    {
+     "h": "Reading Authentication-Results",
+     "p": [
+      "The receiving server records its verdicts in the Authentication-Results header, for example spf=pass smtp.mailfrom=bounce.example.net; dkim=pass header.d=example.net; dmarc=fail header.from=example.com. This shows a message can pass SPF and DKIM for a sender domain yet fail DMARC because neither aligns with the visible From. Pass results do not mean the message is safe, since attackers register their own domains and authenticate them. Conversely, failures can result from misconfiguration. Use authentication as one strong signal alongside content, links and sender reputation."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Authentication-Results and DNS",
+    "text": "Authentication-Results: mx.example.com;\n spf=pass smtp.mailfrom=bounce@mailer.example.net;\n dkim=pass header.d=mailer.example.net;\n dmarc=fail (p=reject) header.from=example.com\n_dmarc.example.com TXT \"v=DMARC1; p=reject; rua=mailto:dmarc@example.com\"\nexample.com TXT \"v=spf1 ip4:192.0.2.0/24 -all\""
+   },
+   "example": "A message shows From: ceo@example.com. SPF passes for mailer.example.net and DKIM passes with d=mailer.example.net, but DMARC fails because neither domain aligns with example.com, and example.com publishes p=reject. The analyst concludes the sender is using a third-party service to impersonate the domain; a correctly enforcing receiver would have rejected it, so the analyst also checks why this gateway delivered it.",
+   "terms": [
+    {
+     "term": "SPF",
+     "def": "A DNS-published list of servers allowed to send for a domain."
+    },
+    {
+     "term": "DKIM",
+     "def": "A cryptographic signature on email verified with a public key in DNS."
+    },
+    {
+     "term": "DMARC",
+     "def": "A policy layer requiring SPF or DKIM to pass with alignment to the From domain."
+    },
+    {
+     "term": "Alignment",
+     "def": "A match between the authenticated domain and the visible From domain."
+    },
+    {
+     "term": "Selector",
+     "def": "A DKIM label that identifies which public key to use."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which record type holds SPF and DMARC policies?",
+     "options": [
+      "MX",
+      "TXT",
+      "PTR",
+      "SOA"
+     ],
+     "a": 1,
+     "why": "Both are published as TXT records."
+    },
+    {
+     "q": "DMARC passes when",
+     "options": [
+      "Any header is present",
+      "SPF or DKIM passes and the domain aligns with From",
+      "The message is encrypted",
+      "TTL is low"
+     ],
+     "a": 1,
+     "why": "A pass requires authentication plus alignment with the From domain."
+    },
+    {
+     "q": "What does p=reject instruct receivers to do?",
+     "options": [
+      "Monitor only",
+      "Reject messages that fail DMARC",
+      "Sign messages",
+      "Forward messages"
+     ],
+     "a": 1,
+     "why": "Reject tells receivers to refuse failing mail."
+    },
+    {
+     "q": "Why might forwarded mail fail SPF?",
+     "options": [
+      "The forwarder IP is not in the original domain's record",
+      "DKIM always breaks",
+      "DNS is offline",
+      "TLS is used"
+     ],
+     "a": 0,
+     "why": "The forwarder is the connecting IP, which the original SPF record does not list."
+    }
+   ],
+   "recap": [
+    "SPF checks sending IPs, DKIM checks signatures, DMARC requires alignment and sets policy.",
+    "Authentication-Results shows what your server decided.",
+    "Passing authentication does not prove a message is safe."
+   ]
+  },
+  {
+   "title": "URL analysis",
+   "why": "Most phishing ends with a link to a credential-harvesting page or malware download. Safe link analysis finds the true destination without risking your own system.",
+   "sections": [
+    {
+     "h": "Defanging and safe handling",
+     "p": [
+      "Never click a suspicious link from your normal machine. Defang URLs when copying them into tickets and chats: replace http with hxxp and dots with [.], for example hxxps://login[.]example[.]com/verify. Open or fetch links only in an isolated sandbox, a URL scanner such as urlscan.io, or a disposable VM, with no corporate credentials. Extract the real URL from the HTML source because the visible text of a link can differ from its href. Hover or inspect to compare the displayed address with the actual target."
+     ]
+    },
+    {
+     "h": "Anatomy and lookalikes",
+     "p": [
+      "Read a URL right to left from the first single slash: scheme, host, path, query. The registrable domain (for example example.com) is what matters, not subdomains, so login.example.com.attacker.example is on attacker.example. Lookalike domains use typos (examp1e.com), added words (example-support.com), a different TLD (example.co), or internationalized characters that resemble Latin letters (homograph attacks, shown as punycode starting xn--). Also watch for the @ character and for IP addresses in place of names. Brand names in paths or subdomains are decoration, not proof."
+     ]
+    },
+    {
+     "h": "Redirects and shorteners",
+     "p": [
+      "Attackers hide targets behind URL shorteners, open redirects on trusted sites, and multi-hop redirect chains. Follow the chain in a sandbox and record each hop, noting HTTP 301 or 302 Location headers, meta refresh tags and JavaScript redirects. Some pages check the visitor and show harmless content to scanners, so results can vary by geography, user agent or time. Landing pages that mimic a login portal, ask for a password and one-time code, or load assets from a cloned brand site are credential harvesters. Some kits proxy the real site and steal session cookies."
+     ]
+    },
+    {
+     "h": "Reputation and pivoting",
+     "p": [
+      "Check the URL and domain in reputation services such as VirusTotal, urlscan.io, Google Safe Browsing and your proxy's category. Examine WHOIS for domain age (days old is suspicious), the registrar, name servers, and the TLS certificate issuance time, often minutes before the campaign. A clean reputation does not clear a new domain. Pivot on the hosting IP and certificate to find sibling domains, and search proxy and DNS logs to see who in your organization visited. Block confirmed indicators at the proxy and DNS and submit the page to takedown channels."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Redirect chain (defanged)",
+    "text": "1. hxxps://bit[.]example/aB3x   301 ->\n2. hxxps://news[.]example[.]org/out?u=...   302 ->\n3. hxxps://login-example-secure[.]example[.]net/verify   200\nDomain age: 2 days  Cert issued: 3 hours ago\nPage: password + OTP form, posts to /collect.php"
+   },
+   "example": "A phishing email's button text says example.com/account but the href goes to a shortener. In a sandbox, the analyst follows three hops to login-example-secure.example.net, registered two days earlier, with a certificate issued hours ago. The page imitates the company's sign-in and posts credentials to /collect.php. She records each hop defanged, blocks the final domain, and searches proxy logs, finding two users who visited.",
+   "terms": [
+    {
+     "term": "Defang",
+     "def": "Modify a URL or IP so it cannot be clicked or resolved accidentally."
+    },
+    {
+     "term": "Homograph attack",
+     "def": "Using look-alike Unicode characters to imitate a domain."
+    },
+    {
+     "term": "Punycode",
+     "def": "An ASCII encoding of internationalized domain names beginning with xn--."
+    },
+    {
+     "term": "Open redirect",
+     "def": "A flaw that lets an attacker send users onward through a trusted site."
+    },
+    {
+     "term": "Credential harvesting",
+     "def": "Capturing usernames and passwords through a fake login page."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does hxxps://login[.]example[.]com demonstrate?",
+     "options": [
+      "Encryption",
+      "Defanging",
+      "Hashing",
+      "Redirecting"
+     ],
+     "a": 1,
+     "why": "Replacing parts of the URL prevents accidental clicks."
+    },
+    {
+     "q": "In login.example.com.attacker.example, the registrable domain is",
+     "options": [
+      "example.com",
+      "attacker.example",
+      "login.example.com",
+      "com"
+     ],
+     "a": 1,
+     "why": "The part before the final public suffix label defines the owner: attacker.example."
+    },
+    {
+     "q": "Which factor makes a domain suspicious?",
+     "options": [
+      "Registered two days ago with a new certificate",
+      "Registered ten years ago",
+      "Owned by a known brand",
+      "Hosted at a large CDN with long history"
+     ],
+     "a": 0,
+     "why": "Very new domains are common in phishing campaigns."
+    },
+    {
+     "q": "Why can a scanner see harmless content while users see a phish?",
+     "options": [
+      "Cloaking based on visitor characteristics",
+      "DNS is faster",
+      "TLS is stronger",
+      "It cannot happen"
+     ],
+     "a": 0,
+     "why": "Kits detect scanners and show benign pages to them."
+    }
+   ],
+   "recap": [
+    "Handle links safely: defang and use a sandbox.",
+    "Read the registrable domain and watch lookalikes and redirect chains.",
+    "Pivot on domain age, certificate and logs, then block."
+   ]
+  },
+  {
+   "title": "Attachment analysis and sandboxing",
+   "why": "Attachments deliver malware that executes on the endpoint. Safe, structured analysis tells you what a file does without infecting anything.",
+   "sections": [
+    {
+     "h": "Risky file types",
+     "p": [
+      "Executables (.exe, .scr), script files (.js, .vbs, .ps1, .hta), and Office documents with macros (.docm, .xlsm, and older OLE formats .doc and .xls) are classic. Since Microsoft blocks macros in files from the internet through the Mark-of-the-Web, attackers shifted to container formats: ISO and IMG disk images, ZIP and RAR archives, and Windows shortcut (.lnk) files that launch commands. HTML attachments create local phishing pages or smuggle payloads. PDFs may carry links. OneNote and password-protected archives are also seen. Double extensions such as invoice.pdf.exe and long spaces before the extension disguise the true type."
+     ]
+    },
+    {
+     "h": "Static analysis and hashing",
+     "p": [
+      "First calculate the SHA-256 hash with sha256sum and search it in VirusTotal or internal intelligence; an existing verdict saves time. Identify the true file type from magic bytes rather than the extension: MZ for Windows executables, PK for ZIP and modern Office, D0 CF 11 E0 for OLE documents, %PDF for PDF. Tools such as file, strings, oledump or olevba reveal macro code, auto-execute functions like AutoOpen and Document_Open, suspicious calls to Shell or CreateObject, and embedded URLs. For LNK files, inspect the target and arguments, which often hold a PowerShell command."
+     ]
+    },
+    {
+     "h": "Sandbox detonation",
+     "p": [
+      "A sandbox runs the file in an isolated virtual machine and records behavior: processes spawned, files and registry keys changed, network connections and DNS queries, screenshots and dropped files. The report usually gives a verdict or score and maps behavior to ATT&CK techniques. Look for macro-to-PowerShell chains, connections to rare hosts, persistence and credential access. Be aware of evasion: samples may sleep, check for virtual machines or user interaction, or need a password or specific document location. A clean report is not proof of safety, so combine it with static findings."
+     ]
+    },
+    {
+     "h": "Handling and response",
+     "p": [
+      "Handle samples only in an isolated analysis environment, never on a corporate laptop, and keep them in a password-protected archive, conventionally with the password infected. Record file name, size, hashes, sender, time and the sandbox report link. Extract indicators such as domains, IPs, mutexes and dropped file hashes and use them for hunting across email and endpoint data. If any user opened the attachment, check endpoint telemetry for the same behaviors and treat that host as potentially compromised. Share findings with your email security team to improve blocking rules."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Static triage (example)",
+    "text": "$ sha256sum invoice_Q1.docm\n0f1e...a9  invoice_Q1.docm\n$ file invoice_Q1.docm\nMicrosoft Word 2007+ document\n$ olevba invoice_Q1.docm\nAutoOpen  | Auto-execute\nShell     | Suspicious\nPowerShell| Suspicious\nURL: http://203.0.113.50/a.txt"
+   },
+   "example": "An attachment named invoice_Q1.pdf.exe arrives from an unknown sender. The analyst notes the double extension, confirms MZ magic bytes, hashes it and finds no prior reports. In a sandbox, the file spawns cmd.exe, creates a Run key for persistence and contacts 203.0.113.50 every minute. The verdict is malicious. She records the hash and IP, and searches the mail logs for other recipients of the same hash.",
+   "terms": [
+    {
+     "term": "Mark-of-the-Web",
+     "def": "A marker on files from the internet that triggers extra warnings and macro blocking."
+    },
+    {
+     "term": "Magic bytes",
+     "def": "The first bytes of a file that identify its true type."
+    },
+    {
+     "term": "Sandbox",
+     "def": "An isolated environment for running samples and observing behavior."
+    },
+    {
+     "term": "Macro",
+     "def": "Embedded code in an Office document that can run automatically."
+    },
+    {
+     "term": "Detonation",
+     "def": "Executing a sample in a sandbox to record what it does."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which bytes begin a Windows executable?",
+     "options": [
+      "MZ",
+      "PK",
+      "%PDF",
+      "GIF8"
+     ],
+     "a": 0,
+     "why": "MZ is the DOS and PE header signature."
+    },
+    {
+     "q": "Why do attackers use ISO or LNK files?",
+     "options": [
+      "They are smaller",
+      "They can bypass Mark-of-the-Web protections or launch commands",
+      "They are encrypted by default",
+      "They are faster"
+     ],
+     "a": 1,
+     "why": "Containers and shortcuts help evade macro and download warnings."
+    },
+    {
+     "q": "A clean sandbox report means",
+     "options": [
+      "The file is proven safe",
+      "Not necessarily; evasion is possible",
+      "The file is signed",
+      "Hash is unique"
+     ],
+     "a": 1,
+     "why": "Samples may delay or detect analysis environments."
+    },
+    {
+     "q": "Where should samples be analyzed?",
+     "options": [
+      "On a corporate laptop",
+      "In an isolated analysis environment",
+      "On a shared drive",
+      "On a phone"
+     ],
+     "a": 1,
+     "why": "Isolation protects the network and your devices."
+    }
+   ],
+   "recap": [
+    "Know risky types: macros, scripts, ISO, LNK, HTML and archives.",
+    "Hash, identify true type, then use static tools and a sandbox.",
+    "Extract indicators, hunt for other recipients and handle samples safely."
+   ]
+  },
+  {
+   "title": "User-report workflow",
+   "why": "Users are your best phishing sensor. A fast, repeatable response limits how many people click and trains staff to keep reporting.",
+   "sections": [
+    {
+     "h": "Intake and acknowledgment",
+     "p": [
+      "Reports arrive through a report button, a shared mailbox such as phish@example.com, or tickets. Acknowledge quickly so the user knows it was received, and ask them to leave the message alone unless it is already forwarded as an attachment. Forward as attachment (.eml) preserves headers, which inline forwarding destroys. Ask three questions: did you click, did you open an attachment, did you enter credentials. Triage by those answers, because a user who entered a password changes the situation from a nuisance to an incident that needs credential resets and sign-in review."
+     ]
+    },
+    {
+     "h": "Analysis and verdict",
+     "p": [
+      "Analyze the headers, authentication results, sender reputation, URLs and attachments using the methods learned. Choose a verdict: malicious phishing, malicious malware delivery, spam or marketing, simulated phishing from your own training program, or legitimate. Note the campaign indicators: sender address, subject, sending IP, URLs, domains and attachment hashes. Check whether the same message has been seen before and whether a threat intelligence report matches. Keep the analysis time boxed for commodity phish and escalate when targeted or when someone interacted with it."
+     ]
+    },
+    {
+     "h": "Scope, purge and block",
+     "p": [
+      "Search the mail system for the same sender, subject, attachment hash or URL to identify all recipients. Purge or quarantine the messages from all mailboxes using the platform's compliance search or a mail security tool, and record how many were removed. Block the sender domain, IP and URLs at the mail gateway, proxy and DNS, and add file hashes to the endpoint blocklist. Search proxy and DNS logs for clicks to find users who visited. For users who entered credentials, reset passwords, revoke sessions and tokens, and review mailbox rules and recent sign-ins for abuse."
+     ]
+    },
+    {
+     "h": "Close the loop and report",
+     "p": [
+      "Reply to the reporter with the verdict and thanks, which encourages more reports. Document the case: timeline, indicators, recipients, actions and outcome. Report phishing externally where useful: to the abused brand or hosting provider for takedown, to your national CERT, or to services such as the Anti-Phishing Working Group, and submit samples to your email security vendor. Feed indicators into threat intelligence and update detections or user training based on what slipped through. Measure time to respond, report rate and click rate to see whether the program is improving."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Case summary (example)",
+    "text": "Case 2026-0315  Reported by user: a.fake@example.com (.eml attached)\nVerdict: credential phish (fake document share)\nIOCs: hxxps://login-example-secure[.]example[.]net, sender no-reply@mailer.example.net\nRecipients found: 42  Purged: 42  Clicked: 3  Entered creds: 1\nActions: URL blocked, sender blocked, 1 password reset, sessions revoked"
+   },
+   "example": "A user forwards a suspicious document-share email as an attachment. Analysis shows a credential-harvesting link on a two-day-old domain. A mailbox search finds 42 recipients; all are purged. Proxy logs show three clicks, and one user admits entering their password. That account is reset, sessions are revoked and sign-in logs reviewed for unfamiliar logins. The domain and sender are blocked, and the reporter gets a thank-you reply with the verdict.",
+   "terms": [
+    {
+     "term": "Report button",
+     "def": "A mail client feature that sends a suspicious message to the SOC."
+    },
+    {
+     "term": "Purge",
+     "def": "Removing a malicious message from all recipient mailboxes."
+    },
+    {
+     "term": "Compliance search",
+     "def": "A mail platform function to find messages across mailboxes."
+    },
+    {
+     "term": "Session revocation",
+     "def": "Invalidating a user's active sign-in sessions and tokens."
+    },
+    {
+     "term": "Takedown",
+     "def": "A request to remove a malicious site or resource from the internet."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why ask users to forward the message as an attachment?",
+     "options": [
+      "It is faster",
+      "It preserves the original headers",
+      "It encrypts it",
+      "It removes links"
+     ],
+     "a": 1,
+     "why": "Inline forwarding loses the original header information."
+    },
+    {
+     "q": "What is the first question to ask a reporter?",
+     "options": [
+      "Their favorite color",
+      "Did you click, open an attachment or enter credentials",
+      "Their salary",
+      "Which phone they use"
+     ],
+     "a": 1,
+     "why": "Interaction determines severity and next steps."
+    },
+    {
+     "q": "After finding all recipients you should",
+     "options": [
+      "Ignore them",
+      "Purge the message and block indicators",
+      "Reply to attacker",
+      "Wait a week"
+     ],
+     "a": 1,
+     "why": "Purge and block to stop further exposure."
+    },
+    {
+     "q": "A user entered a password into the phish. What is required?",
+     "options": [
+      "Nothing",
+      "Password reset, session revocation and sign-in review",
+      "A new monitor",
+      "DNS change"
+     ],
+     "a": 1,
+     "why": "Stolen credentials must be invalidated and checked for abuse."
+    }
+   ],
+   "recap": [
+    "Acknowledge, collect the .eml and ask what the user did.",
+    "Analyze, scope across mailboxes, purge and block indicators.",
+    "Handle compromised accounts, reply to the user and document and report."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Trace the headers",
+   "sim": "log-viewer",
+   "scenario": "A user reported an email claiming to be from the CEO. The log viewer shows the raw headers in the order they appear in the file.",
+   "objective": "Order the Received headers, find the true originating IP and spot the mismatched Return-Path.",
+   "steps": [
+    {
+     "do": "Open the header view.",
+     "see": "Three Received lines shown top to bottom: R1 (by mx.example.com), R2 (by mail.example.net), R3 (from [203.0.113.77])."
+    },
+    {
+     "do": "Click Sort bottom-up.",
+     "see": "Order: R3 (08:12:39) -> R2 (08:12:39) -> R1 (08:12:41)."
+    },
+    {
+     "do": "Select R3.",
+     "see": "from [203.0.113.77] (unknown) by mail.example.net, ESMTP. IP is the first external hop."
+    },
+    {
+     "do": "Select R2, which your gateway recorded.",
+     "see": "mail.example.net [198.51.100.25] -> relayed to mx.example.com."
+    },
+    {
+     "do": "Open the identity fields.",
+     "see": "From: ceo@example.com / Return-Path: bounce@mailer.example.net / Reply-To: ceo.office@mail.example.org"
+    },
+    {
+     "do": "Flag the mismatches.",
+     "see": "Return-Path and Reply-To domains differ from From."
+    }
+   ],
+   "answer": "The originating IP is 203.0.113.77, the first hop recorded by mail.example.net. The Return-Path (mailer.example.net) and Reply-To (mail.example.org) do not match the From domain example.com, indicating spoofing or impersonation.",
+   "hint": "Read the bottom Received line first."
+  },
+  {
+   "title": "Read auth results",
+   "sim": "config-editor",
+   "scenario": "The gateway marked a message as failing authentication. The config editor shows the Authentication-Results header and a sample DNS zone file for example.com.",
+   "objective": "Interpret SPF, DKIM and DMARC lines and fix the failing SPF TXT record.",
+   "steps": [
+    {
+     "do": "Open the header.",
+     "see": "spf=fail smtp.mailfrom=example.com; dkim=none; dmarc=fail (p=reject) header.from=example.com; connecting IP 192.0.2.44"
+    },
+    {
+     "do": "Open the zone file.",
+     "see": "example.com TXT \"v=spf1 ip4:192.0.2.0/28 -all\""
+    },
+    {
+     "do": "Check whether 192.0.2.44 is covered.",
+     "see": "192.0.2.0/28 covers .0 to .15. 192.0.2.44 is NOT covered."
+    },
+    {
+     "do": "Edit the record to ip4:192.0.2.0/24 (the company's real mail subnet).",
+     "see": "Record updated: v=spf1 ip4:192.0.2.0/24 -all"
+    },
+    {
+     "do": "Run Validate.",
+     "see": "SPF syntax valid. Lookups: 0/10. 192.0.2.44 -> pass."
+    },
+    {
+     "do": "Review DKIM.",
+     "see": "dkim=none: message was not signed. Note for the mail team to enable signing."
+    }
+   ],
+   "answer": "SPF failed because the sending IP 192.0.2.44 was outside the published range 192.0.2.0/28; changing it to the correct 192.0.2.0/24 fixes SPF, and DMARC passes once SPF aligns. DKIM was not present and should also be enabled.",
+   "hint": "Check whether the connecting IP lies within the CIDR range in the record."
+  },
+  {
+   "title": "Analyze the URL",
+   "sim": "web-proxy",
+   "scenario": "The sandbox browser has loaded a link from a phishing email. The proxy view logs every hop. Domains are fictional.",
+   "objective": "Unwind the redirect chain, defang each hop and identify the credential harvesting page.",
+   "steps": [
+    {
+     "do": "Open the proxy log.",
+     "see": "Hop 1: http://bit.example/aB3x -> 301"
+    },
+    {
+     "do": "Next hop.",
+     "see": "Hop 2: https://news.example.org/out?u=... -> 302"
+    },
+    {
+     "do": "Next hop.",
+     "see": "Hop 3: https://login-example-secure.example.net/verify -> 200 (HTML)"
+    },
+    {
+     "do": "Defang using the tool.",
+     "see": "hxxp://bit[.]example/aB3x > hxxps://news[.]example[.]org/out > hxxps://login-example-secure[.]example[.]net/verify"
+    },
+    {
+     "do": "View the page source.",
+     "see": "Form with fields user, pass, otp; action=\"/collect.php\"; logo loaded from a cloned brand domain."
+    },
+    {
+     "do": "Run Domain Info.",
+     "see": "Registered 2 days ago; certificate issued 3 hours ago."
+    }
+   ],
+   "answer": "The final hop, hxxps://login-example-secure[.]example[.]net/verify, is the credential harvesting page. It asks for a password and one-time code, posts to /collect.php and sits on a two-day-old lookalike domain.",
+   "hint": "The last hop that serves a form is usually the harvester."
+  },
+  {
+   "title": "Phish response",
+   "sim": "scenario",
+   "scenario": "A reported email with a credential-phish link is waiting in the case queue. Walk through the workflow in the scenario simulator.",
+   "objective": "Work the report end to end: verdict, mailbox search, purge, indicator block and user reply.",
+   "steps": [
+    {
+     "do": "Choose Verdict.",
+     "see": "Options: spam, phish, legitimate, training simulation. Select phish."
+    },
+    {
+     "do": "Run mailbox search for sender and subject.",
+     "see": "42 messages found in 42 mailboxes."
+    },
+    {
+     "do": "Purge.",
+     "see": "42 messages moved to quarantine. Purge confirmed."
+    },
+    {
+     "do": "Block indicators.",
+     "see": "Sender, domain and URL added to gateway and proxy blocklists."
+    },
+    {
+     "do": "Check proxy logs for clicks.",
+     "see": "3 users visited. 1 submitted a POST to /collect.php."
+    },
+    {
+     "do": "Reset the compromised account.",
+     "see": "Password reset and sessions revoked for user a.fake."
+    },
+    {
+     "do": "Reply to the reporter.",
+     "see": "Thank-you message sent with the verdict."
+    }
+   ],
+   "answer": "Correct final state: verdict phish, 42 messages purged, indicators blocked, one compromised account reset with sessions revoked, other two users advised, and the reporter thanked with the case documented.",
+   "hint": "Always check who clicked, not only who received it."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which Received line is the earliest hop?",
+   "options": [
+    "The top line",
+    "The bottom line",
+    "The middle line always",
+    "The one with the longest text"
+   ],
+   "a": 1,
+   "why": "New headers are added on top so the origin is at the bottom."
+  },
+  {
+   "q": "Return-Path stores",
+   "options": [
+    "The envelope sender used for bounces",
+    "The display name",
+    "The subject",
+    "The signature"
+   ],
+   "a": 0,
+   "why": "Return-Path records the SMTP MAIL FROM address."
+  },
+  {
+   "q": "SPF verifies",
+   "options": [
+    "The body hash",
+    "Whether the sending IP is authorized for the envelope domain",
+    "The attachment",
+    "The TLS version"
+   ],
+   "a": 1,
+   "why": "SPF maps sending IPs to a domain's authorized list."
+  },
+  {
+   "q": "The DKIM public key is found at",
+   "options": [
+    "selector._domainkey.domain",
+    "_dmarc.domain",
+    "domain MX",
+    "domain A"
+   ],
+   "a": 0,
+   "why": "The selector forms the DNS name that holds the key."
+  },
+  {
+   "q": "DMARC alignment means",
+   "options": [
+    "Domain of SPF or DKIM matches the From domain",
+    "Message is encrypted",
+    "Header is long",
+    "DNS TTL is low"
+   ],
+   "a": 0,
+   "why": "Alignment ties authentication to the visible From domain."
+  },
+  {
+   "q": "The registrable domain of secure.login.example.com.attacker.example is",
+   "options": [
+    "attacker.example",
+    "example.com",
+    "login.example.com",
+    "secure.login"
+   ],
+   "a": 0,
+   "why": "Everything is a subdomain of attacker.example."
+  },
+  {
+   "q": "Which is a risky attachment type that avoids Mark-of-the-Web macro blocking?",
+   "options": [
+    "Plain text",
+    "ISO or LNK",
+    "PNG",
+    "CSV"
+   ],
+   "a": 1,
+   "why": "Containers and shortcuts are used as alternate delivery vectors."
+  },
+  {
+   "q": "Magic bytes D0 CF 11 E0 indicate",
+   "options": [
+    "PDF",
+    "OLE document such as legacy Office",
+    "ZIP",
+    "Executable"
+   ],
+   "a": 1,
+   "why": "That signature begins OLE compound files."
+  },
+  {
+   "q": "Best way to preserve headers of a reported email is",
+   "options": [
+    "Screenshot",
+    "Forward as attachment (.eml)",
+    "Copy the body",
+    "Print"
+   ],
+   "a": 1,
+   "why": "An .eml keeps full original headers."
+  },
+  {
+   "q": "After finding a click on a phish, you should",
+   "options": [
+    "Do nothing",
+    "Check whether credentials were entered and reset them if so",
+    "Delete the SOC",
+    "Disable email"
+   ],
+   "a": 1,
+   "why": "Click and credential submission determine response."
+  }
+ ]
+}

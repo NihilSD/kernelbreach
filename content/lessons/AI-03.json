@@ -1,0 +1,812 @@
+{
+ "code": "AI-03",
+ "intro": "AI systems have an attack surface that older security checklists miss. This module maps that surface from data collection to end users, shows how to adapt STRIDE and data flow diagrams for machine learning applications, and introduces the two reference taxonomies defenders use to share findings: MITRE ATLAS and the NIST adversarial machine learning taxonomy in AI 100-2. You finish by rating threats by attacker access, impact and likelihood so mitigations can be prioritized.",
+ "lessons": [
+  {
+   "title": "The AI attack surface",
+   "why": "You cannot defend what you have not listed, and an AI system has more entry points than a conventional application.",
+   "sections": [
+    {
+     "h": "Beyond the web application",
+     "p": [
+      "A conventional application has code, a database and an API. An AI system adds a data supply chain, a training process, model artifacts and a probabilistic component whose behavior depends on inputs in ways no one fully specified. The attack surface is every place an adversary can read, write or influence something that shapes model behavior or consumes model output. Listing these places is the first step of any assessment.",
+      "A useful way to list them is to follow the life cycle: data, training, artifact, deployment, inference, and the surrounding application."
+     ]
+    },
+    {
+     "h": "Data, training and artifacts",
+     "p": [
+      "Data collection and labeling accept input from scrapers, partners, users and annotators; any of them can inject poisoned samples or biased labels. The training environment holds compute, notebooks, credentials and datasets, and attacks there include stolen credentials, malicious dependencies and tampered jobs. Model artifacts such as weights, checkpoints and adapters are files that can be stolen, swapped or trojaned, and formats like Python pickle can execute code when loaded.",
+      "Registries and hubs, internal or public, are the distribution channel for those artifacts and need integrity checks."
+     ]
+    },
+    {
+     "h": "Serving, plugins and users",
+     "p": [
+      "At serving, the inference API accepts adversarial inputs, prompts and high-volume query sequences used for model extraction or membership inference. Output channels matter too: model text rendered in a browser or passed to a shell can become cross-site scripting or command injection. Plugins, tools and connectors extend the model's reach to email, files and databases, so a manipulated model becomes a privileged actor.",
+      "Users are part of the surface: they paste secrets into prompts, trust fabricated answers and can be targeted by AI-generated social engineering."
+     ]
+    },
+    {
+     "h": "Supporting infrastructure",
+     "p": [
+      "Do not forget ordinary infrastructure. GPU clusters, object storage buckets holding datasets, CI/CD runners that build model images, observability tools that log prompts, and vector databases that store embeddings all carry classic vulnerabilities such as exposed endpoints, weak IAM and unpatched software. Many real incidents in AI platforms were conventional misconfigurations, such as an open notebook server or a public bucket, rather than exotic attacks on models. Assess both layers together: the classical controls protect the foundations that the AI-specific controls assume."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Attack surface inventory (example)",
+    "text": "data      : web scrape, partner feed, annotators\ntraining  : notebooks, GPU nodes, CI runners\nartifacts : weights, adapters, registry\nserving   : /v1/chat API, rate limits, logs\nextension : plugins, MCP servers, vector DB\nhumans    : users, admins, reviewers"
+   },
+   "example": "A team builds a support chatbot on a hosted model with a RAG index of help pages and a tool that opens tickets. Their inventory lists: public wiki as a data source (poisoning), vector database (cross-tenant retrieval), chat API (injection, cost abuse), the ticket tool (excessive agency), logs containing chat text (privacy), and the vendor API key in the CI system (secret theft). Each item gets an owner and a control.",
+   "terms": [
+    {
+     "term": "Attack surface",
+     "def": "All points where an adversary can interact with or influence a system."
+    },
+    {
+     "term": "Model artifact",
+     "def": "A stored file such as weights, a checkpoint or an adapter."
+    },
+    {
+     "term": "Supply chain",
+     "def": "Third-party data, models, code and services a system depends on."
+    },
+    {
+     "term": "Plugin/tool",
+     "def": "An extension that lets a model act on external systems."
+    },
+    {
+     "term": "Inference API",
+     "def": "The interface through which clients query a deployed model."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which is part of the AI-specific attack surface?",
+     "options": [
+      "Training data sources",
+      "Only the web server",
+      "Only DNS",
+      "Printer firmware"
+     ],
+     "a": 0,
+     "why": "Data feeds shape the model."
+    },
+    {
+     "q": "Why are model files risky?",
+     "options": [
+      "Some formats can execute code when loaded",
+      "They are always encrypted",
+      "They have no owner",
+      "They are too small to scan"
+     ],
+     "a": 0,
+     "why": "Pickle deserialization can run code."
+    },
+    {
+     "q": "A plugin that sends email makes a manipulated model",
+     "options": [
+      "A privileged actor",
+      "Harmless",
+      "Offline",
+      "Immutable"
+     ],
+     "a": 0,
+     "why": "Tools extend impact."
+    },
+    {
+     "q": "Many real AI platform incidents stem from",
+     "options": [
+      "Ordinary misconfigurations",
+      "Only adversarial pixels",
+      "Quantum attacks",
+      "Tokenizer bugs"
+     ],
+     "a": 0,
+     "why": "Open notebooks and buckets are common causes."
+    }
+   ],
+   "recap": [
+    "Follow the life cycle: data, training, artifact, serving, plugins, users.",
+    "Every writable input to data or models is an attack point.",
+    "Assess classic infrastructure alongside model-specific risks."
+   ]
+  },
+  {
+   "title": "Threat modeling AI systems",
+   "why": "A structured model turns a vague worry about AI risk into a list of specific threats with owners and controls.",
+   "sections": [
+    {
+     "h": "Start with a data flow diagram",
+     "p": [
+      "Threat modeling begins with a data flow diagram (DFD). Draw external entities such as users and partners, processes such as the chat service and the training job, data stores such as the vector database and dataset bucket, and the flows between them. Then draw trust boundaries where data crosses between zones of different privilege: internet to API gateway, application to model provider, application to tools, data lake to training cluster.",
+      "Threats cluster at boundaries and on flows that cross them, so each crossing gets scrutiny."
+     ]
+    },
+    {
+     "h": "STRIDE applied to ML",
+     "p": [
+      "STRIDE gives six threat categories: Spoofing, Tampering, Repudiation, Information disclosure, Denial of service and Elevation of privilege. Applied to ML, tampering includes data poisoning, backdoored weights and prompt injection that alters behavior. Information disclosure includes model extraction, membership inference, training data leakage and system prompt leakage. Denial of service includes resource exhaustion and denial of wallet. Elevation of privilege includes an injected agent using tools beyond the user's rights.",
+      "Spoofing covers stolen API keys and impersonated data sources; repudiation covers missing logs of who changed a dataset."
+     ]
+    },
+    {
+     "h": "Adding model and data questions",
+     "p": [
+      "Extend the standard questions with AI-specific ones. Who can write to training or retrieval data? Can an attacker see model outputs, scores or logits? Are weights stored in a format that can run code? What happens if the model is confidently wrong or manipulated? Which tool actions can it trigger? What data enters prompts and where do prompts get logged?",
+      "Frameworks such as the OWASP LLM Top 10, MITRE ATLAS and NIST AI RMF supply checklists you can map threats onto, which improves coverage and gives stakeholders familiar vocabulary."
+     ]
+    },
+    {
+     "h": "Turning threats into actions",
+     "p": [
+      "For each threat record the affected asset, the entry point, the attacker, the potential impact, existing controls and the planned mitigation. Prioritize with likelihood and impact, assign an owner and a due date, and decide how you will test that the control works. Revisit the model when the architecture changes, for example when a new tool is added or a new data source is connected, because these are exactly the moments when the attack surface grows. A threat model that sits in a slide deck and is never updated provides little protection."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Threat table excerpt",
+    "text": "ID  Flow                  STRIDE  Threat                          Control\nT1  user -> chat API      T/E     Prompt injection hijacks tools  Tool allow-list, approval\nT2  wiki -> vector DB     T       Poisoned article retrieved      Source vetting, signing\nT3  chat API -> logs      I       PII stored in prompts           Redaction, retention limit\nT4  client -> chat API    D       Token flood, cost spike         Rate limit, quotas"
+   },
+   "example": "For the chatbot at example.com the DFD shows a boundary between the internet and the API gateway, another between the app and the hosted model provider, and a third between the app and the ticketing system. Applying STRIDE at the third boundary yields elevation of privilege: an injected prompt could cause ticket creation or modification with the bot's service account. The mitigation is a scoped token that can only create tickets in one queue.",
+   "terms": [
+    {
+     "term": "DFD",
+     "def": "Data flow diagram showing entities, processes, stores, flows and trust boundaries."
+    },
+    {
+     "term": "STRIDE",
+     "def": "Threat categories: spoofing, tampering, repudiation, information disclosure, denial of service, elevation of privilege."
+    },
+    {
+     "term": "Trust boundary",
+     "def": "A line where data moves between zones with different trust."
+    },
+    {
+     "term": "Mitigation",
+     "def": "A control that reduces the likelihood or impact of a threat."
+    },
+    {
+     "term": "Asset",
+     "def": "Something of value to protect, such as data, a model or a credential."
+    }
+   ],
+   "check": [
+    {
+     "q": "Where do threats concentrate on a DFD?",
+     "options": [
+      "At trust boundaries and flows crossing them",
+      "Only inside data stores",
+      "Only in the GPU",
+      "At the logo"
+     ],
+     "a": 0,
+     "why": "Boundary crossings are key review points."
+    },
+    {
+     "q": "Data poisoning maps to which STRIDE category?",
+     "options": [
+      "Tampering",
+      "Spoofing",
+      "Repudiation",
+      "Denial of service"
+     ],
+     "a": 0,
+     "why": "It alters data integrity."
+    },
+    {
+     "q": "Model extraction mainly maps to",
+     "options": [
+      "Information disclosure",
+      "Elevation of privilege",
+      "Spoofing",
+      "Repudiation"
+     ],
+     "a": 0,
+     "why": "The model's knowledge leaks through queries."
+    },
+    {
+     "q": "When should you revisit a threat model?",
+     "options": [
+      "When tools or data sources change",
+      "Never",
+      "Only after a breach",
+      "Only yearly by law"
+     ],
+     "a": 0,
+     "why": "Changes expand the attack surface."
+    }
+   ],
+   "recap": [
+    "Draw a DFD with trust boundaries before listing threats.",
+    "Apply STRIDE and add data, model and tool questions.",
+    "Record owner, control and test for every threat."
+   ]
+  },
+  {
+   "title": "MITRE ATLAS tactics and techniques",
+   "why": "ATLAS gives defenders a shared language and a structured way to describe how attacks against AI unfold.",
+   "sections": [
+    {
+     "h": "What ATLAS is",
+     "p": [
+      "MITRE ATLAS (Adversarial Threat Landscape for Artificial-Intelligence Systems) is a knowledge base of adversary tactics, techniques and real-world case studies for AI systems, modeled on MITRE ATT&CK. Tactics describe the attacker's goal at a stage, such as Reconnaissance or Exfiltration. Techniques describe how, and each has an ID with the prefix AML.T followed by digits, for example AML.T0051 for LLM Prompt Injection, with sub-techniques for direct and indirect forms. The matrix is updated over time, so confirm IDs against the current release."
+     ]
+    },
+    {
+     "h": "Walking the tactics",
+     "p": [
+      "The tactics run roughly in the order of an attack. Reconnaissance gathers information such as public papers and model details; Resource Development prepares data, accounts or tools; Initial Access gets a foothold, for instance through ML supply chain compromise or a prompt delivered to an application; ML Model Access obtains query access or the model itself; Execution runs attacker-controlled behavior; Persistence, Privilege Escalation and Defense Evasion keep and extend control.",
+      "Later tactics include Discovery, Collection, ML Attack Staging (crafting adversarial data, poisoning, backdooring), Exfiltration (for example through the inference API) and Impact such as denial of service or integrity damage."
+     ]
+    },
+    {
+     "h": "Mapping a case study",
+     "p": [
+      "To map an incident, narrate it as a timeline and tag each step. A researcher reads a vendor's public documentation (Reconnaissance), obtains API access (ML Model Access), crafts inputs that bypass a filter (Defense Evasion with a technique such as evading the model), and abuses a connected tool to leak data (Exfiltration). Each tag links to a technique page with mitigations and real case studies.",
+      "Typical IDs worth recognizing include AML.T0020 poison training data, AML.T0018 backdoor ML model, AML.T0043 craft adversarial data, AML.T0024 exfiltration via ML inference API and AML.T0054 LLM jailbreak."
+     ]
+    },
+    {
+     "h": "Using ATLAS in practice",
+     "p": [
+      "Use ATLAS in three ways. For threat modeling, walk the matrix and ask which techniques apply to your system. For detection, link each technique to telemetry you collect and to a detection rule. For reporting, cite technique IDs in findings and incident reports so that other teams can look up mitigations and compare with public cases. Pair ATLAS with ATT&CK, since most AI incidents also involve conventional techniques such as credential theft and cloud misconfiguration. Treat ATLAS as a vocabulary and checklist, not a guarantee of completeness."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Mapping notes (example)",
+    "text": "Step 1  recon: read public API docs            -> Reconnaissance\nStep 2  obtain trial API key                  -> ML Model Access (AML.T0040)\nStep 3  repeated queries to clone behavior    -> Exfiltration (AML.T0024)\nStep 4  prompt override of system rules       -> AML.T0051 LLM Prompt Injection"
+   },
+   "example": "An internal red team report states: 'we got the bot to leak customer addresses'. Rewritten with ATLAS, it reads: Initial Access via a crafted document in the knowledge base (AML.T0051.001, indirect prompt injection), Execution through the bot's search tool, and Exfiltration by rendering a link containing the data. The mapped technique pages suggest mitigations: input filtering, output filtering, tool restrictions and monitoring.",
+   "terms": [
+    {
+     "term": "ATLAS",
+     "def": "MITRE knowledge base of adversary tactics and techniques against AI systems."
+    },
+    {
+     "term": "Tactic",
+     "def": "The attacker's goal at a stage of an attack."
+    },
+    {
+     "term": "Technique",
+     "def": "A method used to achieve a tactic, identified by an ID such as AML.T0051."
+    },
+    {
+     "term": "Case study",
+     "def": "A documented real-world or demonstrated attack mapped to techniques."
+    },
+    {
+     "term": "ATT&CK",
+     "def": "MITRE's matrix of conventional enterprise adversary behavior."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does AML.T0051 identify?",
+     "options": [
+      "LLM Prompt Injection",
+      "Model signing",
+      "Disk encryption",
+      "Rate limiting"
+     ],
+     "a": 0,
+     "why": "It is the prompt injection technique."
+    },
+    {
+     "q": "ATLAS is modeled on",
+     "options": [
+      "MITRE ATT&CK",
+      "PCI DSS",
+      "ISO 9001",
+      "OWASP ASVS"
+     ],
+     "a": 0,
+     "why": "It follows the ATT&CK structure."
+    },
+    {
+     "q": "Which is a tactic, not a technique?",
+     "options": [
+      "Exfiltration",
+      "AML.T0020",
+      "AML.T0018",
+      "AML.T0043"
+     ],
+     "a": 0,
+     "why": "Tactics are goals; techniques have T-IDs."
+    },
+    {
+     "q": "Why cite technique IDs in reports?",
+     "options": [
+      "Shared vocabulary and linked mitigations",
+      "They encrypt reports",
+      "They replace evidence",
+      "They set severity"
+     ],
+     "a": 0,
+     "why": "IDs let teams look up mitigations and cases."
+    }
+   ],
+   "recap": [
+    "ATLAS lists AI-specific tactics, techniques and case studies.",
+    "Techniques have AML.T IDs; tactics are attacker goals.",
+    "Use it for modeling, detection mapping and reporting, together with ATT&CK."
+   ]
+  },
+  {
+   "title": "NIST adversarial ML taxonomy",
+   "why": "NIST AI 100-2 classifies attacks by goal, capability and knowledge, which helps you choose defenses by class.",
+   "sections": [
+    {
+     "h": "What the document provides",
+     "p": [
+      "NIST AI 100-2, Adversarial Machine Learning: A Taxonomy and Terminology of Attacks and Mitigations, is a US government publication that organizes attacks into a consistent structure and defines the terms. The structure uses three axes: the attacker's goal or objective, the attacker's capabilities and the attacker's knowledge of the system. It is updated periodically, and recent editions add a separate treatment of generative AI. Using it gives auditors and vendors a common vocabulary."
+     ]
+    },
+    {
+     "h": "Attack classes",
+     "p": [
+      "For predictive AI the main classes are evasion, poisoning and privacy attacks. Evasion changes inputs at inference time so the model errs, as with adversarial examples. Poisoning corrupts training data or the model, and includes availability, targeted and backdoor variants. Privacy attacks extract information about training data or the model, such as membership inference, reconstruction and model extraction.",
+      "For generative AI the taxonomy adds abuse violations and prompt-injection-style attacks, including direct and indirect injection, where the model is made to produce harmful content or take unintended actions."
+     ]
+    },
+    {
+     "h": "Goals, capabilities and knowledge",
+     "p": [
+      "Attacker goals are described by the property violated: availability breakdown (the system stops working), integrity violation (wrong outputs, targeted or untargeted), privacy compromise (disclosure of data or model details) and, for generative AI, abuse. Capabilities describe what the attacker controls: training data, the model, testing data, labels, source code or only queries. Knowledge ranges from white-box (full access to architecture and weights) through gray-box (partial) to black-box (queries only).",
+      "These axes determine feasibility: a black-box attacker with only queries has fewer options than an insider with data access."
+     ]
+    },
+    {
+     "h": "Using the taxonomy",
+     "p": [
+      "Classify each finding by class, goal and attacker knowledge. A finding such as 'repeated queries reconstruct the classifier's decision boundary' becomes a privacy attack, model extraction, black-box with query access. That classification guides controls: rate limiting and output minimization for extraction, data vetting for poisoning, adversarial training and input checks for evasion. Pairing NIST classes with ATLAS techniques and OWASP LLM risks in the same report gives each audience a framing it recognizes while keeping a single underlying finding."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Classification card",
+    "text": "finding : repeated queries clone classifier\nclass   : privacy attack (model extraction)\ngoal    : privacy compromise\nknowledge: black-box, query access only\ncontrol : rate limits, output minimization, monitoring"
+   },
+   "example": "Three summaries arrive. A: a sticker on a stop sign makes a vision model misread it. B: ten thousand mislabeled samples were added to a public dataset. C: an attacker asks a model to repeat random text and recovers a stranger's email address. Classified: A is evasion (integrity, test-time input control), B is poisoning (integrity, training data control), C is a privacy attack on training data memorization.",
+   "terms": [
+    {
+     "term": "Evasion",
+     "def": "Altering inputs at inference time to cause misclassification."
+    },
+    {
+     "term": "Poisoning",
+     "def": "Corrupting training data or the model to alter behavior."
+    },
+    {
+     "term": "Privacy attack",
+     "def": "An attack that reveals training data or model information."
+    },
+    {
+     "term": "White-box",
+     "def": "Attacker knows the architecture and weights."
+    },
+    {
+     "term": "Black-box",
+     "def": "Attacker can only query the model."
+    }
+   ],
+   "check": [
+    {
+     "q": "Altering an input at test time to fool a model is",
+     "options": [
+      "Evasion",
+      "Poisoning",
+      "Extraction by labels",
+      "Repudiation"
+     ],
+     "a": 0,
+     "why": "Evasion happens at inference time."
+    },
+    {
+     "q": "Which attacker knowledge level has only query access?",
+     "options": [
+      "Black-box",
+      "White-box",
+      "Gray-box with weights",
+      "Insider"
+     ],
+     "a": 0,
+     "why": "Black-box means queries only."
+    },
+    {
+     "q": "Membership inference belongs to",
+     "options": [
+      "Privacy attacks",
+      "Evasion",
+      "Availability poisoning",
+      "Spoofing"
+     ],
+     "a": 0,
+     "why": "It reveals training membership."
+    },
+    {
+     "q": "The taxonomy's three axes are goal, capability and",
+     "options": [
+      "Knowledge",
+      "Price",
+      "Region",
+      "Color"
+     ],
+     "a": 0,
+     "why": "Attacker knowledge completes the set."
+    }
+   ],
+   "recap": [
+    "NIST AI 100-2 classes: evasion, poisoning, privacy, and abuse for generative AI.",
+    "Classify by goal, capability and knowledge.",
+    "Class guides control choice."
+   ]
+  },
+  {
+   "title": "Attacker capabilities and risk rating",
+   "why": "Rating threats by who can exploit them and how badly prevents wasted effort on unlikely attacks.",
+   "sections": [
+    {
+     "h": "Access levels",
+     "p": [
+      "Attacker access is the biggest driver of feasibility. A white-box attacker has the weights and architecture, so can compute gradients and craft precise adversarial inputs; this is realistic after a model leak or for open-weight models. A gray-box attacker knows something, such as the model family, the training data source or the output scores. A black-box attacker only sends inputs and sees outputs, which is the typical position of an internet user, though research shows many white-box results transfer to black-box targets.",
+      "Also consider insider access to training data, the registry or logs, which bypasses many technical defenses."
+     ]
+    },
+    {
+     "h": "Likelihood and impact",
+     "p": [
+      "Rate each threat on likelihood and impact. Likelihood depends on attacker access needed, skill, cost, how visible the attack is and whether public tools exist. Impact considers confidentiality, integrity, availability, safety, financial and legal consequences. A simple 1-5 scale for each and a product gives a score; qualitative High, Medium, Low also works if applied consistently. Document assumptions, because a threat that is low likelihood with query-only access may become high if the model weights are published."
+     ]
+    },
+    {
+     "h": "Choosing mitigations",
+     "p": [
+      "Match mitigations to the scenario and layer them. For black-box abuse: authentication, rate limits, input and output filtering, monitoring and minimizing returned detail. For insider and supply chain threats: access control, separation of duties, signing, provenance and review. For integrity threats: adversarial testing, robust training and human review of high-impact decisions. For impact limiting: least-privilege tools and approval gates, because you can rarely guarantee the model is unmanipulable.",
+      "Accept, transfer or avoid residual risk explicitly, with an owner's sign-off."
+     ]
+    },
+    {
+     "h": "Keeping the ranking honest",
+     "p": [
+      "Risk ratings decay. New public attack tools, a new model release or a new connector can change likelihood overnight. Tie the ranking to evidence: red team results, attack success rates, alert counts and incident history. Review the top items regularly and record why a score changed. Avoid two common errors: rating everything High, which hides priorities, and dismissing exotic-sounding attacks without checking whether the required access is actually available. A short written rationale next to each score makes the process auditable and easier to defend to stakeholders."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Risk register excerpt",
+    "text": "ID  Threat                 Access    L  I  Score  Action\nT1  Prompt injection->tool black-box  4  4  16     Scope tools, approval\nT2  Weights leak           insider   2  5  10     Access control, DLP\nT3  Query extraction       black-box 3  3   9     Rate limit, monitor\nT4  Poisoned wiki page     gray-box  3  4  12     Source vetting"
+   },
+   "example": "A fraud team scores two threats. Threat A: an external user crafts transactions that evade the fraud model, black-box, likelihood 4, impact 4, score 16. Threat B: a stolen checkpoint enables white-box attacks, requires insider or cloud compromise, likelihood 2, impact 5, score 10. They fund adversarial testing and rate limits first, and put bucket access hardening and checkpoint encryption on the next sprint.",
+   "terms": [
+    {
+     "term": "Likelihood",
+     "def": "The chance a threat is realized given attacker access and skill."
+    },
+    {
+     "term": "Impact",
+     "def": "The consequence if the threat succeeds."
+    },
+    {
+     "term": "Residual risk",
+     "def": "Risk remaining after controls."
+    },
+    {
+     "term": "Transferability",
+     "def": "Adversarial inputs crafted on one model often fool another."
+    },
+    {
+     "term": "Risk register",
+     "def": "A maintained list of threats with ratings, owners and actions."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which gives an attacker the most capability?",
+     "options": [
+      "White-box access",
+      "Black-box access",
+      "No access",
+      "Read-only docs"
+     ],
+     "a": 0,
+     "why": "Full model knowledge enables precise attacks."
+    },
+    {
+     "q": "How is a simple risk score computed here?",
+     "options": [
+      "Likelihood times impact",
+      "Tokens divided by cost",
+      "Epochs plus layers",
+      "Port number"
+     ],
+     "a": 0,
+     "why": "A common simple method."
+    },
+    {
+     "q": "Why can black-box attackers still succeed?",
+     "options": [
+      "Attacks often transfer between models",
+      "They get the weights",
+      "Models are always public",
+      "Tokenizers leak keys"
+     ],
+     "a": 0,
+     "why": "Transferability helps."
+    },
+    {
+     "q": "A good practice for risk ratings is to",
+     "options": [
+      "Tie them to evidence and review regularly",
+      "Rate everything High",
+      "Never change them",
+      "Hide the rationale"
+     ],
+     "a": 0,
+     "why": "Evidence keeps ranking honest."
+    }
+   ],
+   "recap": [
+    "Access level strongly shapes feasible attacks.",
+    "Score likelihood and impact consistently and record why.",
+    "Layer mitigations and review as the system changes."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Threat model a chatbot",
+   "sim": "diagram-builder",
+   "scenario": "The fictional support chatbot at example.com has a web widget, API gateway, orchestrator, hosted model, vector database, ticketing tool and a log store. You must draw it and annotate threats.",
+   "objective": "Draw a data flow diagram for a support chatbot and annotate trust boundaries and AI-specific threats.",
+   "steps": [
+    {
+     "do": "Place External User, Gateway, Orchestrator, Model API, Vector DB, Ticket Tool, Log Store.",
+     "see": "Seven nodes on canvas."
+    },
+    {
+     "do": "Connect the flows.",
+     "see": "Flows: User->Gateway->Orchestrator; Orchestrator->Model, Vector DB, Ticket Tool, Log Store."
+    },
+    {
+     "do": "Draw boundary 1 between User and Gateway.",
+     "see": "Boundary label: Internet/Application."
+    },
+    {
+     "do": "Draw boundary 2 around Model API and boundary 3 around Ticket Tool.",
+     "see": "Boundaries: third-party provider, internal system."
+    },
+    {
+     "do": "Tag threats from the palette on flows.",
+     "see": "Tags accepted: Prompt injection on Orchestrator->Ticket Tool; Cross-tenant retrieval on Vector DB; PII in logs on Log Store."
+    },
+    {
+     "do": "Press Check.",
+     "see": "Feedback: 3 of 4 expected threats found. Missing: token flood (DoS) on Gateway."
+    }
+   ],
+   "answer": "Boundaries: internet to gateway, application to hosted model, application to ticket tool. Threats: prompt injection leading to unauthorized ticket actions, cross-tenant retrieval from the vector DB, sensitive data in logs, and denial of wallet through token floods at the gateway.",
+   "hint": "Walk each arrow that crosses a boundary."
+  },
+  {
+   "title": "Map an incident to ATLAS",
+   "sim": "scenario",
+   "scenario": "Fictional incident at Example Corp: an outsider studied the vendor's public docs, created a trial account, sent thousands of structured queries to copy the classifier, then used the copy to craft inputs that evaded the production fraud model.",
+   "objective": "Select the matching ATLAS tactics and technique IDs in order.",
+   "steps": [
+    {
+     "do": "Read the incident narrative.",
+     "see": "Four phases listed."
+    },
+    {
+     "do": "Select tactic for reading public docs.",
+     "see": "Reconnaissance (AML.T0000 style: search open technical sources)."
+    },
+    {
+     "do": "Select tactic and technique for trial account queries.",
+     "see": "ML Model Access: AML.T0040 ML Model Inference API Access."
+    },
+    {
+     "do": "Select staging step for copying the model.",
+     "see": "ML Attack Staging: create proxy ML model."
+    },
+    {
+     "do": "Select the final step.",
+     "see": "Defense Evasion: AML.T0015 Evade ML Model with crafted data (AML.T0043)."
+    },
+    {
+     "do": "Submit sequence.",
+     "see": "Order accepted: Recon -> Model Access -> Attack Staging -> Defense Evasion."
+    }
+   ],
+   "answer": "Sequence: Reconnaissance, ML Model Access (AML.T0040), ML Attack Staging with a proxy model trained from query results, then Defense Evasion using crafted adversarial data (AML.T0043 / AML.T0015). Mitigations: rate limiting, query monitoring, limited output detail.",
+   "hint": "Order the steps as the attacker performed them."
+  },
+  {
+   "title": "Classify attacks by NIST taxonomy",
+   "sim": "scenario",
+   "scenario": "You receive ten fictional attack summaries from a vendor tracker and must classify each by NIST AI 100-2 class and attacker knowledge.",
+   "objective": "Sort ten attack summaries into evasion, poisoning, privacy or abuse and name attacker knowledge level.",
+   "steps": [
+    {
+     "do": "Item 1: crafted pixels make a classifier misread a sign (weights known).",
+     "see": "Evasion, white-box."
+    },
+    {
+     "do": "Item 2: mislabeled samples added to a public dataset.",
+     "see": "Poisoning, training data control."
+    },
+    {
+     "do": "Item 3: queries reveal whether a record was in training.",
+     "see": "Privacy (membership inference), black-box."
+    },
+    {
+     "do": "Item 4: trigger phrase flips a sentiment model after fine-tuning.",
+     "see": "Poisoning (backdoor), model/data control."
+    },
+    {
+     "do": "Item 5: web page tells a chatbot to leak its chat history.",
+     "see": "Abuse / indirect prompt injection, black-box."
+    },
+    {
+     "do": "Item 6: query sequences clone a model.",
+     "see": "Privacy (extraction), black-box."
+    },
+    {
+     "do": "Submit remaining items 7-10 classification.",
+     "see": "Score 10/10 after corrections; hint shown for item 8."
+    }
+   ],
+   "answer": "Evasion: 1 and similar test-time input tricks. Poisoning: 2 and 4. Privacy: 3 and 6. Abuse or injection: 5. Knowledge: white-box for item 1, black-box for query-only attacks, and training data or model control for poisoning.",
+   "hint": "Ask when in the life cycle the attacker acts and what they control."
+  },
+  {
+   "title": "Triage AI findings by risk",
+   "sim": "siem",
+   "scenario": "A fictional inference gateway at example.com raises six alerts. Use the threat model weights (likelihood and impact 1-5) to rank them.",
+   "objective": "Review alerts from an inference gateway and rank them by likelihood and impact.",
+   "steps": [
+    {
+     "do": "Open the alert queue.",
+     "see": "6 alerts: A1 token flood, A2 prompt override attempts, A3 key used from new country, A4 verbose error, A5 systematic queries from one key, A6 admin login failure."
+    },
+    {
+     "do": "Open A5 details.",
+     "see": "12,400 queries in 2h, near-identical, key=k-203, source 198.51.100.7."
+    },
+    {
+     "do": "Open A3 details.",
+     "see": "Key k-118 used from 203.0.113.9; previous region different."
+    },
+    {
+     "do": "Score A5 and A3.",
+     "see": "A5 L4 I3 = 12; A3 L3 I4 = 12."
+    },
+    {
+     "do": "Score A2, A1, A4, A6.",
+     "see": "A2 L5 I2 = 10; A1 L3 I3 = 9; A4 L2 I1 = 2; A6 L2 I2 = 4."
+    },
+    {
+     "do": "Submit ranking.",
+     "see": "Order accepted: A5, A3, A2, A1, A6, A4."
+    }
+   ],
+   "answer": "Rank: A5 and A3 first (suspected extraction and possible stolen key, 12 each), then A2 (10), A1 (9), A6 (4), A4 (2). Revoke or rate-limit k-203 and verify k-118's owner.",
+   "hint": "Multiply likelihood by impact and break ties by access to sensitive assets."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which is the best first step in assessing an AI system?",
+   "options": [
+    "List the attack surface across the life cycle",
+    "Pick the largest model",
+    "Disable logging",
+    "Only scan ports"
+   ],
+   "a": 0,
+   "why": "Inventory comes first."
+  },
+  {
+   "q": "Where do threats concentrate on a DFD?",
+   "options": [
+    "At trust boundaries",
+    "Inside comments",
+    "At the title",
+    "In unit tests"
+   ],
+   "a": 0,
+   "why": "Boundary crossings need review."
+  },
+  {
+   "q": "Backdoored weights map to which STRIDE category?",
+   "options": [
+    "Tampering",
+    "Spoofing",
+    "Repudiation",
+    "Denial of service"
+   ],
+   "a": 0,
+   "why": "They alter integrity."
+  },
+  {
+   "q": "AML.T0051 refers to",
+   "options": [
+    "LLM Prompt Injection",
+    "Model hashing",
+    "Dataset labeling",
+    "Container escape"
+   ],
+   "a": 0,
+   "why": "This is the prompt injection technique."
+  },
+  {
+   "q": "ATLAS tactics describe",
+   "options": [
+    "The attacker's goal at a stage",
+    "A file format",
+    "A cloud region",
+    "A license"
+   ],
+   "a": 0,
+   "why": "Tactics are goals."
+  },
+  {
+   "q": "Evasion attacks happen at",
+   "options": [
+    "Inference time",
+    "Dataset collection only",
+    "Compile time",
+    "Label review"
+   ],
+   "a": 0,
+   "why": "They modify test-time inputs."
+  },
+  {
+   "q": "NIST AI 100-2 attacker knowledge levels include",
+   "options": [
+    "White-box, gray-box, black-box",
+    "Red, blue, green",
+    "Low, medium, none",
+    "Public, private"
+   ],
+   "a": 0,
+   "why": "Those describe model knowledge."
+  },
+  {
+   "q": "Query-only extraction of a classifier is",
+   "options": [
+    "A black-box privacy attack",
+    "A white-box evasion",
+    "A training poisoning",
+    "A repudiation"
+   ],
+   "a": 0,
+   "why": "Only queries are needed."
+  },
+  {
+   "q": "Which control best fits black-box extraction?",
+   "options": [
+    "Rate limiting and output minimization",
+    "Longer epochs",
+    "Dataset hashing only",
+    "Lower learning rate"
+   ],
+   "a": 0,
+   "why": "Limits queries and information."
+  },
+  {
+   "q": "A risk score of likelihood 4 times impact 4 is",
+   "options": [
+    "16",
+    "8",
+    "4",
+    "20"
+   ],
+   "a": 0,
+   "why": "4*4=16."
+  }
+ ]
+}

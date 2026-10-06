@@ -1,0 +1,904 @@
+{
+ "code": "SOC-02",
+ "intro": "Logs are the raw evidence of what happened on systems and networks. This module teaches you to classify log sources and know what each can prove, decode syslog, JSON and CEF records, parse and normalize fields, write regular expressions to extract addresses, users and status codes, and correlate events from several sources into one timeline. These skills are used in nearly every investigation, and the later SIEM, Windows, Linux and network modules all depend on them.",
+ "lessons": [
+  {
+   "title": "Log sources and types",
+   "why": "Choosing the right log for a question is the first skill of an investigation; the wrong log gives a confident but empty answer.",
+   "sections": [
+    {
+     "h": "Families of log sources",
+     "p": [
+      "Logs come from several families. Operating system logs record logons, service changes and process activity: Windows Event Log and Linux syslog, auth.log and auditd. Application logs, such as web servers, databases and email servers, record requests and errors. Network device logs from firewalls, routers, proxies and DNS servers record connections, denies and lookups. Authentication logs from directories and identity providers record who signed in, from where and whether multi-factor authentication was used. Cloud logs such as AWS CloudTrail and Microsoft Entra ID sign-in logs record API calls and sign-ins for services you do not physically own."
+     ]
+    },
+    {
+     "h": "What each log can prove",
+     "p": [
+      "Each log proves a limited set of facts. A firewall log shows that a connection was allowed or denied between two addresses and ports, but not what data moved. A web access log shows the request line, status and size, but not the request body for a POST. An authentication log shows a success or failure and a source, but not what the user did afterward. Process creation logs show what ran and with which command line, but not necessarily what the process did on the network. Knowing the limit prevents overclaiming, for example saying data was stolen only because a connection was allowed."
+     ]
+    },
+    {
+     "h": "Quality factors: completeness, time and retention",
+     "p": [
+      "Good evidence needs three qualities. Completeness: is every relevant host sending logs, and are verbose settings enabled? Accurate time: logs need synchronized clocks through NTP and a clear time zone, ideally UTC, otherwise events from different systems cannot be ordered. Retention: logs must be kept long enough, often 90 days online and a year or more archived, because intrusions are frequently discovered weeks after they began. Attackers know this and may clear logs, so forward copies to a central collector quickly, where they cannot be altered by someone controlling the original host."
+     ]
+    },
+    {
+     "h": "Mapping questions to sources",
+     "p": [
+      "Practise by turning questions into sources. Who logged in to the server? Authentication logs. Which pages did the scanner request? Web access logs. Did the laptop contact the suspicious domain? DNS or proxy logs. What launched the script? Process creation or EDR. Was the policy changed? Audit and configuration change logs. Often more than one source is needed to cross-check. When a log you need does not exist, write that down as a visibility gap and recommend enabling it, since a gap found during an incident is a gap that remains until someone fixes it."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Source to question",
+    "text": "Source          Answers\nFirewall        Was traffic allowed/denied?\nWeb access      Which URLs, status, client?\nAuth/AD         Who signed in, success/fail?\nDNS/proxy       Which domain was requested?\nProcess/EDR     What ran, parent, command line?"
+   },
+   "example": "An analyst must decide whether user alice reached a suspicious site 198.51.100.20 on Tuesday. The firewall log shows an allowed connection from 192.0.2.50 at 09:14 UTC. DHCP logs map that address to alice's laptop. The proxy log shows the URL request and a 200 response. Together these three sources prove that her laptop requested the site, which a single firewall entry could not.",
+   "terms": [
+    {
+     "term": "Log source",
+     "def": "A system or application that produces log records."
+    },
+    {
+     "term": "NTP",
+     "def": "Network Time Protocol, used to keep clocks synchronized."
+    },
+    {
+     "term": "Retention",
+     "def": "How long logs are stored and searchable."
+    },
+    {
+     "term": "Visibility gap",
+     "def": "A place where needed logs do not exist."
+    },
+    {
+     "term": "Central collector",
+     "def": "A server that receives and stores logs from many systems."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which log best shows which URLs a scanner requested?",
+     "options": [
+      "Web access log",
+      "Firewall deny log",
+      "DHCP log",
+      "Printer log"
+     ],
+     "a": 0,
+     "why": "Web access logs record request lines and status codes."
+    },
+    {
+     "q": "Why synchronize clocks with NTP?",
+     "options": [
+      "So events from different systems can be ordered",
+      "To encrypt logs",
+      "To reduce log size",
+      "To block attackers"
+     ],
+     "a": 0,
+     "why": "Correlation depends on consistent time."
+    },
+    {
+     "q": "A firewall allow entry proves:",
+     "options": [
+      "A connection was permitted between two endpoints",
+      "Data was stolen",
+      "Malware ran",
+      "A user typed a password"
+     ],
+     "a": 0,
+     "why": "It shows permitted traffic only, not content."
+    },
+    {
+     "q": "Why forward logs to a central collector?",
+     "options": [
+      "Attackers may clear local logs",
+      "It deletes old logs",
+      "It speeds up disks",
+      "It removes the need for retention"
+     ],
+     "a": 0,
+     "why": "Remote copies survive tampering on the source host."
+    }
+   ],
+   "recap": [
+    "Know each log family and the facts it can prove.",
+    "Check completeness, accurate time and retention.",
+    "Record visibility gaps when a needed log does not exist."
+   ]
+  },
+  {
+   "title": "Syslog format and severity levels",
+   "why": "Syslog is the most common transport and format for network and Unix logs, and its priority value drives filtering.",
+   "sections": [
+    {
+     "h": "What syslog is",
+     "p": [
+      "Syslog is a standard for sending log messages to a collector, historically over UDP port 514 and now also over TCP and TLS (commonly TCP 6514). Two message formats exist. The older BSD format of RFC 3164 is loosely structured, while RFC 5424 defines a clear structure with a version, timestamp, hostname, application name, process ID, message ID, optional structured data and a message. Many devices still emit RFC 3164 style lines, so a parser must handle both. UDP offers no delivery guarantee, so important logs should use TCP or TLS."
+     ]
+    },
+    {
+     "h": "The PRI value",
+     "p": [
+      "Each message begins with a priority in angle brackets, such as <34>. PRI equals facility multiplied by 8 plus severity. Facility identifies the category of sender, for example 0 kernel, 1 user, 3 daemon, 4 auth, 10 authpriv and 16 to 23 local0 to local7. Severity ranges from 0 to 7: 0 Emergency, 1 Alert, 2 Critical, 3 Error, 4 Warning, 5 Notice, 6 Informational, 7 Debug. To decode, divide PRI by 8: the quotient is the facility and the remainder is the severity. So 34 gives facility 4 (auth) and severity 2 (critical)."
+     ]
+    },
+    {
+     "h": "Reading an RFC 5424 line",
+     "p": [
+      "A modern line looks like <34>1 2025-03-14T09:21:07Z host1 sshd 812 ID47 - Failed password. After PRI comes version 1, then an ISO 8601 timestamp in UTC (Z), hostname, application, process ID, message ID, structured data (a hyphen means none) and the free-text message. Older RFC 3164 lines use a timestamp such as Mar 14 09:21:07 without year or time zone, which creates ambiguity and is a reason to normalize time early. Always confirm the time zone of the device, since many devices default to local time."
+     ]
+    },
+    {
+     "h": "Filtering by severity",
+     "p": [
+      "Severity lets analysts and tools filter noise. Lower numbers are more severe, so severity 3 and below means Emergency to Error. A common mistake is reading the number as a rising importance scale. Collectors often forward only warning and above from chatty devices to save storage, but security-relevant events such as logons may be informational, so filtering must be considered carefully. Facility is also a useful filter: auth and authpriv messages hold logon and sudo data and deserve long retention, whereas debug traffic from local7 might be trimmed."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Syslog line",
+    "text": "<34>1 2025-03-14T09:21:07Z fw01 sshd 812 ID47 - Failed password for invalid user test from 203.0.113.9 port 40122\n\nPRI 34 = 4*8 + 2\n facility 4 = auth\n severity 2 = critical"
+   },
+   "example": "A feed contains <86>, <38> and <165>. Dividing: 86 gives facility 10 (authpriv) and severity 6 (informational); 38 gives facility 4 (auth) and severity 6; 165 gives facility 20 (local4) and severity 5 (notice). The analyst wants only severity 3 and below, so none of the three qualify. Only a message such as <27> (facility 3 daemon, severity 3 error) would pass the filter.",
+   "terms": [
+    {
+     "term": "PRI",
+     "def": "The priority value at the start of a syslog message, facility times 8 plus severity."
+    },
+    {
+     "term": "Facility",
+     "def": "The category of the message source, such as auth or kernel."
+    },
+    {
+     "term": "Severity",
+     "def": "The 0 to 7 importance level, where 0 is most severe."
+    },
+    {
+     "term": "RFC 5424",
+     "def": "The structured modern syslog message format."
+    },
+    {
+     "term": "ISO 8601",
+     "def": "A standard timestamp format such as 2025-03-14T09:21:07Z."
+    }
+   ],
+   "check": [
+    {
+     "q": "What do facility and severity equal for PRI 34?",
+     "options": [
+      "Facility 4, severity 2",
+      "Facility 2, severity 4",
+      "Facility 34, severity 0",
+      "Facility 3, severity 4"
+     ],
+     "a": 0,
+     "why": "34 divided by 8 is 4 remainder 2."
+    },
+    {
+     "q": "Which severity level is most urgent?",
+     "options": [
+      "0 Emergency",
+      "7 Debug",
+      "4 Warning",
+      "6 Informational"
+     ],
+     "a": 0,
+     "why": "Lower numbers are more severe."
+    },
+    {
+     "q": "Why is UDP syslog risky for security logs?",
+     "options": [
+      "No delivery guarantee",
+      "It uses TLS",
+      "It is too slow",
+      "It cannot carry text"
+     ],
+     "a": 0,
+     "why": "UDP messages can be lost silently."
+    },
+    {
+     "q": "What does a hyphen in the structured data field of RFC 5424 mean?",
+     "options": [
+      "No structured data",
+      "An error",
+      "Encrypted data",
+      "A missing host"
+     ],
+     "a": 0,
+     "why": "A hyphen is the nil value."
+    }
+   ],
+   "recap": [
+    "PRI = facility * 8 + severity.",
+    "Lower severity numbers are more severe.",
+    "Normalize timestamps and prefer TCP/TLS for important logs."
+   ]
+  },
+  {
+   "title": "Structured logs: JSON and CEF",
+   "why": "Structured records make fields searchable without fragile text parsing, but each vendor names fields differently.",
+   "sections": [
+    {
+     "h": "Why structure matters",
+     "p": [
+      "Plain text logs require parsing rules to separate meaning from words. Structured formats label each value, so a query can ask for src_ip equals 192.0.2.5 without guessing character positions. The two formats a SOC meets most are JSON and CEF. Structure also helps developers add context, such as a user ID, request ID or geolocation. The trade-off is size and inconsistency: two products may call the same value src, source_ip or client.address, which is why normalization to a common schema is needed."
+     ]
+    },
+    {
+     "h": "JSON logs",
+     "p": [
+      "JSON represents data as key-value pairs in braces, with nested objects and arrays. For example {\"ts\":\"2025-03-14T09:21:07Z\",\"user\":\"alice\",\"src_ip\":\"192.0.2.5\",\"action\":\"login\",\"result\":\"failure\"}. Cloud services such as AWS CloudTrail and Entra ID emit JSON, and tools such as Zeek and Suricata (eve.json) can too. Nested fields are addressed with dots, such as userIdentity.arn. Check types: a number stored as a string will not sort numerically, and a missing key means the event simply lacks that attribute, not that it equals zero."
+     ]
+    },
+    {
+     "h": "CEF: Common Event Format",
+     "p": [
+      "Common Event Format (CEF) from ArcSight is a text format used by many security products. It has a header of seven pipe-separated fields followed by an extension of key=value pairs: CEF:Version|Device Vendor|Device Product|Device Version|Signature ID|Name|Severity|Extension. Extension keys are abbreviated, for example src for source address, dst for destination, spt and dpt for ports, suser for source user, act for action and msg for message. Values containing an equals sign or backslash must be escaped, and pipes in the header are escaped with a backslash, which parsers must respect."
+     ]
+    },
+    {
+     "h": "Mapping to a common schema",
+     "p": [
+      "Because each source names fields differently, SIEMs map them to a common model such as Splunk CIM, Elastic Common Schema (ECS) or the OCSF open schema. A CEF src becomes source.ip in ECS, suser becomes user.name and act becomes event.action. Mapping makes one query work across firewalls, proxies and endpoints. When a field is missing after mapping, check the raw event and the parser before concluding the data is absent, since many failed searches are caused by an unmapped field rather than absent activity. Documenting the mapping table for each source makes these checks much faster."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "CEF event",
+    "text": "CEF:0|ExampleVendor|FW|1.2|100|Blocked connection|5|src=192.0.2.5 dst=198.51.100.7 spt=51234 dpt=443 act=blocked suser=alice\n\nECS mapping:\n src -> source.ip\n dst -> destination.ip\n dpt -> destination.port\n act -> event.action"
+   },
+   "example": "A proxy emits JSON with client.ip and a firewall emits CEF with src. An analyst needs one search for activity from 192.0.2.5. Without mapping, two queries are needed. After both are mapped to source.ip, a single query source.ip=192.0.2.5 returns events from both devices, and the analyst can see the firewall block directly followed by a proxy request from the same host.",
+   "terms": [
+    {
+     "term": "JSON",
+     "def": "A text format of nested key-value pairs and arrays."
+    },
+    {
+     "term": "CEF",
+     "def": "Common Event Format, a header plus key=value extension."
+    },
+    {
+     "term": "Extension",
+     "def": "The key=value portion of a CEF record."
+    },
+    {
+     "term": "ECS",
+     "def": "Elastic Common Schema, a standard field naming model."
+    },
+    {
+     "term": "Normalization",
+     "def": "Mapping vendor-specific fields to common names."
+    }
+   ],
+   "check": [
+    {
+     "q": "How many pipe-separated header fields come before the CEF extension?",
+     "options": [
+      "Seven",
+      "Three",
+      "Ten",
+      "Two"
+     ],
+     "a": 0,
+     "why": "The header has seven fields before the extension."
+    },
+    {
+     "q": "In CEF, what does dpt represent?",
+     "options": [
+      "Destination port",
+      "Device type",
+      "Data protocol",
+      "Deny policy time"
+     ],
+     "a": 0,
+     "why": "dpt is the destination port."
+    },
+    {
+     "q": "Why use a common schema?",
+     "options": [
+      "One query works across different sources",
+      "It encrypts logs",
+      "It reduces CPU only",
+      "It deletes duplicates"
+     ],
+     "a": 0,
+     "why": "Consistent field names make queries portable."
+    },
+    {
+     "q": "A search for source.ip returns nothing for a CEF source. What is the first thing to check?",
+     "options": [
+      "Whether src was mapped to source.ip",
+      "Whether the user is guilty",
+      "Disk space on the laptop",
+      "The monitor brightness"
+     ],
+     "a": 0,
+     "why": "Unmapped fields are a common cause of empty results."
+    }
+   ],
+   "recap": [
+    "JSON and CEF label values so they can be searched reliably.",
+    "CEF has seven header fields and an extension of key=value pairs.",
+    "Map vendor fields to a common schema."
+   ]
+  },
+  {
+   "title": "Parsing and normalization",
+   "why": "Parsing turns raw lines into fields; if it is wrong, every search and alert built on it is wrong too.",
+   "sections": [
+    {
+     "h": "From raw line to fields",
+     "p": [
+      "Parsing is the process of splitting a raw log line into named fields. Simple cases use delimiters, such as splitting on commas for CSV or spaces for a basic access log. More complex lines need patterns. Grok, used by Logstash and Elastic, names regular expression pieces, for example %{IP:src_ip} or %{WORD:action}. Other tools use regex with named groups, key=value extractors or JSON decoders. A parser should also extract the event timestamp so that the event time is used for searching, rather than the time the collector received it."
+     ]
+    },
+    {
+     "h": "Normalization and field renaming",
+     "p": [
+      "Normalization renames fields to the common schema, converts types and standardizes values. Timestamps become UTC in ISO 8601. Actions become a small set of words such as allow, deny, success and failure. Usernames may be lowercased and stripped of a domain prefix so that CORP\\Alice and alice@example.com match, although the original is kept. Enrichment can be added at this stage, for example geolocation of an IP or the owner of a host. Keep the original raw message in a field so analysts can always see exactly what the source sent."
+     ]
+    },
+    {
+     "h": "Common parsing failures",
+     "p": [
+      "Parsers fail in predictable ways. A format change after a software update shifts field positions. Multi-line events, such as stack traces, are split into separate records. Timestamps without time zones are read in the wrong zone, producing a skew of hours. Delimiters appear inside values, like a comma inside a quoted user agent. Greedy patterns swallow too much. Symptoms include fields that are empty, values that contain extra text, or events that appear at the wrong time. Spot-check parsed events against raw logs regularly and alert if a source's parsed field fill rate suddenly drops."
+     ]
+    },
+    {
+     "h": "Testing a parser",
+     "p": [
+      "Before deploying a parser, test it against a varied sample: normal events, errors, odd characters, long values and unusual formats. Count how many lines fail to match and review each failure. Keep patterns as strict as the format allows, but include fallbacks for known variants. Document the field mapping, version the parser in source control and record which sources it covers. When a vendor updates a product, retest. Good parsing is quiet and invisible, but a broken parser can silently blind detections, so monitoring parsing health belongs in routine SOC checks."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Grok pattern",
+    "text": "Raw:\n Mar 14 09:21:07 web01 sshd[812]: Failed password for bob from 203.0.113.9 port 40122\n\nGrok:\n %{SYSLOGTIMESTAMP:ts} %{HOSTNAME:host} %{WORD:app}\\[%{INT:pid}\\]: Failed password for %{USERNAME:user} from %{IP:src_ip} port %{INT:src_port}\n\nFields: ts, host, app, pid, user, src_ip, src_port"
+   },
+   "example": "After a vendor update, a firewall adds a new field in the middle of each line. The parser still matches, but the destination port now holds the protocol name, so a detection for port 3389 stops firing. A fill-rate check shows destination.port values like tcp. The engineer updates the pattern, reprocesses recent logs and adds a test case so that a future format change causes a failed test instead of silent loss.",
+   "terms": [
+    {
+     "term": "Parsing",
+     "def": "Splitting raw log text into named fields."
+    },
+    {
+     "term": "Grok",
+     "def": "A pattern language that names regex fragments for log parsing."
+    },
+    {
+     "term": "Normalization",
+     "def": "Standardizing field names, types and values."
+    },
+    {
+     "term": "Fill rate",
+     "def": "The share of events in which a field has a value."
+    },
+    {
+     "term": "Raw message",
+     "def": "The original unmodified log text kept with the parsed event."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is grok mainly used for?",
+     "options": [
+      "Naming regex pieces to parse log lines",
+      "Encrypting logs",
+      "Compressing archives",
+      "Scanning ports"
+     ],
+     "a": 0,
+     "why": "Grok maps patterns to named fields."
+    },
+    {
+     "q": "Why keep the raw message after parsing?",
+     "options": [
+      "Analysts can verify what the source sent",
+      "It saves storage",
+      "It speeds up searches",
+      "It blocks attackers"
+     ],
+     "a": 0,
+     "why": "Raw text is the ground truth for checking the parser."
+    },
+    {
+     "q": "A timestamp without a time zone is parsed as UTC but was local. The effect is:",
+     "options": [
+      "Events appear shifted by hours",
+      "Events disappear forever",
+      "The logs are encrypted",
+      "Nothing changes"
+     ],
+     "a": 0,
+     "why": "Wrong zone assumptions skew timelines."
+    },
+    {
+     "q": "A sudden drop in a field's fill rate most likely indicates:",
+     "options": [
+      "A parser or format problem",
+      "More secure logs",
+      "Lower traffic only",
+      "Better retention"
+     ],
+     "a": 0,
+     "why": "Format changes often break extraction silently."
+    }
+   ],
+   "recap": [
+    "Parsing extracts fields, normalization standardizes them.",
+    "Use the event time and keep the raw message.",
+    "Test parsers and monitor fill rates."
+   ]
+  },
+  {
+   "title": "Regex for log analysis",
+   "why": "Regular expressions let you pull addresses, users and codes out of any text log quickly with grep, awk or SIEM functions.",
+   "sections": [
+    {
+     "h": "Core building blocks",
+     "p": [
+      "A regular expression (regex) describes a text pattern. Literal characters match themselves. A dot matches any character, a character class such as [0-9] or \\d matches a digit, and \\w matches a word character. Quantifiers state repetition: * zero or more, + one or more, ? zero or one, {1,3} between one and three. Anchors fix position: ^ is the start of a line and $ the end. Parentheses create groups that capture matched text, and | means or. Special characters such as the dot need a backslash to be literal, for example \\. matches a period."
+     ]
+    },
+    {
+     "h": "Extracting IPs, users and codes",
+     "p": [
+      "A simple IPv4 pattern is ([0-9]{1,3}\\.){3}[0-9]{1,3}. It also matches invalid numbers such as 999.1.1.1, which is acceptable for extraction but not for validation. To capture a user from an SSH line use Failed password for (invalid user )?([a-zA-Z0-9._-]+) from. A status code in a web log can be matched with \" ([0-9]{3}) after the request. In grep, -E enables extended syntax and -o prints only the match. Start with a small sample, test the pattern, and then apply it to the large file."
+     ]
+    },
+    {
+     "h": "Greedy matching and pitfalls",
+     "p": [
+      "Quantifiers are greedy by default, meaning they match as much as they can. The pattern .* in the middle of a line may swallow far more than intended, so prefer specific classes like [^ ]+ for non-space text. Beware of anchors in multi-line data, and of case: use -i or (?i) when casing varies. Complex patterns on huge inputs can be slow, and nested quantifiers can cause catastrophic backtracking in some engines. Keep patterns readable and comment them in rules so the next analyst understands why they exist."
+     ]
+    },
+    {
+     "h": "Using regex in tools",
+     "p": [
+      "Regex appears in many tools. Command line: grep -oE and sed. SIEM languages: Splunk rex field=src_ip \"(?<ip>...)\" and match functions, and KQL extract and matches regex. Detection formats such as Sigma, YARA and Suricata use regex too. Syntax varies slightly between engines, for example named groups and support for \\d, so test in the tool you will actually use. After extraction, count and rank results with sort and uniq -c to find the top sources, which turns text into evidence, such as the five addresses behind most failed logins."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ grep -oE '([0-9]{1,3}\\.){3}[0-9]{1,3}' auth.sample | sort | uniq -c | sort -rn | head -3\n   42 203.0.113.9\n   11 198.51.100.4\n    3 192.0.2.77"
+   },
+   "example": "A line reads: Mar 14 09:21:07 web01 sshd[812]: Failed password for invalid user admin from 203.0.113.9 port 40122 ssh2. The analyst uses grep -oE 'from ([0-9]{1,3}\\.){3}[0-9]{1,3}' to print each source, pipes through awk '{print $2}' to drop the word from, then sort and uniq -c. The result shows one address with 42 failures, so that source goes into the case for blocking.",
+   "terms": [
+    {
+     "term": "Quantifier",
+     "def": "A symbol such as *, + or {n,m} that sets how many times a pattern repeats."
+    },
+    {
+     "term": "Anchor",
+     "def": "A symbol such as ^ or $ that fixes position in the line."
+    },
+    {
+     "term": "Capture group",
+     "def": "Parentheses that save matched text for reuse."
+    },
+    {
+     "term": "Greedy",
+     "def": "Matching as much text as possible."
+    },
+    {
+     "term": "grep -oE",
+     "def": "Print only the matching parts using extended regex."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which regex part matches one to three digits?",
+     "options": [
+      "[0-9]{1,3}",
+      "[0-9]*3",
+      "\\d?3",
+      "3[0-9]"
+     ],
+     "a": 0,
+     "why": "{1,3} sets the repetition range."
+    },
+    {
+     "q": "What does the ^ anchor match?",
+     "options": [
+      "Start of a line",
+      "End of a line",
+      "Any digit",
+      "A literal caret only"
+     ],
+     "a": 0,
+     "why": "^ anchors to the beginning of a line."
+    },
+    {
+     "q": "Why avoid .* in the middle of a log pattern?",
+     "options": [
+      "It is greedy and may capture too much",
+      "It is invalid syntax",
+      "It only matches digits",
+      "It is slower to type"
+     ],
+     "a": 0,
+     "why": "Greedy matching can swallow unwanted text."
+    },
+    {
+     "q": "What does grep -o do?",
+     "options": [
+      "Prints only the matched part",
+      "Counts lines",
+      "Ignores case",
+      "Inverts the match"
+     ],
+     "a": 0,
+     "why": "-o outputs just the matching text."
+    }
+   ],
+   "recap": [
+    "Learn classes, quantifiers, anchors and groups.",
+    "Use specific patterns rather than greedy .*.",
+    "Combine grep -oE with sort and uniq -c to rank results."
+   ]
+  },
+  {
+   "title": "Correlation and timelines",
+   "why": "Correlation connects separate events into a story; the timeline is the backbone of every investigation and report.",
+   "sections": [
+    {
+     "h": "What correlation means",
+     "p": [
+      "Correlation links events from different sources through a shared attribute such as an IP address, username, hostname, session ID or file hash. A single firewall entry means little, but the same address appearing in a firewall allow, a web server request and a successful login within minutes tells a story. SIEMs automate this, but analysts also do it by hand, pivoting from one finding to the next: from an IP to the accounts it touched, from an account to the hosts it logged in to, and from a host to the processes it ran."
+     ]
+    },
+    {
+     "h": "Time is the key",
+     "p": [
+      "Events can only be ordered if their times are comparable. Convert everything to UTC, account for each source's time zone and clock drift, and use the event time rather than the ingestion time. For example, an auth log in UTC-5 showing 04:10 corresponds to 09:10 UTC. If a device clock is known to be 90 seconds fast, adjust and note the correction in the case. Beware of daylight saving changes and of logs that omit the year or zone. Record the offset you applied so another analyst can verify it."
+     ]
+    },
+    {
+     "h": "Building the timeline",
+     "p": [
+      "Start with a known anchor, such as the alert time, then expand outward in both directions. Add one row per event with UTC time, source, host, actor, action and note. Include negative findings too, such as no outbound traffic after the login. Sort ascending, then look for gaps and patterns: a scan followed by a login, followed by a new process, followed by outbound traffic. Mark each row with its confidence and its evidence reference. Keep inferences separate from observations so readers know which entries are facts and which are assessments."
+     ]
+    },
+    {
+     "h": "Pivoting and avoiding bias",
+     "p": [
+      "Pivot on identifiers likely to recur: source IP, user, host, user agent, file name and domain. Widen the time window if the activity may have started earlier, because initial access often precedes the alert by days. Guard against bias: do not stop at the first plausible explanation, and look for evidence that contradicts your theory. Shared addresses such as NAT gateways can make unrelated users appear linked, so confirm with a second attribute. A finished timeline should let a colleague understand the incident and reproduce your queries without asking questions."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Timeline (UTC)",
+    "text": "09:10:02 FW   203.0.113.9 -> web01:443 allow\n09:10:15 WEB  203.0.113.9 GET /login 200\n09:11:40 AUTH admin login success from 203.0.113.9\n09:12:05 WEB  203.0.113.9 POST /upload.php 200\n09:12:30 FW   web01 -> 198.51.100.7:4444 allow"
+   },
+   "example": "The firewall log is in UTC, the auth log is in UTC+2 and the web log is in UTC. An auth entry at 11:11:40 is converted to 09:11:40 UTC. Placing all three sources in order shows an external address connecting, logging in, uploading a file and the server then making an outbound connection. The sequence suggests a compromised web server, and the analyst escalates with the timeline attached.",
+   "terms": [
+    {
+     "term": "Correlation",
+     "def": "Linking events across sources through shared attributes."
+    },
+    {
+     "term": "Pivot",
+     "def": "Moving from one finding to related data using a shared identifier."
+    },
+    {
+     "term": "Anchor event",
+     "def": "A known starting point for building a timeline."
+    },
+    {
+     "term": "Clock drift",
+     "def": "A gradual difference between a device clock and true time."
+    },
+    {
+     "term": "Event time",
+     "def": "When the event occurred, as opposed to when it was ingested."
+    }
+   ],
+   "check": [
+    {
+     "q": "An auth log reads 11:11:40 in UTC+2. What is the UTC time?",
+     "options": [
+      "09:11:40",
+      "13:11:40",
+      "11:11:40",
+      "10:11:40"
+     ],
+     "a": 0,
+     "why": "Subtract the 2-hour offset."
+    },
+    {
+     "q": "What is a pivot?",
+     "options": [
+      "Using a shared identifier to find related events",
+      "Deleting old logs",
+      "Compressing evidence",
+      "Restarting a server"
+     ],
+     "a": 0,
+     "why": "Pivoting follows an IP, user or host into more data."
+    },
+    {
+     "q": "Why record negative findings in a timeline?",
+     "options": [
+      "They show what did not happen and bound the scope",
+      "They shorten the report",
+      "They are required by regex",
+      "They replace evidence"
+     ],
+     "a": 0,
+     "why": "Absence of outbound traffic is useful scoping information."
+    },
+    {
+     "q": "Why be careful with NAT addresses when pivoting?",
+     "options": [
+      "Many users can share one address",
+      "They are always malicious",
+      "They have no logs",
+      "They change hashes"
+     ],
+     "a": 0,
+     "why": "Shared addresses can falsely link unrelated activity."
+    }
+   ],
+   "recap": [
+    "Correlate through IP, user, host or session identifiers.",
+    "Normalize to UTC and record any offset.",
+    "Separate observed facts from inferences in the timeline."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Decode syslog priority",
+   "sim": "log-viewer",
+   "scenario": "A log viewer shows a feed from fictional device gw01 (192.0.2.1) with PRI values at the start of each line. You must compute the facility and severity from the PRI values and then filter the feed to show only severity 3 and below.",
+   "objective": "Decode PRI values correctly and produce a filtered feed of severity 0 to 3.",
+   "steps": [
+    {
+     "do": "Select line 1 <34> and click Decode",
+     "see": "34 = 4*8 + 2 -> facility 4 (auth), severity 2 (critical)"
+    },
+    {
+     "do": "Select line 2 <38> and decode",
+     "see": "38 = 4*8 + 6 -> facility 4 (auth), severity 6 (informational)"
+    },
+    {
+     "do": "Select line 3 <27> and decode",
+     "see": "27 = 3*8 + 3 -> facility 3 (daemon), severity 3 (error)"
+    },
+    {
+     "do": "Select line 4 <165> and decode",
+     "see": "165 = 20*8 + 5 -> facility 20 (local4), severity 5 (notice)"
+    },
+    {
+     "do": "Select line 5 <11> and decode",
+     "see": "11 = 1*8 + 3 -> facility 1 (user), severity 3 (error)"
+    },
+    {
+     "do": "Set filter severity <= 3 and apply",
+     "see": "Filter applied: 3 of 5 lines shown (<34>, <27>, <11>)"
+    }
+   ],
+   "answer": "Severity 3 and below returns the lines with PRI 34, 27 and 11. Lines 38 and 165 have severities 6 and 5 and are hidden.",
+   "hint": "Divide PRI by 8: quotient is facility, remainder is severity."
+  },
+  {
+   "title": "Parse a CEF event",
+   "sim": "code-editor",
+   "scenario": "A short Python parser is incomplete. It must split a CEF line into header fields and extension key-value pairs. The sample event is CEF:0|ExampleVendor|FW|1.2|100|Blocked|5|src=192.0.2.5 dst=198.51.100.7 dpt=443 act=blocked.",
+   "objective": "Complete the parser so each header and extension field is named.",
+   "steps": [
+    {
+     "do": "Open parser.py and read the TODO lines",
+     "see": "TODO 1: split header on pipe, TODO 2: parse extension pairs"
+    },
+    {
+     "do": "Type: parts = line.split('|', 7)",
+     "see": "parts has 8 elements; header = parts[:7], ext = parts[7]"
+    },
+    {
+     "do": "Assign names: ver, vendor, product, devver, sigid, name, sev = parts[:7]",
+     "see": "Header fields named, no errors"
+    },
+    {
+     "do": "Type: pairs = dict(kv.split('=',1) for kv in ext.split(' '))",
+     "see": "pairs = {src: 192.0.2.5, dst: 198.51.100.7, dpt: 443, act: blocked}"
+    },
+    {
+     "do": "Run the tests",
+     "see": "Test 1 header: PASS; Test 2 extension: PASS"
+    },
+    {
+     "do": "Run with a message containing a space (msg=hello world)",
+     "see": "Test 3 FAIL: 'world' has no '='. Hint: split only on spaces before a new key="
+    }
+   ],
+   "answer": "The parser must split on the first seven pipes to separate the header from the extension, then parse key=value pairs. The edge case with spaces in values needs a regex such as (\\w+)=(.*?)(?= \\w+=|$) to be robust.",
+   "hint": "Use split('|', 7) so the extension stays whole."
+  },
+  {
+   "title": "Regex extraction drill",
+   "sim": "terminal",
+   "scenario": "A sample file auth.sample contains failed SSH login lines from several fictional addresses (203.0.113.x and 198.51.100.x). Using the simulated terminal, extract the source IPs of failed logins and count them.",
+   "objective": "Produce a ranked count of failed-login source IPs.",
+   "steps": [
+    {
+     "do": "Type: wc -l auth.sample",
+     "see": "120 auth.sample"
+    },
+    {
+     "do": "Type: grep -c 'Failed password' auth.sample",
+     "see": "87"
+    },
+    {
+     "do": "Type: grep 'Failed password' auth.sample | grep -oE '([0-9]{1,3}\\.){3}[0-9]{1,3}' | head -3",
+     "see": "203.0.113.9\n203.0.113.9\n198.51.100.4"
+    },
+    {
+     "do": "Type: grep 'Failed password' auth.sample | grep -oE '([0-9]{1,3}\\.){3}[0-9]{1,3}' | sort | uniq -c | sort -rn",
+     "see": "   61 203.0.113.9\n   19 198.51.100.4\n    7 192.0.2.77"
+    },
+    {
+     "do": "Type: awk '/Failed password/ {print $(NF-3)}' auth.sample | sort | uniq -c | sort -rn | head -1",
+     "see": "   61 203.0.113.9"
+    },
+    {
+     "do": "Submit top source",
+     "see": "Correct: 203.0.113.9 with 61 failures"
+    }
+   ],
+   "answer": "The top source of failed logins is 203.0.113.9 with 61 failures, followed by 198.51.100.4 with 19 and 192.0.2.77 with 7.",
+   "hint": "Filter first with grep, then extract, sort, count and sort again."
+  },
+  {
+   "title": "Build a timeline",
+   "sim": "log-viewer",
+   "scenario": "Three fictional logs cover an intrusion on web01 (192.0.2.30): a firewall log in UTC, an auth log in UTC+1 and a web log in UTC. Merge them, correct the auth log offset and order the events.",
+   "objective": "Produce a correctly ordered UTC timeline of the intrusion.",
+   "steps": [
+    {
+     "do": "Open the firewall log",
+     "see": "09:10:02Z 203.0.113.9 -> 192.0.2.30:443 allow\n09:20:10Z 192.0.2.30 -> 198.51.100.7:4444 allow"
+    },
+    {
+     "do": "Open the web log",
+     "see": "09:10:15Z GET /login 200\n09:12:05Z POST /upload.php 200"
+    },
+    {
+     "do": "Open the auth log",
+     "see": "10:11:40 admin login success from 203.0.113.9 (UTC+1)"
+    },
+    {
+     "do": "Set auth log offset to -1 hour",
+     "see": "Auth event converted to 09:11:40Z"
+    },
+    {
+     "do": "Click Merge and sort",
+     "see": "Merged 5 events ascending by UTC"
+    },
+    {
+     "do": "Mark the event where the attacker first authenticated",
+     "see": "Marked 09:11:40Z auth success; sequence accepted"
+    }
+   ],
+   "answer": "Corrected order: 09:10:02 allow, 09:10:15 login page, 09:11:40 admin login, 09:12:05 upload.php POST, 09:20:10 outbound connection to port 4444. The auth log must be shifted by one hour to place the login before the upload.",
+   "hint": "Subtract the UTC+1 offset before merging."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which log best shows which user signed in from a given address?",
+   "options": [
+    "Authentication log",
+    "Printer log",
+    "Disk SMART log",
+    "Power log"
+   ],
+   "a": 0,
+   "why": "Authentication logs record sign-ins and sources."
+  },
+  {
+   "q": "PRI 86 decodes to:",
+   "options": [
+    "Facility 10, severity 6",
+    "Facility 6, severity 10",
+    "Facility 8, severity 6",
+    "Facility 4, severity 6"
+   ],
+   "a": 0,
+   "why": "86 = 10*8 + 6."
+  },
+  {
+   "q": "Which is the highest-urgency syslog severity?",
+   "options": [
+    "0",
+    "3",
+    "6",
+    "7"
+   ],
+   "a": 0,
+   "why": "Severity 0 is Emergency."
+  },
+  {
+   "q": "How many pipe-separated header fields does CEF have before the extension?",
+   "options": [
+    "Seven",
+    "Four",
+    "Twelve",
+    "Two"
+   ],
+   "a": 0,
+   "why": "The CEF header has seven fields."
+  },
+  {
+   "q": "Which tool names regex fragments to parse logs such as %{IP:src_ip}?",
+   "options": [
+    "Grok",
+    "Wireshark",
+    "Nmap",
+    "Volatility"
+   ],
+   "a": 0,
+   "why": "Grok patterns map names to regex pieces."
+  },
+  {
+   "q": "Which pattern is the best simple IPv4 extractor?",
+   "options": [
+    "([0-9]{1,3}\\.){3}[0-9]{1,3}",
+    "[a-z]+",
+    "^.*$",
+    "\\d"
+   ],
+   "a": 0,
+   "why": "Four dot-separated groups of one to three digits."
+  },
+  {
+   "q": "What does grep -o print?",
+   "options": [
+    "Only the matching text",
+    "Only line numbers",
+    "Lines that do not match",
+    "File names"
+   ],
+   "a": 0,
+   "why": "-o shows just the match."
+  },
+  {
+   "q": "Why convert all log times to UTC?",
+   "options": [
+    "So events from different sources can be ordered",
+    "To shrink logs",
+    "To encrypt logs",
+    "To remove duplicates"
+   ],
+   "a": 0,
+   "why": "A common time base is essential for timelines."
+  },
+  {
+   "q": "An auth log in UTC-5 shows 04:10. What is the UTC time?",
+   "options": [
+    "09:10",
+    "23:10 previous day",
+    "04:10",
+    "05:10"
+   ],
+   "a": 0,
+   "why": "Add 5 hours to convert from UTC-5 to UTC."
+  },
+  {
+   "q": "A parsed field suddenly becomes empty for a source. The most likely cause is:",
+   "options": [
+    "A format change broke the parser",
+    "Better security",
+    "Reduced log retention policy",
+    "A new firewall rule"
+   ],
+   "a": 0,
+   "why": "Format changes break extraction silently."
+  }
+ ]
+}

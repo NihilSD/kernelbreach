@@ -1,0 +1,1087 @@
+{
+ "code": "ENG-09",
+ "intro": "Containers and Kubernetes now run much of the world's software, and they bring their own security model. This module explains how containers are isolated and where that isolation is thin, how to build and scan trustworthy images, how the Kubernetes control plane can be attacked, and how RBAC, pod security, admission control and network policies shrink the blast radius. It closes with runtime detection using Falco, seccomp and AppArmor, and with safe handling of secrets.",
+ "lessons": [
+  {
+   "title": "Container security fundamentals",
+   "why": "A container is not a small virtual machine, and treating it like one leads to dangerous assumptions. Knowing what actually isolates a container tells you where escapes happen.",
+   "sections": [
+    {
+     "h": "What a container really is",
+     "p": [
+      "A container is an ordinary Linux process (or group of processes) started with restrictions. Those restrictions come from kernel features, not from a separate operating system. The container image supplies a root filesystem and the application, but at runtime every container on a host runs on the same host kernel. That is the core security difference from a virtual machine, where a hypervisor separates guest kernels.",
+      "Because the kernel is shared, a kernel vulnerability or a mis-granted privilege can let a process in one container affect the host or its neighbors. Container security therefore means narrowing what that process can see, use and call, and keeping the host kernel patched."
+     ]
+    },
+    {
+     "h": "Namespaces, cgroups and capabilities",
+     "p": [
+      "Namespaces limit what a process can see. The main types are pid (process IDs), net (network interfaces and routing), mnt (mount points), uts (hostname), ipc, user (UID mapping) and cgroup. A container gets its own set of these, so it sees only its own processes and interfaces. Control groups (cgroups) limit what a process can consume: CPU, memory, process count and I/O. Without cgroup limits, one container can starve the host.",
+      "Linux capabilities split the all-powerful root user into about forty separate privileges, such as CAP_NET_BIND_SERVICE or CAP_SYS_ADMIN. Container runtimes drop most capabilities by default. A container run with --privileged regains nearly all of them plus device access, which removes most isolation and is a common cause of escapes."
+     ]
+    },
+    {
+     "h": "Common weaknesses and baseline controls",
+     "p": [
+      "Frequent mistakes include running as root inside the container, mounting the Docker socket (/var/run/docker.sock) into a container, using --privileged, sharing the host PID or network namespace, mounting sensitive host paths, and omitting resource limits. Mounting the Docker socket gives that container full control of the host's runtime.",
+      "Baseline controls are simple: run as a non-root user, drop all capabilities and add back only what is needed, use a read-only root filesystem, set memory and CPU limits, enable the default seccomp profile, keep the host OS and kernel updated, and consider user namespaces so root in the container maps to an unprivileged host UID."
+     ]
+    },
+    {
+     "h": "Putting it into practice",
+     "p": [
+      "Start by inventorying how your workloads are launched. Run docker inspect or kubectl get pods -o yaml across a sample of services and look for privileged: true, hostPath volumes, hostNetwork and missing resource limits. Most organizations find that a small number of legacy workloads account for nearly all of the risky settings. Fix those first, then encode the safe defaults in templates, Helm charts or admission policy so new services inherit them automatically. This turns a one-time cleanup into a lasting standard and gives auditors a clear, testable baseline to check against."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ docker run --rm -d --name web --memory 256m --cap-drop ALL \\\n    --read-only --user 10001:10001 example/web:1.4\n$ docker inspect web --format '{{.HostConfig.Privileged}} {{.HostConfig.CapDrop}}'\nfalse [ALL]\n$ ps -o pid,user,cmd -C nginx   # host view of the same process\n  PID USER     CMD\n 4121 10001    nginx: master process"
+   },
+   "example": "A team finds a container that mounts /var/run/docker.sock so a monitoring tool can list containers. A reviewer points out that any code execution in that container can start a new privileged container and mount the host root filesystem. The fix is to replace the socket mount with a read-only metrics endpoint or a socket proxy that allows only list calls, and to run the tool as non-root with all capabilities dropped.",
+   "terms": [
+    {
+     "term": "Namespace",
+     "def": "A kernel feature that gives a process its own isolated view of a resource such as processes or network."
+    },
+    {
+     "term": "cgroup",
+     "def": "A kernel feature that limits and accounts for CPU, memory and I/O used by a group of processes."
+    },
+    {
+     "term": "Capability",
+     "def": "One of the fine-grained privileges that make up root power on Linux."
+    },
+    {
+     "term": "Privileged container",
+     "def": "A container started with nearly all capabilities and host device access, removing most isolation."
+    },
+    {
+     "term": "Container escape",
+     "def": "An attack in which code in a container gains access to the host or other containers."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which statement about containers and the kernel is correct?",
+     "options": [
+      "Each container runs its own kernel",
+      "All containers on a host share the host kernel",
+      "Containers use a hypervisor for isolation",
+      "Containers cannot see any kernel features"
+     ],
+     "a": 1,
+     "why": "Containers are isolated processes on the shared host kernel, unlike VMs."
+    },
+    {
+     "q": "Which kernel feature limits how much memory a container can use?",
+     "options": [
+      "Namespaces",
+      "Capabilities",
+      "cgroups",
+      "seccomp"
+     ],
+     "a": 2,
+     "why": "cgroups account for and cap resources such as memory and CPU."
+    },
+    {
+     "q": "Why is mounting /var/run/docker.sock into a container dangerous?",
+     "options": [
+      "It slows the network",
+      "It grants control over the host container runtime",
+      "It disables cgroups",
+      "It removes the image layers"
+     ],
+     "a": 1,
+     "why": "Access to the socket lets the container start privileged containers and take over the host."
+    },
+    {
+     "q": "Which setting best reduces a container's privileges by default?",
+     "options": [
+      "--privileged",
+      "--pid=host",
+      "--cap-drop ALL then add back needed ones",
+      "Run as root for compatibility"
+     ],
+     "a": 2,
+     "why": "Dropping all capabilities and adding only what is required follows least privilege."
+    }
+   ],
+   "recap": [
+    "Containers are processes isolated by namespaces, cgroups and capabilities on a shared kernel.",
+    "Privileged mode, the Docker socket and host namespaces remove isolation.",
+    "Run non-root, drop capabilities, limit resources and patch the host kernel."
+   ]
+  },
+  {
+   "title": "Image security and scanning",
+   "why": "Every container starts from an image, so a vulnerable or tampered image becomes a vulnerable production workload. Securing the supply of images is the cheapest place to prevent problems.",
+   "sections": [
+    {
+     "h": "Building minimal, non-root images",
+     "p": [
+      "A smaller image has fewer packages and therefore fewer vulnerabilities and fewer tools an attacker can use. Choose a minimal base such as a slim, Alpine or distroless image, and use multi-stage builds so compilers and build tools never reach the final image. Add a USER instruction with a numeric non-root UID, avoid installing shells and package managers in runtime images, and never copy secrets into a layer.",
+      "Remember that image layers are permanent. A secret added in one layer and deleted in the next is still recoverable from the earlier layer. Pass build-time secrets with BuildKit secret mounts, and read runtime secrets from the environment or a secret store. Add a HEALTHCHECK so orchestrators can detect a broken process."
+     ]
+    },
+    {
+     "h": "Scanning with Trivy and reading results",
+     "p": [
+      "Scanners such as Trivy, Grype or Clair compare installed OS packages and application dependencies against vulnerability databases such as the NVD and distribution advisories. Trivy can also scan Dockerfiles and Kubernetes manifests for misconfiguration, detect embedded secrets, and produce an SBOM. Output lists the package, the installed version, the CVE ID, severity and the fixed version when one exists.",
+      "Triage by severity, by whether a fix exists, and by whether the vulnerable code is reachable. A critical finding with a fixed version is usually solved by rebuilding on a patched base image. Run scans in CI to fail builds above a threshold, and rescan stored images regularly, because new CVEs appear after an image was built."
+     ]
+    },
+    {
+     "h": "Trusted registries, digests and signing",
+     "p": [
+      "Tags such as :latest or :1.4 are mutable; the owner can point them at different content later. A digest (sha256:...) identifies exact content and cannot be changed. Deploy by digest, or at least pin tags and verify them. Pull only from approved private registries and mirror public base images into them after scanning.",
+      "Image signing with Sigstore cosign lets you attach a signature and attestation to an image, and an admission controller can refuse unsigned images. Generating an SBOM and provenance record (for example in SLSA style) shows what went into an image and which pipeline built it, supporting both audits and rapid response when a new CVE is announced."
+     ]
+    },
+    {
+     "h": "Putting it into practice",
+     "p": [
+      "Make scanning part of the normal delivery path rather than a separate audit. A common pattern is to scan on every pull request, fail the build for critical findings that have a fix, and publish the scan report with the image. Then run a nightly job that rescans everything in the registry and opens tickets for new findings. Keep an exceptions list with owners and expiry dates for findings that cannot be fixed immediately, and review it regularly so accepted risk does not quietly become permanent."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ trivy image --severity HIGH,CRITICAL example/web:1.4\nexample/web:1.4 (debian 11.9)\nTotal: 2 (HIGH: 1, CRITICAL: 1)\n Library  Vulnerability   Severity  Installed  Fixed\n libssl1  CVE-2024-0001    CRITICAL  1.1.1n-0   1.1.1w-0\n zlib1g   CVE-2024-0002    HIGH      1.2.11     1.2.13\n$ trivy image --exit-code 1 --severity CRITICAL example/web:1.4"
+   },
+   "example": "A Trivy scan of example/web:1.4 reports one critical OpenSSL finding with a fixed version. The team updates the FROM line to the current patched base, rebuilds with a multi-stage Dockerfile, sets USER 10001, and re-runs the scan, which now reports zero critical issues. The pipeline pushes the image, signs it with cosign and records its digest. The deployment manifest references the digest, so a later tag change cannot swap the content.",
+   "terms": [
+    {
+     "term": "Distroless image",
+     "def": "A minimal image containing only the application and runtime libraries, without a shell or package manager."
+    },
+    {
+     "term": "Multi-stage build",
+     "def": "A Dockerfile technique that compiles in one stage and copies only the result into a small final image."
+    },
+    {
+     "term": "Digest",
+     "def": "A sha256 hash that identifies exact image content and cannot be reassigned."
+    },
+    {
+     "term": "SBOM",
+     "def": "A software bill of materials listing the components inside an image."
+    },
+    {
+     "term": "cosign",
+     "def": "A Sigstore tool for signing and verifying container images."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why deploy by digest instead of by tag?",
+     "options": [
+      "Digests are shorter",
+      "Tags can be moved to different content, digests cannot",
+      "Digests are faster to pull",
+      "Tags are not supported by registries"
+     ],
+     "a": 1,
+     "why": "A digest pins exact content, preventing silent replacement."
+    },
+    {
+     "q": "A secret copied in one layer and deleted in the next is:",
+     "options": [
+      "Gone permanently",
+      "Still recoverable from the earlier layer",
+      "Encrypted by the registry",
+      "Hidden by cgroups"
+     ],
+     "a": 1,
+     "why": "Layers are immutable, so earlier layers keep the data."
+    },
+    {
+     "q": "What does a multi-stage build mainly achieve?",
+     "options": [
+      "Faster CPU",
+      "Keeping build tools out of the final image",
+      "Encrypting layers",
+      "Disabling the registry"
+     ],
+     "a": 1,
+     "why": "Only the built artifacts are copied to the small final stage."
+    },
+    {
+     "q": "A scan shows a critical CVE with a fixed version in the base image. Best first action?",
+     "options": [
+      "Ignore it",
+      "Rebuild on a patched base and rescan",
+      "Delete the scanner",
+      "Switch the tag to :latest"
+     ],
+     "a": 1,
+     "why": "Updating the base package set removes the vulnerability."
+    }
+   ],
+   "recap": [
+    "Use minimal, non-root images and multi-stage builds; never bake in secrets.",
+    "Scan in CI and on a schedule; triage by severity, fix availability and reachability.",
+    "Pull from trusted registries, pin digests and verify signatures."
+   ]
+  },
+  {
+   "title": "Kubernetes architecture and attack surface",
+   "why": "You cannot defend a cluster without knowing its components and what each one trusts. Most Kubernetes compromises abuse an exposed component or an over-privileged identity.",
+   "sections": [
+    {
+     "h": "Control plane and node components",
+     "p": [
+      "The control plane consists of the API server (kube-apiserver), etcd, the scheduler and the controller manager. The API server is the front door: every kubectl command, controller and kubelet talks to it over HTTPS, usually port 6443. etcd is the key-value database holding all cluster state, including Secrets. Each worker node runs a kubelet (port 10250), a container runtime and kube-proxy.",
+      "Whoever can write to etcd or reach an unauthenticated kubelet API effectively controls the cluster. Pods run on nodes, and nodes trust the control plane. The attack surface therefore includes the API server's network exposure, the authentication it accepts, the kubelet API, etcd, the container runtime and the workloads themselves."
+     ]
+    },
+    {
+     "h": "Authentication, authorization and exposure risks",
+     "p": [
+      "Requests to the API server pass through authentication (certificates, tokens, OIDC), then authorization (RBAC is the standard mode), then admission control. Typical weaknesses are an API server reachable from the internet, anonymous authentication left enabled, the kubelet configured with --anonymous-auth=true and authorization mode AlwaysAllow, etcd reachable without mutual TLS, and the legacy insecure port.",
+      "Defenses are to keep the API server on private networks or behind an allow-list, disable anonymous access, require client certificates for etcd and the kubelet, encrypt etcd traffic and disk, and use managed control planes where the provider hardens these pieces. CIS Kubernetes Benchmark checks, run with kube-bench, test for these settings."
+     ]
+    },
+    {
+     "h": "Service accounts and in-cluster identity",
+     "p": [
+      "Every pod runs with a service account, and by default a token for it can be mounted at /var/run/secrets/kubernetes.io/serviceaccount. If the application is compromised, the attacker can use that token to call the API server with whatever rights the account holds. Older clusters used long-lived token Secrets; modern ones use short-lived, audience-bound projected tokens.",
+      "Create dedicated service accounts per workload, set automountServiceAccountToken: false when the pod does not call the API, and grant minimal RBAC. Also watch for pods that can reach the cloud metadata service at 169.254.169.254, because node or workload cloud credentials there extend a cluster compromise into the cloud account."
+     ]
+    },
+    {
+     "h": "Putting it into practice",
+     "p": [
+      "Use a benchmark to make hardening measurable. Run kube-bench against the control plane and worker nodes, and a configuration scanner such as kube-score or Trivy's Kubernetes mode against manifests. Record the baseline result, fix failures in priority order, and rerun after every upgrade because new versions can change defaults. If you use a managed service such as EKS, GKE or AKS, remember the shared responsibility split: the provider secures the control plane, while you remain responsible for nodes, workloads, RBAC and network exposure."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ kubectl get --raw /version\n{\"major\":\"1\",\"minor\":\"30\"}\n$ kubectl -n shop get pod web-7d9 -o jsonpath='{.spec.serviceAccountName}'\ndefault\n$ kubectl -n shop get pod web-7d9 -o jsonpath='{.spec.automountServiceAccountToken}'\n\n$ curl -sk https://192.0.2.10:10250/pods\nUnauthorized"
+   },
+   "example": "During a review of a lab cluster at 192.0.2.10, kube-bench flags that the kubelet accepts anonymous requests. A test request to the kubelet pods endpoint returns a list of pods instead of Unauthorized. The team sets anonymous-auth to false, switches authorization mode to Webhook, restricts port 10250 to the control plane subnet with a firewall rule, and re-runs the benchmark to confirm the checks now pass.",
+   "terms": [
+    {
+     "term": "kube-apiserver",
+     "def": "The control plane component that exposes the Kubernetes API and validates and processes requests."
+    },
+    {
+     "term": "etcd",
+     "def": "The distributed key-value store that holds all cluster state, including Secrets."
+    },
+    {
+     "term": "kubelet",
+     "def": "The agent on each node that starts and monitors pods and exposes a node API."
+    },
+    {
+     "term": "Service account",
+     "def": "A Kubernetes identity used by pods to authenticate to the API server."
+    },
+    {
+     "term": "kube-bench",
+     "def": "A tool that checks a cluster against the CIS Kubernetes Benchmark."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which component stores all cluster state including Secrets?",
+     "options": [
+      "kube-proxy",
+      "etcd",
+      "scheduler",
+      "kubelet"
+     ],
+     "a": 1,
+     "why": "etcd is the backing datastore for the API server."
+    },
+    {
+     "q": "What is the risk of kubelet anonymous authentication being enabled?",
+     "options": [
+      "Slower scheduling",
+      "Unauthenticated callers can use the node API",
+      "Pods cannot start",
+      "Logs are deleted"
+     ],
+     "a": 1,
+     "why": "The kubelet API can list pods and even run commands if left open."
+    },
+    {
+     "q": "How can you reduce the impact of a compromised pod's service account token?",
+     "options": [
+      "Grant cluster-admin",
+      "Disable automount when not needed and grant minimal RBAC",
+      "Share one account across namespaces",
+      "Store the token in the image"
+     ],
+     "a": 1,
+     "why": "No token means no API access, and minimal RBAC limits what a token can do."
+    },
+    {
+     "q": "The order of API request processing is:",
+     "options": [
+      "Admission, authorization, authentication",
+      "Authentication, authorization, admission control",
+      "Authorization, authentication, admission",
+      "Admission, authentication, authorization"
+     ],
+     "a": 1,
+     "why": "Identity is established first, then permissions checked, then admission policies applied."
+    }
+   ],
+   "recap": [
+    "Know the control plane parts: API server, etcd, scheduler, controllers, kubelet.",
+    "Keep the API server, kubelet and etcd authenticated, encrypted and not exposed.",
+    "Treat service account tokens as credentials and minimize their rights."
+   ]
+  },
+  {
+   "title": "RBAC in Kubernetes",
+   "why": "RBAC decides who can do what in the cluster. Over-broad bindings, especially cluster-admin, are among the most common ways a small compromise becomes a full one.",
+   "sections": [
+    {
+     "h": "Roles, ClusterRoles and bindings",
+     "p": [
+      "RBAC is additive: there are no deny rules, only grants. A Role grants permissions within one namespace; a ClusterRole defines permissions cluster-wide or can be reused across namespaces. A RoleBinding attaches a Role (or ClusterRole) to subjects inside a namespace, and a ClusterRoleBinding attaches a ClusterRole to subjects across the whole cluster. Subjects are users, groups or service accounts.",
+      "A rule combines apiGroups, resources and verbs such as get, list, watch, create, update, patch and delete. Prefer namespaced Roles and RoleBindings. Use ClusterRoleBindings only for true cluster-level needs such as a node monitoring agent."
+     ]
+    },
+    {
+     "h": "Dangerous permissions to avoid",
+     "p": [
+      "Wildcards ('*' in resources or verbs) and the built-in cluster-admin role give unlimited power. Some narrow-looking permissions are also dangerous: reading Secrets exposes credentials; create on pods lets a user run a pod with a powerful service account or privileged settings; the verbs escalate, bind and impersonate let a subject raise its own rights; and access to pods/exec allows running commands in containers.",
+      "Review these routinely. A developer who can only create pods in a namespace may still be able to read any Secret that namespace's service accounts can access by mounting it. Combine RBAC with admission policy to restrict what those pods may contain."
+     ]
+    },
+    {
+     "h": "Designing and auditing least privilege",
+     "p": [
+      "Start from the workload's needs: list the exact API calls an operator or application makes, and write a Role with only those resources and verbs. Bind to a dedicated service account, not to default. Use groups from your identity provider for humans so access follows team membership, and remove standing admin rights in favor of time-limited elevation.",
+      "Audit with kubectl auth can-i, for example kubectl auth can-i list secrets --as=system:serviceaccount:shop:web -n shop, and kubectl auth can-i --list to see all permissions. Tools such as rbac-tool or KubiScan can find risky bindings. Enable API server audit logging so changes to roles and bindings, and sensitive reads, are recorded."
+     ]
+    },
+    {
+     "h": "Putting it into practice",
+     "p": [
+      "Run a periodic RBAC review the way you would review firewall rules. Export all RoleBindings and ClusterRoleBindings, list who holds cluster-admin, and compare against the people and services that truly need it. Look for bindings that reference users or service accounts that no longer exist, and for the system:authenticated and system:unauthenticated groups, which should never receive meaningful rights. Keep roles in version control and require review for changes, so every grant has a ticket and an owner."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Config",
+    "text": "apiVersion: rbac.authorization.k8s.io/v1\nkind: Role\nmetadata: {name: cm-reader, namespace: shop}\nrules:\n- apiGroups: [\"\"]\n  resources: [\"configmaps\"]\n  verbs: [\"get\", \"list\"]\n---\nkind: RoleBinding\nmetadata: {name: web-cm-reader, namespace: shop}\nsubjects: [{kind: ServiceAccount, name: web, namespace: shop}]\nroleRef: {kind: Role, name: cm-reader, apiGroup: rbac.authorization.k8s.io}"
+   },
+   "example": "An audit shows a ClusterRoleBinding giving the service account shop:web the cluster-admin role because a developer wanted the app to read one ConfigMap. The fix is to delete the binding, create the namespaced Role cm-reader with get and list on configmaps, bind it to the account, and verify with kubectl auth can-i list secrets --as=system:serviceaccount:shop:web -n shop, which should now return no.",
+   "terms": [
+    {
+     "term": "Role",
+     "def": "A set of permissions that applies within a single namespace."
+    },
+    {
+     "term": "ClusterRoleBinding",
+     "def": "A binding that grants a ClusterRole to subjects across all namespaces."
+    },
+    {
+     "term": "Least privilege",
+     "def": "Granting only the permissions needed to perform a task."
+    },
+    {
+     "term": "Escalate verb",
+     "def": "A permission that lets a subject grant rights it does not itself hold."
+    },
+    {
+     "term": "kubectl auth can-i",
+     "def": "A command that checks whether a subject may perform an action."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which statement about Kubernetes RBAC is true?",
+     "options": [
+      "It supports explicit deny rules",
+      "It is additive: only grants exist",
+      "Roles apply cluster-wide",
+      "Bindings cannot reference service accounts"
+     ],
+     "a": 1,
+     "why": "RBAC has no deny; permissions are the union of grants."
+    },
+    {
+     "q": "A RoleBinding that references a ClusterRole grants those permissions:",
+     "options": [
+      "In all namespaces",
+      "Only in the binding's namespace",
+      "Only to nodes",
+      "To anonymous users"
+     ],
+     "a": 1,
+     "why": "A RoleBinding scopes the ClusterRole to its own namespace."
+    },
+    {
+     "q": "Which permission can let a user run code with another account's rights?",
+     "options": [
+      "get on configmaps",
+      "create on pods",
+      "list on namespaces",
+      "watch on events"
+     ],
+     "a": 1,
+     "why": "A new pod can use a powerful service account or privileged settings."
+    },
+    {
+     "q": "How do you test what a service account may do?",
+     "options": [
+      "kubectl top",
+      "kubectl auth can-i --as=system:serviceaccount:ns:name",
+      "kubectl logs",
+      "kubectl cordon"
+     ],
+     "a": 1,
+     "why": "can-i with --as impersonates the subject for the check."
+    }
+   ],
+   "recap": [
+    "RBAC is additive; prefer namespaced Roles and dedicated service accounts.",
+    "Avoid wildcards, cluster-admin, secrets read, pods/exec, escalate, bind and impersonate.",
+    "Audit with kubectl auth can-i and API audit logs."
+   ]
+  },
+  {
+   "title": "Pod security and admission control",
+   "why": "RBAC controls who may create pods, but pod settings decide how dangerous those pods can be. Admission policies enforce safe settings automatically for every workload.",
+   "sections": [
+    {
+     "h": "securityContext and Pod Security Standards",
+     "p": [
+      "A pod or container securityContext sets runtime privileges: runAsNonRoot, runAsUser, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities drop: [ALL], privileged: false and seccompProfile type RuntimeDefault. These settings turn the baseline controls from the first lesson into declarative configuration.",
+      "Kubernetes defines three Pod Security Standards. Privileged is unrestricted. Baseline blocks known escalations such as privileged containers, host namespaces and hostPath volumes. Restricted follows current hardening practice: non-root, no privilege escalation, dropped capabilities and a seccomp profile. Aim for Restricted for ordinary applications."
+     ]
+    },
+    {
+     "h": "Pod Security Admission",
+     "p": [
+      "Pod Security Admission is built into the API server and replaced the removed PodSecurityPolicy. You apply it with namespace labels such as pod-security.kubernetes.io/enforce=restricted, plus audit and warn modes. Enforce rejects violating pods, audit records violations in the audit log, and warn returns a message to the user.",
+      "A practical rollout starts with warn and audit on the target level, fixes the workloads that would fail, then moves to enforce. System namespaces that need privileges, such as a CNI or storage driver, are given a looser level and tightly controlled access."
+     ]
+    },
+    {
+     "h": "Policy engines: Kyverno and Gatekeeper",
+     "p": [
+      "Admission controllers intercept API requests after authorization. Validating webhooks can reject a request and mutating webhooks can modify it. Policy engines package this: Kyverno writes policies as Kubernetes YAML, while OPA Gatekeeper uses constraint templates written in Rego. ValidatingAdmissionPolicy, using CEL expressions, is a built-in alternative.",
+      "Typical policies require images from an approved registry, forbid the latest tag, require resource limits and labels, block hostPath and hostNetwork, and verify image signatures. Be aware of failure modes: a webhook that is down with failurePolicy Fail can block all deployments, while Ignore can silently skip checks."
+     ]
+    },
+    {
+     "h": "Putting it into practice",
+     "p": [
+      "Treat policy and admission as a product with a lifecycle. Write each policy with a clear message so developers learn what to fix, publish exceptions through a pull request rather than ad hoc edits, and test policies in a staging cluster with realistic manifests. Track how many violations occur per team over time. A falling count shows that the standards are being absorbed, while a rising count after a platform change shows where documentation or templates need work."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Config",
+    "text": "securityContext:\n  runAsNonRoot: true\n  runAsUser: 10001\n  allowPrivilegeEscalation: false\n  readOnlyRootFilesystem: true\n  capabilities: {drop: [\"ALL\"]}\n  seccompProfile: {type: RuntimeDefault}\n# namespace label\n# pod-security.kubernetes.io/enforce: restricted"
+   },
+   "example": "The shop namespace is labeled with enforce=restricted. A developer deploys a pod without runAsNonRoot and receives a rejection message naming the violated fields. They add the securityContext above, and the pod is admitted. Separately, a Kyverno policy rejects any image not starting with registry.example.com/, so a pod pulling an unvetted public image is denied with a clear policy message.",
+   "terms": [
+    {
+     "term": "securityContext",
+     "def": "Pod and container settings that define privilege and access controls at runtime."
+    },
+    {
+     "term": "Pod Security Standards",
+     "def": "Three predefined levels: Privileged, Baseline and Restricted."
+    },
+    {
+     "term": "Admission controller",
+     "def": "API server stage that can validate or modify requests after authorization."
+    },
+    {
+     "term": "Kyverno",
+     "def": "A Kubernetes-native policy engine that uses YAML policies."
+    },
+    {
+     "term": "Gatekeeper",
+     "def": "An OPA-based admission controller using constraint templates written in Rego."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which Pod Security Standard is the most restrictive?",
+     "options": [
+      "Privileged",
+      "Baseline",
+      "Restricted",
+      "Default"
+     ],
+     "a": 2,
+     "why": "Restricted enforces current hardening best practice."
+    },
+    {
+     "q": "What replaced PodSecurityPolicy?",
+     "options": [
+      "Pod Security Admission",
+      "RBAC",
+      "NetworkPolicy",
+      "kube-proxy"
+     ],
+     "a": 0,
+     "why": "PodSecurityPolicy was removed and replaced by built-in Pod Security Admission."
+    },
+    {
+     "q": "Which securityContext field stops a process gaining more privileges than its parent?",
+     "options": [
+      "readOnlyRootFilesystem",
+      "allowPrivilegeEscalation: false",
+      "hostPID",
+      "runAsGroup"
+     ],
+     "a": 1,
+     "why": "It sets no_new_privs, blocking setuid-style escalation."
+    },
+    {
+     "q": "A safe way to roll out enforce mode is to:",
+     "options": [
+      "Enable enforce everywhere immediately",
+      "Use warn and audit first, fix workloads, then enforce",
+      "Disable admission",
+      "Only use Privileged"
+     ],
+     "a": 1,
+     "why": "Warn and audit reveal breakage before enforcement blocks deployments."
+    }
+   ],
+   "recap": [
+    "Set securityContext: non-root, no escalation, drop capabilities, RuntimeDefault seccomp.",
+    "Use Pod Security Admission labels, staged from warn to enforce.",
+    "Use Kyverno, Gatekeeper or ValidatingAdmissionPolicy for custom rules."
+   ]
+  },
+  {
+   "title": "Network policies",
+   "why": "By default every pod in a cluster can talk to every other pod. Network policies are how you break that flat network into segments and limit lateral movement.",
+   "sections": [
+    {
+     "h": "Default behavior and how policies work",
+     "p": [
+      "Kubernetes networking is open by default: any pod can reach any other pod and service, in any namespace. A NetworkPolicy selects pods with a podSelector and then defines allowed ingress and egress traffic. Once a pod is selected by any policy for a direction, only traffic matching a rule is allowed in that direction. Policies are additive, so the union of rules applies.",
+      "Enforcement is performed by the network plugin, not by Kubernetes itself. A CNI such as Calico or Cilium supports policies; a plugin that does not support them will accept the objects and silently do nothing. Always test that a blocked connection is truly blocked."
+     ]
+    },
+    {
+     "h": "Default deny and explicit allows",
+     "p": [
+      "The standard pattern is to create a default-deny policy in each namespace using an empty podSelector with policyTypes Ingress and Egress and no rules. Then add narrow allow policies: the frontend may reach the API on TCP 8080; the API may reach the database on TCP 5432; every pod may reach cluster DNS on UDP and TCP 53.",
+      "Remember egress. Forgetting to allow DNS is the classic reason an application suddenly fails after default deny. Restricting egress also limits data exfiltration and blocks pods from reaching the cloud metadata address 169.254.169.254, which is a valuable control against credential theft."
+     ]
+    },
+    {
+     "h": "Selectors, namespaces and testing",
+     "p": [
+      "Rules can match peers with podSelector, namespaceSelector or ipBlock. A common mistake is to write podSelector and namespaceSelector as separate list items, which means 'either', when a single item with both means 'and'. Label namespaces consistently so namespaceSelector rules are reliable.",
+      "Test with temporary pods: kubectl run with a busybox or curl image, and try the allowed and forbidden paths. Cilium and Calico offer flow logs and policy visualization to show what traffic is allowed or dropped. Treat policies as code reviewed in version control, and consider service mesh mutual TLS for identity-based controls in addition."
+     ]
+    },
+    {
+     "h": "Putting it into practice",
+     "p": [
+      "Roll out network policy namespace by namespace. First observe real traffic using flow logs from Cilium Hubble or Calico, then draft policies that match observed legitimate flows, apply them in a staging environment, and only then enforce in production. Keep a short runbook for emergencies, including how to temporarily relax a policy under change control. Document each allowed flow with its business purpose, because a policy set that nobody understands is soon replaced by a permissive rule."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Config",
+    "text": "apiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata: {name: api-allow-frontend, namespace: shop}\nspec:\n  podSelector: {matchLabels: {app: api}}\n  policyTypes: [Ingress]\n  ingress:\n  - from: [{podSelector: {matchLabels: {app: frontend}}}]\n    ports: [{protocol: TCP, port: 8080}]"
+   },
+   "example": "In the shop namespace a default-deny policy is applied. The frontend suddenly cannot resolve names, so an egress rule is added allowing UDP and TCP 53 to the kube-system namespace. Next, the policy above lets only pods labeled app=frontend reach the api pods on TCP 8080. A test pod without that label fails to connect, showing that the segmentation works and that lateral movement from an unrelated pod is blocked.",
+   "terms": [
+    {
+     "term": "NetworkPolicy",
+     "def": "A Kubernetes object that restricts pod ingress and egress traffic."
+    },
+    {
+     "term": "Default deny",
+     "def": "A policy that selects all pods and allows no traffic until further rules add it."
+    },
+    {
+     "term": "CNI plugin",
+     "def": "The networking component, such as Calico or Cilium, that actually enforces policies."
+    },
+    {
+     "term": "podSelector",
+     "def": "A label query that chooses which pods a rule applies to or matches."
+    },
+    {
+     "term": "Egress",
+     "def": "Traffic leaving a pod toward other destinations."
+    }
+   ],
+   "check": [
+    {
+     "q": "With no NetworkPolicies, pod-to-pod traffic is:",
+     "options": [
+      "Blocked",
+      "Allowed",
+      "Only allowed within a node",
+      "Encrypted"
+     ],
+     "a": 1,
+     "why": "Kubernetes networking is flat and open by default."
+    },
+    {
+     "q": "What happens if the CNI does not support NetworkPolicy?",
+     "options": [
+      "Policies are enforced anyway",
+      "Objects are accepted but not enforced",
+      "The cluster stops",
+      "Pods are deleted"
+     ],
+     "a": 1,
+     "why": "Enforcement depends on the plugin."
+    },
+    {
+     "q": "After applying default-deny egress, apps often fail because:",
+     "options": [
+      "Images are missing",
+      "DNS traffic was not allowed",
+      "The API server is down",
+      "RBAC denies pods"
+     ],
+     "a": 1,
+     "why": "Name resolution needs egress to port 53 of cluster DNS."
+    },
+    {
+     "q": "Which is the standard first policy in a namespace?",
+     "options": [
+      "Allow all",
+      "Default deny for ingress and egress",
+      "Delete all pods",
+      "Allow only ICMP"
+     ],
+     "a": 1,
+     "why": "Start from deny and add narrow allows."
+    }
+   ],
+   "recap": [
+    "Pods can talk freely by default; policies restrict it and need a supporting CNI.",
+    "Apply default deny then allow specific flows, including DNS.",
+    "Test connectivity and review selector logic carefully."
+   ]
+  },
+  {
+   "title": "Runtime security and secrets",
+   "why": "Prevention will miss something. Runtime detection spots an active attack inside a container, and good secret handling ensures a compromise does not yield every credential in the cluster.",
+   "sections": [
+    {
+     "h": "Runtime detection with Falco",
+     "p": [
+      "Falco watches kernel events through eBPF or a kernel module and matches them against rules written in YAML. Each rule has a condition, an output message and a priority. Default rules flag a shell spawned in a container, writes below /etc, reads of sensitive files such as /etc/shadow, unexpected outbound connections, and the use of package managers in running containers.",
+      "A typical alert contains the rule name, time, container ID, image, Kubernetes namespace and pod, the process and its parent, and the user. Send alerts to a SIEM or chat through Falcosidekick. Tune rules to your workloads, because a legitimate debug session also spawns a shell, and decide a response such as isolating the pod with a network policy, capturing evidence, then replacing it."
+     ]
+    },
+    {
+     "h": "seccomp and AppArmor",
+     "p": [
+      "seccomp filters which system calls a process can make. The RuntimeDefault profile blocks dozens of rarely needed and risky calls, and custom profiles can be generated from observed behavior. AppArmor and SELinux are mandatory access control systems that restrict file, network and capability access by profile, so even a root process in a container is confined.",
+      "Enable RuntimeDefault seccomp through the pod securityContext, and apply AppArmor profiles with the pod annotation or field supported by your version. These controls reduce the kernel attack surface available to an attacker who has code execution, which directly limits container escape options."
+     ]
+    },
+    {
+     "h": "Handling secrets safely",
+     "p": [
+      "Kubernetes Secrets are only base64 encoded by default and are stored in etcd in clear text unless encryption at rest is configured with an EncryptionConfiguration, ideally with a KMS provider so keys are kept outside the cluster. Restrict RBAC on Secrets, avoid exposing them as environment variables where logs or crash dumps can leak them, and prefer mounted files.",
+      "External secret stores such as HashiCorp Vault, AWS Secrets Manager or cloud equivalents provide rotation, short-lived credentials and audit trails. The External Secrets Operator or the Secrets Store CSI driver syncs or mounts them into pods. Never commit secrets to Git; if using GitOps, use sealed or encrypted secrets and scan repositories for leaked values."
+     ]
+    },
+    {
+     "h": "Putting it into practice",
+     "p": [
+      "Connect detection to a response plan before you need it. Decide who receives Falco alerts, which alerts page a human and which only create tickets, and rehearse the quarantine procedure in a test cluster. Keep forensic collection simple: save pod logs, describe output, the Falco event and, where policy allows, a filesystem snapshot. After any incident, rotate every secret the affected pod could read and review whether a tighter seccomp or network policy would have contained the activity sooner."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Log excerpt",
+    "text": "14:02:11.402 Warning Terminal shell in container (user=root\n  container=web-7d9 image=example/web:1.4\n  k8s.ns=shop k8s.pod=web-7d9 shell=sh\n  parent=node cmdline=sh -c id)\n14:02:14.877 Notice Outbound connection to unexpected IP\n  (dest=203.0.113.50:4444 proc=sh pod=web-7d9)"
+   },
+   "example": "Falco reports a shell in pod web-7d9 followed by an outbound connection to 203.0.113.50:4444, which is unusual for this web service. The responder applies a quarantine NetworkPolicy to block egress, preserves logs and a snapshot, rotates the secrets that pod could read, then redeploys a patched image. The investigation reveals an application flaw, and a seccomp profile and read-only filesystem are added to limit repeat impact.",
+   "terms": [
+    {
+     "term": "Falco",
+     "def": "An open-source runtime security tool that detects suspicious behavior from kernel events."
+    },
+    {
+     "term": "seccomp",
+     "def": "A Linux feature that restricts the system calls a process may make."
+    },
+    {
+     "term": "AppArmor",
+     "def": "A Linux security module that confines programs using per-program profiles."
+    },
+    {
+     "term": "Encryption at rest",
+     "def": "Encrypting data stored in etcd so Secrets are not readable from disk or backups."
+    },
+    {
+     "term": "External Secrets Operator",
+     "def": "A controller that syncs secrets from external stores into Kubernetes."
+    }
+   ],
+   "check": [
+    {
+     "q": "By default, Kubernetes Secrets in etcd are:",
+     "options": [
+      "Encrypted with AES",
+      "Only base64 encoded",
+      "Hashed",
+      "Stored in the registry"
+     ],
+     "a": 1,
+     "why": "Without EncryptionConfiguration they are stored unencrypted in etcd."
+    },
+    {
+     "q": "Which event would a default Falco rule commonly flag?",
+     "options": [
+      "A pod restarting",
+      "A shell spawned inside a container",
+      "A DNS lookup of example.com",
+      "A pod being scheduled"
+     ],
+     "a": 1,
+     "why": "Interactive shells in containers are a standard detection."
+    },
+    {
+     "q": "What does a seccomp profile restrict?",
+     "options": [
+      "Disk quota",
+      "System calls available to a process",
+      "Image size",
+      "DNS records"
+     ],
+     "a": 1,
+     "why": "seccomp is a syscall filter."
+    },
+    {
+     "q": "Best immediate response to a Falco alert of a reverse-shell-like connection?",
+     "options": [
+      "Ignore it",
+      "Isolate the pod, preserve evidence, then replace it",
+      "Disable Falco",
+      "Delete the cluster"
+     ],
+     "a": 1,
+     "why": "Contain first, keep evidence, then remediate and rotate secrets."
+    }
+   ],
+   "recap": [
+    "Falco detects runtime behavior; seccomp and AppArmor limit what a process can do.",
+    "Enable etcd encryption, ideally with KMS, and restrict Secret access.",
+    "Use external secret stores with rotation and audit."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Scan an image",
+   "sim": "terminal",
+   "scenario": "You are a platform engineer in a lab. The image example/web:1.4 is about to be promoted to production, and the pipeline requires zero critical vulnerabilities. You have a terminal with a Trivy-style scanner and Docker build tools.",
+   "objective": "Find the critical vulnerability and rebuild the image on a patched base so the scan passes.",
+   "steps": [
+    {
+     "do": "Type: trivy image --severity HIGH,CRITICAL example/web:1.4",
+     "see": "Total: 2 (HIGH: 1, CRITICAL: 1). libssl1 CVE-2024-0001 CRITICAL installed 1.1.1n-0 fixed 1.1.1w-0. zlib1g CVE-2024-0002 HIGH fixed 1.2.13."
+    },
+    {
+     "do": "Type: grep FROM Dockerfile",
+     "see": "FROM debian:11.9-slim"
+    },
+    {
+     "do": "Type: docker pull debian:11.11-slim",
+     "see": "Status: Downloaded newer image for debian:11.11-slim"
+    },
+    {
+     "do": "Edit the Dockerfile so FROM reads debian:11.11-slim",
+     "see": "Dockerfile updated."
+    },
+    {
+     "do": "Type: docker build -t example/web:1.5 .",
+     "see": "Successfully built. Tagged example/web:1.5"
+    },
+    {
+     "do": "Type: trivy image --severity HIGH,CRITICAL example/web:1.5",
+     "see": "Total: 0 (HIGH: 0, CRITICAL: 0)"
+    },
+    {
+     "do": "Type: docker inspect --format '{{index .RepoDigests 0}}' example/web:1.5",
+     "see": "example/web@sha256:3f1c...a9d2"
+    }
+   ],
+   "answer": "The critical finding was CVE-2024-0001 in libssl1, fixed in 1.1.1w-0, inherited from the old base image. Updating the FROM line to a patched base and rebuilding as 1.5 produced a scan with zero HIGH or CRITICAL results. Deploy using the digest rather than the tag.",
+   "hint": "Compare the Installed and Fixed columns, then look at which line in the Dockerfile controls the package versions."
+  },
+  {
+   "title": "Harden a Dockerfile",
+   "sim": "code-editor",
+   "scenario": "A developer submitted a Dockerfile for an internal API. It uses a large base image, runs as root, copies an .env file containing a password, and has no health check. Review it in the editor and fix it.",
+   "objective": "Produce a Dockerfile that is minimal, non-root, secret-free and health-checked.",
+   "steps": [
+    {
+     "do": "Open Dockerfile and read the first line: FROM ubuntu:latest",
+     "see": "Finding: large, unpinned base. Suggested: a slim or distroless image pinned by version or digest."
+    },
+    {
+     "do": "Replace the FROM line with: FROM python:3.12-slim",
+     "see": "Line updated. Base size drops from roughly 78 MB to 45 MB in this simulation."
+    },
+    {
+     "do": "Find the line COPY .env /app/.env and delete it",
+     "see": "Warning cleared: secret file no longer copied. Note: the old image layers still contain it and must be rotated."
+    },
+    {
+     "do": "Add: RUN useradd -u 10001 -r app",
+     "see": "User created in the build instructions."
+    },
+    {
+     "do": "Add: USER 10001",
+     "see": "Check passed: container no longer runs as root."
+    },
+    {
+     "do": "Add: HEALTHCHECK CMD python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8080/health')\"",
+     "see": "Check passed: healthcheck present."
+    },
+    {
+     "do": "Click Run lint",
+     "see": "4 of 4 checks passed: base image, secrets, non-root user, healthcheck."
+    }
+   ],
+   "answer": "The hardened Dockerfile uses a pinned slim base, contains no copied .env file, creates a numeric non-root user and switches to it with USER, and defines a HEALTHCHECK. The exposed password must be rotated because it existed in a previous image layer.",
+   "hint": "Search the file for COPY lines and USER; remember a deleted secret must still be rotated."
+  },
+  {
+   "title": "Fix over-broad RBAC",
+   "sim": "config-editor",
+   "scenario": "The service account shop:web needs to read ConfigMaps in the shop namespace. A previous engineer bound it to cluster-admin with a ClusterRoleBinding named web-admin. You are editing the manifests in a config editor.",
+   "objective": "Replace the cluster-admin binding with a namespaced least-privilege Role and RoleBinding.",
+   "steps": [
+    {
+     "do": "Open web-admin.yaml and read the roleRef",
+     "see": "roleRef: ClusterRole cluster-admin. Subjects: ServiceAccount web in namespace shop. Risk: full cluster control."
+    },
+    {
+     "do": "Delete web-admin.yaml",
+     "see": "ClusterRoleBinding web-admin removed."
+    },
+    {
+     "do": "Create Role cm-reader in namespace shop with apiGroups [\"\"], resources [\"configmaps\"], verbs [\"get\",\"list\"]",
+     "see": "Role cm-reader created in namespace shop."
+    },
+    {
+     "do": "Create RoleBinding web-cm-reader referencing Role cm-reader and subject ServiceAccount shop:web",
+     "see": "RoleBinding created."
+    },
+    {
+     "do": "Run: kubectl auth can-i list configmaps --as=system:serviceaccount:shop:web -n shop",
+     "see": "yes"
+    },
+    {
+     "do": "Run: kubectl auth can-i list secrets --as=system:serviceaccount:shop:web -n shop",
+     "see": "no"
+    },
+    {
+     "do": "Run: kubectl auth can-i '*' '*' --as=system:serviceaccount:shop:web",
+     "see": "no"
+    }
+   ],
+   "answer": "The correct end state is a namespaced Role with only get and list on configmaps, bound to shop:web through a RoleBinding, and the ClusterRoleBinding to cluster-admin removed. can-i shows yes for configmaps and no for secrets and for wildcard access.",
+   "hint": "Use a Role, not a ClusterRole, and list only the resource and verbs the app needs."
+  },
+  {
+   "title": "Write a NetworkPolicy",
+   "sim": "config-editor",
+   "scenario": "The shop namespace has three tiers: frontend (app=frontend), api (app=api listening on TCP 8080) and database. Currently any pod can reach any other. You must isolate the api tier.",
+   "objective": "Create a default-deny ingress policy and a policy allowing only the frontend to reach the api on TCP 8080.",
+   "steps": [
+    {
+     "do": "Create default-deny with podSelector {} and policyTypes [Ingress]",
+     "see": "NetworkPolicy default-deny created in namespace shop."
+    },
+    {
+     "do": "Run test pod: kubectl run t1 --image=busybox -n shop -- wget -qO- -T2 http://api:8080",
+     "see": "wget: download timed out (blocked by default-deny)."
+    },
+    {
+     "do": "Create policy api-allow-frontend with podSelector app=api",
+     "see": "Policy created, selects 2 pods."
+    },
+    {
+     "do": "Add ingress from podSelector app=frontend, ports TCP 8080",
+     "see": "Rule added."
+    },
+    {
+     "do": "Run test from a pod labeled app=frontend",
+     "see": "HTTP/1.1 200 OK (allowed)."
+    },
+    {
+     "do": "Run test from an unlabeled pod",
+     "see": "Timed out (denied)."
+    },
+    {
+     "do": "Click Validate",
+     "see": "Result: segmentation correct. Note: egress is not restricted; consider an egress policy allowing DNS."
+    }
+   ],
+   "answer": "The solution is a namespace-wide default-deny ingress policy plus a policy selecting app=api that allows ingress only from pods labeled app=frontend on TCP 8080. Tests confirm the frontend succeeds and other pods are blocked.",
+   "hint": "The allow policy's podSelector chooses the protected pods; the from block chooses who may connect."
+  },
+  {
+   "title": "Investigate a Falco alert",
+   "sim": "log-viewer",
+   "scenario": "Falco has raised alerts from the production cluster overnight. You are on call and have a log viewer open on the Falco output for the shop namespace.",
+   "objective": "Determine whether the alert is a true compromise and choose a containment action.",
+   "steps": [
+    {
+     "do": "Filter the log by priority Warning and above",
+     "see": "2 events: 'Terminal shell in container' at 14:02:11 and 'Outbound connection to unexpected IP' at 14:02:14."
+    },
+    {
+     "do": "Open the first event details",
+     "see": "pod=web-7d9, image=example/web:1.4, user=root, cmdline=sh -c id, parent=node (the app process)."
+    },
+    {
+     "do": "Check the change calendar entry for pod web-7d9",
+     "see": "No maintenance or debugging session is scheduled."
+    },
+    {
+     "do": "Open the second event",
+     "see": "dest=203.0.113.50:4444 proc=sh. The destination is not in the egress allow-list."
+    },
+    {
+     "do": "Search the log for other pods contacting 203.0.113.50",
+     "see": "No other pods contacted it."
+    },
+    {
+     "do": "Choose containment: apply quarantine NetworkPolicy to pod web-7d9",
+     "see": "Policy applied. Outbound traffic from web-7d9 is now blocked; the pod is kept running for forensics."
+    },
+    {
+     "do": "Choose follow-up: rotate secrets mounted in web-7d9 and redeploy a patched image",
+     "see": "Ticket created with steps; secrets scheduled for rotation."
+    }
+   ],
+   "answer": "This is a likely true compromise: an interactive shell spawned by the application process, no approved change, then a connection to an unlisted external address. Contain by isolating the pod with network policy, keep it for evidence, rotate its secrets and redeploy after fixing the vulnerability.",
+   "hint": "Ask whether a change record explains the shell and whether the destination is known."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Why can a kernel vulnerability affect many containers?",
+   "options": [
+    "Each container has its own kernel",
+    "They share the host kernel",
+    "Containers use hypervisors",
+    "Images contain the kernel"
+   ],
+   "a": 1,
+   "why": "Containers are processes on one shared kernel."
+  },
+  {
+   "q": "Which is the most effective way to avoid secrets leaking from image layers?",
+   "options": [
+    "Delete them in a later layer",
+    "Never add them; use secret mounts or a store",
+    "Rename the file",
+    "Compress the image"
+   ],
+   "a": 1,
+   "why": "Layers are immutable, so secrets must never enter them."
+  },
+  {
+   "q": "Which command checks a service account's permission?",
+   "options": [
+    "kubectl auth can-i --as=system:serviceaccount:ns:sa",
+    "kubectl get nodes",
+    "kubectl cp",
+    "kubectl drain"
+   ],
+   "a": 0,
+   "why": "can-i with --as tests the identity's rights."
+  },
+  {
+   "q": "Which role should be avoided for ordinary workloads?",
+   "options": [
+    "A namespaced Role with get on configmaps",
+    "cluster-admin",
+    "A Role with list on pods",
+    "A read-only Role"
+   ],
+   "a": 1,
+   "why": "cluster-admin grants unrestricted power."
+  },
+  {
+   "q": "Which Pod Security Standard level is recommended for typical apps?",
+   "options": [
+    "Privileged",
+    "Baseline only if unsure",
+    "Restricted",
+    "None"
+   ],
+   "a": 2,
+   "why": "Restricted reflects current hardening practice."
+  },
+  {
+   "q": "What does a default-deny NetworkPolicy do?",
+   "options": [
+    "Allows all traffic",
+    "Selects pods and allows no traffic until other rules add it",
+    "Encrypts traffic",
+    "Deletes pods"
+   ],
+   "a": 1,
+   "why": "It begins from deny and requires explicit allows."
+  },
+  {
+   "q": "After default-deny egress, what is commonly forgotten?",
+   "options": [
+    "Allowing DNS",
+    "Allowing ICMP",
+    "Allowing SSH",
+    "Allowing FTP"
+   ],
+   "a": 0,
+   "why": "Name resolution needs egress to DNS."
+  },
+  {
+   "q": "Which tool detects a shell spawned in a running container?",
+   "options": [
+    "Trivy",
+    "Falco",
+    "kube-bench",
+    "cosign"
+   ],
+   "a": 1,
+   "why": "Falco is a runtime detection tool; Trivy scans images."
+  },
+  {
+   "q": "Kubernetes Secrets are stored in etcd how by default?",
+   "options": [
+    "Encrypted with KMS",
+    "Unencrypted, base64 encoded",
+    "Hashed with bcrypt",
+    "In the kubelet only"
+   ],
+   "a": 1,
+   "why": "Encryption at rest must be configured."
+  },
+  {
+   "q": "What does pinning an image by digest protect against?",
+   "options": [
+    "Slow pulls",
+    "Content changing behind a mutable tag",
+    "Network latency",
+    "RBAC errors"
+   ],
+   "a": 1,
+   "why": "Digests identify exact content."
+  }
+ ]
+}

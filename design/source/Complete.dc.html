@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lesson complete</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+a{color:inherit}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="width:390px;height:844px;box-sizing:border-box;position:relative;overflow:hidden;display:flex;flex-direction:column;background-color:#F3F5F9;background-image:radial-gradient(#D3DAE8 1px,transparent 1px);background-size:18px 18px;font-family:'Hanken Grotesk',sans-serif;color:#101B33">
+  <div style="flex:1;min-height:0;padding:72px 20px 0;box-sizing:border-box;display:flex;flex-direction:column">
+    <span style="width:56px;height:56px;border-radius:50%;background:#FFE066;border:2px solid #101B33;display:flex;align-items:center;justify-content:center"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#101B33" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+    <h1 style="margin:18px 0 0;font:700 34px/1.05 'Bricolage Grotesque',sans-serif;letter-spacing:-.01em">Lesson 5 done</h1>
+    <p style="margin:8px 0 0;font:400 16px/1.4 'Hanken Grotesk',sans-serif;color:#46546F">You got 7 of 8 right.</p>
+
+    <div style="margin-top:20px;background:#fff;border:1px solid #DCE2EC;border-radius:20px;padding:16px">
+      <div style="font:600 12px/1 'Hanken Grotesk',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#5B6781">You can now explain</div>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+        <span style="padding:7px 12px;border-radius:999px;background:#F3F5F9;border:1px solid #DCE2EC;font:600 14px/1 'Hanken Grotesk',sans-serif"><span style="background:linear-gradient(transparent 52%,#FFE066 52%);padding:0 2px">DNS</span></span>
+        <span style="padding:7px 12px;border-radius:999px;background:#F3F5F9;border:1px solid #DCE2EC;font:600 14px/1 'Hanken Grotesk',sans-serif"><span style="background:linear-gradient(transparent 52%,#FFE066 52%);padding:0 2px">Resolver</span></span>
+        <span style="padding:7px 12px;border-radius:999px;background:#F3F5F9;border:1px solid #DCE2EC;font:600 14px/1 'Hanken Grotesk',sans-serif"><span style="background:linear-gradient(transparent 52%,#FFE066 52%);padding:0 2px">A record</span></span>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;background:#fff;border:1px solid #DCE2EC;border-radius:20px;padding:16px">
+      <div style="font:700 17px/1.2 'Bricolage Grotesque',sans-serif">How sure are you about DNS?</div>
+      <p style="margin:6px 0 0;font:400 14px/1.35 'Hanken Grotesk',sans-serif;color:#5B6781">Your answer sets when we ask again.</p>
+      <div role="radiogroup" aria-label="Confidence" style="margin-top:12px;display:flex;gap:8px">
+        <sc-for list="{{levels}}" as="v" hint-placeholder-count="3">
+          <button type="button" role="radio" aria-checked="{{v.sel}}" style="{{v.style}}" onClick="{{v.pick}}">
+            <span style="display:block;font:700 15px/1 'Hanken Grotesk',sans-serif">{{v.t}}</span>
+            <span style="display:block;margin-top:6px;font:400 12px/1 'Hanken Grotesk',sans-serif;color:#46546F">{{v.s}}</span>
+          </button>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <div style="flex:none;padding:12px 20px 34px;box-sizing:border-box;display:flex;flex-direction:column;gap:4px">
+    <a href="Main.dc.html" style="height:56px;border-radius:16px;background:#101B33;color:#fff;text-decoration:none;font:600 17px/1 'Hanken Grotesk',sans-serif;display:flex;align-items:center;justify-content:center">Next: DHCP and NAT</a>
+    <a href="Main.dc.html" style="min-height:44px;display:flex;align-items:center;justify-content:center;text-decoration:none;font:600 15px/1 'Hanken Grotesk',sans-serif;color:#2347C7">Back to home</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  state = { level: 'ok' };
+  renderVals() {
+    const cur = this.state.level;
+    const defs = [
+      { k: 'shaky', t: 'Shaky', s: 'Ask in 1 day' },
+      { k: 'ok', t: 'Okay', s: 'Ask in 3 days' },
+      { k: 'solid', t: 'Solid', s: 'Ask in 1 week' }
+    ];
+    const levels = defs.map((d) => {
+      const sel = cur === d.k;
+      return {
+        t: d.t, s: d.s, sel: sel,
+        style: "flex:1;min-height:64px;padding:10px 6px;box-sizing:border-box;border-radius:14px;cursor:pointer;color:#101B33;" + (sel ? 'background:#FFF1AD;border:2px solid #101B33;' : 'background:#fff;border:1px solid #C9D1E0;'),
+        pick: () => this.setState({ level: d.k })
+      };
+    });
+    return { levels: levels };
+  }
+}
+</script>
+</body>
+</html>

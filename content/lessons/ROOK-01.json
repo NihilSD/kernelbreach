@@ -1,0 +1,666 @@
+{
+ "code": "ROOK-01",
+ "intro": "This module introduces the field you are entering. You will define cybersecurity in terms of protecting systems, data and people, learn how red, blue and purple teams divide the work, and see which job roles exist. You will study three famous breaches to understand how real failures happen, then learn the legal and ethical rules that separate a professional from a criminal. It matters because every later skill in this path, from networking to Linux, is used inside these boundaries.",
+ "lessons": [
+  {
+   "title": "What Cybersecurity Is and Why It Matters",
+   "why": "Everything else in this path is a means to one goal: keeping systems, data and people safe from misuse.",
+   "sections": [
+    {
+     "h": "A working definition",
+     "p": [
+      "Cybersecurity is the practice of protecting computer systems, networks, applications and the information they hold from unauthorized access, misuse, disruption or damage. The key word is practice: it is not a product you buy once but a continuous set of decisions about people, process and technology. Security professionals describe the goals with three words, confidentiality, integrity and availability. Data should be seen only by those allowed to see it, should not be changed without permission, and should be usable when needed. Later modules treat this CIA triad formally, but you will see it behind every example here."
+     ]
+    },
+    {
+     "h": "What is being protected",
+     "p": [
+      "Three kinds of assets are at stake. Systems include laptops, servers, phones, cloud accounts and the network gear that links them. Data includes customer records, passwords, source code, financial files and medical history. People are the third asset and are often forgotten: a leaked home address, a drained bank account or a hospital that cannot treat patients because its computers are locked all cause human harm. This is why security is not only a technical field. A well-patched server is still at risk if an employee can be tricked into sharing a password."
+     ]
+    },
+    {
+     "h": "Why it matters now",
+     "p": [
+      "Almost every organization depends on connected systems, so attackers have a very large number of targets and many motives. Criminals want money through fraud, ransomware and data theft. Some groups want secrets for governments, and others act for political reasons or simple disruption. Defenders must protect everything all the time, while an attacker needs only one working path. That imbalance explains why defenders use layers of controls, monitor for unusual behavior and plan for failure. Good security does not promise zero incidents. It reduces how often they happen, limits how far they spread and shortens the time to notice and recover."
+     ]
+    },
+    {
+     "h": "Prevent, detect, respond",
+     "p": [
+      "Security work falls into three broad activities. Prevention stops bad things from happening, for example by patching software, requiring strong authentication and limiting who can reach a service. Detection notices when prevention fails, using logs, alerts and monitoring tools. Response contains the damage, removes the attacker, restores systems and learns from the event. A mature program invests in all three. If you only prevent, you are blind when something slips through. If you only respond, you are always cleaning up. Keep this three-part pattern in mind, because job roles and tools in this field map onto it neatly."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminology",
+    "text": "Confidentiality : keep data private\nIntegrity       : keep data accurate and unaltered\nAvailability    : keep systems usable\n\nActivities: Prevent -> Detect -> Respond"
+   },
+   "example": "A small dental clinic stores patient records on one office server. One morning the front desk cannot open any file, and a message demands payment. Availability is lost because the files are unusable. If the attacker also copied the records first, confidentiality is lost too. The harm reaches people: patients miss appointments and their data may be sold. Prevention would have been patching and offline backups, detection would have been alerts on mass file changes, and response is isolating the server and restoring from clean backups. One incident touches every goal and every activity.",
+   "terms": [
+    {
+     "term": "Cybersecurity",
+     "def": "Protecting systems, networks and data from unauthorized access, misuse or damage."
+    },
+    {
+     "term": "Confidentiality",
+     "def": "Ensuring information is accessible only to authorized parties."
+    },
+    {
+     "term": "Integrity",
+     "def": "Ensuring information is accurate and not altered without permission."
+    },
+    {
+     "term": "Availability",
+     "def": "Ensuring systems and data are usable when needed."
+    },
+    {
+     "term": "Ransomware",
+     "def": "Malware that locks or encrypts data and demands payment to restore it."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which goal is violated when a ransomware attack makes files unreadable?",
+     "options": [
+      "Confidentiality only",
+      "Availability",
+      "Non-repudiation",
+      "Authentication"
+     ],
+     "a": 1,
+     "why": "Encrypted files cannot be used, which is a loss of availability."
+    },
+    {
+     "q": "Which activity notices that a control has failed?",
+     "options": [
+      "Prevention",
+      "Detection",
+      "Procurement",
+      "Budgeting"
+     ],
+     "a": 1,
+     "why": "Detection uses logs and alerts to notice failed prevention."
+    },
+    {
+     "q": "Why is security described as a practice rather than a product?",
+     "options": [
+      "Products never work",
+      "It is a continuous set of decisions about people, process and technology",
+      "It only applies to large firms",
+      "It is only about passwords"
+     ],
+     "a": 1,
+     "why": "Security needs ongoing effort across people, process and technology."
+    },
+    {
+     "q": "Which is an example of harm to people rather than only systems?",
+     "options": [
+      "A server reboot",
+      "A leaked home address enabling stalking",
+      "A full disk",
+      "A slow network"
+     ],
+     "a": 1,
+     "why": "Exposure of personal data can directly endanger individuals."
+    }
+   ],
+   "recap": [
+    "Cybersecurity protects systems, data and people from misuse.",
+    "Confidentiality, integrity and availability are the core goals.",
+    "Prevent, detect and respond are the three activities of a security program."
+   ]
+  },
+  {
+   "title": "Red, Blue and Purple Teams, Job Roles",
+   "why": "Knowing who does what helps you choose a career direction and understand how organizations defend themselves.",
+   "sections": [
+    {
+     "h": "Red team: thinking like an attacker",
+     "p": [
+      "A red team simulates a real adversary to test whether an organization can withstand an attack. Members use the same tactics as criminals, such as phishing, exploiting weak configurations and moving across a network, but they do so with written permission and defined rules. Their goal is to show where defenses fail, not to cause harm. A related role is the penetration tester, who usually works on a narrower, time-boxed engagement against a specific application or network and produces a report of findings. Red teaming often runs longer and aims to test detection and response as well as technical controls."
+     ]
+    },
+    {
+     "h": "Blue team: defending and detecting",
+     "p": [
+      "The blue team defends. It builds and operates the controls that prevent attacks and watches for signs of compromise. Typical work includes configuring firewalls, collecting logs in a SIEM (security information and event management) platform, tuning alerts and hunting for hidden threats. The Security Operations Center, or SOC, is the group that monitors alerts around the clock. Tier 1 analysts triage alerts, Tier 2 analysts investigate in depth, and incident responders take over when an alert becomes a confirmed attack. Blue team members value patience, curiosity and careful note taking."
+     ]
+    },
+    {
+     "h": "Purple team: working together",
+     "p": [
+      "Red and blue teams can fall into a contest where each hides what it knows. A purple team is not usually a separate group but a way of working in which attackers and defenders share techniques openly. For example, the red team runs a specific technique, the blue team checks whether an alert fired, and together they improve the detection rule on the spot. Frameworks such as MITRE ATT&CK, a public catalog of attacker techniques, give both sides a common vocabulary. The result is faster improvement than a surprise test that ends in a report nobody acts on."
+     ]
+    },
+    {
+     "h": "Common job roles",
+     "p": [
+      "Beyond the colors, many roles exist. A SOC analyst triages alerts. A penetration tester performs authorized attacks and writes findings. An incident responder contains and investigates breaches. Governance, risk and compliance (GRC) staff write policies, measure risk and prepare audits. Security engineers design and build controls, and cloud security specialists protect cloud accounts. A digital forensics analyst recovers evidence. Many people start in IT support or system administration, because understanding how normal systems behave is the base for spotting abnormal ones. Pick a role by the daily tasks you enjoy, not only by the title."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Role to task",
+    "text": "SOC analyst      -> triage alerts in the SIEM\nPentester        -> authorized attack, written report\nIncident resp.   -> contain and investigate a breach\nGRC              -> policy, risk register, audit\nPurple teaming   -> attack and detect, tuned together"
+   },
+   "example": "A company runs a phishing test. The red team sends a harmless fake email and records that 12 staff clicked. The blue team checks its email gateway and sees only two alerts fired. In a purple session, both teams review which message features were missed, and the blue analyst writes a new detection rule while the red operator replays the test to confirm it fires. A GRC specialist then adds mandatory phishing training to the policy. Each role contributed a different piece of one improvement loop.",
+   "terms": [
+    {
+     "term": "Red team",
+     "def": "Authorized group that emulates attackers to test an organization's defenses."
+    },
+    {
+     "term": "Blue team",
+     "def": "Group that defends systems and detects and responds to attacks."
+    },
+    {
+     "term": "Purple team",
+     "def": "A collaborative approach where red and blue share techniques to improve detection."
+    },
+    {
+     "term": "SOC",
+     "def": "Security Operations Center, the team that monitors and triages security alerts."
+    },
+    {
+     "term": "GRC",
+     "def": "Governance, risk and compliance, the policy and oversight side of security."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which role writes policies and prepares for audits?",
+     "options": [
+      "SOC analyst",
+      "GRC specialist",
+      "Pentester",
+      "Network cabler"
+     ],
+     "a": 1,
+     "why": "GRC covers governance, risk and compliance work."
+    },
+    {
+     "q": "What distinguishes a purple team approach?",
+     "options": [
+      "Attackers hide their methods",
+      "Red and blue share techniques openly to improve detection",
+      "It replaces the SOC",
+      "It avoids testing"
+     ],
+     "a": 1,
+     "why": "Purple teaming is collaboration to tune defenses."
+    },
+    {
+     "q": "Who first triages alerts in a SOC?",
+     "options": [
+      "Tier 1 analyst",
+      "The CEO",
+      "Auditor",
+      "Developer"
+     ],
+     "a": 0,
+     "why": "Tier 1 analysts handle initial triage."
+    },
+    {
+     "q": "What is MITRE ATT&CK used for?",
+     "options": [
+      "Encrypting disks",
+      "A shared catalog of attacker techniques",
+      "Billing",
+      "Cable standards"
+     ],
+     "a": 1,
+     "why": "It is a public knowledge base of adversary tactics and techniques."
+    }
+   ],
+   "recap": [
+    "Red attacks with permission, blue defends and detects, purple shares knowledge.",
+    "SOC analysts, pentesters, responders and GRC staff do distinct daily work.",
+    "Many careers begin in IT support."
+   ]
+  },
+  {
+   "title": "Famous Breaches: Target, Equifax, SolarWinds",
+   "why": "Real incidents show how small weaknesses chain into large losses, and which basic controls would have limited the damage.",
+   "sections": [
+    {
+     "h": "Target, 2013: a vendor as the way in",
+     "p": [
+      "Attackers first stole credentials from a heating and air conditioning contractor that had network access to Target, a large US retailer. Using that vendor account they reached Target's network and eventually the point-of-sale systems, where malware captured payment card data from tens of millions of cards. Root causes included a supplier with more access than it needed, a network that was not well segmented between corporate and payment systems, and security alerts that were generated but not acted on. Controls that would have limited it are vendor access restrictions, network segmentation and a process to respond to alerts promptly."
+     ]
+    },
+    {
+     "h": "Equifax, 2017: an unpatched flaw",
+     "p": [
+      "Equifax, a credit reporting company, ran a public web application built on the Apache Struts framework. A serious vulnerability in Struts had been announced and a fix was available, but the application was not patched in time. Attackers used the flaw to enter and stayed for weeks, taking personal data of roughly 147 million people. Contributing problems included incomplete asset inventory, a scanner that missed the system and an expired certificate that reduced visibility into outbound traffic. The lesson is that patch management, asset tracking and working monitoring are basic controls with enormous impact."
+     ]
+    },
+    {
+     "h": "SolarWinds, 2020: supply chain compromise",
+     "p": [
+      "In this incident attackers broke into the build process of SolarWinds, a maker of network monitoring software, and inserted a backdoor into a legitimate update of its Orion product. Customers who installed the signed update unknowingly installed the backdoor, which gave the attackers a foothold in thousands of networks, including government agencies. This is a supply chain attack: the trusted channel itself was abused. Defenses include protecting build systems, verifying software integrity, limiting what monitoring tools can reach, and watching for unusual outbound connections from trusted servers. Detection took many months, showing the importance of monitoring."
+     ]
+    },
+    {
+     "h": "Patterns across the three",
+     "p": [
+      "Notice the shared themes. None began with a movie-style genius hack. Each exploited a trust relationship or an ordinary weakness: a vendor login, a missed patch, a trusted update. Each had a detection gap, meaning time passed between the attacker's first access and anyone noticing. Each also affected people who never made a mistake, such as shoppers and credit file holders. When you read breach reports, practice asking four questions. How did the attacker get in? How did they move? Why was it not detected sooner? Which basic control would have broken the chain?"
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Breach timeline pattern",
+    "text": "Day 0   initial access (vendor login / unpatched web app / bad update)\nDay 1+  lateral movement inside the network\nWeeks   data collected, no alert acted on\nLater   outside party reports the breach\nGap between Day 0 and detection = dwell time"
+   },
+   "example": "Imagine a fictional retailer, ExampleMart. A refrigeration vendor account is phished and used to log in to a portal. From there the attacker reaches the card payment network because both share one flat network. Alerts about unusual file transfers sit unread for three weeks. Applying the four questions: entry was vendor credentials, movement was possible because of no segmentation, detection failed because alerts were ignored, and the best breaking controls were vendor multi-factor authentication, segmentation of payment systems and an on-call process for high-priority alerts.",
+   "terms": [
+    {
+     "term": "Lateral movement",
+     "def": "An attacker's movement from one compromised system to others inside a network."
+    },
+    {
+     "term": "Supply chain attack",
+     "def": "Compromise of a trusted supplier or update channel to reach its customers."
+    },
+    {
+     "term": "Patch management",
+     "def": "The process of tracking and applying software fixes in a timely way."
+    },
+    {
+     "term": "Network segmentation",
+     "def": "Dividing a network into zones so a breach in one does not reach all."
+    },
+    {
+     "term": "Dwell time",
+     "def": "The period between an attacker's initial access and its detection."
+    }
+   ],
+   "check": [
+    {
+     "q": "What was the initial access path in the Target breach?",
+     "options": [
+      "A zero-day in the cash register",
+      "Credentials from an HVAC vendor",
+      "A stolen laptop",
+      "A DNS outage"
+     ],
+     "a": 1,
+     "why": "Attackers used a third-party contractor's credentials."
+    },
+    {
+     "q": "Which basic control failure is most associated with Equifax?",
+     "options": [
+      "Weak Wi-Fi",
+      "Unpatched Apache Struts flaw",
+      "No backups",
+      "Open printer"
+     ],
+     "a": 1,
+     "why": "A known vulnerability was left unpatched."
+    },
+    {
+     "q": "What makes SolarWinds a supply chain attack?",
+     "options": [
+      "It used phishing only",
+      "A legitimate software update was trojanized",
+      "It targeted one laptop",
+      "It used USB drives"
+     ],
+     "a": 1,
+     "why": "The trusted update channel carried the backdoor."
+    },
+    {
+     "q": "What does dwell time measure?",
+     "options": [
+      "Time between initial access and detection",
+      "Download speed",
+      "Patch size",
+      "Login duration"
+     ],
+     "a": 0,
+     "why": "Dwell time is how long an attacker stays unnoticed."
+    }
+   ],
+   "recap": [
+    "Real breaches chain ordinary weaknesses such as vendor access, missed patches and trusted updates.",
+    "Detection gaps let attackers stay for weeks or months.",
+    "Segmentation, patching and monitoring are basic controls with large impact."
+   ]
+  },
+  {
+   "title": "Ethics, the Law and How to Study",
+   "why": "Security knowledge can harm if misused, so you must understand authorization, scope and the law before you practice.",
+   "sections": [
+    {
+     "h": "Authorization is everything",
+     "p": [
+      "The line between security testing and a crime is permission. Accessing a computer or network you do not own, without authorization from the owner, can be illegal even if your intent is curious or helpful. Professionals work under a written agreement that states who authorizes the test, which systems are included, what methods are allowed and what time window applies. This is called the scope. Anything outside scope is off limits. If a tester notices an interesting system that is not listed, the correct action is to stop and ask, not to look. Verbal approval is not enough; get it in writing from someone with authority."
+     ]
+    },
+    {
+     "h": "Laws you should know exist",
+     "p": [
+      "Many countries criminalize unauthorized access. In the United States the Computer Fraud and Abuse Act, or CFAA, is the main federal law, and the United Kingdom has the Computer Misuse Act. Other laws cover interception of communications, theft of data and privacy, such as GDPR in the European Union. Details differ by country and change over time, and this book is not legal advice. The practical rule is simple: only test systems you own or have explicit written permission to test, and use practice environments designed for learning. Intent to learn does not replace authorization in the eyes of the law."
+     ]
+    },
+    {
+     "h": "Responsible disclosure",
+     "p": [
+      "Sometimes you find a flaw by accident in a system you do not own. Responsible, or coordinated, disclosure is the accepted approach: report the issue privately to the owner, give reasonable time to fix it, and avoid publishing details that help attackers before a fix exists. Many organizations publish a security.txt file or run a bug bounty program that states how to report and what testing is allowed. Always read the program rules, because even a bounty has scope. Do not access more data than needed to prove the problem, and never keep or share personal data you encounter."
+     ]
+    },
+    {
+     "h": "Building a study routine",
+     "p": [
+      "Skills in this field come from repeated practice, not passive reading. Plan short, regular sessions, for example 45 minutes five days a week, rather than one long weekend. For each topic, read, then do a hands-on exercise, then explain it in your own words. Keep notes with commands and mistakes. Build a home lab using virtual machines so you can break things safely. Review earlier modules with spaced repetition, revisiting them after a day, a week and a month. Join communities, but never ask for or share help attacking systems you lack permission to test."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Scope statement (example)",
+    "text": "Client:      Example Corp (fictional)\nAuthorized:  Written approval signed by CIO\nIn scope:    203.0.113.0/28 and www.example.com\nOut of scope: all other hosts, social engineering\nWindow:      Mon 09:00 - Fri 17:00 UTC"
+   },
+   "example": "A freelancer is hired to test www.example.com. While scanning, she notices that 198.51.100.7, owned by another company, responds with an admin login page. It is not in the scope document. She does not touch it. She notes the observation, tells her client contact, and asks whether the owner should be informed. The client confirms the host is a different organization's, so the contact reports it through the owner's published channel. By stopping at the scope line and documenting, she stays legal and protects her client and her own reputation.",
+   "terms": [
+    {
+     "term": "Scope",
+     "def": "The written list of systems, methods and times a tester is allowed to use."
+    },
+    {
+     "term": "Authorization",
+     "def": "Explicit permission from the system owner to perform a test."
+    },
+    {
+     "term": "CFAA",
+     "def": "The US Computer Fraud and Abuse Act, a federal law against unauthorized computer access."
+    },
+    {
+     "term": "Responsible disclosure",
+     "def": "Privately reporting a vulnerability to its owner and allowing time to fix it."
+    },
+    {
+     "term": "Bug bounty",
+     "def": "A program that rewards researchers for reporting vulnerabilities within stated rules."
+    }
+   ],
+   "check": [
+    {
+     "q": "What most clearly separates a pentest from a crime?",
+     "options": [
+      "Tool choice",
+      "Written authorization and scope",
+      "Time of day",
+      "Operating system"
+     ],
+     "a": 1,
+     "why": "Permission and agreed scope make testing lawful."
+    },
+    {
+     "q": "You find an out-of-scope host during a test. What should you do?",
+     "options": [
+      "Test it quickly",
+      "Stop and ask the client",
+      "Publish it online",
+      "Ignore the contract"
+     ],
+     "a": 1,
+     "why": "Out-of-scope systems must not be touched without approval."
+    },
+    {
+     "q": "What is responsible disclosure?",
+     "options": [
+      "Selling the flaw",
+      "Privately reporting the flaw and allowing time to fix",
+      "Posting exploit code immediately",
+      "Keeping it secret forever"
+     ],
+     "a": 1,
+     "why": "It means private reporting and a reasonable fix window."
+    },
+    {
+     "q": "Which study habit is best supported for skill building?",
+     "options": [
+      "One long monthly session",
+      "Short regular sessions with hands-on practice",
+      "Only watching videos",
+      "Memorizing without practice"
+     ],
+     "a": 1,
+     "why": "Regular hands-on practice with review builds durable skills."
+    }
+   ],
+   "recap": [
+    "Only test systems you own or have written permission to test.",
+    "Scope defines what is allowed; stop at its edge.",
+    "Report found flaws privately and study with regular hands-on practice."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Sort the Job Roles",
+   "sim": "scenario",
+   "scenario": "You are shadowing a security team at the fictional firm Example Corp for a day. At the end of the shift, six short task cards describe what staff members actually did. The simulator lists four possible roles: SOC analyst, pentester, GRC, and incident responder. Your job is to read each card carefully, think about whether the work is monitoring, authorized attacking, policy and risk paperwork, or breach cleanup, and then assign each card to the single role that best fits.",
+   "objective": "Assign each of six tasks to the correct security role.",
+   "steps": [
+    {
+     "do": "Open card 1: 'Reviewed 40 SIEM alerts and closed 36 as false positives.'",
+     "see": "Role choices shown: SOC analyst, pentester, GRC, incident responder."
+    },
+    {
+     "do": "Assign card 1 to SOC analyst.",
+     "see": "Correct. Alert triage is SOC work."
+    },
+    {
+     "do": "Open card 2: 'Wrote a report after testing the web portal with client approval.'",
+     "see": "Card 2 text shown with the four role buttons."
+    },
+    {
+     "do": "Assign card 2 to pentester.",
+     "see": "Correct. Authorized testing with a findings report."
+    },
+    {
+     "do": "Assign card 3 'Updated the risk register and prepared for the ISO audit' to GRC.",
+     "see": "Correct. Policy, risk and audit are GRC."
+    },
+    {
+     "do": "Assign card 4 'Isolated an infected laptop and collected memory' to incident responder.",
+     "see": "Correct. Containment and evidence collection."
+    },
+    {
+     "do": "Assign cards 5 and 6: 'Tuned a detection rule' to SOC analyst and 'Ran a phishing simulation under a signed scope' to pentester.",
+     "see": "Both correct. Score: 6 of 6."
+    }
+   ],
+   "answer": "SOC analyst: alert triage and rule tuning. Pentester: authorized testing and phishing simulation under scope. GRC: risk register and audit preparation. Incident responder: isolation and evidence collection. Each role maps to prevention, detection, response or oversight.",
+   "hint": "Ask whether the task is about watching, attacking with permission, paperwork, or cleaning up after an attack."
+  },
+  {
+   "title": "Breach Timeline Triage",
+   "sim": "log-viewer",
+   "scenario": "You receive an exported timeline log from a fictional breach at a retailer called ExampleMart. The events are listed in time order but carry no labels, and the incident team needs a quick summary before a morning briefing. Using the log viewer, you must mark the initial access event, the lateral movement events, and the point where detection failed, then work out how many days passed between first entry and discovery by an outside party.",
+   "objective": "Label initial access, lateral movement and the detection gap in the timeline.",
+   "steps": [
+    {
+     "do": "Open the timeline log.",
+     "see": "Shows 7 entries from 03 Mar to 28 Mar."
+    },
+    {
+     "do": "Read entry 1: '03 Mar 02:14 vendor-hvac login from 203.0.113.50 to portal.example.com'.",
+     "see": "Note: first sign of outside access using a vendor account."
+    },
+    {
+     "do": "Mark entry 1 as Initial Access.",
+     "see": "Marked. The vendor credential was the entry."
+    },
+    {
+     "do": "Read entries 2 and 3: '03 Mar 02:40 portal host connects to 10.0.5.20 over SMB' and '04 Mar 11:05 10.0.5.20 connects to pos-db 10.0.9.4'.",
+     "see": "Both show internal hops."
+    },
+    {
+     "do": "Mark entries 2 and 3 as Lateral Movement.",
+     "see": "Marked. The attacker moved from portal to payment database."
+    },
+    {
+     "do": "Read entry 5: '12 Mar alert: large outbound transfer to 198.51.100.9, status: unreviewed'.",
+     "see": "Alert exists but nobody acted."
+    },
+    {
+     "do": "Mark entry 5 as Detection Gap and entry 7 '28 Mar bank reports fraud' as External Detection.",
+     "see": "Marked. Dwell time: 25 days."
+    }
+   ],
+   "answer": "Initial access: vendor login on 03 Mar. Lateral movement: portal to file server to payment database on 03-04 Mar. Detection gap: the unreviewed outbound transfer alert on 12 Mar. Detection came from the bank on 28 Mar, 25 days after entry.",
+   "hint": "Initial access is the first event from outside; the gap is an alert that was ignored."
+  },
+  {
+   "title": "Authorized or Not?",
+   "sim": "chat-sim",
+   "scenario": "You act as a junior tester in a chat with a fictional client contact named Dana at Example Corp. The signed scope document covers only the address block 203.0.113.0/28 and excludes social engineering. During the engagement Dana sends four requests, some reasonable and some not. For each one you must decide whether it is already in scope, whether it needs written authorization before you act, or whether you must refuse it because the client cannot grant permission.",
+   "objective": "Classify each client request as in scope, needs written authorization, or refuse.",
+   "steps": [
+    {
+     "do": "Read Dana's request 1: 'Please scan 203.0.113.5.'",
+     "see": "Chat shows the scope document: 203.0.113.0/28 authorized."
+    },
+    {
+     "do": "Choose 'In scope' for request 1.",
+     "see": "Correct. 203.0.113.5 is inside the /28."
+    },
+    {
+     "do": "Read request 2: 'Also test our payroll server at 203.0.113.200.'",
+     "see": "Not in the signed scope."
+    },
+    {
+     "do": "Choose 'Needs written authorization' for request 2.",
+     "see": "Correct. Ask for a scope amendment before testing."
+    },
+    {
+     "do": "Read request 3: 'Test our partner's site at 198.51.100.20, they will not mind.'",
+     "see": "Dana does not own that host."
+    },
+    {
+     "do": "Choose 'Refuse' for request 3.",
+     "see": "Correct. Only the owner can authorize testing."
+    },
+    {
+     "do": "Read request 4: 'Send phishing emails to staff.' Choose 'Needs written authorization'.",
+     "see": "Correct. Social engineering was listed out of scope and needs an amendment."
+    }
+   ],
+   "answer": "Request 1 is in scope. Requests 2 and 4 need written scope amendments before any action. Request 3 must be refused because the client cannot authorize testing of a third party's system.",
+   "hint": "Check the host against the signed scope, then check who actually owns it."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which set best describes the CIA triad?",
+   "options": [
+    "Control, Inspect, Alert",
+    "Confidentiality, Integrity, Availability",
+    "Cloud, Internet, Access",
+    "Code, Identity, Audit"
+   ],
+   "a": 1,
+   "why": "CIA stands for confidentiality, integrity and availability."
+  },
+  {
+   "q": "A team sends harmless phishing emails with written approval to test defenses. Which team is this?",
+   "options": [
+    "Red team",
+    "Blue team",
+    "Help desk",
+    "Legal"
+   ],
+   "a": 0,
+   "why": "Authorized attacker emulation is red team work."
+  },
+  {
+   "q": "Which role monitors alerts in a SIEM around the clock?",
+   "options": [
+    "GRC auditor",
+    "SOC analyst",
+    "Developer",
+    "Cabling technician"
+   ],
+   "a": 1,
+   "why": "SOC analysts watch and triage alerts."
+  },
+  {
+   "q": "What is a purple team approach?",
+   "options": [
+    "Red and blue collaborating to tune detections",
+    "A third attacker group",
+    "A compliance audit",
+    "A backup method"
+   ],
+   "a": 0,
+   "why": "Purple teaming is shared learning between attackers and defenders."
+  },
+  {
+   "q": "What allowed the Target attackers to get in?",
+   "options": [
+    "A vendor's stolen credentials",
+    "A broken cable",
+    "A DNS typo",
+    "A lost USB stick"
+   ],
+   "a": 0,
+   "why": "A third-party HVAC vendor account was the entry point."
+  },
+  {
+   "q": "What was the key weakness in the Equifax breach?",
+   "options": [
+    "An unpatched web framework flaw",
+    "No firewall at all",
+    "Weak Wi-Fi",
+    "A stolen badge"
+   ],
+   "a": 0,
+   "why": "A known Apache Struts flaw was not patched."
+  },
+  {
+   "q": "What makes the SolarWinds attack a supply chain attack?",
+   "options": [
+    "It exploited a trusted software update",
+    "It used ransomware",
+    "It targeted home users",
+    "It used SMS"
+   ],
+   "a": 0,
+   "why": "Attackers poisoned a legitimate update."
+  },
+  {
+   "q": "What is the best definition of scope?",
+   "options": [
+    "The written list of authorized targets, methods and times",
+    "A type of malware",
+    "A firewall rule",
+    "A report format"
+   ],
+   "a": 0,
+   "why": "Scope states exactly what testing is allowed."
+  },
+  {
+   "q": "In the US, which law is the main federal statute on unauthorized computer access?",
+   "options": [
+    "CFAA",
+    "HIPAA only",
+    "PCI only",
+    "SOX"
+   ],
+   "a": 0,
+   "why": "The Computer Fraud and Abuse Act covers it."
+  },
+  {
+   "q": "You discover a flaw in a stranger's website by accident. What is the best action?",
+   "options": [
+    "Report privately to the owner",
+    "Post details publicly",
+    "Exploit it further",
+    "Sell it"
+   ],
+   "a": 0,
+   "why": "Coordinated private reporting is the accepted approach."
+  }
+ ]
+}

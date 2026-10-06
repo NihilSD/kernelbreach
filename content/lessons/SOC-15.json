@@ -1,0 +1,805 @@
+{
+ "code": "SOC-15",
+ "intro": "Threat hunting is the proactive search for adversary activity that automated alerts missed. This module teaches you to separate hunting from alert triage, write testable hypotheses from threat intelligence and MITRE ATT&CK, match them to telemetry such as Sysmon, DNS and proxy logs, and apply methods like stacking, baselining and beacon analysis. You will finish by documenting a hunt and converting findings into permanent detections, so each hunt leaves the SOC stronger than before.",
+ "lessons": [
+  {
+   "title": "Hunting concepts and hypotheses",
+   "why": "Hunting finds what detections missed and feeds new detections back. A weak hypothesis wastes days; a strong one produces a clear yes or no.",
+   "sections": [
+    {
+     "h": "Hunting versus triage",
+     "p": [
+      "Alert triage is reactive: an alert fires and an analyst decides whether it is real. Threat hunting is proactive and analyst-initiated: nothing has alerted, but the hunter assumes an adversary may already be inside and looks for evidence. Hunting works on the assumption that detections have gaps, because attackers adapt, telemetry is incomplete and rules are imperfect. The outcome of a hunt is not only an incident. Equally valuable results are a new detection rule, a discovered logging gap, a hardening recommendation, or documented confirmation that a technique was not present in the scope examined."
+     ]
+    },
+    {
+     "h": "What a good hypothesis looks like",
+     "p": [
+      "A hypothesis is a testable statement tied to a technique, an environment and observable data. Compare 'attackers might be persisting' with 'an adversary using scheduled tasks (ATT&CK T1053.005) on servers would create tasks via schtasks.exe or event 4698 whose action runs from C:\\Users\\Public or a temp directory'. The second names the behavior, the data source, and what would be suspicious. It can be proven false. Good hypotheses also state the time window and the asset scope, for example 'all domain controllers and file servers over the last 30 days'."
+     ]
+    },
+    {
+     "h": "Where hypotheses come from",
+     "p": [
+      "Sources include threat intelligence reports about groups targeting your sector, ATT&CK technique lists for those groups, recent incidents, red team reports, newly disclosed vulnerabilities, and gaps found in a coverage map. A common approach is to pick a technique with no detection, read how it is performed in practice, and ask what trace it leaves. Intelligence-driven hunts start from known actor behavior; situational hunts start from an organizational concern such as a new cloud deployment; analytics-driven hunts start from anomalies in the data itself."
+     ]
+    },
+    {
+     "h": "The hunt loop",
+     "p": [
+      "A typical loop is: form the hypothesis, identify data and scope, collect and query, analyze results, pivot on anything interesting, then conclude and document. Hunts are time-boxed, often a few days, so they do not become endless exploration. Each pivot should be recorded: the query run, the number of results, what was excluded and why. If the hunt finds malicious activity, it hands off to incident response with the evidence. If it finds nothing, the record still shows what was checked, which prevents duplicate effort later.",
+      "Hunters also need discipline about bias. It is tempting to stop at the first suspicious result or to chase an interesting but irrelevant anomaly. Write down what would count as disproof before running the query, and compare results against it. Collaboration with the detection and intelligence teams also sharpens hypotheses: they know which alerts already cover a technique and which actors are active against your sector."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Hypothesis card",
+    "text": "hypothesis: Adversary persists via scheduled task (T1053.005)\nscope: servers (240 hosts), last 30 days\ndata: Sec 4698, Sysmon 1 (schtasks.exe), Sysmon 11\nsuspicious: action path in user-writable dir; created by non-admin; task name mimics system task\noutcome: confirm / refute / log gap\ntime box: 3 days"
+   },
+   "example": "A fictional report says a group uses scheduled tasks named like Windows updates but pointing to files in C:\\ProgramData. The hunter writes the hypothesis above, queries event 4698 across 240 servers for 30 days, finds 1,900 task creations, and filters those whose action path is in ProgramData or Temp. Twelve remain, eleven from a known installer, and one named 'WindowsUpdateCheck' runs a script from a user folder on host SRV-22, which becomes an escalation to incident response.",
+   "terms": [
+    {
+     "term": "Hypothesis",
+     "def": "A testable statement of adversary behavior, data and scope."
+    },
+    {
+     "term": "Proactive",
+     "def": "Initiated by the analyst without a triggering alert."
+    },
+    {
+     "term": "Intelligence-driven hunt",
+     "def": "A hunt based on known adversary techniques from reports."
+    },
+    {
+     "term": "Time box",
+     "def": "A fixed limit on how long a hunt runs."
+    },
+    {
+     "term": "Pivot",
+     "def": "Following a finding into related data."
+    }
+   ],
+   "check": [
+    {
+     "q": "What distinguishes hunting from triage?",
+     "options": [
+      "Triage is slower",
+      "Hunting is proactive and not triggered by an alert",
+      "Hunting has no data",
+      "Hunting uses only AI"
+     ],
+     "a": 1,
+     "why": "Hunters start without an alert."
+    },
+    {
+     "q": "Which is the best hypothesis?",
+     "options": [
+      "Logs are large",
+      "Scheduled tasks on servers with action paths in user-writable directories indicate T1053.005 persistence",
+      "Attackers are in the network",
+      "Malware exists"
+     ],
+     "a": 1,
+     "why": "It names technique, data and what is suspicious."
+    },
+    {
+     "q": "A hunt finds nothing. Is the hunt wasted?",
+     "options": [
+      "Only if repeated",
+      "No, it can refute the hypothesis and expose logging gaps",
+      "Yes",
+      "Only if shorter"
+     ],
+     "a": 1,
+     "why": "Negative results and gaps are valuable outputs."
+    },
+    {
+     "q": "Why time-box a hunt?",
+     "options": [
+      "To skip documentation",
+      "Hunts must end at midnight",
+      "To avoid endless exploration",
+      "To reduce logs"
+     ],
+     "a": 2,
+     "why": "Time boxes keep hunts focused."
+    }
+   ],
+   "recap": [
+    "Hunting is proactive and starts from a hypothesis, not an alert.",
+    "Good hypotheses name a technique, data, scope and suspicious traits.",
+    "Outcomes include incidents, detections, hardening and logging-gap findings."
+   ]
+  },
+  {
+   "title": "Data sources and hunt scoping",
+   "why": "A hypothesis is only testable if the right telemetry exists and is retained. Matching question to data is the core hunting skill.",
+   "sections": [
+    {
+     "h": "Mapping techniques to telemetry",
+     "p": [
+      "Each technique leaves traces in specific data. Process creation: Sysmon Event ID 1 and Windows Security 4688 with command-line auditing. Network connections by process: Sysmon Event ID 3. DNS queries: Sysmon Event ID 22 or DNS server and resolver logs. File creation: Sysmon 11. Registry persistence: Sysmon 12, 13 and 14. Scheduled tasks: Security 4698. Logons: 4624 and 4625 with logon types. Web egress: proxy logs with URL, user agent, bytes and status. Flow data and firewall logs supply volume and timing. Choosing the data first prevents building queries that can never return an answer."
+     ]
+    },
+    {
+     "h": "Scoping the hunt",
+     "p": [
+      "Scope defines the assets, accounts and time window. Narrow scope reduces noise: start with high-value assets such as domain controllers, jump servers and internet-facing hosts, or with one business unit. Decide the time range based on retention and the likely dwell time; hunting only the last day misses a quiet persistence mechanism installed weeks ago. Record what is excluded and why, such as vulnerability scanners at 192.0.2.80 or a known test subnet, so readers understand the limits of any conclusion."
+     ]
+    },
+    {
+     "h": "Collection gaps",
+     "p": [
+      "Before querying, verify coverage. How many hosts actually send Sysmon logs? Does the proxy log all user agents? Is DNS logged at the resolver or only at the firewall, where encrypted DNS may hide the names? Retention matters: if process logs are kept for 14 days, a 30-day hunt is impossible. Gaps are findings. Documenting that 18 percent of servers lack command-line auditing is itself a hunt outcome, and it should create a ticket to fix collection."
+     ]
+    },
+    {
+     "h": "Data quality and normalization",
+     "p": [
+      "Different sources name the same thing differently: user, UserName, AccountName. Time zones and clock drift can break correlation, so normalize to UTC and verify the time source. Enrich where possible with asset criticality, owner, geolocation and threat intelligence. Sample the data first to learn field names and typical volumes before writing complex queries. Poor data hygiene produces misleading statistics, such as counting a process as rare simply because one host sends logs in a different field format.",
+      "Documenting the pivots matters as much as the final answer. When the hunter excludes a value, the reason goes into the notes: 'excluded svchost.exe from C:\\Windows\\System32 because signed by Microsoft and path verified'. That makes the work auditable and lets a peer challenge an exclusion that an attacker could exploit. Hunts also benefit from peer review before they close, where a second analyst checks whether another hypothesis explains the same evidence."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Coverage check",
+    "text": "index=sysmon | stats dc(host) as hosts_reporting\n  -> 214 of 240 servers (89%)\nindex=sysmon EventCode=22 | stats count\n  -> DNS events present, oldest: 2026-09-05\nretention proxy: 90d  Sysmon: 30d  4688 cmdline: 61% hosts\nGap ticket: INC-FAKE-0412"
+   },
+   "example": "A hunter wants to test for rare outbound beaconing by a process other than browsers. Sysmon Event 3 gives process-to-IP connections, but only 214 of 240 servers report. She notes the gap, scopes the hunt to the reporting hosts for 30 days, adds the proxy logs with 90-day retention for cross-checks, and records that 26 servers are blind. The final report names that limit and opens a ticket to deploy Sysmon on the missing servers.",
+   "terms": [
+    {
+     "term": "Sysmon Event ID 1",
+     "def": "Process creation event with command line, hashes and parent."
+    },
+    {
+     "term": "Sysmon Event ID 3",
+     "def": "Network connection initiated by a process."
+    },
+    {
+     "term": "Retention",
+     "def": "How long a log source is kept."
+    },
+    {
+     "term": "Scope",
+     "def": "The set of assets, accounts and dates a hunt covers."
+    },
+    {
+     "term": "Coverage gap",
+     "def": "Systems or fields for which no telemetry exists."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which event records a process creation in Sysmon?",
+     "options": [
+      "Event ID 3",
+      "Event ID 22",
+      "Event ID 11",
+      "Event ID 1"
+     ],
+     "a": 3,
+     "why": "Event ID 1 is process creation."
+    },
+    {
+     "q": "Why verify coverage before hunting?",
+     "options": [
+      "It speeds queries",
+      "It is required by law",
+      "A hunt over hosts without logs gives false assurance",
+      "It deletes logs"
+     ],
+     "a": 2,
+     "why": "Blind hosts make a negative result meaningless."
+    },
+    {
+     "q": "Which source shows web user agents and bytes sent?",
+     "options": [
+      "Event 4624",
+      "DHCP",
+      "BIOS",
+      "Proxy logs"
+     ],
+     "a": 3,
+     "why": "Proxy logs record web request details."
+    },
+    {
+     "q": "Why normalize timestamps to UTC?",
+     "options": [
+      "To reduce volume",
+      "For prettier dashboards",
+      "To correlate events across sources reliably",
+      "Because Sysmon requires it"
+     ],
+     "a": 2,
+     "why": "Mixed zones break sequence analysis."
+    }
+   ],
+   "recap": [
+    "Choose the data source first, based on the technique.",
+    "Scope by asset, account and time; record exclusions.",
+    "Gaps in coverage and retention are findings that need tickets."
+   ]
+  },
+  {
+   "title": "Hunt methods: stacking and baselining",
+   "why": "Most hunting is statistics on large data. Stacking and baselining make rare, odd activity stand out from millions of normal events.",
+   "sections": [
+    {
+     "h": "Stacking (frequency analysis)",
+     "p": [
+      "Stacking counts how many times each value occurs and sorts the result. Common values are usually legitimate and rare values deserve a look, so least frequency of occurrence (LFO) analysis lists the values with the smallest counts. Examples: process names across all hosts, scheduled task names, service names, autorun entries, user agents, parent-child pairs and logon source hosts per account. In SPL this is | stats count by process_name | sort count, and in KQL summarize count() by process_name | order by count_ asc. Stacking by a field is only meaningful over a population large enough to define normal."
+     ]
+    },
+    {
+     "h": "Grouping and dimensions",
+     "p": [
+      "Stack with more than one dimension to add meaning: distinct host count per process, so a binary on one host only stands out; distinct users per source host; or count by path and signer. A process named svchost.exe running from C:\\Users\\Public is rare in the (name, path) stack even though svchost.exe is very common by name alone. Masquerading, ATT&CK T1036, is found this way: system names in non-system paths, misspellings like svch0st.exe or scvhost.exe, or valid names with unsigned binaries."
+     ]
+    },
+    {
+     "h": "Baselining",
+     "p": [
+      "A baseline describes normal for a host, group or time. Compare the current period with a prior one: new processes not seen in the previous 30 days, new services, new admin logons, or hosts that suddenly contact many new destinations. Peer comparison asks how a host differs from others of the same role; a web server running PowerShell, or a developer machine contacting an unusual country, stands out against peers. Baselines must be refreshed, because patches, new software and seasonal work shift normal."
+     ]
+    },
+    {
+     "h": "Limits and cautions",
+     "p": [
+      "Rare is not the same as malicious. New software, custom scripts and one-off admin work are all rare. Attackers also blend in by using common tools such as PowerShell or a legitimate remote management product, which will not stand out in a stack. Treat stacking as a way to prioritize review, not a verdict. Always pivot from a rare item: who ran it, from which parent, what files and connections followed, and whether the binary is signed and hash-known. Document the exclusions you apply, since each one narrows what the hunt can see.",
+      "One practical habit is to sample a small slice of data before running a month-long query. Pull a single day for five hosts, confirm the fields are populated, look at the top ten values, and only then widen the scope. This catches missing fields, time zone mistakes and unexpected log formats early, saving hours of waiting for large queries that return nothing useful and reducing load on a shared SIEM."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Stack query",
+    "text": "index=sysmon EventCode=1 | stats count dc(host) as hosts by Image\n| sort count | head 5\nImage                              count hosts\nC:\\Users\\Public\\svchost.exe            1     1\nC:\\Tools\\fakeutil.exe                  3     1\nC:\\Windows\\System32\\wbem\\mofcomp.exe  9     4\nC:\\Program Files\\App\\updater.exe      14    9"
+   },
+   "example": "A least-frequency stack of process image paths over 30 days returns thousands of rows. The hunter sorts by host count and finds C:\\Users\\Public\\svchost.exe running once on one host, WS-031. The name is legitimate but the path is not; no Windows system binary lives there. Pivoting shows its parent was a Word macro and it made a connection to 198.51.100.77. The single rare entry in the stack becomes the starting point for an incident.",
+   "terms": [
+    {
+     "term": "Stacking",
+     "def": "Counting and sorting values to see common and rare ones."
+    },
+    {
+     "term": "LFO",
+     "def": "Least frequency of occurrence analysis."
+    },
+    {
+     "term": "Baseline",
+     "def": "A record of what normal looks like."
+    },
+    {
+     "term": "Masquerading",
+     "def": "Naming malware like a legitimate file; T1036."
+    },
+    {
+     "term": "Peer group",
+     "def": "Systems with a similar role used for comparison."
+    }
+   ],
+   "check": [
+    {
+     "q": "Least frequency analysis looks for?",
+     "options": [
+      "Values with the lowest counts",
+      "Newest accounts",
+      "Most common values",
+      "Largest files"
+     ],
+     "a": 0,
+     "why": "Rare values are examined first."
+    },
+    {
+     "q": "Why stack by name and path together?",
+     "options": [
+      "Common names in odd paths expose masquerading",
+      "Paths are encrypted",
+      "It reduces logs",
+      "It is faster"
+     ],
+     "a": 0,
+     "why": "Name plus path shows impostors."
+    },
+    {
+     "q": "Is every rare process malicious?",
+     "options": [
+      "Yes",
+      "Only on servers",
+      "Only when unsigned",
+      "No, rarity needs pivoting to confirm"
+     ],
+     "a": 3,
+     "why": "Rare items include benign custom software."
+    },
+    {
+     "q": "A peer comparison flags a web server running PowerShell. Why?",
+     "options": [
+      "Web servers cannot run code",
+      "Peers are random",
+      "PowerShell is banned",
+      "It differs from servers with the same role"
+     ],
+     "a": 3,
+     "why": "Deviation from role peers is suspicious."
+    }
+   ],
+   "recap": [
+    "Stacking surfaces rare values; add dimensions like host count and path.",
+    "Baselines compare against past behavior and peers.",
+    "Rarity prioritizes review; it never replaces pivoting."
+   ]
+  },
+  {
+   "title": "Anomaly detection and beacon hunting",
+   "why": "Command-and-control often looks like normal web traffic except for its timing and rarity. Statistics can reveal it.",
+   "sections": [
+    {
+     "h": "Statistical thresholds",
+     "p": [
+      "A simple anomaly method flags values several standard deviations from a mean, for example a host sending ten times its usual outbound bytes, or a user logging on from more hosts than 99 percent of peers. Percentiles are more robust than means when data is skewed. Choose the grouping carefully: per host, per account or per role. Time-of-day and day-of-week patterns matter, since a batch job at 02:00 is normal for a backup server but suspicious for a receptionist laptop. Thresholds produce candidates for investigation, not verdicts."
+     ]
+    },
+    {
+     "h": "Rare parent-child and process behavior",
+     "p": [
+      "Relationships between processes are stable enough to model. Office applications rarely spawn command interpreters, services.exe launches services, and w3wp.exe seldom starts cmd.exe. List parent-child pairs and stack them; a pair seen once or twice in 30 days deserves review. Also look at rare network behavior by process: notepad.exe making outbound connections, or rundll32.exe with no command-line arguments connecting to the internet, which can indicate injection or a hollowed process."
+     ]
+    },
+    {
+     "h": "Beacon hunting",
+     "p": [
+      "Implants check in with their server at intervals, often with jitter. Group proxy, flow or DNS logs by source host and destination, then compute connection counts and the spacing between connections. Highly regular intervals, such as every 60 seconds plus or minus 10 percent, low variance in bytes per request, and many connections over hours or days are typical. Long-lived connections and small, uniform payloads also stand out. Tools like RITA analyze Zeek logs for beaconing score, and the same logic can be built from standard deviation of inter-arrival times."
+     ]
+    },
+    {
+     "h": "Rare domains and false positives",
+     "p": [
+      "Rare destination analysis looks for domains contacted by few hosts, newly registered domains, domains with high-entropy or algorithmically generated names, very long DNS labels and high volumes of TXT or NXDOMAIN responses that suggest DNS tunneling or DGA. Legitimate software also beacons: update checks, telemetry, and cloud sync tools. Filter with allowlists of known vendors, check domain age and category, and confirm with endpoint evidence such as the initiating process before escalating.",
+      "Visualization helps. A histogram of connection intervals makes a beacon obvious as a single tall spike, and a scatter plot of bytes against time can show unusual spikes of data leaving the network. Do not rely on charts alone, since attackers who add jitter or large random padding can blur the pattern. Combine statistical views with endpoint evidence such as the initiating process, the command line that launched it and file writes that preceded the first connection."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Beacon candidates",
+    "text": "src=192.0.2.44 dst=203.0.113.9 host=cdn-fake.example.com\n  connections=1440 span=24h interval_mean=60.1s stdev=2.3s\n  bytes_out_mean=412 stdev=9 ua=Mozilla/5.0 (older)\nsrc=192.0.2.61 dst=198.51.100.5 (updates.vendor.example)\n  connections=24 interval=3600s stdev=0.4s  -> known vendor"
+   },
+   "example": "A proxy log grouped by source and destination shows 192.0.2.44 contacting cdn-fake.example.com 1,440 times in 24 hours at 60-second intervals with nearly constant payload size and an outdated user agent. The domain is five days old and no other host contacts it. By contrast, a vendor update service at 3,600-second intervals is known and allowlisted. The hunter escalates 192.0.2.44, then checks which process initiated the connections.",
+   "terms": [
+    {
+     "term": "Beaconing",
+     "def": "Regular check-in communication from malware to its server."
+    },
+    {
+     "term": "Jitter",
+     "def": "Random variation added to a beacon interval."
+    },
+    {
+     "term": "DGA",
+     "def": "Domain generation algorithm creating many pseudo-random domains."
+    },
+    {
+     "term": "Standard deviation",
+     "def": "A measure of how spread out values are."
+    },
+    {
+     "term": "Dwell time",
+     "def": "How long an attacker is present before detection."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which pattern suggests beaconing?",
+     "options": [
+      "Single DNS query",
+      "Regular intervals with low variance and uniform size",
+      "Random daily traffic",
+      "One large download"
+     ],
+     "a": 1,
+     "why": "Regularity is the signature of automated check-ins."
+    },
+    {
+     "q": "Why are percentiles useful?",
+     "options": [
+      "They resist skew better than means",
+      "They are always smaller",
+      "They find passwords",
+      "They compress logs"
+     ],
+     "a": 0,
+     "why": "Skewed data distorts means."
+    },
+    {
+     "q": "A rare domain is contacted by one host every hour. What next?",
+     "options": [
+      "Delete logs",
+      "Ignore it",
+      "Check domain age, category and the initiating process",
+      "Block everything"
+     ],
+     "a": 2,
+     "why": "Confirm before escalating; updates also beacon."
+    },
+    {
+     "q": "What does a rare parent-child pair indicate?",
+     "options": [
+      "Disk failure",
+      "A relationship worth review",
+      "Normal startup",
+      "Always malware"
+     ],
+     "a": 1,
+     "why": "Unusual pairs warrant pivots."
+    }
+   ],
+   "recap": [
+    "Thresholds and percentiles produce candidates, not verdicts.",
+    "Rare parent-child pairs and rare process network use expose abuse.",
+    "Beacons show regular intervals and uniform sizes; filter known vendors."
+   ]
+  },
+  {
+   "title": "Hunt reporting and operationalizing",
+   "why": "A hunt that is not documented cannot be repeated, trusted or turned into protection. Reporting converts effort into lasting value.",
+   "sections": [
+    {
+     "h": "Hunt report contents",
+     "p": [
+      "A good report states the hypothesis, the ATT&CK technique, the scope (assets and dates), the data sources and their gaps, the methods and queries used, the number of events reviewed, what was excluded, the findings with evidence, the conclusion, and recommendations. Include actual query text and counts so another analyst can reproduce the work. Evidence for a positive finding should list host names, accounts, timestamps in UTC, hashes and the path of the activity. Keep facts separate from interpretation, and state confidence."
+     ]
+    },
+    {
+     "h": "Conclusions and limits",
+     "p": [
+      "Conclusions fall into categories: activity confirmed (hand off to incident response), no evidence found within the scope, or inconclusive because of data gaps. 'No evidence found' must be phrased carefully: it means the technique was not observed in the specified data for the specified period, not that it never occurred. Record limitations such as unmonitored hosts, short retention or encrypted traffic. Gaps should become tickets with owners, for example deploying command-line auditing to the 18 percent of servers missing it."
+     ]
+    },
+    {
+     "h": "Turning findings into detections",
+     "p": [
+      "Every successful hunt query is a detection candidate. Convert it into a rule: remove one-off exclusions, define the logsource and logic, estimate alert volume from the hunt data, add a severity and runbook, and test it. Some hunts become scheduled analytics that run daily, while others stay periodic because they are too noisy for alerts. Also create recommendations for hardening, such as restricting Office child processes with ASR rules or blocking unneeded outbound ports. Submit the rule through the normal detection workflow."
+     ]
+    },
+    {
+     "h": "Metrics and knowledge sharing",
+     "p": [
+      "Track hunts completed, techniques covered, incidents found, detections created, and visibility gaps fixed. Maintain a hunt library or playbook so hypotheses can be re-run on a schedule or by new analysts. Share results with the intelligence and detection teams, and update ATT&CK coverage maps. Present key findings briefly to management with business impact. Measuring outcomes, rather than only the count of hunts, shows whether hunting is improving defense.",
+      "Keep a short checklist for each report: was the hypothesis stated, are queries included, were gaps listed, are timestamps in UTC, and is every claim backed by evidence. Reports should be short enough for busy readers to finish, with an executive paragraph at the top and technical appendices below. Version them in a shared repository so later hunters can find them, and tag each with the ATT&CK technique so coverage can be tracked."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Hunt report summary",
+    "text": "Hunt: HUNT-2026-017  Technique: T1053.005\nScope: 214 servers, 2026-09-05 to 2026-10-04\nEvents reviewed: 1,900 task creations; 12 after filters\nFinding: 1 suspicious task on SRV-22 (user path script)\nConclusion: CONFIRMED -> IR case opened\nGap: 26 servers no Sysmon\nDetection: new rule 'Task action in user-writable dir' (SIGMA-221)"
+   },
+   "example": "After the scheduled task hunt, the analyst writes the report: hypothesis, 214 servers covered, 1,900 events reviewed and 12 remaining after filters, with one malicious task on SRV-22. She records the 26-server telemetry gap, hands the evidence to incident response, and converts her final query into a Sigma rule with an allowlist for the known installer. The rule enters testing, and a ticket is opened to fix the Sysmon coverage.",
+   "terms": [
+    {
+     "term": "Hunt report",
+     "def": "A written record of hypothesis, method, findings and recommendations."
+    },
+    {
+     "term": "Operationalize",
+     "def": "Turn a hunt result into a lasting detection or control."
+    },
+    {
+     "term": "Confidence",
+     "def": "A statement of how sure the analyst is of a conclusion."
+    },
+    {
+     "term": "Hunt library",
+     "def": "A collection of reusable hunt hypotheses and queries."
+    },
+    {
+     "term": "Limitation",
+     "def": "A factor that restricts what a conclusion can claim."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does 'no evidence found' mean?",
+     "options": [
+      "Logs are clean everywhere",
+      "The technique never occurred",
+      "The technique was not seen in the scoped data",
+      "The hunt failed"
+     ],
+     "a": 2,
+     "why": "It is bounded by scope and data."
+    },
+    {
+     "q": "A strong hunt report includes?",
+     "options": [
+      "Names of analysts",
+      "Raw logs only",
+      "Queries, counts, evidence, gaps and recommendations",
+      "Only the verdict"
+     ],
+     "a": 2,
+     "why": "Reproducibility needs queries and counts."
+    },
+    {
+     "q": "What is the best use of a good hunt query?",
+     "options": [
+      "Turn it into a tested detection",
+      "Make it noisier",
+      "Delete it",
+      "Share by email only"
+     ],
+     "a": 0,
+     "why": "Operationalizing builds permanent coverage."
+    },
+    {
+     "q": "A missing log source discovered in a hunt should?",
+     "options": [
+      "Be left for later hunts",
+      "Be hidden",
+      "Be ignored",
+      "Become a ticket with an owner"
+     ],
+     "a": 3,
+     "why": "Gaps are actionable findings."
+    }
+   ],
+   "recap": [
+    "Report hypothesis, scope, data, method, evidence, conclusion and gaps.",
+    "Phrase negative results as bounded by scope and data.",
+    "Convert queries into detections and track outcomes."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Write a hypothesis",
+   "sim": "chat-sim",
+   "scenario": "A threat intelligence analyst at the fictional example.com shares a report: an actor tracked as FAKEBEAR keeps access by creating scheduled tasks that mimic Windows maintenance tasks and launch scripts from user-writable folders. You are asked to turn this into a hunt hypothesis the team can run next week.",
+   "objective": "Produce a testable hypothesis with technique, data sources and scope.",
+   "steps": [
+    {
+     "do": "Ask the analyst which technique the report describes",
+     "see": "Analyst: ATT&CK T1053.005 Scheduled Task/Job. Tasks run as SYSTEM, named like 'WindowsUpdateCheck'."
+    },
+    {
+     "do": "Ask what data sources exist for tasks",
+     "see": "Analyst: Security 4698 on servers (30d), Sysmon 1 for schtasks.exe (214 of 240 servers)."
+    },
+    {
+     "do": "Draft: 'Adversary creates scheduled tasks whose action runs from a user-writable path'",
+     "see": "Analyst: Good. Add scope and time window."
+    },
+    {
+     "do": "Set scope to 240 servers for the last 30 days and note Sysmon gap",
+     "see": "Draft updated: scope 240 servers / 30d; known gap: 26 servers lack Sysmon"
+    },
+    {
+     "do": "Define suspicious traits: action path in ProgramData, Users or Temp; creator not a known deployment account; name mimics system task",
+     "see": "Analyst: Add 'task created outside business hours' as optional."
+    },
+    {
+     "do": "Set the expected outputs: confirm, refute, or log gap",
+     "see": "Analyst: Hypothesis accepted. Time box: 3 days. Ticket HUNT-2026-017 created."
+    }
+   ],
+   "answer": "Hypothesis: an adversary using T1053.005 creates scheduled tasks on servers whose action path is in a user-writable directory (ProgramData, Users, Temp), visible in Security 4698 and Sysmon 1, scoped to 240 servers over 30 days, with the 26 non-Sysmon servers listed as a gap and a 3-day time box.",
+   "hint": "Include technique, data source, scope and what would count as suspicious."
+  },
+  {
+   "title": "Stack the processes",
+   "sim": "siem",
+   "scenario": "You are hunting for masquerading binaries on the fictional example.com workstation fleet of 400 hosts. Sysmon process creation events (Event ID 1) from the last 30 days are indexed. Your tool is the SIEM search bar. The question: which process image runs only once and looks like a Windows binary?",
+   "objective": "Run a least-frequency search over process names and identify the single masquerading binary.",
+   "steps": [
+    {
+     "do": "Run: index=sysmon EventCode=1 | stats count by Image | sort count",
+     "see": "Returns 2,310 rows. Lowest counts at top: 1 each for 38 images"
+    },
+    {
+     "do": "Add distinct host count: stats count dc(host) as hosts by Image",
+     "see": "Rows show count and hosts; 38 images with hosts=1"
+    },
+    {
+     "do": "Filter to images with names matching system binaries: Image=*svchost.exe OR *lsass.exe OR *explorer.exe",
+     "see": "3 rows: C:\\Windows\\System32\\svchost.exe (84,201, 400 hosts); C:\\Windows\\explorer.exe (9,880); C:\\Users\\Public\\svchost.exe (1, host WS-031)"
+    },
+    {
+     "do": "Pivot on the single rare row: show parent and command line",
+     "see": "ParentImage: WINWORD.EXE; CommandLine: C:\\Users\\Public\\svchost.exe -p 4444"
+    },
+    {
+     "do": "Check signature and hash",
+     "see": "Signed: false. Hash not seen in threat intel. File created 2026-10-02T09:14:22Z"
+    },
+    {
+     "do": "Pivot to network events for WS-031",
+     "see": "Sysmon 3: svchost.exe (Users\\Public) -> 198.51.100.77:443, 288 connections"
+    }
+   ],
+   "answer": "The masquerading binary is C:\\Users\\Public\\svchost.exe on WS-031: one execution, unsigned, launched by WINWORD.EXE and connecting to 198.51.100.77. The real svchost.exe runs from System32 on all hosts. Escalate WS-031 for incident response.",
+   "hint": "Sort ascending by count and compare the path, not just the name."
+  },
+  {
+   "title": "Hunt for beacons",
+   "sim": "log-viewer",
+   "scenario": "You have 24 hours of proxy logs from the fictional example.com network, covering 900 internal hosts. You suspect an implant checking in with a command server. The viewer lets you group by source host and destination and shows request counts and interval statistics.",
+   "objective": "Find the host and destination with regular interval callbacks.",
+   "steps": [
+    {
+     "do": "Group logs by src_host and dest_domain, sort by request count",
+     "see": "Top: 192.0.2.44 -> cdn-fake.example.com 1440; 192.0.2.61 -> updates.vendor.example 24; many browsing rows"
+    },
+    {
+     "do": "Open the 1440-request group and view interval statistics",
+     "see": "mean interval 60.1s, stdev 2.3s, bytes_out mean 412 stdev 9"
+    },
+    {
+     "do": "Compare with a normal browsing group (192.0.2.12 -> news.example.org)",
+     "see": "intervals irregular, stdev 410s, bytes vary widely"
+    },
+    {
+     "do": "Check the vendor group 192.0.2.61 -> updates.vendor.example",
+     "see": "interval 3600s stdev 0.4s; domain on allowlist 'software updates'"
+    },
+    {
+     "do": "Look up cdn-fake.example.com details",
+     "see": "First seen 5 days ago, contacted by 1 internal host, category: uncategorized"
+    },
+    {
+     "do": "Check the user agent and URL pattern for the beacon",
+     "see": "UA: Mozilla/5.0 (Windows NT 6.1) old; URLs: /api/v1/poll?id=A1F3 constant length"
+    }
+   ],
+   "answer": "Host 192.0.2.44 beacons to cdn-fake.example.com every 60 seconds with tiny, uniform requests, the domain is new and rare, and the user agent is outdated. The vendor update traffic is regular but allowlisted. Escalate 192.0.2.44 for endpoint investigation.",
+   "hint": "Regular timing and constant size separate beacons from browsing; allowlist known vendors."
+  },
+  {
+   "title": "Write the hunt report",
+   "sim": "scenario",
+   "scenario": "You have finished the scheduled task hunt at the fictional example.com and must complete the report. You will be given the facts from your notes and select what belongs in each report section, ending with the detection to create.",
+   "objective": "Complete a hunt report listing evidence, a conclusion and the detection to create.",
+   "steps": [
+    {
+     "do": "Select the hypothesis and scope for section 1",
+     "see": "Selected: T1053.005, 214 servers reporting, 30 days. Report: scope recorded"
+    },
+    {
+     "do": "Select the evidence entries",
+     "see": "Evidence added: SRV-22, task 'WindowsUpdateCheck', action powershell -File C:\\Users\\Public\\u.ps1, created 2026-10-03T22:41:07Z by account svc-fake"
+    },
+    {
+     "do": "Choose the data gaps to list",
+     "see": "Added: 26 servers without Sysmon; 4688 command line on 61% of hosts"
+    },
+    {
+     "do": "Choose the conclusion: confirmed / not found / inconclusive",
+     "see": "Selected: CONFIRMED. Handoff: IR case CASE-FAKE-3310"
+    },
+    {
+     "do": "Select recommendations",
+     "see": "Added: deploy Sysmon to 26 servers; restrict task creation rights; reset svc-fake"
+    },
+    {
+     "do": "Choose the detection to create",
+     "see": "Selected: Sigma rule, 4698 task action path in user-writable directory, with signed installer allowlist"
+    },
+    {
+     "do": "Submit the report",
+     "see": "Report accepted: 7 of 7 sections complete, facts separated from interpretation"
+    }
+   ],
+   "answer": "The report states T1053.005 scope, the SRV-22 task as evidence, the 26-server and command-line logging gaps, a conclusion of confirmed with handoff to incident response, recommendations, and a new Sigma detection for task actions in user-writable paths.",
+   "hint": "Evidence is facts; conclusions and recommendations come after."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "What best distinguishes a hunt from alert triage?",
+   "options": [
+    "A hunt takes less time",
+    "Triage is proactive",
+    "A hunt starts from a hypothesis without an alert",
+    "A hunt uses no logs"
+   ],
+   "a": 2,
+   "why": "Hunts are analyst-initiated."
+  },
+  {
+   "q": "Which statement is a testable hypothesis?",
+   "options": [
+    "Hackers are bad",
+    "The network is large",
+    "Logs exist",
+    "Scheduled tasks running from user-writable paths on servers indicate persistence (T1053.005)"
+   ],
+   "a": 3,
+   "why": "It names behavior, data and suspicious traits."
+  },
+  {
+   "q": "Which Sysmon event records DNS queries?",
+   "options": [
+    "Event ID 13",
+    "Event ID 22",
+    "Event ID 11",
+    "Event ID 1"
+   ],
+   "a": 1,
+   "why": "Event ID 22 is DNS query."
+  },
+  {
+   "q": "Why check collection coverage first?",
+   "options": [
+    "It speeds up SIEM",
+    "Blind hosts make a negative result misleading",
+    "It is mandatory",
+    "It reduces alerts"
+   ],
+   "a": 1,
+   "why": "No telemetry means no evidence either way."
+  },
+  {
+   "q": "Least frequency analysis is used to?",
+   "options": [
+    "Compress data",
+    "Find the most common process",
+    "Surface rare values for review",
+    "Encrypt logs"
+   ],
+   "a": 2,
+   "why": "LFO highlights rare items."
+  },
+  {
+   "q": "A svchost.exe running from C:\\Users\\Public is best found by?",
+   "options": [
+    "Stacking name and path",
+    "Password audit",
+    "Counting emails",
+    "Port scanning"
+   ],
+   "a": 0,
+   "why": "Name and path stacking exposes masquerading."
+  },
+  {
+   "q": "Which pattern most suggests beaconing?",
+   "options": [
+    "One large upload",
+    "A single DNS error",
+    "Regular intervals with uniform sizes",
+    "Random browsing"
+   ],
+   "a": 2,
+   "why": "Regularity indicates automation."
+  },
+  {
+   "q": "What should 'no evidence found' be understood as?",
+   "options": [
+    "Technique not seen in scoped data",
+    "Hunt failed",
+    "System is clean",
+    "Technique never occurred"
+   ],
+   "a": 0,
+   "why": "It is limited to scope and data."
+  },
+  {
+   "q": "What should happen to a productive hunt query?",
+   "options": [
+    "Become a tested detection rule",
+    "Be deleted",
+    "Be hidden",
+    "Be ignored"
+   ],
+   "a": 0,
+   "why": "Operationalize through the detection workflow."
+  },
+  {
+   "q": "Why is a rare process not automatically malicious?",
+   "options": [
+    "Hashes change",
+    "Rare means safe",
+    "Rare is impossible",
+    "It could be new software or custom admin work"
+   ],
+   "a": 3,
+   "why": "Rarity needs pivoting to confirm."
+  }
+ ]
+}

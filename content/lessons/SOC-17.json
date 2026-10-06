@@ -1,0 +1,536 @@
+{
+ "code": "SOC-17",
+ "intro": "Finding an attack is only half of a SOC analyst's job; the other half is explaining it. This module teaches you to write incident reports with a UTC timeline, evidence and root cause, to escalate with the right facts for the right audience, to turn technical findings into short business summaries, and to document cases in a ticketing system so any colleague can continue your work. You will practice separating fact from assumption, defanging indicators and writing specific recommendations.",
+ "lessons": [
+  {
+   "title": "Incident report structure",
+   "why": "A report is the permanent record of an incident; if it is vague, nobody can learn from it, act on it or defend it later.",
+   "sections": [
+    {
+     "h": "Why the report exists",
+     "p": [
+      "An incident report is the durable record of what happened, what it affected and what was done. Its readers differ widely: an incident manager wants status, a system owner wants to know what to fix, an auditor wants evidence of due diligence, and a future analyst wants to recognize the same pattern. Because the report may be read months later by someone who was not there, it must stand alone. It also may be used in legal, regulatory or insurance processes, so every statement should be traceable to evidence such as a log line, a ticket entry or a packet capture. Write it for a careful stranger, not for yourself."
+     ]
+    },
+    {
+     "h": "The standard sections",
+     "p": [
+      "Most teams use a similar skeleton. Start with a short summary: what happened, when, how severe, and current status. Next comes scope: which hosts, accounts, data and business services were affected, and which were checked and found clean. Then the timeline, then the evidence list, then root cause, then impact, actions taken and finally recommendations. Aligning with the NIST SP 800-61 lifecycle (preparation, detection and analysis, containment, eradication and recovery, post-incident activity) helps, because it makes the report map onto the phases responders already use. Metadata matters too: incident ID, author, classification, severity, report version and distribution list."
+     ]
+    },
+    {
+     "h": "Timeline in UTC",
+     "p": [
+      "The timeline is the backbone of the report and must use one time standard. Use UTC in ISO 8601 form, for example 2026-03-14T09:42:10Z, and state the offset if source systems log in local time. Mixed time zones are one of the most common ways a timeline becomes wrong, especially when a firewall logs in local time and an endpoint tool logs in UTC. Each entry has a timestamp, the event, the source of evidence and whether it is an observed fact or an inference. Distinguish attacker activity from defender activity, and mark key milestones: first malicious activity, detection, containment and recovery. From these you can derive dwell time and time to respond."
+     ]
+    },
+    {
+     "h": "Root cause and recommendations",
+     "p": [
+      "Root cause explains why the incident was possible, not only how the attacker acted. 'A user opened a phishing attachment' is a trigger; the root cause may be that macros from the internet were allowed and no MFA protected the mail account. Separate the initial access vector from the contributing control gaps. Recommendations should be specific, owned and prioritized: 'Enforce MFA on all mailbox logins, owner: IT, due in 30 days' beats 'improve security'. Tie each recommendation to a finding, and state the residual risk if it is not done. Avoid blame; describe systems and decisions, not careless people."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Timeline excerpt (fictional)",
+    "text": "2026-03-14T09:42:10Z  Phishing email delivered to user alice  [mail gateway]\n2026-03-14T09:47:31Z  Attachment opened on WS-114        [EDR process tree]\n2026-03-14T09:48:02Z  Outbound HTTPS to 203.0.113.50      [proxy log]\n2026-03-14T10:15:44Z  Alert fired, ticket INC-2041 opened [SIEM]\n2026-03-14T10:31:09Z  WS-114 isolated from network         [EDR action]\nFACT: all rows above have a log source. INFERENCE: none."
+   },
+   "example": "An analyst closes a case about a malicious spreadsheet. Her draft says 'around 3 pm the user got something bad and we fixed it.' A reviewer returns it: no UTC time, no host, no evidence, no root cause. She rewrites it with a two-sentence summary, a six-row UTC timeline citing the mail gateway, EDR and proxy logs, a scope statement saying only WS-114 and one account were affected, a root cause (macros allowed from the internet) and three owned recommendations. Six months later, a new analyst finds the report and recognizes the same pattern within minutes.",
+   "terms": [
+    {
+     "term": "Incident report",
+     "def": "Formal record of an incident covering summary, scope, timeline, evidence, root cause and recommendations."
+    },
+    {
+     "term": "Timeline",
+     "def": "Chronological list of events with timestamps, sources and fact or inference labels."
+    },
+    {
+     "term": "UTC",
+     "def": "Coordinated Universal Time, the single time standard used to avoid time zone errors in records."
+    },
+    {
+     "term": "Root cause",
+     "def": "The underlying weakness that made the incident possible, beyond the immediate trigger."
+    },
+    {
+     "term": "Dwell time",
+     "def": "The period between first attacker activity and detection or containment."
+    },
+    {
+     "term": "Scope",
+     "def": "The set of systems, accounts and data affected, plus what was verified as unaffected."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which timestamp format is best for an incident timeline?",
+     "options": [
+      "03/14/26 9:42 AM",
+      "2026-03-14T09:42:10Z",
+      "14 March, morning",
+      "09:42 local time"
+     ],
+     "a": 1,
+     "why": "ISO 8601 in UTC is unambiguous and sorts correctly across sources."
+    },
+    {
+     "q": "Which statement is a root cause rather than a trigger?",
+     "options": [
+      "The user opened the attachment",
+      "Macros from the internet were permitted and mailbox login had no MFA",
+      "The alert fired at 10:15Z",
+      "The host was isolated"
+     ],
+     "a": 1,
+     "why": "A root cause names the control gap that enabled the event; opening the file was the trigger."
+    },
+    {
+     "q": "Why should each timeline row cite a source?",
+     "options": [
+      "To make the table longer",
+      "So claims are verifiable and defensible later",
+      "Because UTC requires it",
+      "To assign blame"
+     ],
+     "a": 1,
+     "why": "Evidence references let reviewers, auditors and later analysts verify each statement."
+    },
+    {
+     "q": "Which recommendation is best written?",
+     "options": [
+      "Improve email security",
+      "Enforce MFA on all mailboxes, owner IT, due in 30 days",
+      "Train users more",
+      "Be more careful"
+     ],
+     "a": 1,
+     "why": "It is specific, owned, time-bound and tied to a finding."
+    }
+   ],
+   "recap": [
+    "Write the report so a stranger can understand it without asking you anything.",
+    "Use one time standard, UTC, and cite evidence for every timeline row.",
+    "Separate trigger from root cause and make recommendations specific and owned."
+   ]
+  },
+  {
+   "title": "Escalation and executive summaries",
+   "why": "Escalating well gets the right people acting quickly; escalating badly wastes their time or hides the real risk.",
+   "sections": [
+    {
+     "h": "When and why to escalate",
+     "p": [
+      "Escalation moves a case to someone with more authority, skill or access. Typical triggers are defined in the playbook: confirmed compromise of a privileged account, evidence of data exfiltration, ransomware behavior, a critical business system affected, or a case that passes the analyst's tier. Waiting too long is the usual failure; a good rule is to escalate when you have enough facts to justify action, not when you have every answer. Escalation is not an admission of failure. It is a core SOC skill, because incident response needs decisions that analysts alone cannot make, such as taking a production server offline or notifying legal."
+     ]
+    },
+    {
+     "h": "Facts versus assumptions",
+     "p": [
+      "Every escalation should separate what is known from what is believed. Facts are observed and verifiable: 'EDR shows powershell.exe spawned by winword.exe on WS-114 at 09:47:31Z.' Assumptions are inferences: 'The attacker probably has the user's password.' Label them plainly, and state your confidence and what would confirm or refute each assumption. Also say what you do not know yet. Mixing the two causes real harm: a manager acting on an assumption stated as fact may shut down the wrong system or tell a customer something untrue. Precise wording such as 'confirmed', 'suspected' and 'not yet checked' keeps everyone aligned."
+     ]
+    },
+    {
+     "h": "The escalation message",
+     "p": [
+      "A strong escalation is short and ordered. Lead with the ask: what you need and by when. Then give a one-line summary, severity, affected assets, current containment state, key evidence with the ticket link, and next steps already planned. A useful pattern is SBAR: Situation, Background, Assessment, Recommendation. Send it through the channel defined in the runbook, such as the on-call pager for critical issues, and confirm receipt. Do not paste raw logs into a chat message; link the ticket instead. For after-hours or critical events, follow the call tree and note the time you notified each person, because that becomes part of the timeline."
+     ]
+    },
+    {
+     "h": "Executive summaries",
+     "p": [
+      "Leaders need to decide, not investigate. An executive summary uses plain language, avoids acronyms or defines them, and answers four questions: what happened, what is the business impact, what are we doing, and what do we need from you. Express impact in business terms such as customers affected, services down, money at risk, regulatory deadlines (for example, GDPR requires notifying the supervisory authority within 72 hours of becoming aware of a personal data breach). Keep it to a few sentences or one page. Be honest about uncertainty and give the next update time. Technical detail belongs in an appendix, not in the summary."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "SBAR escalation (fictional)",
+    "text": "ASK: Approve isolating FILESRV-02 within 30 min.\nS: Possible ransomware staging on FILESRV-02 (INC-2051).\nB: 09:20Z EDR flagged mass file renames; user svc-backup used from 198.51.100.7.\nA: CONFIRMED: renames on 3 shares. SUSPECTED: credential theft. UNKNOWN: any data copied out.\nR: Isolate host, disable svc-backup, next update 10:30Z."
+   },
+   "example": "The incident manager reads two versions of an escalation. The first says 'weird stuff on the file server, lots of logs, please look.' The second leads with an ask to isolate FILESRV-02, lists confirmed and suspected items, links the ticket and gives a next update time. She approves in two minutes. Later, the analyst writes a five-sentence executive note for the director: a file server was targeted, finance files are unavailable, no evidence yet of data theft, recovery from backup is under way, and the next update is at noon.",
+   "terms": [
+    {
+     "term": "Escalation",
+     "def": "Passing a case to a person or tier with greater authority, skill or access."
+    },
+    {
+     "term": "SBAR",
+     "def": "Situation, Background, Assessment, Recommendation: a structured communication format."
+    },
+    {
+     "term": "Executive summary",
+     "def": "Short plain-language statement of what happened, business impact, actions and decisions needed."
+    },
+    {
+     "term": "Confidence level",
+     "def": "How strongly the evidence supports a conclusion, stated explicitly."
+    },
+    {
+     "term": "Business impact",
+     "def": "Effect on customers, revenue, operations, legal obligations or reputation."
+    },
+    {
+     "term": "Call tree",
+     "def": "Defined sequence of contacts to notify during critical incidents."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which is a fact rather than an assumption?",
+     "options": [
+      "The attacker likely stole credentials",
+      "EDR shows winword.exe spawned powershell.exe at 09:47:31Z",
+      "The campaign is probably criminal",
+      "Data was probably copied"
+     ],
+     "a": 1,
+     "why": "It is directly observed in a log; the others are inferences."
+    },
+    {
+     "q": "What should an escalation message lead with?",
+     "options": [
+      "Full log dump",
+      "Apology",
+      "The ask: what you need and by when",
+      "Detailed malware history"
+     ],
+     "a": 2,
+     "why": "Leading with the ask lets the recipient decide quickly."
+    },
+    {
+     "q": "Which line fits an executive summary best?",
+     "options": [
+      "Mimikatz was executed under SYSTEM",
+      "Finance file shares are unavailable; recovery under way; next update at noon",
+      "Event ID 4624 type 3 observed",
+      "Hash is on VirusTotal"
+     ],
+     "a": 1,
+     "why": "It states business impact and status in plain language."
+    },
+    {
+     "q": "Why label uncertainty explicitly?",
+     "options": [
+      "To avoid doing analysis",
+      "So decision makers do not act on assumptions as if they were facts",
+      "Because policy forbids confidence levels",
+      "To make messages longer"
+     ],
+     "a": 1,
+     "why": "Clear labels prevent wrong decisions based on unverified claims."
+    }
+   ],
+   "recap": [
+    "Escalate when facts justify action, not when every question is answered.",
+    "Separate confirmed, suspected and unknown, and lead with the ask.",
+    "Executives get business impact, status and decisions needed in plain language."
+   ]
+  },
+  {
+   "title": "Ticketing and case documentation",
+   "why": "The ticket is the shared memory of the SOC; good notes let any analyst pick up a case at any hour without starting over.",
+   "sections": [
+    {
+     "h": "The ticket as shared memory",
+     "p": [
+      "SOC teams track alerts and incidents in a ticketing or case management system such as ServiceNow, Jira, TheHive or the case module of a SIEM or SOAR platform. The ticket is where detection, investigation, decisions and handoffs live. Shift changes, vacations and escalations mean that a different person will often continue your work. If your notes live in your head or a private notepad, the investigation restarts from zero. Tickets also feed metrics such as mean time to detect and respond, support audits and compliance evidence, and provide training material. Treat every entry as something a colleague will rely on at three in the morning."
+     ]
+    },
+    {
+     "h": "Observables and evidence",
+     "p": [
+      "Record observables in a consistent, searchable form: IP addresses, domains, URLs, file hashes (SHA-256), email sender and message ID, usernames, hostnames and process names. Defang indicators in free text so they cannot be clicked, for example hxxp://evil[.]example[.]com or 203[.]0[.]113[.]50. Note where each came from, with the log source and query used, and attach artifacts such as screenshots, exported logs and PCAP excerpts with their hashes. Record timestamps in UTC. Distinguish observables you verified from those reported by a user or a threat feed. Consistent fields make it possible to search past tickets for the same indicator later."
+     ]
+    },
+    {
+     "h": "Actions, verdict and handoff",
+     "p": [
+      "Document what you did and why, in order: queries run, tools used, containment taken, people contacted. Write enough that the work can be repeated. State a verdict using the team's vocabulary, commonly true positive, false positive, benign true positive or undetermined, with a one-line justification. Record the final disposition, such as closed, escalated or monitoring. For a handoff, add a short status block: current state, what is done, what remains, blockers, who owns the next step and when it is due. A good test is whether the next analyst can continue without asking you a single question."
+     ]
+    },
+    {
+     "h": "Quality habits",
+     "p": [
+      "Good documentation is concise, factual and written as you go, not reconstructed at the end of the shift. Use the ticket's templates and fields instead of free text where possible, because structured fields can be searched and counted. Keep opinions labeled and avoid emotional language. Never paste secrets such as passwords or full personal data into tickets; reference the evidence location and respect access controls and classification. Link related tickets and the playbook followed. Use consistent tags such as the MITRE ATT&CK technique ID, for example T1566.001 for spearphishing attachment. Review your own ticket before closing: could a stranger understand it?"
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Ticket note template (fictional)",
+    "text": "ID: INC-2041   Status: Escalated   Severity: High\nSummary: Malicious attachment executed on WS-114 (user alice)\nObservables: sha256 9f2c...e1 | hxxps://files[.]example[.]com/a.zip | 203[.]0[.]113[.]50\nActions: 10:31Z isolated host (EDR); 10:40Z reset password; mail purge ran\nVerdict: True positive - T1566.001\nHandoff: Awaiting disk image from IT (owner: bob, due 14:00Z)"
+   },
+   "example": "At 06:00 UTC, analyst Dana's shift ends while a phishing case is open. Her ticket lists the sender, message ID, URL (defanged), the hash of the attachment, the hosts that opened it, the containment already taken and the pending mail purge. The verdict is true positive with a technique tag. The handoff block names one remaining task. Analyst Raj starts at 06:05, reads for two minutes and continues the purge with no call to Dana. The case closes two hours later with a clean audit trail.",
+   "terms": [
+    {
+     "term": "Observable",
+     "def": "A concrete data point in an investigation, such as an IP, hash, domain or username."
+    },
+    {
+     "term": "Defanging",
+     "def": "Modifying indicators, such as hxxp and [.], so they cannot be accidentally opened."
+    },
+    {
+     "term": "Verdict",
+     "def": "The analyst's conclusion, such as true positive, false positive or undetermined."
+    },
+    {
+     "term": "Handoff",
+     "def": "Transfer of a case to another analyst with enough detail to continue."
+    },
+    {
+     "term": "Disposition",
+     "def": "The final state of a ticket, such as closed, escalated or monitoring."
+    },
+    {
+     "term": "Case management",
+     "def": "System that tracks alerts, evidence, actions and status through an investigation."
+    }
+   ],
+   "check": [
+    {
+     "q": "How should a malicious URL be written in free-text ticket notes?",
+     "options": [
+      "Clickable link",
+      "Defanged, such as hxxps://files[.]example[.]com",
+      "Hidden in a screenshot",
+      "Left out"
+     ],
+     "a": 1,
+     "why": "Defanging prevents accidental clicks and tool auto-linking."
+    },
+    {
+     "q": "What makes a handoff good?",
+     "options": [
+      "A verbal chat only",
+      "The next analyst can continue without asking questions",
+      "A copy of all raw logs",
+      "A long narrative"
+     ],
+     "a": 1,
+     "why": "The ticket must carry state, remaining tasks and owner."
+    },
+    {
+     "q": "Which item should NOT be pasted into a ticket?",
+     "options": [
+      "A SHA-256 hash",
+      "A plaintext password found in a log",
+      "A hostname",
+      "A ticket link"
+     ],
+     "a": 1,
+     "why": "Secrets belong in controlled storage; reference the location instead."
+    },
+    {
+     "q": "Why use structured fields and tags like T1566.001?",
+     "options": [
+      "They look professional",
+      "They make tickets searchable and measurable across cases",
+      "They replace evidence",
+      "They are required by UTC"
+     ],
+     "a": 1,
+     "why": "Structured data allows searching, reporting and trend analysis."
+    }
+   ],
+   "recap": [
+    "Write notes as you work so any analyst can continue the case.",
+    "Record observables defanged, with source and UTC time, plus actions and a verdict.",
+    "End with a handoff block: state, remaining work, owner, due time."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Write the incident report",
+   "sim": "chat-sim",
+   "scenario": "You are an analyst at the fictional Example Corp. Raw notes for case INC-3007 are pasted into a chat: times in mixed local zones, a mail gateway delivery, a user opening a spreadsheet, EDR showing a PowerShell child process, proxy logs to 203.0.113.50 and a password reset. A supervisor asks for a structured report before the shift ends. The simulator checks each section you submit.",
+   "objective": "Convert messy notes into a structured report with a UTC timeline and a plain-language summary.",
+   "steps": [
+    {
+     "do": "Read the raw notes and list the timestamps with their time zones.",
+     "see": "Notes show gateway in UTC, proxy in UTC-5, EDR in UTC."
+    },
+    {
+     "do": "Convert each timestamp to UTC ISO 8601.",
+     "see": "The simulator accepts rows sorted in the correct order."
+    },
+    {
+     "do": "Write a two-sentence summary stating what, when, severity and current status.",
+     "see": "Feedback confirms a stand-alone summary with no jargon."
+    },
+    {
+     "do": "Write the scope: affected host WS-114, account alice, checked and clean items.",
+     "see": "Scope accepted if clean systems are listed."
+    },
+    {
+     "do": "Build the timeline with a source for every row and mark inferences.",
+     "see": "Rows with sources are green; unsourced rows are flagged."
+    },
+    {
+     "do": "State the root cause separately from the trigger.",
+     "see": "Macro policy and missing MFA accepted as root cause."
+    },
+    {
+     "do": "Add three owned, time-bound recommendations.",
+     "see": "Specific recommendations accepted; vague ones are flagged."
+    },
+    {
+     "do": "Submit the report.",
+     "see": "Score displayed with remarks on any missing section."
+    }
+   ],
+   "answer": "A complete report has a summary, scope, UTC timeline with sources (gateway 09:42Z, EDR 09:47Z, proxy 04:48 local at UTC-5 converted to 09:48Z, reset 10:40Z), evidence, root cause distinct from trigger, impact and three owned recommendations.",
+   "hint": "Convert the proxy time first: UTC-5 means add five hours to reach UTC."
+  },
+  {
+   "title": "Draft the escalation",
+   "sim": "scenario",
+   "scenario": "At 02:10 UTC the on-call incident manager at Example Corp must decide whether to isolate a file server. You hold a set of fact cards: EDR alerts on mass file renames, a service account used from 198.51.100.7, no evidence yet of outbound data transfer, and a list of five business services. The simulator asks you to select which facts, impact statements and ask belong in the escalation.",
+   "objective": "Choose the facts, impact and ask that belong in an escalation to the incident manager.",
+   "steps": [
+    {
+     "do": "Review the twelve cards and mark each as fact, assumption or unknown.",
+     "see": "The simulator highlights mislabeled cards."
+    },
+    {
+     "do": "Select the confirmed facts that support the decision.",
+     "see": "Rename activity and account misuse are accepted."
+    },
+    {
+     "do": "Exclude speculation about attacker identity.",
+     "see": "Card removed; message gets shorter."
+    },
+    {
+     "do": "Add the business impact in plain terms.",
+     "see": "Finance shares unavailable is accepted over technical detail."
+    },
+    {
+     "do": "Choose the ask: approve isolation within 30 minutes.",
+     "see": "Ask placed at the top of the message."
+    },
+    {
+     "do": "Add the next update time and ticket link.",
+     "see": "Completeness bar reaches 100 percent."
+    },
+    {
+     "do": "Send the escalation.",
+     "see": "Manager replies approving isolation and shows the score."
+    }
+   ],
+   "answer": "Include confirmed facts (mass renames, service account use from 198.51.100.7), labeled suspicion of credential theft, unknown data exfiltration, business impact on finance shares, a clear ask to isolate the host, a next update time and the ticket link. Exclude attacker attribution guesses and raw logs.",
+   "hint": "Lead with the ask, then facts, then what is unknown."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "An incident report is first and foremost written for whom?",
+   "options": [
+    "The analyst who wrote it",
+    "A careful reader who was not present",
+    "Only the attacker",
+    "Only auditors"
+   ],
+   "a": 1,
+   "why": "It must stand alone for later readers."
+  },
+  {
+   "q": "A firewall logs in UTC-8 and shows an event at 01:30 on March 14. What is the UTC time?",
+   "options": [
+    "2026-03-14T01:30Z",
+    "2026-03-14T09:30Z",
+    "2026-03-13T17:30Z",
+    "2026-03-14T07:30Z"
+   ],
+   "a": 1,
+   "why": "UTC-8 means add eight hours to get UTC."
+  },
+  {
+   "q": "Which is best classified as root cause?",
+   "options": [
+    "User clicked a link",
+    "Internet-sourced macros allowed and no MFA on mail",
+    "Alert fired at 10:15Z",
+    "Host was isolated"
+   ],
+   "a": 1,
+   "why": "It is a control gap, not the immediate action."
+  },
+  {
+   "q": "Which recommendation is well written?",
+   "options": [
+    "Fix security",
+    "Enable MFA for all mailboxes by 30 April, owner IT",
+    "Be aware",
+    "Consider improvements"
+   ],
+   "a": 1,
+   "why": "Specific, owned and time-bound."
+  },
+  {
+   "q": "Which phrase best separates fact from assumption?",
+   "options": [
+    "Probably bad",
+    "Confirmed in EDR; suspected credential theft; unknown exfiltration",
+    "It is clearly a nation state",
+    "Everything is fine"
+   ],
+   "a": 1,
+   "why": "Explicit confidence labels prevent wrong decisions."
+  },
+  {
+   "q": "What should lead an escalation to an incident manager?",
+   "options": [
+    "The ask and deadline",
+    "The history of the tool vendor",
+    "Complete packet captures",
+    "A joke"
+   ],
+   "a": 0,
+   "why": "The ask lets the recipient act quickly."
+  },
+  {
+   "q": "An executive summary should mostly contain:",
+   "options": [
+    "Hex dumps",
+    "Business impact, status, actions and decisions needed",
+    "Registry keys",
+    "Rule names"
+   ],
+   "a": 1,
+   "why": "Executives decide on impact and actions."
+  },
+  {
+   "q": "GDPR requires notifying the supervisory authority of a personal data breach within:",
+   "options": [
+    "24 hours",
+    "72 hours of becoming aware",
+    "30 days",
+    "7 days"
+   ],
+   "a": 1,
+   "why": "Article 33 sets 72 hours, where feasible."
+  },
+  {
+   "q": "How should an indicator URL appear in notes?",
+   "options": [
+    "https://example.com/a",
+    "hxxps://example[.]com/a",
+    "As a QR code",
+    "In bold"
+   ],
+   "a": 1,
+   "why": "Defanged format avoids accidental clicks."
+  },
+  {
+   "q": "What is the best test of a handoff note?",
+   "options": [
+    "Length",
+    "The next analyst can continue without questions",
+    "It includes screenshots only",
+    "It uses tags"
+   ],
+   "a": 1,
+   "why": "Handoff quality is measured by continuity."
+  }
+ ]
+}

@@ -1,0 +1,1053 @@
+{
+ "code": "ENG-07",
+ "intro": "This module focuses on securing the path from commit to production. You will map pipeline attack points, harden runners, tokens and workflow files, find and respond to leaked secrets, sign and verify artifacts with Sigstore, produce and scan SBOMs, and understand SLSA and supply chain attacks such as dependency confusion. Finally you will enforce rules automatically with policy as code. These skills reduce the chance that a compromised build, dependency or credential becomes a compromise of production.",
+ "lessons": [
+  {
+   "title": "CI/CD threat model",
+   "why": "The build pipeline holds the keys to production, so compromising it can be more damaging than compromising any single application.",
+   "sections": [
+    {
+     "h": "Why pipelines are targets",
+     "p": [
+      "A CI/CD system checks out code, downloads dependencies, runs scripts with credentials and publishes artifacts that are later deployed with high privileges. An attacker who controls any step can insert malicious code that is signed and trusted by the normal process, as happened in the SolarWinds build compromise and the Codecov bash uploader incident. Pipelines also concentrate secrets: cloud keys, registry tokens, signing keys and database passwords. Treat the pipeline as a production system with its own threat model, owners and monitoring, rather than as developer tooling."
+     ]
+    },
+    {
+     "h": "Attack points in the flow",
+     "p": [
+      "Map the flow and list attack points. Source: stolen developer credentials, malicious pull requests from forks, force pushes and unprotected branches. Build: poisoned build scripts, compromised third-party actions or plugins, and injected environment variables. Runners: shared or persistent runners where one job can read another's files, and self-hosted runners exposed to the internet. Dependencies: malicious or typosquatted packages. Registries: overwritten tags and weak push permissions. Deploy: over-privileged cloud credentials and missing approvals. Each point suggests a control."
+     ]
+    },
+    {
+     "h": "Frameworks and categories",
+     "p": [
+      "The OWASP Top 10 CI/CD Security Risks names categories such as insufficient flow control, inadequate identity and access management, dependency chain abuse, poisoned pipeline execution, insufficient credential hygiene and insecure system configuration. Poisoned pipeline execution means an attacker changes pipeline definitions, or inputs they influence, so that the CI system runs their commands. The SLSA framework and NIST SSDF address the same area from the supply chain perspective. Use these lists as review checklists and for tabletop exercises with the platform team."
+     ]
+    },
+    {
+     "h": "Building the model",
+     "p": [
+      "Draw a data flow diagram with trust boundaries: developer workstation, source host, CI control plane, runners, artifact registry, deployment target. For each flow apply STRIDE and note which credentials are present. Rank findings by impact, for example a runner that holds production admin keys is critical. Then choose controls: branch protection, mandatory reviews, ephemeral runners, least-privilege tokens, protected environments with approvals, signed artifacts and logging of all pipeline changes.",
+      "Keep the model alive. Update it when you add a new tool, repository or deployment target, and review it after incidents elsewhere in the industry. Ask 'if this runner were fully compromised, what could it reach?' and use the answer to shrink credentials and network access until the blast radius is acceptable."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Threat table",
+    "text": "Stage      Threat                         Control\nSource     Force push to main             Branch protection, signed commits\nBuild      Malicious 3rd-party action     Pin to commit SHA, allow-list\nRunner     Persistent shared runner       Ephemeral runners, isolation\nRegistry   Tag overwrite                  Immutable tags, digest pinning\nDeploy     Long-lived admin key           OIDC, short-lived roles"
+   },
+   "example": "A team maps their pipeline for the shop.example.com service and finds that pull requests from forks run with access to a deploy token, that the self-hosted runner is shared with another project, and that the registry allows overwriting the latest tag. They rank the fork token issue as critical, change workflows so fork builds run without secrets, move to ephemeral runners, and enable immutable tags. Their threat model document is attached to the platform runbook and reviewed twice a year.",
+   "terms": [
+    {
+     "term": "Poisoned pipeline execution",
+     "def": "Attack that modifies pipeline definitions or inputs so the CI system runs attacker commands."
+    },
+    {
+     "term": "Runner",
+     "def": "The machine or container that executes pipeline jobs."
+    },
+    {
+     "term": "Blast radius",
+     "def": "The amount of damage possible if a component is compromised."
+    },
+    {
+     "term": "Trust boundary",
+     "def": "A line where data or control passes between components of different trust."
+    },
+    {
+     "term": "Ephemeral runner",
+     "def": "A clean, single-use build environment destroyed after the job."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is poisoned pipeline execution?",
+     "options": [
+      "Altering pipeline definitions or inputs so CI runs attacker commands",
+      "Slow builds",
+      "Corrupt backups",
+      "Expired tokens"
+     ],
+     "a": 0,
+     "why": "The attacker abuses the pipeline's own execution authority."
+    },
+    {
+     "q": "Why are shared persistent runners risky?",
+     "options": [
+      "They are always offline",
+      "They cost more",
+      "They use TLS",
+      "One job can leave data or malware for another"
+     ],
+     "a": 3,
+     "why": "State persists across jobs, so secrets and files can leak."
+    },
+    {
+     "q": "Which control reduces the damage of a compromised runner?",
+     "options": [
+      "Disabling logs",
+      "Sharing it widely",
+      "Giving it admin keys",
+      "Least-privilege, short-lived credentials"
+     ],
+     "a": 3,
+     "why": "Smaller privileges limit the blast radius."
+    },
+    {
+     "q": "Why does the pipeline need its own threat model?",
+     "options": [
+      "It is not networked",
+      "It holds secrets and can change what runs in production",
+      "It stores marketing data",
+      "It has no users"
+     ],
+     "a": 1,
+     "why": "Its privileges make it a high-value target."
+    }
+   ],
+   "recap": [
+    "Treat CI/CD as a production system holding powerful secrets.",
+    "Map attack points from source through build, runners, registry and deploy.",
+    "Use STRIDE and the OWASP CI/CD risks to choose controls."
+   ]
+  },
+  {
+   "title": "Pipeline hardening",
+   "why": "Hardening shrinks what a compromised job, action or token can do, and removes the long-lived keys that attackers love to steal.",
+   "sections": [
+    {
+     "h": "Runners and isolation",
+     "p": [
+      "Use ephemeral runners that start clean for each job and are destroyed after it, so a compromised job cannot persist or read another job's workspace. Prefer hosted runners for public repositories, because self-hosted runners on public repos can run code from forks. Place self-hosted runners in isolated networks with egress filtering, run them without root, and keep images patched. Separate runners for trusted and untrusted code, and never run untrusted pull request code on a runner that can reach production networks or internal secrets."
+     ]
+    },
+    {
+     "h": "Restricting tokens and permissions",
+     "p": [
+      "CI systems issue an automatic token to each run, such as GITHUB_TOKEN. Set the default to read-only and grant write scopes per job, for example permissions: contents: read at workflow level and id-token: write only on the deploy job. Use protected environments that require approval and restrict which branches may deploy. Require reviews and status checks on main, and block secrets from fork pull requests. Be careful with triggers such as pull_request_target that run in the base repository context and expose secrets."
+     ]
+    },
+    {
+     "h": "Pinning dependencies",
+     "p": [
+      "Third-party actions and plugins execute inside your pipeline, so a tag like v3 that is moved by a compromised maintainer can inject code, as happened with the tj-actions/changed-files incident in 2025. Pin actions to a full 40-character commit SHA, review updates through an automated bot such as Dependabot or Renovate, and allow only approved actions through organization policy. Pin container base images by digest, and verify downloaded tools by checksum rather than by piping curl into a shell."
+     ]
+    },
+    {
+     "h": "OIDC instead of static keys",
+     "p": [
+      "Long-lived cloud keys stored as CI secrets are a major leak risk. With OpenID Connect federation, the CI provider issues a short-lived signed token that states the repository, branch and workflow. AWS, Azure and GCP can be configured to trust that token and issue temporary credentials only if claims match, for example only the main branch of example-org/shop may assume the deploy role. The credentials last minutes and there is no secret to rotate or leak.",
+      "Protect against script injection too. Never place untrusted values such as pull request titles or branch names directly into a shell command with expression syntax; pass them through environment variables and quote them. Log pipeline configuration changes, alert on new secrets or runners, and treat the workflow files as code requiring review by code owners."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Workflow excerpt",
+    "text": "permissions:\n  contents: read\njobs:\n  deploy:\n    permissions:\n      id-token: write\n      contents: read\n    steps:\n      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1\n      - uses: aws-actions/configure-aws-credentials@<full-sha>\n        with: { role-to-assume: arn:aws:iam::111122223333:role/deploy-shop }"
+   },
+   "example": "A workflow for shop.example.com uses actions at floating tags, has write-all token permissions and stores an AWS access key in secrets. The engineer pins each action to a commit SHA, sets read-only defaults with write scope only where needed, creates an IAM role trusting the OIDC provider for the main branch only, deletes the stored key, and enables environment approval for production. The next run assumes the role through OIDC and the old key is revoked.",
+   "terms": [
+    {
+     "term": "GITHUB_TOKEN",
+     "def": "The automatic per-run token a workflow uses to call the repository API."
+    },
+    {
+     "term": "OIDC federation",
+     "def": "Trust relationship where cloud accounts accept short-lived identity tokens from the CI provider."
+    },
+    {
+     "term": "SHA pinning",
+     "def": "Referencing a dependency by an immutable commit hash instead of a movable tag."
+    },
+    {
+     "term": "Protected environment",
+     "def": "A deployment target requiring approvals and branch restrictions."
+    },
+    {
+     "term": "Script injection",
+     "def": "Untrusted text in an expression being interpreted as shell commands."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why pin actions to a commit SHA?",
+     "options": [
+      "Tags can be moved to malicious code",
+      "SHA is shorter",
+      "It speeds builds",
+      "It disables logs"
+     ],
+     "a": 0,
+     "why": "A commit hash is immutable, tags are not."
+    },
+    {
+     "q": "What is the main benefit of OIDC federation for deploys?",
+     "options": [
+      "Faster compile",
+      "Larger artifacts",
+      "Free storage",
+      "No long-lived cloud key to steal"
+     ],
+     "a": 3,
+     "why": "Credentials are temporary and tied to workflow claims."
+    },
+    {
+     "q": "What should the default token permission be?",
+     "options": [
+      "Admin",
+      "None and no checkout",
+      "Write-all",
+      "Read-only with per-job elevation"
+     ],
+     "a": 3,
+     "why": "Least privilege per job."
+    },
+    {
+     "q": "Which is a risk with pull_request_target?",
+     "options": [
+      "It blocks merges",
+      "It can expose secrets to code from forks",
+      "It disables tests",
+      "It encrypts logs"
+     ],
+     "a": 1,
+     "why": "It runs with base repo permissions on untrusted input."
+    }
+   ],
+   "recap": [
+    "Use ephemeral, isolated runners.",
+    "Restrict tokens and pin third-party actions by SHA.",
+    "Use OIDC federation rather than stored cloud keys."
+   ]
+  },
+  {
+   "title": "Secrets in repos",
+   "why": "Once a secret is committed, it lives in git history and in every clone, and automated bots find new leaks within minutes.",
+   "sections": [
+    {
+     "h": "How secrets leak",
+     "p": [
+      "Developers commit API keys, passwords, private keys and .env files by accident, paste them in config examples or leave them in test fixtures. Even after a file is deleted, the secret remains in earlier commits, forks and clones. Attackers and bots continuously scan public repositories and respond within minutes to cloud keys, so a leaked key can be abused almost immediately. Private repositories are not safe either, since access is wide and repositories sometimes become public. Treat any committed secret as compromised."
+     ]
+    },
+    {
+     "h": "Detection tools",
+     "p": [
+      "Gitleaks and TruffleHog scan the working tree and the entire git history using regular expressions, entropy checks and, for TruffleHog, verification calls that test whether a credential is still live. GitHub secret scanning and push protection can block known token formats at push time. Run scans in three places: locally before commit, in CI on every pull request, and periodically across all repositories and history. Tune with an allow-list file for known false positives such as documented example keys, and keep that file reviewed."
+     ]
+    },
+    {
+     "h": "Prevention with hooks",
+     "p": [
+      "A pre-commit hook runs the scanner on staged changes before a commit is created, stopping the leak at its source. The pre-commit framework makes it easy to share a configuration, for example a gitleaks hook in .pre-commit-config.yaml. Hooks can be skipped with --no-verify, so back them with server-side push protection and CI checks. Keep secrets out of code by design: use a secrets manager or environment injection, add .env to .gitignore, and ship a .env.example containing only placeholders."
+     ]
+    },
+    {
+     "h": "Response: revoke and rotate",
+     "p": [
+      "When a real secret is found, rotate first. Revoke or disable the credential, issue a new one, deploy it, and then investigate use of the old one through provider logs such as CloudTrail. Removing the secret from history with git filter-repo or BFG is optional hygiene and does not make the secret safe again, because forks and caches may keep copies. Record the incident, find the root cause and fix the process that allowed it.",
+      "Classify each finding: a verified live credential is a true leak that needs rotation; a revoked, expired or placeholder value is a false positive; a test key for a sandbox may only need removal. Measure the number of open leaks, time to rotate, and the share of repos protected by hooks and push protection."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ gitleaks detect --source . --log-opts=\"--all\"\nFinding:     AWS_SECRET_ACCESS_KEY=****************\nRuleID:      aws-access-token\nFile:        config/deploy.env\nCommit:      3f9a1c2  Author: dev1@example.com  Date: 2026-03-02\nleaks found: 1"
+   },
+   "example": "A scan of the history of the example-org billing repo finds an AWS key in config/deploy.env from a commit made months ago, though the file was deleted. TruffleHog reports it as verified, meaning still active. The team deactivates the key in IAM, creates a role for the service, reviews CloudTrail for calls made with the old key from unknown addresses, and adds a gitleaks pre-commit hook plus push protection so it cannot recur.",
+   "terms": [
+    {
+     "term": "Secret scanning",
+     "def": "Automated detection of credentials in code, history or artifacts."
+    },
+    {
+     "term": "Pre-commit hook",
+     "def": "A script run by git before a commit is created."
+    },
+    {
+     "term": "Push protection",
+     "def": "Server-side blocking of pushes that contain recognized secrets."
+    },
+    {
+     "term": "Verified secret",
+     "def": "A detected credential confirmed to be still valid."
+    },
+    {
+     "term": "Rotation",
+     "def": "Replacing a credential with a new one and invalidating the old one."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the first action after a real key is committed?",
+     "options": [
+      "Delete the file only",
+      "Revoke and rotate the credential",
+      "Rewrite history and stop",
+      "Rename the repo"
+     ],
+     "a": 1,
+     "why": "Deleting the file does not remove the key from clones."
+    },
+    {
+     "q": "Why scan git history and not only the current files?",
+     "options": [
+      "History is faster",
+      "Files are encrypted",
+      "It is required by git",
+      "Old commits still contain the secret"
+     ],
+     "a": 3,
+     "why": "Deleted secrets remain retrievable in earlier commits."
+    },
+    {
+     "q": "Why back up pre-commit hooks with CI and push protection?",
+     "options": [
+      "CI is slower",
+      "Hooks encrypt code",
+      "Hooks can be skipped or not installed",
+      "Hooks are illegal"
+     ],
+     "a": 2,
+     "why": "Local controls are optional, server checks are enforced."
+    },
+    {
+     "q": "What does TruffleHog verification add?",
+     "options": [
+      "Opens a PR",
+      "Tests whether a found credential is active",
+      "Encrypts the repo",
+      "Rewrites history"
+     ],
+     "a": 1,
+     "why": "Verified secrets are prioritized for rotation."
+    }
+   ],
+   "recap": [
+    "Treat committed secrets as compromised.",
+    "Scan history with gitleaks or TruffleHog and block at commit and push.",
+    "Rotate first, then investigate use and clean up."
+   ]
+  },
+  {
+   "title": "Artifact signing and provenance",
+   "why": "Signatures let deployment systems prove an artifact came from your pipeline and was not altered, closing a major gap between build and run.",
+   "sections": [
+    {
+     "h": "Why sign",
+     "p": [
+      "A container image or binary is just bytes in a registry. If an attacker gains registry access or tampers in transit, a plain tag cannot reveal it. Signing binds an artifact's digest to an identity so consumers can verify who produced it and that it is unchanged. Together with provenance, a signed statement describing how and where it was built, signatures let admission controllers reject anything not built by your trusted pipeline. This is a core requirement of SLSA and of NIST SSDF guidance."
+     ]
+    },
+    {
+     "h": "Sigstore and cosign",
+     "p": [
+      "Sigstore is an open project providing free signing infrastructure. Cosign signs and verifies container images and other artifacts. In keyless mode, the signer authenticates through OIDC (for example a GitHub Actions workflow identity), Fulcio issues a short-lived certificate for that identity, and the signature plus certificate are recorded in the Rekor transparency log, so no long-lived private key must be protected. Key-based signing with a KMS-held key is also supported. The signature is stored in the registry beside the image and refers to its digest."
+     ]
+    },
+    {
+     "h": "Verification and attestations",
+     "p": [
+      "Signing is useless without verification. Verify before deploy: cosign verify --certificate-identity <workflow identity> --certificate-oidc-issuer https://token.actions.githubusercontent.com image@sha256:<digest>. In Kubernetes, enforce this with admission controllers such as Kyverno, Sigstore policy-controller or Gatekeeper with external data, rejecting unsigned or wrongly signed images. Always refer to images by digest, not tag. Attestations, in the in-toto format, attach claims such as SLSA provenance or an SBOM to the artifact and are verified the same way."
+     ]
+    },
+    {
+     "h": "Operational practices",
+     "p": [
+      "Sign in the pipeline immediately after the build, using the same job that produced the artifact, and never sign artifacts built on developer laptops. Restrict which identities are trusted: a policy that accepts any valid Sigstore signature is weak, whereas one that accepts only the release workflow of your repository is strong. Monitor the transparency log for signatures using your identity, and plan for key or identity rotation.",
+      "Also consider signing commits and tags with SSH or GPG keys or gitsign, to protect the source side. Document how to handle verification failures: block the deploy, alert the owner, and investigate whether the registry, pipeline or artifact was altered before overriding with a break-glass process."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ cosign verify registry.example.com/shop/api@sha256:9f2c...e41 \\\n  --certificate-identity https://github.com/example-org/shop/.github/workflows/release.yml@refs/heads/main \\\n  --certificate-oidc-issuer https://token.actions.githubusercontent.com\nVerification for registry.example.com/shop/api@sha256:9f2c...e41 --\nThe cosign claims were validated\nThe transparency log claims were verified"
+   },
+   "example": "A cluster policy requires images from registry.example.com to carry a cosign signature from the release workflow of example-org/shop on the main branch. A developer builds a test image on a laptop and pushes it to the registry using a stolen token. The admission controller rejects the deployment because the signature identity does not match. The team investigates how the token was exposed, revokes it and rotates registry credentials.",
+   "terms": [
+    {
+     "term": "Cosign",
+     "def": "A Sigstore tool for signing and verifying container images and artifacts."
+    },
+    {
+     "term": "Keyless signing",
+     "def": "Signing with a short-lived certificate tied to an OIDC identity instead of a stored key."
+    },
+    {
+     "term": "Rekor",
+     "def": "Sigstore's public transparency log of signatures."
+    },
+    {
+     "term": "Provenance",
+     "def": "A signed record of how, where and from what an artifact was built."
+    },
+    {
+     "term": "Admission controller",
+     "def": "A Kubernetes component that accepts or rejects workloads at deploy time."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does keyless signing remove?",
+     "options": [
+      "The need to protect a long-lived private key",
+      "The need for registries",
+      "The need for tests",
+      "All verification"
+     ],
+     "a": 0,
+     "why": "A short-lived certificate is issued per signing."
+    },
+    {
+     "q": "Where should signature verification happen?",
+     "options": [
+      "Never",
+      "Only in dev",
+      "After incident",
+      "Before deployment, enforced by policy"
+     ],
+     "a": 3,
+     "why": "Admission or deploy gates must refuse unverified artifacts."
+    },
+    {
+     "q": "Why refer to images by digest?",
+     "options": [
+      "Tags are encrypted",
+      "Digests are faster to pull",
+      "Tags can be moved but digests are content-bound",
+      "Digests are shorter"
+     ],
+     "a": 2,
+     "why": "A digest identifies exact content."
+    },
+    {
+     "q": "What does a provenance attestation state?",
+     "options": [
+      "DNS records",
+      "How and where the artifact was built",
+      "The user's password",
+      "The CVE list only"
+     ],
+     "a": 1,
+     "why": "It records build inputs and builder identity."
+    }
+   ],
+   "recap": [
+    "Sign artifacts in the pipeline and verify before deploy.",
+    "Use cosign keyless or KMS keys and trust specific identities.",
+    "Deploy by digest and enforce with admission control."
+   ]
+  },
+  {
+   "title": "SBOM and vulnerability data",
+   "why": "When a new critical flaw is announced, an accurate inventory lets you answer 'are we affected?' in minutes instead of days.",
+   "sections": [
+    {
+     "h": "What an SBOM is",
+     "p": [
+      "A software bill of materials is a machine-readable list of the components in a piece of software, with names, versions, suppliers, licenses and relationships. Two main formats are used: SPDX (an ISO/IEC 5962 standard, strong on licensing and compliance) and CycloneDX (from OWASP, designed for security use cases). US Executive Order 14028 and related guidance pushed SBOMs into procurement requirements. An SBOM is generated per build and stored with the artifact, ideally attached as a signed attestation."
+     ]
+    },
+    {
+     "h": "Generating with Syft",
+     "p": [
+      "Syft by Anchore generates SBOMs from container images, directories and archives, for example syft registry.example.com/shop/api:1.4.2 -o cyclonedx-json > sbom.json. It reads package manager databases and lockfiles for many ecosystems. Generate during the build from the exact artifact being shipped, since an SBOM created from source may differ from the final image with its OS packages. Include transitive dependencies, and record the component hash and package URL (purl) so that matching to vulnerability data is accurate."
+     ]
+    },
+    {
+     "h": "Scanning with Grype",
+     "p": [
+      "Grype scans an image, directory or SBOM against vulnerability databases such as NVD, GitHub advisories and distribution feeds: grype sbom:./sbom.json. Findings show package, installed and fixed versions and severity. Scanning the stored SBOM lets you re-check old releases against new CVEs without rebuilding. Use options like --fail-on high to gate builds, and --only-fixed to focus on actionable issues. Rescan deployed images on a schedule, since the vulnerability database changes daily."
+     ]
+    },
+    {
+     "h": "VEX and prioritization",
+     "p": [
+      "Many reported CVEs do not affect a product because the vulnerable code is not present or reachable. A Vulnerability Exploitability eXchange (VEX) statement, available in CycloneDX VEX, CSAF and OpenVEX, says that a product is not_affected, affected, fixed or under_investigation for a CVE, with a justification such as vulnerable_code_not_in_execute_path. Suppliers publish VEX to reduce noise for customers. Combine VEX with EPSS and CISA KEV data to prioritize.",
+      "To answer 'where is package X used?', store SBOMs in a searchable system such as Dependency-Track, which ingests CycloneDX files and shows affected projects per component. Keep SBOMs for every released version, and verify their completeness by sampling, since inaccurate SBOMs create false confidence."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ syft registry.example.com/shop/api:1.4.2 -o cyclonedx-json=sbom.json\n$ grype sbom:sbom.json --fail-on high\nNAME        INSTALLED  FIXED-IN  VULNERABILITY   SEVERITY\nopenssl     3.0.2      3.0.13    CVE-2024-0727   Medium\nlibxml2     2.9.13     2.9.14    CVE-2022-29824  High\n1 error occurred: discovered vulnerabilities at or above severity \"high\""
+   },
+   "example": "A new critical flaw is announced in the logging library log4j-core. The security team queries Dependency-Track for the component and sees three services use it, one directly and two through a transitive dependency of an internal framework. They prioritize the internet-facing service, rebuild with the fixed version, regenerate the SBOM and publish a VEX statement 'not_affected' for the batch job that bundles the library but runs without the vulnerable lookup feature.",
+   "terms": [
+    {
+     "term": "SBOM",
+     "def": "A machine-readable inventory of software components."
+    },
+    {
+     "term": "CycloneDX",
+     "def": "An OWASP SBOM format focused on security use cases."
+    },
+    {
+     "term": "SPDX",
+     "def": "An ISO standard SBOM format emphasizing licensing and provenance."
+    },
+    {
+     "term": "VEX",
+     "def": "A statement of whether a product is affected by a particular vulnerability."
+    },
+    {
+     "term": "purl",
+     "def": "Package URL, a standard way to identify a package across ecosystems."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does a VEX statement communicate?",
+     "options": [
+      "Whether a product is actually affected by a CVE",
+      "The product price",
+      "The build time",
+      "A password"
+     ],
+     "a": 0,
+     "why": "It states exploitability status such as not_affected."
+    },
+    {
+     "q": "Which tool generates an SBOM from a container image?",
+     "options": [
+      "Gitleaks",
+      "Conftest",
+      "ZAP",
+      "Syft"
+     ],
+     "a": 3,
+     "why": "Syft catalogs packages in images and directories."
+    },
+    {
+     "q": "Why generate the SBOM from the final artifact?",
+     "options": [
+      "It avoids hashing",
+      "It removes dependencies",
+      "It matches what is actually shipped, including OS packages",
+      "It is shorter"
+     ],
+     "a": 2,
+     "why": "Source-only lists miss base image content."
+    },
+    {
+     "q": "What lets you re-check old releases against new CVEs without rebuilding?",
+     "options": [
+      "Disabling scanning",
+      "Stored SBOMs scanned with Grype",
+      "Deleting images",
+      "Changing tags"
+     ],
+     "a": 1,
+     "why": "Scanning the SBOM uses current vulnerability data."
+    }
+   ],
+   "recap": [
+    "Generate SBOMs per build in SPDX or CycloneDX.",
+    "Scan SBOMs with Grype and rescan as new CVEs appear.",
+    "Use VEX, EPSS and KEV to focus on the vulnerabilities that matter."
+   ]
+  },
+  {
+   "title": "Supply chain security and SLSA",
+   "why": "Attackers increasingly target what you depend on rather than you directly, so you must understand and reduce trust in upstream code.",
+   "sections": [
+    {
+     "h": "The supply chain problem",
+     "p": [
+      "Modern software uses hundreds of open source packages and many build tools, each maintained by people and systems outside your control. Attacks include compromised maintainer accounts, malicious updates (event-stream, 2018), hijacked build systems (SolarWinds, 2020), and malicious packages designed to be installed by mistake. Defending requires visibility (SBOMs), integrity (signatures and provenance), and process controls over which dependencies enter your builds. No single tool covers it, so use layers."
+     ]
+    },
+    {
+     "h": "SLSA levels",
+     "p": [
+      "Supply-chain Levels for Software Artifacts (SLSA, pronounced salsa) is a framework from the OpenSSF. In version 1.0 the Build track has levels: Build L1 requires that provenance exists, documenting how the artifact was built; Build L2 requires a hosted build platform that signs the provenance, making forgery harder; Build L3 requires a hardened build platform with isolated builds and protected signing keys, so a compromised project cannot tamper with provenance. Consumers check provenance against expectations before using an artifact."
+     ]
+    },
+    {
+     "h": "Dependency confusion and typosquatting",
+     "p": [
+      "Dependency confusion exploits package managers that prefer a public package over an internal one with the same name: an attacker publishes a higher version of an internal package name such as example-internal-utils to the public registry and builds fetch it. Typosquatting uses names resembling popular ones, like reqeusts. Mitigations: reserve or namespace internal names, configure registries so internal scopes resolve only to the private feed, use a proxy that curates packages, and review new dependencies for age, maintainers and download history."
+     ]
+    },
+    {
+     "h": "Mitigations that work",
+     "p": [
+      "Commit lockfiles with integrity hashes and install with commands that respect them (npm ci, pip install --require-hashes). Pin versions, disable install scripts when not needed, and delay adopting brand-new releases through a cooling-off period. Use a private proxy registry such as Artifactory or Nexus that caches vetted packages. Scorecard from OpenSSF rates repository security practices, and 2FA enforcement on registry accounts reduces maintainer takeovers.",
+      "Plan for incident response: know which services contain a compromised package through SBOMs, be able to rebuild from clean sources, rotate any secrets the build had access to during the exposure window, and publish a customer notice when needed."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Config excerpt (npm)",
+    "text": "# .npmrc\n@example-internal:registry=https://npm.example.com/\nregistry=https://proxy.example.com/npm-public/\nignore-scripts=true\n# CI\nnpm ci --ignore-scripts"
+   },
+   "example": "A developer accidentally runs pip install requessts and gets a package that sends environment variables to a remote host. The company's proxy registry only serves packages from an approved list, so the install is blocked and the request triggers a review. Separately, security discovers that the build configuration for an internal library could fall back to the public index. They scope internal names to the private feed and require hashes, preventing a dependency confusion attack.",
+   "terms": [
+    {
+     "term": "SLSA",
+     "def": "A framework of levels for supply chain integrity of build artifacts."
+    },
+    {
+     "term": "Dependency confusion",
+     "def": "Tricking a build into fetching a public package instead of the intended internal one."
+    },
+    {
+     "term": "Typosquatting",
+     "def": "Publishing malicious packages with names similar to popular ones."
+    },
+    {
+     "term": "Lockfile",
+     "def": "A record of exact versions and hashes of all dependencies."
+    },
+    {
+     "term": "Provenance",
+     "def": "Verifiable information about how an artifact was produced."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does SLSA Build L2 add over L1?",
+     "options": [
+      "Hosted build platform that signs provenance",
+      "No provenance",
+      "Manual builds",
+      "Plain text logs"
+     ],
+     "a": 0,
+     "why": "Signed provenance from a hosted builder makes forgery harder."
+    },
+    {
+     "q": "What is dependency confusion?",
+     "options": [
+      "A slow build",
+      "A merge conflict",
+      "A license mismatch",
+      "A build fetches a public package with the same name as an internal one"
+     ],
+     "a": 3,
+     "why": "Higher public version numbers can win resolution."
+    },
+    {
+     "q": "Which control helps most against typosquatting?",
+     "options": [
+      "Disabling HTTPS",
+      "Removing tests",
+      "Curated proxy registry and dependency review",
+      "Bigger servers"
+     ],
+     "a": 2,
+     "why": "Allow-listing blocks look-alike packages."
+    },
+    {
+     "q": "Why use npm ci with a lockfile?",
+     "options": [
+      "It removes dependencies",
+      "It installs exact locked versions and fails on mismatch",
+      "It updates all packages",
+      "It skips checks"
+     ],
+     "a": 1,
+     "why": "The install is reproducible."
+    }
+   ],
+   "recap": [
+    "Understand upstream risks: compromised maintainers, build systems and malicious packages.",
+    "Aim for SLSA provenance and increasing build integrity levels.",
+    "Use lockfiles, scoped registries and curated proxies against confusion and typosquatting."
+   ]
+  },
+  {
+   "title": "Policy as code gates",
+   "why": "Written security rules are ignored under deadline pressure; rules expressed as code run automatically and consistently on every build and deployment.",
+   "sections": [
+    {
+     "h": "Concept",
+     "p": [
+      "Policy as code expresses security and compliance rules in a machine-evaluated language stored in version control, so they can be reviewed, tested and applied automatically. Typical rules: images must come from approved registries, containers must not run as root, storage must be encrypted, Terraform must not open port 22 to 0.0.0.0/0, and all resources must carry an owner tag. Policies run at multiple gates: in the developer's editor, in CI against code and plans, and at admission time in the platform as a last defence."
+     ]
+    },
+    {
+     "h": "OPA and Rego",
+     "p": [
+      "Open Policy Agent (OPA) is a general-purpose policy engine, and Rego is its declarative language. A policy receives JSON input and produces decisions. A common pattern defines deny rules that add a message when a condition holds: deny contains msg if { input.kind == \"Pod\"; some c in input.spec.containers; not startswith(c.image, \"registry.example.com/\"); msg := sprintf(\"image %s is from an unapproved registry\", [c.image]) }. If the deny set is not empty, the request fails. Rego supports unit tests with opa test, which should be written for allowed and denied examples."
+     ]
+    },
+    {
+     "h": "Conftest and gatekeepers",
+     "p": [
+      "Conftest runs Rego policies against structured files such as Kubernetes manifests, Terraform plan JSON, Dockerfiles and CI configuration: conftest test deployment.yaml -p policy/. In Kubernetes, OPA Gatekeeper and Kyverno enforce rules as admission controllers, with audit mode that reports existing violations. Cloud tools such as Checkov, tfsec and AWS CloudFormation Guard fill similar roles for infrastructure code. Start in warn or audit mode, measure false positives, then move to enforcement."
+     ]
+    },
+    {
+     "h": "Governance of policies",
+     "p": [
+      "Treat policies like software: code review, versioned releases, unit tests and a clear owner. Provide helpful messages that tell developers what to change, and link to documentation. Allow exceptions through a recorded, time-limited process, for example an annotation approved by security, rather than disabling the policy. Report metrics on denials, exceptions and policy coverage.",
+      "Balance strictness with developer experience: gates that block constantly will be bypassed, while gates that never fail provide no protection. Introduce new rules gradually with notice periods, and test policies against real manifests from existing services before enforcing them."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Rego policy",
+    "text": "package kubernetes.admission\n\ndeny contains msg if {\n  input.request.kind.kind == \"Pod\"\n  some c in input.request.object.spec.containers\n  not startswith(c.image, \"registry.example.com/\")\n  msg := sprintf(\"image %s is not from an approved registry\", [c.image])\n}"
+   },
+   "example": "The platform team writes a Rego rule denying images outside registry.example.com and another denying containers that run as root. They add opa test cases for compliant and violating pods, run Conftest in CI against all Kubernetes manifests, and deploy Gatekeeper in audit mode first. The audit shows two legacy services violating the rule. After the owners fix them, the team switches Gatekeeper to enforce, so a manifest pulling docker.io/library/nginx is rejected with a clear message.",
+   "terms": [
+    {
+     "term": "Policy as code",
+     "def": "Security or compliance rules written in executable form and version-controlled."
+    },
+    {
+     "term": "Rego",
+     "def": "The declarative policy language of Open Policy Agent."
+    },
+    {
+     "term": "Conftest",
+     "def": "A tool that tests structured configuration files against Rego policies."
+    },
+    {
+     "term": "Admission control",
+     "def": "A gate that accepts or rejects workloads when they are created in a cluster."
+    },
+    {
+     "term": "Audit mode",
+     "def": "A mode that reports violations without blocking."
+    }
+   ],
+   "check": [
+    {
+     "q": "What language does OPA use for policies?",
+     "options": [
+      "Rego",
+      "YAML only",
+      "SQL",
+      "Bash"
+     ],
+     "a": 0,
+     "why": "Rego is OPA's declarative policy language."
+    },
+    {
+     "q": "Which tool tests Terraform plan JSON or manifests against Rego in CI?",
+     "options": [
+      "Syft",
+      "Cosign",
+      "TruffleHog",
+      "Conftest"
+     ],
+     "a": 3,
+     "why": "Conftest evaluates files with Rego policies."
+    },
+    {
+     "q": "Why start policies in audit or warn mode?",
+     "options": [
+      "To skip testing",
+      "To avoid logs",
+      "To measure impact and false positives before blocking",
+      "To hide violations"
+     ],
+     "a": 2,
+     "why": "Gradual enforcement avoids breaking delivery."
+    },
+    {
+     "q": "What is a good way to handle policy exceptions?",
+     "options": [
+      "Delete logs",
+      "A recorded, time-limited approval",
+      "Disable the policy",
+      "Ignore them"
+     ],
+     "a": 1,
+     "why": "Exceptions should be visible and expire."
+    }
+   ],
+   "recap": [
+    "Express rules as code and apply them in editors, CI and admission.",
+    "Use OPA/Rego, Conftest, Gatekeeper or Kyverno with unit tests.",
+    "Roll out in audit mode, give clear messages and track exceptions."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Harden a workflow file",
+   "sim": "config-editor",
+   "scenario": "The release workflow for example-org/shop deploys to AWS. A review found three problems: third-party actions referenced by floating tags, default write-all token permissions and an AWS secret key written directly into the YAML. You must harden the file without breaking the deployment, using least privilege and OIDC.",
+   "objective": "Fix the CI YAML by pinning actions, limiting permissions and removing the plaintext secret.",
+   "steps": [
+    {
+     "do": "Open .github/workflows/release.yml.",
+     "see": "Lines flagged: uses: actions/checkout@v4; permissions absent; env: AWS_SECRET_ACCESS_KEY: wJalr...EXAMPLE"
+    },
+    {
+     "do": "Replace actions/checkout@v4 with the full commit SHA and a version comment.",
+     "see": "Linter: unpinned-action resolved (1 of 2)."
+    },
+    {
+     "do": "Pin the second action, aws-actions/configure-aws-credentials, to its SHA.",
+     "see": "Linter: unpinned-action resolved (2 of 2)."
+    },
+    {
+     "do": "Add top-level permissions: contents: read, and permissions id-token: write on the deploy job only.",
+     "see": "Linter: token permissions minimal."
+    },
+    {
+     "do": "Delete the env secret line and add role-to-assume: arn:aws:iam::111122223333:role/deploy-shop.",
+     "see": "Linter: plaintext secret removed. Reminder: revoke the exposed key."
+    },
+    {
+     "do": "Click Validate workflow.",
+     "see": "0 errors, 0 warnings. Policy check: PASS."
+    }
+   ],
+   "answer": "The fixed workflow pins both actions to full commit SHAs, sets contents: read at the top with id-token: write only on the deploy job, and assumes an AWS role through OIDC instead of using a stored key. The exposed key must also be revoked and rotated.",
+   "hint": "Three separate fixes: pins, permissions and the secret. Remember that deleting a secret from a file does not make it safe."
+  },
+  {
+   "title": "Scan repo for secrets",
+   "sim": "terminal",
+   "scenario": "The example-org/billing repository is going to be moved to a wider-access organization. Before the move, security must scan the full git history for secrets, separate real leaks from false positives and prepare a rotation plan. Use the scanner and provider information shown in the terminal.",
+   "objective": "Find the true leaks in history and plan their rotation.",
+   "steps": [
+    {
+     "do": "Run: gitleaks detect --source . --log-opts=\"--all\"",
+     "see": "3 leaks found: aws-access-token (config/deploy.env, commit 3f9a1c2); generic-api-key (docs/example.md); stripe-key (tests/fixtures.py)"
+    },
+    {
+     "do": "Run: trufflehog git file://. --only-verified",
+     "see": "1 verified: AWS key AKIAEXAMPLE... (still active)"
+    },
+    {
+     "do": "Inspect docs/example.md.",
+     "see": "Value is 'YOUR_API_KEY_HERE'. Classified: false positive (placeholder)."
+    },
+    {
+     "do": "Inspect tests/fixtures.py.",
+     "see": "Value is a Stripe test-mode key sk_test_.... Classified: low risk, remove from history, rotate for hygiene."
+    },
+    {
+     "do": "Check provider logs for the AWS key.",
+     "see": "CloudTrail: 14 calls in the last 30 days, 2 from 203.0.113.77 (not a company address)."
+    },
+    {
+     "do": "Record the plan.",
+     "see": "Plan saved: 1) disable AWS key, 2) create role and deploy via OIDC, 3) investigate 203.0.113.77 activity, 4) add pre-commit hook and push protection."
+    }
+   ],
+   "answer": "One true, verified leak: the AWS key in config/deploy.env, with suspicious use from 203.0.113.77, so rotate immediately and investigate. The Stripe test key is low risk and the docs placeholder is a false positive. Add gitleaks hooks and push protection to prevent recurrence.",
+   "hint": "Verified means the credential still works, which makes it the urgent one."
+  },
+  {
+   "title": "Verify a signature",
+   "sim": "terminal",
+   "scenario": "Your deployment job is about to roll out registry.example.com/shop/api. Policy states that only images signed by the release workflow of example-org/shop on main may be deployed. Run cosign verification on two candidate images, and refuse deployment for the one that fails.",
+   "objective": "Verify image signatures and block deployment when verification fails.",
+   "steps": [
+    {
+     "do": "Run: cosign verify registry.example.com/shop/api@sha256:9f2c1a... with the expected identity and issuer flags.",
+     "see": "Verification succeeded. The cosign claims were validated. Certificate identity: .../release.yml@refs/heads/main"
+    },
+    {
+     "do": "Run the same command for registry.example.com/shop/api@sha256:77ab03...",
+     "see": "Error: no matching signatures: none of the expected identities matched"
+    },
+    {
+     "do": "Run: cosign tree for the second image.",
+     "see": "No signatures or attestations found for this digest."
+    },
+    {
+     "do": "Check the registry audit log for the second digest.",
+     "see": "Pushed by user svc-test at 02:14 from 198.51.100.60 (not the CI runner)."
+    },
+    {
+     "do": "Set the deploy job result for the second image to BLOCKED and file an incident.",
+     "see": "Deployment halted. Ticket SEC-2041 opened with the digest and push details."
+    },
+    {
+     "do": "Deploy the verified image by digest.",
+     "see": "Deploy proceeded: shop-api@sha256:9f2c1a... verified and rolled out."
+    }
+   ],
+   "answer": "The first image verifies with the correct workflow identity and is deployed by digest. The second has no valid signature and was pushed by an unexpected account from outside the pipeline, so deployment is refused and an incident is opened to review credential exposure.",
+   "hint": "The identity and issuer flags define who is trusted; a missing signature means block."
+  },
+  {
+   "title": "Read an SBOM",
+   "sim": "file-explorer",
+   "scenario": "A critical CVE has been announced for the package libwebp 1.2.0. The company keeps CycloneDX SBOMs for each service in a shared folder. Browse the files, locate the vulnerable component, work out whether it is a direct or transitive dependency and which service ships it.",
+   "objective": "Find the vulnerable transitive package in the SBOMs and trace the affected service.",
+   "steps": [
+    {
+     "do": "Open /sboms and list the files.",
+     "see": "api.cdx.json, web.cdx.json, worker.cdx.json, reports.cdx.json"
+    },
+    {
+     "do": "Open web.cdx.json and search for libwebp.",
+     "see": "Found: pkg:deb/debian/libwebp7@1.2.0 (bom-ref: libwebp7)"
+    },
+    {
+     "do": "Open the dependencies section for libwebp7.",
+     "see": "dependsOn of: imagemagick -> pkg:deb/debian/imagemagick@6.9"
+    },
+    {
+     "do": "Check which direct component requires imagemagick.",
+     "see": "thumbnailer-lib@2.3.1 (direct dependency of the web service)"
+    },
+    {
+     "do": "Search the other SBOMs.",
+     "see": "api.cdx.json: not found; worker.cdx.json: not found; reports.cdx.json: libwebp7@1.2.0 found"
+    },
+    {
+     "do": "Write the finding.",
+     "see": "Saved: web and reports services ship libwebp 1.2.0 transitively via thumbnailer-lib/imagemagick."
+    }
+   ],
+   "answer": "The vulnerable libwebp 1.2.0 is a transitive dependency, pulled in by imagemagick, which is required by thumbnailer-lib in the web service; the reports service also contains it. The api and worker services are unaffected. Prioritize patching the internet-facing web service.",
+   "hint": "Follow the dependency graph backwards from the vulnerable component to the direct package."
+  },
+  {
+   "title": "Write a Rego rule",
+   "sim": "code-editor",
+   "scenario": "The platform team wants to stop workloads from pulling images from outside the company registry registry.example.com. Write a Rego rule that denies Pods using unapproved registries, then test it against one compliant and one non-compliant sample input using the built-in tester.",
+   "objective": "Write and test a Rego rule that denies unapproved image registries.",
+   "steps": [
+    {
+     "do": "Create policy/registry.rego with package kubernetes.admission.",
+     "see": "File created. Syntax OK."
+    },
+    {
+     "do": "Add: deny contains msg if { some c in input.request.object.spec.containers; not startswith(c.image, \"registry.example.com/\"); msg := sprintf(\"image %s is not from an approved registry\", [c.image]) }",
+     "see": "Compiled. 1 rule defined."
+    },
+    {
+     "do": "Load sample input A: image registry.example.com/shop/api:1.4.2.",
+     "see": "Result: deny = [] (allowed)."
+    },
+    {
+     "do": "Load sample input B: image docker.io/library/nginx:latest.",
+     "see": "Result: deny = [\"image docker.io/library/nginx:latest is not from an approved registry\"]"
+    },
+    {
+     "do": "Test an input with two containers where only the sidecar is unapproved.",
+     "see": "Result: one deny message for the sidecar. The rule iterates all containers."
+    },
+    {
+     "do": "Click Run opa test.",
+     "see": "3/3 tests passed."
+    }
+   ],
+   "answer": "The rule iterates over every container, checks that the image starts with registry.example.com/, and adds a clear deny message otherwise. Tests show compliant pods are allowed, the nginx image is denied, and a bad sidecar is also caught.",
+   "hint": "Use some to iterate containers and startswith to compare the registry prefix."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "What is a key risk of persistent shared runners?",
+   "options": [
+    "State and secrets can leak between jobs",
+    "They run too fast",
+    "They cannot clone",
+    "They use IPv6"
+   ],
+   "a": 0,
+   "why": "Jobs can read leftovers from earlier jobs."
+  },
+  {
+   "q": "Why pin a GitHub Action to a commit SHA?",
+   "options": [
+    "SHAs are readable",
+    "It disables caching",
+    "It speeds checkout",
+    "Tags can be moved to malicious code"
+   ],
+   "a": 3,
+   "why": "Commit hashes are immutable."
+  },
+  {
+   "q": "What is the advantage of OIDC federation for deployment?",
+   "options": [
+    "More logs",
+    "Larger runners",
+    "Short-lived credentials without stored cloud keys",
+    "Longer passwords"
+   ],
+   "a": 2,
+   "why": "No long-lived key to leak."
+  },
+  {
+   "q": "After a real secret is committed, what comes first?",
+   "options": [
+    "Wait",
+    "Revoke and rotate it",
+    "Rewrite history only",
+    "Rename the file"
+   ],
+   "a": 1,
+   "why": "Assume it is compromised and replace it."
+  },
+  {
+   "q": "What does cosign keyless signing rely on?",
+   "options": [
+    "OIDC identity and short-lived certificates logged in Rekor",
+    "A password in git",
+    "A shared admin key",
+    "Plain checksums"
+   ],
+   "a": 0,
+   "why": "Fulcio issues short-lived certificates tied to an identity."
+  },
+  {
+   "q": "What does an SBOM provide?",
+   "options": [
+    "A firewall rule",
+    "A password list",
+    "A TLS cert",
+    "An inventory of components and versions"
+   ],
+   "a": 3,
+   "why": "It enables fast impact analysis."
+  },
+  {
+   "q": "What does a VEX statement say?",
+   "options": [
+    "Where the cluster is",
+    "Who owns a repo",
+    "Whether a product is affected by a CVE",
+    "How to bill customers"
+   ],
+   "a": 2,
+   "why": "It states affected, not_affected, fixed or under_investigation."
+  },
+  {
+   "q": "Which scenario is dependency confusion?",
+   "options": [
+    "A bad merge",
+    "A public package with a higher version replaces an internal package",
+    "A merge conflict",
+    "A slow build"
+   ],
+   "a": 1,
+   "why": "The resolver prefers the public package."
+  },
+  {
+   "q": "What does SLSA Build L2 require?",
+   "options": [
+    "Hosted build platform that signs provenance",
+    "Manual builds",
+    "No records",
+    "Only a README"
+   ],
+   "a": 0,
+   "why": "Signed provenance from a hosted builder."
+  },
+  {
+   "q": "Which tool tests configuration files against Rego policies in CI?",
+   "options": [
+    "Syft",
+    "Gitleaks",
+    "Cosign",
+    "Conftest"
+   ],
+   "a": 3,
+   "why": "Conftest evaluates structured files with Rego."
+  }
+ ]
+}

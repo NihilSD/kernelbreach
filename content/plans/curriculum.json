@@ -1,0 +1,836 @@
+[
+ {
+  "key": "ROOK",
+  "name": "Cybersecurity Rookie",
+  "tagline": "Start from zero: how computers, networks, the web, Linux and Windows work, before touching security.",
+  "best": "Complete beginners and career changers. No experience needed.",
+  "needs": "Nothing. This is the first path.",
+  "align": "Builds the base for CompTIA ITF+ and Network+ topics (guide only)",
+  "color": "#0D9488",
+  "mods": [
+   {
+    "code": "ROOK-01",
+    "title": "Welcome to Cybersecurity",
+    "topics": "What cybersecurity is, red, blue and purple teams, job roles, famous breaches, ethics and the law, how to study.",
+    "n": 4,
+    "lvl": "B",
+    "stage": "Stage 1: How computers and networks work"
+   },
+   {
+    "code": "ROOK-02",
+    "title": "How Computers Work",
+    "topics": "Hardware (CPU, RAM, storage), operating systems, binary, hex and ASCII, files and processes, virtual machines.",
+    "n": 5,
+    "lvl": "B",
+    "stage": "Stage 1: How computers and networks work"
+   },
+   {
+    "code": "ROOK-03",
+    "title": "Networking Fundamentals",
+    "topics": "IP and MAC addresses, OSI and TCP/IP models, TCP vs UDP, ports, DNS, DHCP, NAT, routers and switches, Wi-Fi, ping and traceroute.",
+    "n": 8,
+    "lvl": "B",
+    "stage": "Stage 1: How computers and networks work"
+   },
+   {
+    "code": "ROOK-04",
+    "title": "How the Web Works",
+    "topics": "URLs, HTTP requests and responses, methods and status codes, cookies and sessions, HTML, CSS and JavaScript basics, APIs and JSON, databases and SQL basics.",
+    "n": 6,
+    "lvl": "B",
+    "stage": "Stage 2: The web and your first operating system"
+   },
+   {
+    "code": "ROOK-05",
+    "title": "Linux I: Meet the Terminal",
+    "topics": "What Linux is, the shell and prompt, pwd, ls and cd, absolute and relative paths, man pages.",
+    "n": 5,
+    "lvl": "B",
+    "stage": "Stage 2: The web and your first operating system"
+   },
+   {
+    "code": "ROOK-06",
+    "title": "Linux II: Files and Folders",
+    "topics": "mkdir, touch, cp, mv, rm, cat, less, head, tail, wildcards, hidden files and find.",
+    "n": 5,
+    "lvl": "B",
+    "stage": "Stage 2: The web and your first operating system"
+   },
+   {
+    "code": "ROOK-07",
+    "title": "Linux III: Users and Permissions",
+    "topics": "Users and groups, reading ls -l, chmod, chown, sudo and least privilege.",
+    "n": 5,
+    "lvl": "B",
+    "stage": "Stage 2: The web and your first operating system"
+   },
+   {
+    "code": "ROOK-08",
+    "title": "Linux IV: Pipes, Processes and Network",
+    "topics": "grep, pipes and redirects, ps, top and kill, apt updates, ip, ping and ss.",
+    "n": 5,
+    "lvl": "B",
+    "stage": "Stage 2: The web and your first operating system"
+   },
+   {
+    "code": "ROOK-09",
+    "title": "Windows Fundamentals",
+    "topics": "File system, users and groups, UAC, the registry, services, Task Manager, cmd and PowerShell basics, Active Directory intro, Defender and firewall.",
+    "n": 6,
+    "lvl": "B",
+    "stage": "Stage 3: Windows, scripting and security basics"
+   },
+   {
+    "code": "ROOK-10",
+    "title": "Scripting Basics",
+    "topics": "Bash and Python basics: variables, conditions, loops, functions, reading files, regex, automating small tasks.",
+    "n": 6,
+    "lvl": "B",
+    "stage": "Stage 3: Windows, scripting and security basics"
+   },
+   {
+    "code": "ROOK-11",
+    "title": "Security Foundations",
+    "topics": "CIA triad, threats, vulnerabilities and risk, attack surface, defense in depth, least privilege, security policies.",
+    "n": 5,
+    "lvl": "B",
+    "stage": "Stage 3: Windows, scripting and security basics"
+   }
+  ]
+ },
+ {
+  "key": "CORE",
+  "name": "Security Core",
+  "tagline": "The core of cybersecurity: principles, threats, cryptography, access control, web and network security, and a first look at defense and offense.",
+  "best": "Anyone who finished Pre-Security, or IT people new to security.",
+  "needs": "Pre-Security (or pass the placement quiz).",
+  "align": "Covers CompTIA Security+ domains at concept level (guide only)",
+  "color": "#2563EB",
+  "mods": [
+   {
+    "code": "CORE-01",
+    "title": "Principles and Frameworks",
+    "topics": "CIA and AAA, non-repudiation, zero trust intro, cyber kill chain, MITRE ATT&CK intro, NIST CSF, ISO 27001 and CIS Controls overview.",
+    "n": 6,
+    "lvl": "B",
+    "stage": "Stage 1: Core ideas"
+   },
+   {
+    "code": "CORE-02",
+    "title": "The Threat Landscape",
+    "topics": "Threat actors and motives, common attack types, malware families (viruses, worms, trojans, ransomware, spyware, RATs, botnets), real incident case studies.",
+    "n": 6,
+    "lvl": "B",
+    "stage": "Stage 1: Core ideas"
+   },
+   {
+    "code": "CORE-03",
+    "title": "Social Engineering and Phishing",
+    "topics": "Phishing, smishing, vishing, pretexting, business email compromise, spotting fakes, defenses and awareness.",
+    "n": 5,
+    "lvl": "B",
+    "stage": "Stage 1: Core ideas"
+   },
+   {
+    "code": "CORE-04",
+    "title": "Cryptography Basics",
+    "topics": "Encoding vs encryption vs hashing, symmetric and asymmetric keys, hashing and salting, digital signatures, certificates and PKI, the TLS handshake, password storage.",
+    "n": 8,
+    "lvl": "B",
+    "stage": "Stage 1: Core ideas"
+   },
+   {
+    "code": "CORE-05",
+    "title": "Authentication and Access Control",
+    "topics": "Passwords and managers, MFA, biometrics, SSO, SAML, OAuth and OIDC basics, RBAC and ABAC, session management.",
+    "n": 6,
+    "lvl": "B",
+    "stage": "Stage 1: Core ideas"
+   },
+   {
+    "code": "CORE-06",
+    "title": "Network Security",
+    "topics": "Firewalls, IDS and IPS, proxies, VPNs, segmentation and DMZ, Wi-Fi security, MITM, ARP spoofing, DoS and DDoS, secure protocols.",
+    "n": 7,
+    "lvl": "B",
+    "stage": "Stage 2: Defending systems"
+   },
+   {
+    "code": "CORE-07",
+    "title": "Web Application Security",
+    "topics": "OWASP Top 10 overview, injection, XSS, broken authentication, IDOR, CSRF, misconfiguration, secure headers and cookies.",
+    "n": 8,
+    "lvl": "I",
+    "stage": "Stage 2: Defending systems"
+   },
+   {
+    "code": "CORE-08",
+    "title": "Endpoint and OS Security",
+    "topics": "Hardening basics, patching, antivirus and EDR, allowlisting, disk encryption, backups (3-2-1), mobile device security.",
+    "n": 5,
+    "lvl": "B",
+    "stage": "Stage 2: Defending systems"
+   },
+   {
+    "code": "CORE-09",
+    "title": "Vulnerability Management",
+    "topics": "Vulnerability vs exploit, CVE, CWE, CVSS, scanners, the patching process, risk prioritization, bug bounty overview.",
+    "n": 5,
+    "lvl": "I",
+    "stage": "Stage 2: Defending systems"
+   },
+   {
+    "code": "CORE-10",
+    "title": "Defensive Security Intro",
+    "topics": "Logging and monitoring, SIEM intro, SOC roles, alert triage, threat intelligence intro, incident response lifecycle, forensics intro.",
+    "n": 7,
+    "lvl": "I",
+    "stage": "Stage 2: Defending systems"
+   },
+   {
+    "code": "CORE-11",
+    "title": "Offensive Security Intro",
+    "topics": "Ethical hacking and rules of engagement, pentest phases, recon and OSINT, scanning concepts, exploitation overview, post-exploitation, reporting.",
+    "n": 7,
+    "lvl": "I",
+    "stage": "Stage 3: Offense, privacy and wrap-up"
+   },
+   {
+    "code": "CORE-12",
+    "title": "Privacy and Compliance",
+    "topics": "PII, GDPR and CCPA basics, data classification, DLP, retention, common compliance frameworks.",
+    "n": 4,
+    "lvl": "B",
+    "stage": "Stage 3: Offense, privacy and wrap-up"
+   },
+   {
+    "code": "CORE-13",
+    "title": "Cloud Security Basics",
+    "topics": "Cloud models, shared responsibility, cloud IAM, common misconfigurations, storage exposure, containers 101.",
+    "n": 5,
+    "lvl": "I",
+    "stage": "Stage 3: Offense, privacy and wrap-up"
+   },
+   {
+    "code": "CORE-14",
+    "title": "Careers and Next Steps",
+    "topics": "Certification map, building a portfolio, CTFs and practice platforms, choosing a specialization.",
+    "n": 3,
+    "lvl": "B",
+    "stage": "Stage 3: Offense, privacy and wrap-up"
+   },
+   {
+    "code": "CORE-15",
+    "title": "Capstone Review",
+    "topics": "Mixed review across all modules and a final exam with a completion certificate.",
+    "n": 2,
+    "lvl": "I",
+    "stage": "Stage 3: Offense, privacy and wrap-up"
+   }
+  ]
+ },
+ {
+  "key": "SOC",
+  "name": "Cyber Analyst (SOC)",
+  "tagline": "Blue team path: detect, investigate and respond to attacks like a SOC analyst, from log reading to threat hunting.",
+  "best": "People aiming at SOC analyst, incident responder, threat hunter or DFIR roles.",
+  "needs": "Security 101, especially Defensive Security Intro and Network Security.",
+  "align": "Overlaps CompTIA CySA+ and Security Blue Team BTL1 topics (guide only)",
+  "color": "#0284C7",
+  "mods": [
+   {
+    "code": "SOC-01",
+    "title": "SOC Fundamentals",
+    "topics": "SOC structure and tiers, tools, alert lifecycle, SLAs, playbooks, shift handoffs, metrics such as MTTD and MTTR.",
+    "n": 5,
+    "lvl": "B",
+    "stage": "Stage 1: Analyst foundations"
+   },
+   {
+    "code": "SOC-02",
+    "title": "Log Analysis Essentials",
+    "topics": "Log types and formats (syslog, JSON, CEF), parsing, correlation, timelines, regex for logs.",
+    "n": 6,
+    "lvl": "B",
+    "stage": "Stage 1: Analyst foundations"
+   },
+   {
+    "code": "SOC-03",
+    "title": "Windows Event Logs and Sysmon",
+    "topics": "Key event IDs, logon types, process creation, PowerShell logging, persistence artifacts.",
+    "n": 7,
+    "lvl": "I",
+    "stage": "Stage 1: Analyst foundations"
+   },
+   {
+    "code": "SOC-04",
+    "title": "Linux and Web Server Logs",
+    "topics": "auth.log, syslog, auditd, web access logs, spotting brute force and scanning.",
+    "n": 5,
+    "lvl": "I",
+    "stage": "Stage 1: Analyst foundations"
+   },
+   {
+    "code": "SOC-05",
+    "title": "SIEM Fundamentals",
+    "topics": "SIEM architecture, ingestion and normalization, query concepts (SPL, KQL), dashboards, alerts, tuning false positives.",
+    "n": 8,
+    "lvl": "I",
+    "stage": "Stage 1: Analyst foundations"
+   },
+   {
+    "code": "SOC-06",
+    "title": "Network Traffic Analysis",
+    "topics": "Packet basics, Wireshark, PCAP triage, DNS, HTTP and SMB analysis, Zeek and Suricata, beaconing and exfiltration patterns.",
+    "n": 8,
+    "lvl": "I",
+    "stage": "Stage 2: Investigation"
+   },
+   {
+    "code": "SOC-07",
+    "title": "Endpoint Detection and Response",
+    "topics": "EDR concepts, process trees, living-off-the-land binaries, EDR triage, host isolation.",
+    "n": 5,
+    "lvl": "I",
+    "stage": "Stage 2: Investigation"
+   },
+   {
+    "code": "SOC-08",
+    "title": "Phishing and Email Analysis",
+    "topics": "Email headers, SPF, DKIM and DMARC, URL and attachment analysis, sandboxing, user report workflow.",
+    "n": 5,
+    "lvl": "I",
+    "stage": "Stage 2: Investigation"
+   },
+   {
+    "code": "SOC-09",
+    "title": "Threat Intelligence",
+    "topics": "Intel types, IOCs vs TTPs, STIX and TAXII, MISP, Diamond model, intel-driven defense, OSINT for analysts.",
+    "n": 6,
+    "lvl": "I",
+    "stage": "Stage 2: Investigation"
+   },
+   {
+    "code": "SOC-10",
+    "title": "MITRE ATT&CK for Defenders",
+    "topics": "Tactics and techniques, mapping detections, coverage gaps, ATT&CK Navigator.",
+    "n": 5,
+    "lvl": "I",
+    "stage": "Stage 2: Investigation"
+   },
+   {
+    "code": "SOC-11",
+    "title": "Malware Triage",
+    "topics": "File hashes and strings, sandbox reports, behavior, VirusTotal, common families, safe handling.",
+    "n": 6,
+    "lvl": "I",
+    "stage": "Stage 2: Investigation"
+   },
+   {
+    "code": "SOC-12",
+    "title": "Incident Response",
+    "topics": "IR lifecycle, containment, eradication, recovery, evidence handling, communication, post-incident review, playbooks.",
+    "n": 7,
+    "lvl": "I",
+    "stage": "Stage 3: Response and advanced defense"
+   },
+   {
+    "code": "SOC-13",
+    "title": "Digital Forensics Essentials",
+    "topics": "Disk and memory forensics intro, timelines, artifacts, chain of custody, tool concepts (Autopsy, Volatility).",
+    "n": 6,
+    "lvl": "A",
+    "stage": "Stage 3: Response and advanced defense"
+   },
+   {
+    "code": "SOC-14",
+    "title": "Detection Engineering",
+    "topics": "Sigma, YARA, Snort and Suricata rules, detection logic, testing, tuning, detection as code.",
+    "n": 7,
+    "lvl": "A",
+    "stage": "Stage 3: Response and advanced defense"
+   },
+   {
+    "code": "SOC-15",
+    "title": "Threat Hunting",
+    "topics": "Hypotheses, data sources, hunt methods, baselining, anomaly detection, hunt reports.",
+    "n": 5,
+    "lvl": "A",
+    "stage": "Stage 3: Response and advanced defense"
+   },
+   {
+    "code": "SOC-16",
+    "title": "Cloud and Identity Detection",
+    "topics": "Cloud logs (CloudTrail, Entra ID sign-ins), password spraying, token theft, SaaS alerts.",
+    "n": 5,
+    "lvl": "A",
+    "stage": "Stage 3: Response and advanced defense"
+   },
+   {
+    "code": "SOC-17",
+    "title": "SOC Reporting and Communication",
+    "topics": "Incident reports, escalation, executive summaries, ticketing.",
+    "n": 3,
+    "lvl": "I",
+    "stage": "Stage 3: Response and advanced defense"
+   },
+   {
+    "code": "SOC-18",
+    "title": "Capstone: Investigate an Incident",
+    "topics": "A simulated alert queue and an end-to-end case using logs, a PCAP and an email.",
+    "n": 3,
+    "lvl": "A",
+    "stage": "Stage 3: Response and advanced defense"
+   }
+  ]
+ },
+ {
+  "key": "PEN",
+  "name": "Penetration Testing",
+  "tagline": "Red team path: think like an attacker, in authorized and legal scenarios, from recon to reporting.",
+  "best": "People aiming at penetration tester, red team or application security roles.",
+  "needs": "Security 101 (Offensive Security Intro), plus Linux and Networking.",
+  "align": "Overlaps CompTIA PenTest+, eJPT and PNPT topics (guide only)",
+  "color": "#DC2626",
+  "mods": [
+   {
+    "code": "PEN-01",
+    "title": "Methodology, Scope and Law",
+    "topics": "Test phases (PTES, OWASP WSTG, NIST SP 800-115), scoping, rules of engagement, authorization, ethics, reporting overview.",
+    "n": 5,
+    "lvl": "B",
+    "stage": "Stage 1: Foundations of testing"
+   },
+   {
+    "code": "PEN-02",
+    "title": "Reconnaissance and OSINT",
+    "topics": "Passive vs active recon, DNS enumeration, WHOIS, subdomain discovery, search dorking, metadata, Shodan and Censys.",
+    "n": 6,
+    "lvl": "I",
+    "stage": "Stage 1: Foundations of testing"
+   },
+   {
+    "code": "PEN-03",
+    "title": "Scanning and Enumeration",
+    "topics": "Nmap (host discovery, scan types, versions, scripts), banner grabbing, enumerating SMB, FTP, SSH, SNMP and HTTP.",
+    "n": 8,
+    "lvl": "I",
+    "stage": "Stage 1: Foundations of testing"
+   },
+   {
+    "code": "PEN-04",
+    "title": "Vulnerability Assessment",
+    "topics": "Scanner concepts (Nessus, OpenVAS), manual verification, prioritization, handling false positives.",
+    "n": 4,
+    "lvl": "I",
+    "stage": "Stage 1: Foundations of testing"
+   },
+   {
+    "code": "PEN-05",
+    "title": "Web App Pentesting I",
+    "topics": "Proxy tools (Burp, ZAP), mapping the app, authentication and session testing, access control and IDOR, input validation.",
+    "n": 7,
+    "lvl": "I",
+    "stage": "Stage 2: Web and API"
+   },
+   {
+    "code": "PEN-06",
+    "title": "Web App Pentesting II",
+    "topics": "SQL injection, XSS, CSRF, SSRF, file upload flaws, XXE, deserialization, path traversal, command injection, business logic flaws.",
+    "n": 10,
+    "lvl": "A",
+    "stage": "Stage 2: Web and API"
+   },
+   {
+    "code": "PEN-07",
+    "title": "API and Mobile Testing",
+    "topics": "REST and GraphQL testing, JWT issues, broken object level authorization, rate limiting, Android basics and OWASP MASVS.",
+    "n": 6,
+    "lvl": "A",
+    "stage": "Stage 2: Web and API"
+   },
+   {
+    "code": "PEN-08",
+    "title": "Network Pentesting",
+    "topics": "Service exploitation concepts, the Metasploit framework, credential attacks, sniffing and MITM, safe exploitation practice.",
+    "n": 8,
+    "lvl": "I",
+    "stage": "Stage 3: Network and systems"
+   },
+   {
+    "code": "PEN-09",
+    "title": "Password and Hash Cracking",
+    "topics": "Hash types, Hashcat and John concepts, wordlists and rules, salting, pass-the-hash overview.",
+    "n": 5,
+    "lvl": "I",
+    "stage": "Stage 3: Network and systems"
+   },
+   {
+    "code": "PEN-10",
+    "title": "Linux Privilege Escalation",
+    "topics": "Enumeration, SUID, sudo misconfigurations, cron jobs, capabilities, kernel exploits at concept level.",
+    "n": 6,
+    "lvl": "A",
+    "stage": "Stage 3: Network and systems"
+   },
+   {
+    "code": "PEN-11",
+    "title": "Windows Privilege Escalation",
+    "topics": "Services, tokens, registry, unquoted paths, UAC bypass concepts, credential hunting.",
+    "n": 6,
+    "lvl": "A",
+    "stage": "Stage 3: Network and systems"
+   },
+   {
+    "code": "PEN-12",
+    "title": "Active Directory Attacks",
+    "topics": "AD concepts, Kerberos and NTLM, enumeration with BloodHound, Kerberoasting, AS-REP roasting, pass-the-ticket, lateral movement, defenses.",
+    "n": 10,
+    "lvl": "A",
+    "stage": "Stage 3: Network and systems"
+   },
+   {
+    "code": "PEN-13",
+    "title": "Post-Exploitation and Pivoting",
+    "topics": "Tunneling and port forwarding, lateral movement, persistence concepts, data exfiltration, cleanup.",
+    "n": 6,
+    "lvl": "A",
+    "stage": "Stage 4: Advanced and professional"
+   },
+   {
+    "code": "PEN-14",
+    "title": "Wireless and Physical Security",
+    "topics": "WPA attack overview, rogue access points, physical access testing, badge cloning concepts.",
+    "n": 4,
+    "lvl": "I",
+    "stage": "Stage 4: Advanced and professional"
+   },
+   {
+    "code": "PEN-15",
+    "title": "Social Engineering Engagements",
+    "topics": "Authorized phishing campaigns, pretexting, vishing, measuring awareness.",
+    "n": 4,
+    "lvl": "I",
+    "stage": "Stage 4: Advanced and professional"
+   },
+   {
+    "code": "PEN-16",
+    "title": "Cloud Pentesting",
+    "topics": "Cloud IAM abuse, storage misconfigurations, metadata service, serverless and container escapes at concept level.",
+    "n": 6,
+    "lvl": "A",
+    "stage": "Stage 4: Advanced and professional"
+   },
+   {
+    "code": "PEN-17",
+    "title": "Binary Exploitation Basics",
+    "topics": "Memory layout, stack and buffer overflows, shellcode concept, ASLR and DEP, reverse engineering intro.",
+    "n": 7,
+    "lvl": "A",
+    "stage": "Stage 4: Advanced and professional"
+   },
+   {
+    "code": "PEN-18",
+    "title": "Red Team Fundamentals",
+    "topics": "Adversary emulation, C2 concepts, OPSEC, evasion at concept level, purple teaming.",
+    "n": 5,
+    "lvl": "A",
+    "stage": "Stage 4: Advanced and professional"
+   },
+   {
+    "code": "PEN-19",
+    "title": "Reporting and Communication",
+    "topics": "Writing findings, risk rating, remediation advice, executive summaries, retesting.",
+    "n": 4,
+    "lvl": "I",
+    "stage": "Stage 4: Advanced and professional"
+   },
+   {
+    "code": "PEN-20",
+    "title": "Capstone: Full Engagement",
+    "topics": "A guided assessment from scope to final report.",
+    "n": 3,
+    "lvl": "A",
+    "stage": "Stage 4: Advanced and professional"
+   }
+  ]
+ },
+ {
+  "key": "ENG",
+  "name": "Security Engineering",
+  "tagline": "Build security in: architecture, hardening, identity, cloud, DevSecOps, automation and governance.",
+  "best": "Sysadmins and developers moving into security engineering or DevSecOps.",
+  "needs": "Security 101, plus Scripting Basics from Pre-Security.",
+  "align": "Overlaps CISSP, AWS Security Specialty and CKS topics (guide only)",
+  "color": "#D97706",
+  "mods": [
+   {
+    "code": "ENG-01",
+    "title": "Secure Architecture and Threat Modeling",
+    "topics": "STRIDE, PASTA, attack trees, trust boundaries, secure design patterns, zero trust, defense in depth.",
+    "n": 6,
+    "lvl": "I",
+    "stage": "Stage 1: Design and hardening"
+   },
+   {
+    "code": "ENG-02",
+    "title": "System Hardening",
+    "topics": "CIS benchmarks, Linux and Windows hardening, patch management, configuration management, baselines.",
+    "n": 6,
+    "lvl": "I",
+    "stage": "Stage 1: Design and hardening"
+   },
+   {
+    "code": "ENG-03",
+    "title": "Identity and Access Engineering",
+    "topics": "Directory services, SSO and federation (SAML, OIDC), PAM, MFA rollout, service accounts, secrets.",
+    "n": 7,
+    "lvl": "I",
+    "stage": "Stage 1: Design and hardening"
+   },
+   {
+    "code": "ENG-04",
+    "title": "Network Security Engineering",
+    "topics": "Firewall design, segmentation and microsegmentation, VPN and ZTNA, WAF, DNS security, DDoS defense, NAC.",
+    "n": 7,
+    "lvl": "I",
+    "stage": "Stage 1: Design and hardening"
+   },
+   {
+    "code": "ENG-05",
+    "title": "Cryptography in Practice",
+    "topics": "TLS configuration, certificate lifecycle, KMS and HSM, key rotation, secrets management, common implementation mistakes.",
+    "n": 6,
+    "lvl": "I",
+    "stage": "Stage 1: Design and hardening"
+   },
+   {
+    "code": "ENG-06",
+    "title": "Application Security",
+    "topics": "Secure coding practices, secure SDLC, code review, SAST, DAST, SCA, dependency risk, security champions.",
+    "n": 8,
+    "lvl": "I",
+    "stage": "Stage 2: Secure software and platforms"
+   },
+   {
+    "code": "ENG-07",
+    "title": "DevSecOps and CI/CD Security",
+    "topics": "Pipeline threats, secrets in repos, artifact signing, SBOM, supply chain security (SLSA), policy as code.",
+    "n": 7,
+    "lvl": "A",
+    "stage": "Stage 2: Secure software and platforms"
+   },
+   {
+    "code": "ENG-08",
+    "title": "Cloud Security Engineering",
+    "topics": "IAM design, network controls, encryption, logging, CSPM, landing zones, AWS, Azure and GCP patterns.",
+    "n": 9,
+    "lvl": "A",
+    "stage": "Stage 2: Secure software and platforms"
+   },
+   {
+    "code": "ENG-09",
+    "title": "Container and Kubernetes Security",
+    "topics": "Image scanning, runtime security, RBAC, network policies, pod security, secrets handling.",
+    "n": 7,
+    "lvl": "A",
+    "stage": "Stage 2: Secure software and platforms"
+   },
+   {
+    "code": "ENG-10",
+    "title": "Infrastructure as Code Security",
+    "topics": "Terraform and CloudFormation scanning, drift, guardrails, policy as code.",
+    "n": 4,
+    "lvl": "A",
+    "stage": "Stage 2: Secure software and platforms"
+   },
+   {
+    "code": "ENG-11",
+    "title": "Logging and Monitoring Architecture",
+    "topics": "Log pipelines, SIEM engineering, retention, alert design, metrics.",
+    "n": 5,
+    "lvl": "I",
+    "stage": "Stage 3: Operate and govern"
+   },
+   {
+    "code": "ENG-12",
+    "title": "Vulnerability and Patch Programs",
+    "topics": "Asset inventory, scan cadence, risk-based prioritization (EPSS, KEV), SLAs, exceptions.",
+    "n": 5,
+    "lvl": "I",
+    "stage": "Stage 3: Operate and govern"
+   },
+   {
+    "code": "ENG-13",
+    "title": "Endpoint and Email Security",
+    "topics": "EDR rollout, MDM, email gateways, DMARC rollout, browser security.",
+    "n": 5,
+    "lvl": "I",
+    "stage": "Stage 3: Operate and govern"
+   },
+   {
+    "code": "ENG-14",
+    "title": "Security Automation and Scripting",
+    "topics": "Python and Bash for security, working with APIs, SOAR, automating triage and response, infrastructure tests.",
+    "n": 7,
+    "lvl": "A",
+    "stage": "Stage 3: Operate and govern"
+   },
+   {
+    "code": "ENG-15",
+    "title": "Incident Readiness and Resilience",
+    "topics": "IR plans, tabletop exercises, backups and disaster recovery, business continuity, purple team exercises.",
+    "n": 5,
+    "lvl": "I",
+    "stage": "Stage 3: Operate and govern"
+   },
+   {
+    "code": "ENG-16",
+    "title": "GRC for Engineers",
+    "topics": "Risk assessment, control mapping, ISO 27001, SOC 2, PCI DSS, NIST SP 800-53, audits and evidence collection.",
+    "n": 7,
+    "lvl": "I",
+    "stage": "Stage 3: Operate and govern"
+   },
+   {
+    "code": "ENG-17",
+    "title": "Security Metrics and Program Management",
+    "topics": "KPIs, roadmaps, budgets, communicating with leadership.",
+    "n": 3,
+    "lvl": "A",
+    "stage": "Stage 3: Operate and govern"
+   },
+   {
+    "code": "ENG-18",
+    "title": "Capstone: Secure a Company",
+    "topics": "A design review and hardening plan for a fictional company.",
+    "n": 3,
+    "lvl": "A",
+    "stage": "Stage 3: Operate and govern"
+   }
+  ]
+ },
+ {
+  "key": "AI",
+  "name": "AI Security",
+  "tagline": "Understand how AI systems work, how they are attacked and defended, and how to use AI safely in security work.",
+  "best": "Security people, developers and ML engineers working on AI products.",
+  "needs": "Security 101. No data science background needed.",
+  "align": "Aligned with OWASP LLM Top 10, MITRE ATLAS, NIST AI RMF and ISO 42001",
+  "color": "#7C3AED",
+  "mods": [
+   {
+    "code": "AI-01",
+    "title": "AI and ML Foundations",
+    "topics": "ML concepts, training vs inference, neural networks intro, data pipelines, evaluation, common model types.",
+    "n": 6,
+    "lvl": "B",
+    "stage": "Stage 1: Foundations"
+   },
+   {
+    "code": "AI-02",
+    "title": "How LLMs Work",
+    "topics": "Tokens, embeddings, transformers (intuitive), context windows, prompting, RAG, fine-tuning, agents and tools.",
+    "n": 6,
+    "lvl": "B",
+    "stage": "Stage 1: Foundations"
+   },
+   {
+    "code": "AI-03",
+    "title": "Threats to AI Systems",
+    "topics": "AI attack surface, threat modeling for AI, MITRE ATLAS, NIST adversarial ML taxonomy.",
+    "n": 5,
+    "lvl": "I",
+    "stage": "Stage 1: Foundations"
+   },
+   {
+    "code": "AI-04",
+    "title": "Prompt Injection and Jailbreaks",
+    "topics": "Direct and indirect injection, jailbreak patterns, guardrails, defenses, how to evaluate them.",
+    "n": 7,
+    "lvl": "I",
+    "stage": "Stage 2: Attacks and defenses"
+   },
+   {
+    "code": "AI-05",
+    "title": "OWASP Top 10 for LLM Apps",
+    "topics": "Insecure output handling, sensitive information disclosure, excessive agency, supply chain, and the rest of the list.",
+    "n": 8,
+    "lvl": "I",
+    "stage": "Stage 2: Attacks and defenses"
+   },
+   {
+    "code": "AI-06",
+    "title": "Data and Model Attacks",
+    "topics": "Data poisoning, backdoors, model extraction, membership inference, model inversion, adversarial examples.",
+    "n": 7,
+    "lvl": "A",
+    "stage": "Stage 2: Attacks and defenses"
+   },
+   {
+    "code": "AI-07",
+    "title": "Securing the ML Pipeline",
+    "topics": "Data provenance, model signing, registries, model supply chain (unsafe serialization), access control, drift monitoring.",
+    "n": 6,
+    "lvl": "A",
+    "stage": "Stage 2: Attacks and defenses"
+   },
+   {
+    "code": "AI-08",
+    "title": "Securing AI Agents and Tool Use",
+    "topics": "Least privilege for agents, tool permissions, sandboxing, connector and MCP risks, human in the loop, secrets.",
+    "n": 6,
+    "lvl": "A",
+    "stage": "Stage 2: Attacks and defenses"
+   },
+   {
+    "code": "AI-09",
+    "title": "AI Red Teaming",
+    "topics": "Scoping, test plans, harm categories, automated probing tools, safety evaluations, reporting.",
+    "n": 6,
+    "lvl": "A",
+    "stage": "Stage 3: Assess and govern"
+   },
+   {
+    "code": "AI-10",
+    "title": "AI Privacy and Data Protection",
+    "topics": "Training data privacy, PII leakage, differential privacy intro, federated learning, regulations.",
+    "n": 4,
+    "lvl": "I",
+    "stage": "Stage 3: Assess and govern"
+   },
+   {
+    "code": "AI-11",
+    "title": "AI Governance, Risk and Compliance",
+    "topics": "NIST AI RMF, ISO 42001, EU AI Act, model cards, responsible AI, AI incident handling.",
+    "n": 5,
+    "lvl": "I",
+    "stage": "Stage 3: Assess and govern"
+   },
+   {
+    "code": "AI-12",
+    "title": "AI for Defenders",
+    "topics": "AI in the SOC (triage, summaries, detection), phishing detection, anomaly detection, hallucination risks, judging AI security tools.",
+    "n": 6,
+    "lvl": "I",
+    "stage": "Stage 4: AI and the defender"
+   },
+   {
+    "code": "AI-13",
+    "title": "AI-Enabled Threats",
+    "topics": "Deepfakes, voice cloning, AI-written phishing, automated attacks, detection and defenses.",
+    "n": 5,
+    "lvl": "I",
+    "stage": "Stage 4: AI and the defender"
+   },
+   {
+    "code": "AI-14",
+    "title": "Capstone: Assess an AI App",
+    "topics": "A guided security review of a fictional LLM-powered app.",
+    "n": 3,
+    "lvl": "A",
+    "stage": "Stage 4: AI and the defender"
+   }
+  ]
+ }
+]

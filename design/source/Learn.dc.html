@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Learn: pick your depth</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+a{color:inherit}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="width:390px;height:844px;box-sizing:border-box;position:relative;overflow:hidden;display:flex;flex-direction:column;background-color:#F3F5F9;background-image:radial-gradient(#D3DAE8 1px,transparent 1px);background-size:18px 18px;font-family:'Hanken Grotesk',sans-serif;color:#101B33">
+  <div style="flex:1;min-height:0;padding:48px 20px 0;box-sizing:border-box;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;gap:10px">
+      <a href="Module.dc.html" aria-label="Close lesson" style="width:44px;height:44px;margin-left:-12px;display:flex;align-items:center;justify-content:center;text-decoration:none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#101B33" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></a>
+      <div style="flex:1;display:flex;gap:3px">
+        <span style="flex:1;height:6px;border-radius:3px;background:linear-gradient(90deg,#0F9D8A 0 50%,#DCE2EC 50%)"></span>
+        <span style="flex:1;height:6px;border-radius:3px;background:#DCE2EC"></span><span style="flex:1;height:6px;border-radius:3px;background:#DCE2EC"></span>
+        <span style="flex:1;height:6px;border-radius:3px;background:#DCE2EC"></span><span style="flex:1;height:6px;border-radius:3px;background:#DCE2EC"></span>
+        <span style="flex:1;height:6px;border-radius:3px;background:#DCE2EC"></span><span style="flex:1;height:6px;border-radius:3px;background:#DCE2EC"></span>
+        <span style="flex:1;height:6px;border-radius:3px;background:#DCE2EC"></span><span style="flex:1;height:6px;border-radius:3px;background:#DCE2EC"></span>
+        <span style="flex:1;height:6px;border-radius:3px;background:#DCE2EC"></span><span style="flex:1;height:6px;border-radius:3px;background:#DCE2EC"></span>
+      </div>
+    </div>
+
+    <div style="margin-top:20px;font:600 12px/1 'Hanken Grotesk',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#5B6781">Concept 1 of 3 · DNS</div>
+    <h1 style="margin:10px 0 0;font:700 30px/1.1 'Bricolage Grotesque',sans-serif;letter-spacing:-.01em">DNS turns names into numbers</h1>
+
+    <div role="group" aria-label="Explanation depth" style="margin-top:18px;display:flex;gap:4px;padding:4px;background:#E6EAF2;border-radius:16px">
+      <button type="button" aria-pressed="{{isSimple}}" style="{{sSimple}}" onClick="{{pickSimple}}">Simple</button>
+      <button type="button" aria-pressed="{{isAnalogy}}" style="{{sAnalogy}}" onClick="{{pickAnalogy}}">Analogy</button>
+      <button type="button" aria-pressed="{{isTech}}" style="{{sTech}}" onClick="{{pickTech}}">Technical</button>
+    </div>
+
+    <div style="margin-top:14px;background:#fff;border:1px solid #DCE2EC;border-radius:20px;padding:18px;min-height:150px;box-sizing:border-box">
+      <sc-if value="{{isSimple}}" hint-placeholder-val="{{true}}">
+        <p style="margin:0;font:400 18px/1.5 'Hanken Grotesk',sans-serif;color:#101B33">Computers find each other using numbers called <span style="background:linear-gradient(transparent 52%,#FFE066 52%);border-bottom:2px dotted #46546F;padding:0 1px">IP addresses</span>. DNS is the system that looks up the number for a name like example.com, so you never have to remember it.</p>
+      </sc-if>
+      <sc-if value="{{isAnalogy}}" hint-placeholder-val="{{false}}">
+        <p style="margin:0;font:400 18px/1.5 'Hanken Grotesk',sans-serif;color:#101B33">Think of a <span style="background:linear-gradient(transparent 52%,#FFE066 52%);padding:0 1px">phone book</span>. You know your friend's name, and the book gives you their phone number. DNS is the phone book of the internet: you give it a name, it gives back a number.</p>
+      </sc-if>
+      <sc-if value="{{isTech}}" hint-placeholder-val="{{false}}">
+        <p style="margin:0;font:400 18px/1.5 'Hanken Grotesk',sans-serif;color:#101B33">Your device asks a <span style="background:linear-gradient(transparent 52%,#FFE066 52%);border-bottom:2px dotted #46546F;padding:0 1px">resolver</span>, which queries name servers for a record. An A record maps a hostname to an IPv4 address; AAAA maps it to IPv6. Answers are cached for a time set by the <span style="background:linear-gradient(transparent 52%,#FFE066 52%);border-bottom:2px dotted #46546F;padding:0 1px">TTL</span>.</p>
+      </sc-if>
+    </div>
+
+    <div style="margin-top:14px;background:#fff;border:1px solid #DCE2EC;border-radius:20px;padding:16px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <span style="padding:10px 12px;border-radius:12px;background:#E1E8FF;font:500 15px/1 'IBM Plex Mono',monospace">example.com</span>
+      <span style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">
+        <span style="font:700 12px/1 'Hanken Grotesk',sans-serif;letter-spacing:.06em;color:#46546F">DNS</span>
+        <span style="width:100%;display:flex;align-items:center"><span style="flex:1;height:3px;background:#101B33;border-radius:2px"></span><span style="width:0;height:0;border-top:7px solid transparent;border-bottom:7px solid transparent;border-left:10px solid #101B33"></span></span>
+      </span>
+      <span style="padding:10px 12px;border-radius:12px;background:#DDF3EF;font:500 15px/1 'IBM Plex Mono',monospace">203.0.113.7</span>
+    </div>
+
+    <div style="margin-top:12px;display:flex;align-items:center;gap:8px;font:400 14px/1.3 'Hanken Grotesk',sans-serif;color:#46546F"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#46546F" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.5"/></svg>Tap a dotted word to see what it means.</div>
+  </div>
+
+  <div style="flex:none;padding:12px 20px 30px;box-sizing:border-box;display:flex;flex-direction:column;gap:8px">
+    <a href="Try.dc.html" style="height:54px;border-radius:16px;background:#101B33;color:#fff;text-decoration:none;font:600 16px/1 'Hanken Grotesk',sans-serif;display:flex;align-items:center;justify-content:center">Got it, try a question</a>
+    <a href="Watch.dc.html" style="height:44px;border-radius:14px;color:#2347C7;text-decoration:none;font:600 15px/1 'Hanken Grotesk',sans-serif;display:flex;align-items:center;justify-content:center;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="#2347C7" aria-hidden="true"><path d="M7 4.5l13 7.5-13 7.5z"/></svg>Watch it step by step</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  state = { depth: 'simple' };
+  renderVals() {
+    const d = this.state.depth;
+    const base = "flex:1;height:44px;border:0;border-radius:12px;font:600 15px/1 'Hanken Grotesk',sans-serif;cursor:pointer;";
+    const on = 'background:#101B33;color:#fff;';
+    const off = 'background:transparent;color:#46546F;';
+    return {
+      isSimple: d === 'simple',
+      isAnalogy: d === 'analogy',
+      isTech: d === 'tech',
+      sSimple: base + (d === 'simple' ? on : off),
+      sAnalogy: base + (d === 'analogy' ? on : off),
+      sTech: base + (d === 'tech' ? on : off),
+      pickSimple: () => this.setState({ depth: 'simple' }),
+      pickAnalogy: () => this.setState({ depth: 'analogy' }),
+      pickTech: () => this.setState({ depth: 'tech' })
+    };
+  }
+}
+</script>
+</body>
+</html>

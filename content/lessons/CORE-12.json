@@ -1,0 +1,674 @@
+{
+ "code": "CORE-12",
+ "intro": "This module covers data protection and compliance: how to classify data by sensitivity, what GDPR and CCPA require, how data loss prevention, retention and secure disposal work, and how major frameworks such as PCI DSS, HIPAA, SOX, SOC 2 and ISO 27001 compare. These topics appear constantly in security roles because almost every control decision also has a privacy or compliance angle, and certification exams test this vocabulary directly.",
+ "lessons": [
+  {
+   "title": "PII, data classification and handling",
+   "why": "Not all data deserves the same protection, and knowing how to classify it correctly is the first step in handling it safely.",
+   "sections": [
+    {
+     "h": "Classification levels",
+     "p": [
+      "Organizations commonly use four classification levels. Public data causes no harm if disclosed, such as marketing material. Internal data is meant for employees only, such as internal memos, and mild harm follows disclosure. Confidential data could cause real business harm if exposed, such as contracts or source code. Restricted (or highly confidential) data would cause severe harm, legal liability or regulatory penalties, such as health records or payment card data. Each level maps to handling rules: encryption requirements, who may access it, and how it may be shared or stored."
+     ]
+    },
+    {
+     "h": "PII, PHI and cardholder data",
+     "p": [
+      "Personally identifiable information (PII) is data that can identify a specific person, directly (a name, government ID number, email) or indirectly when combined with other data (a birth date plus zip code). Protected health information (PHI) is health-related data tied to an identifiable person, covered by HIPAA in the US, including diagnoses, treatment and billing records. Cardholder data includes the primary account number (PAN), cardholder name, expiration date and service code, protected under PCI DSS; full magnetic stripe data and CVV must never be stored after authorization."
+     ]
+    },
+    {
+     "h": "Labeling and handling rules",
+     "p": [
+      "A classification policy names who can label data, how labels are applied (document headers, metadata tags, database column rules), and default rules for data that is not labeled, which is usually treated as confidential until confirmed otherwise. Handling rules follow the label: encryption at rest and in transit, access limited to a need-to-know basis, approved storage locations, rules for printing or removable media, and secure disposal methods. Mislabeling data too low is dangerous, but labeling everything restricted also fails, since teams then ignore labels that no longer carry meaning."
+     ]
+    },
+    {
+     "h": "Data mapping and ownership",
+     "p": [
+      "Before you can classify data you have to know where it lives. Data mapping or a data inventory records what data exists, where it is stored, who owns it, who can access it, and which regulations apply. Data owners, usually a business role rather than IT, are accountable for classification decisions and access approvals. Data custodians, such as IT or database administrators, implement the technical controls. Without a current inventory, classification exercises target only the data people remember, missing shadow IT systems, old exports and forgotten backups that often carry the highest risk."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Classification table",
+    "text": "Level        Example                 Control\nPublic       Press release           None required\nInternal     Internal wiki page      Login required\nConfidential Signed contract         Encrypt, need-to-know\nRestricted   Patient diagnosis (PHI) Encrypt, audit log,\n                                     strict access list"
+   },
+   "example": "A hospital's billing export file contains patient names, diagnosis codes and partial card numbers. The names and diagnoses are PHI and the card numbers are cardholder data, both of which push the file to the Restricted level even though a billing summary alone might otherwise be Confidential. The data owner assigns an encrypted, access-logged storage location, limits access to billing staff, and the IT team configures automatic deletion after the retention period defined by policy.",
+   "terms": [
+    {
+     "term": "PII",
+     "def": "Information that can identify a specific person."
+    },
+    {
+     "term": "PHI",
+     "def": "Health information tied to an identifiable person."
+    },
+    {
+     "term": "Cardholder data",
+     "def": "Payment card information protected under PCI DSS."
+    },
+    {
+     "term": "Data classification",
+     "def": "Grouping data by sensitivity to apply consistent controls."
+    },
+    {
+     "term": "Data owner",
+     "def": "The accountable role that decides classification and access."
+    },
+    {
+     "term": "Data custodian",
+     "def": "The role that implements technical controls over the data."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which classification level typically applies to health records?",
+     "options": [
+      "Public",
+      "Internal",
+      "Confidential",
+      "Restricted"
+     ],
+     "a": 3,
+     "why": "Health data usually carries the highest sensitivity level due to legal and personal impact."
+    },
+    {
+     "q": "Which of these is PII when combined with other details?",
+     "options": [
+      "A press release",
+      "A zip code plus birth date",
+      "A product brochure",
+      "A public API documentation page"
+     ],
+     "a": 1,
+     "why": "Indirect identifiers can identify a person when combined."
+    },
+    {
+     "q": "Who is accountable for classification decisions?",
+     "options": [
+      "Any employee",
+      "The data owner",
+      "The network firewall",
+      "The antivirus vendor"
+     ],
+     "a": 1,
+     "why": "Data owners are accountable for how their data is classified and accessed."
+    },
+    {
+     "q": "What should unlabeled data default to under good policy?",
+     "options": [
+      "Public",
+      "No protection",
+      "Treated as confidential until confirmed",
+      "Deleted automatically"
+     ],
+     "a": 2,
+     "why": "Defaulting to a protective level avoids accidental exposure."
+    }
+   ],
+   "recap": [
+    "Classify data as public, internal, confidential or restricted.",
+    "PII, PHI and cardholder data get the strongest controls.",
+    "Maintain a data inventory so nothing is classified by guesswork."
+   ]
+  },
+  {
+   "title": "GDPR and CCPA basics",
+   "why": "GDPR and CCPA give individuals rights over their data and impose obligations that affect how every system handles personal information.",
+   "sections": [
+    {
+     "h": "GDPR scope and lawful basis",
+     "p": [
+      "The General Data Protection Regulation (GDPR) applies to organizations that process personal data of people in the European Union, regardless of where the organization is based. Processing needs a lawful basis: consent, contract necessity, legal obligation, vital interests, public task, or legitimate interests. Consent must be freely given, specific, informed and as easy to withdraw as to give. Data controllers decide why and how data is processed; data processors act on the controller's instructions, for example a cloud provider handling data for a client."
+     ]
+    },
+    {
+     "h": "Data subject rights",
+     "p": [
+      "GDPR gives individuals rights: access (see what data is held), rectification (correct errors), erasure (the right to be forgotten, with exceptions), restriction of processing, data portability (receive data in a usable format), and objection to certain processing including direct marketing. Organizations must respond to most requests within one month, extendable in complex cases. A Data Protection Officer (DPO) is required for public authorities and organizations with large-scale or sensitive processing, overseeing compliance and acting as a contact point for regulators and individuals."
+     ]
+    },
+    {
+     "h": "Breach notification and penalties",
+     "p": [
+      "Under GDPR, a personal data breach likely to risk individuals' rights must be reported to the relevant supervisory authority within 72 hours of becoming aware, and affected individuals must be told without undue delay if the risk is high. Fines can reach the higher of 20 million euros or 4 percent of global annual turnover for the most serious violations. This timeline pressure is why incident response plans must include a legal and privacy notification step, not just technical containment."
+     ]
+    },
+    {
+     "h": "CCPA and US state laws",
+     "p": [
+      "The California Consumer Privacy Act (CCPA), strengthened by the California Privacy Rights Act (CPRA), gives California residents rights to know what personal information is collected, to delete it, to correct it, and to opt out of the sale or sharing of personal information, with extra protections for sensitive personal information. It applies to businesses meeting revenue or data volume thresholds. Unlike GDPR's opt-in consent model for many uses, CCPA is largely an opt-out model. Many other US states, such as Virginia and Colorado, have passed similar comprehensive privacy laws with varying details, so organizations operating in several states must track differences."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Breach notification clock",
+    "text": "Event detected:        2026-04-02 09:00 UTC\nDeadline to notify DPA: 2026-04-05 09:00 UTC (72h)\nHigh risk to individuals: yes -> notify affected users\nDPO informed:           2026-04-02 09:15 UTC"
+   },
+   "example": "A company based outside the EU runs a web service used by customers in France. A misconfigured database exposes email addresses and purchase history for 10,000 EU users. Because GDPR applies based on the data subjects' location, not the company's location, the breach triggers the 72-hour notification clock to the relevant supervisory authority, and because the exposure creates meaningful risk (potential phishing), affected users must also be informed. The same incident for California residents would separately trigger CCPA obligations such as offering an opt-out and honoring deletion requests.",
+   "terms": [
+    {
+     "term": "GDPR",
+     "def": "EU regulation protecting the personal data of people in the EU."
+    },
+    {
+     "term": "Lawful basis",
+     "def": "The legal justification required to process personal data under GDPR."
+    },
+    {
+     "term": "Data subject rights",
+     "def": "Rights individuals have over their own personal data."
+    },
+    {
+     "term": "DPO",
+     "def": "Data Protection Officer overseeing privacy compliance."
+    },
+    {
+     "term": "72-hour rule",
+     "def": "GDPR's deadline for notifying a supervisory authority of a breach."
+    },
+    {
+     "term": "CCPA",
+     "def": "California law giving residents rights over their personal information, including opt-out of sale."
+    }
+   ],
+   "check": [
+    {
+     "q": "GDPR applies based primarily on:",
+     "options": [
+      "The company's headquarters location",
+      "The location of the data subjects",
+      "The size of the company only",
+      "The programming language used"
+     ],
+     "a": 1,
+     "why": "GDPR protects people in the EU regardless of where the processor is based."
+    },
+    {
+     "q": "Within what timeframe must a qualifying breach usually be reported to a GDPR supervisory authority?",
+     "options": [
+      "24 hours",
+      "72 hours",
+      "30 days",
+      "1 year"
+     ],
+     "a": 1,
+     "why": "GDPR requires notification within 72 hours of becoming aware, where required."
+    },
+    {
+     "q": "CCPA is best described as largely:",
+     "options": [
+      "An opt-in consent model",
+      "An opt-out model for sale or sharing of data",
+      "Only about health data",
+      "Only about EU residents"
+     ],
+     "a": 1,
+     "why": "CCPA lets consumers opt out of having their data sold or shared."
+    },
+    {
+     "q": "The right to be forgotten refers to:",
+     "options": [
+      "Changing a password",
+      "A request to erase personal data, subject to exceptions",
+      "Downloading a file",
+      "Encrypting a database"
+     ],
+     "a": 1,
+     "why": "It is the erasure right under GDPR, with some legal exceptions."
+    }
+   ],
+   "recap": [
+    "GDPR protects EU data subjects wherever the company is based.",
+    "Core rights: access, rectification, erasure, portability, objection.",
+    "CCPA/CPRA lean opt-out, with rights to know, delete and correct."
+   ]
+  },
+  {
+   "title": "DLP, retention and disposal",
+   "why": "Data that is not deleted or controlled eventually becomes a liability, so retention, anonymization and disposal rules matter as much as collection rules.",
+   "sections": [
+    {
+     "h": "DLP detection and blocking",
+     "p": [
+      "Data Loss Prevention (DLP) tools detect sensitive data in motion (email, web uploads), at rest (file shares, databases) and in use (copy, print, clipboard) and can block, encrypt, quarantine or alert based on policy. Detection methods include pattern matching such as regular expressions for card or government ID numbers, dictionary and keyword lists, exact data matching against a known sensitive dataset, and machine learning classification. A well-tuned DLP policy reduces accidental leaks, such as an employee emailing an unencrypted spreadsheet of records to a personal account."
+     ]
+    },
+    {
+     "h": "Tuning and false positives",
+     "p": [
+      "DLP that is too strict blocks legitimate work and creates workarounds, such as employees using personal devices to bypass it, which is worse for security. Tuning includes allow-listing known safe destinations, requiring a business justification override with logging, and testing policies against real traffic before full enforcement. Severity tiers help: block known card numbers outright, but only warn and log for a looser pattern match that might be a false positive. Regular review of DLP incidents separates true violations from noise and informs policy updates."
+     ]
+    },
+    {
+     "h": "Retention and anonymization",
+     "p": [
+      "A retention schedule states how long each data type is kept before deletion or archiving, driven by business need and law, for example keeping tax records for a set number of years. Anonymization removes identifying information so data can no longer be linked to a person, even by the organization, and is often irreversible. Pseudonymization replaces identifiers with a token or code, keeping a separate mapping that allows re-identification under controlled conditions, which is reversible and still considered personal data under GDPR, just with reduced risk."
+     ]
+    },
+    {
+     "h": "Secure disposal",
+     "p": [
+      "When retention periods end, data must be destroyed, not just hidden. For paper, this means shredding to a recognized standard. For storage media, options include cryptographic erasure (destroying the encryption key so data becomes unreadable), secure wipe utilities that overwrite data, or physical destruction such as degaussing or shredding drives, especially for media leaving organizational control. Certificates of destruction document that disposal happened, which matters for audits. Cloud storage requires confirming the provider's deletion process actually removes data from backups and replicas within a stated timeframe."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "DLP policy excerpt",
+    "text": "Rule: Block-CardNumber-Outbound\nPattern: card number regex + Luhn check\nChannel: email, web upload\nAction: Block + notify security team\nException: finance-dept@example.com with\n           manager-approved justification tag"
+   },
+   "example": "An employee tries to email a spreadsheet containing customer card numbers to a personal address. The DLP rule matches the card number pattern, verifies it with a Luhn checksum to reduce false positives, and blocks the email while alerting the security team. A separate rule only logs when a document merely contains the word 'confidential' in the subject line, since blocking on that alone would disrupt normal work and generate excessive false positives.",
+   "terms": [
+    {
+     "term": "DLP",
+     "def": "Tooling that detects and controls sensitive data in motion, at rest and in use."
+    },
+    {
+     "term": "Retention schedule",
+     "def": "Policy stating how long data types are kept before disposal."
+    },
+    {
+     "term": "Anonymization",
+     "def": "Irreversibly removing identifying information from data."
+    },
+    {
+     "term": "Pseudonymization",
+     "def": "Replacing identifiers with reversible tokens under controlled mapping."
+    },
+    {
+     "term": "Cryptographic erasure",
+     "def": "Destroying the encryption key so encrypted data becomes unreadable."
+    },
+    {
+     "term": "Certificate of destruction",
+     "def": "Documentation proving data or media was properly destroyed."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which DLP channel covers data copied to a USB drive?",
+     "options": [
+      "Data in motion",
+      "Data at rest",
+      "Data in use",
+      "Data in transit only"
+     ],
+     "a": 2,
+     "why": "Actions like copy, paste and print are usually classed as data in use."
+    },
+    {
+     "q": "Why tune DLP rules instead of blocking everything broadly?",
+     "options": [
+      "To reduce cost only",
+      "Overly strict rules disrupt work and cause risky workarounds",
+      "To increase alerts",
+      "To remove encryption"
+     ],
+     "a": 1,
+     "why": "Excessive blocking pushes users toward unsafe shadow workflows."
+    },
+    {
+     "q": "Pseudonymization differs from anonymization because it is:",
+     "options": [
+      "Always irreversible",
+      "Reversible via a separate controlled mapping",
+      "Only used for images",
+      "Illegal under GDPR"
+     ],
+     "a": 1,
+     "why": "A mapping can re-identify pseudonymized data under controlled conditions."
+    },
+    {
+     "q": "What proves that media was properly destroyed at end of retention?",
+     "options": [
+      "A verbal confirmation",
+      "A certificate of destruction",
+      "Leaving it unopened",
+      "Renaming the file"
+     ],
+     "a": 1,
+     "why": "A certificate documents the disposal event for audit purposes."
+    }
+   ],
+   "recap": [
+    "DLP covers data in motion, at rest and in use, and needs tuning to avoid workarounds.",
+    "Retention schedules define how long data is kept before disposal.",
+    "Anonymization is irreversible; pseudonymization is reversible under control."
+   ]
+  },
+  {
+   "title": "Compliance frameworks overview",
+   "why": "Different industries and regulators require different frameworks, and recognizing which applies, and what an audit checks, is a core compliance skill.",
+   "sections": [
+    {
+     "h": "PCI DSS and HIPAA",
+     "p": [
+      "The Payment Card Industry Data Security Standard (PCI DSS), now at version 4.0, applies to any organization that stores, processes or transmits cardholder data, and sets requirements across 12 areas including network segmentation, encryption, access control and logging. The Health Insurance Portability and Accountability Act (HIPAA) governs protected health information in the US, requiring administrative, physical and technical safeguards, and a Business Associate Agreement (BAA) when a vendor handles PHI on a covered entity's behalf."
+     ]
+    },
+    {
+     "h": "SOX and SOC 2",
+     "p": [
+      "The Sarbanes-Oxley Act (SOX) applies to US public companies and focuses on the integrity of financial reporting; its Section 404 requires management to assess internal controls, including IT controls over systems that affect financial statements, such as change management and access control. SOC 2 is an auditing standard (not a law) built around the Trust Services Criteria: security, availability, processing integrity, confidentiality and privacy. A SOC 2 Type II report, common when evaluating vendors, covers operating effectiveness of controls over a period, usually 6 to 12 months, not just a point in time."
+     ]
+    },
+    {
+     "h": "ISO 27001",
+     "p": [
+      "ISO/IEC 27001 is an international standard for building an Information Security Management System (ISMS): a structured, risk-based approach to selecting and managing controls, documented in a Statement of Applicability. Certification is issued by accredited auditors after a formal audit and is maintained through periodic surveillance audits. Many of its controls overlap with other frameworks, so organizations often map one set of evidence to satisfy several frameworks at once, reducing audit fatigue."
+     ]
+    },
+    {
+     "h": "Audits, evidence and the risk register",
+     "p": [
+      "An audit compares actual practice against a framework's requirements, through interviews, document review, system configuration checks and sometimes technical testing. Auditors need evidence: policies, logs, screenshots, ticket records and configuration exports, often called audit artifacts. A gap found in an audit becomes a finding, tracked to remediation with an owner and deadline, feeding into the same risk register used for vulnerability management. Many frameworks are not mutually exclusive: a payment processor handling health benefits data might need PCI DSS, HIPAA and SOC 2 simultaneously."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Framework comparison",
+    "text": "PCI DSS : Payment card data, 12 requirement areas\nHIPAA   : US health data, BAA required for vendors\nSOX     : US public company financial reporting\nSOC 2   : Independent audit of security/availability/etc\nISO 27001: International ISMS certification standard"
+   },
+   "example": "A healthcare payment startup processes both credit card payments and patient billing data, and is also a US public company. It must meet PCI DSS for the card data, HIPAA (with BAAs for its vendors) for patient information, and SOX controls over systems feeding its financial statements. It pursues ISO 27001 certification and a SOC 2 Type II report to satisfy enterprise customers who ask for independent assurance instead of reviewing every control themselves, reusing much of the same evidence across all four requirements.",
+   "terms": [
+    {
+     "term": "PCI DSS",
+     "def": "A standard for protecting cardholder data across storage, processing and transmission."
+    },
+    {
+     "term": "BAA",
+     "def": "A contract required when a vendor handles PHI for a HIPAA covered entity."
+    },
+    {
+     "term": "SOX Section 404",
+     "def": "A requirement for management to assess internal controls over financial reporting."
+    },
+    {
+     "term": "SOC 2 Type II",
+     "def": "An audit report on the operating effectiveness of controls over a period of time."
+    },
+    {
+     "term": "ISMS",
+     "def": "A structured, risk-based system for managing information security under ISO 27001."
+    },
+    {
+     "term": "Audit finding",
+     "def": "A documented gap between required and actual practice."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which framework specifically governs US protected health information?",
+     "options": [
+      "PCI DSS",
+      "HIPAA",
+      "SOX",
+      "ISO 27001"
+     ],
+     "a": 1,
+     "why": "HIPAA covers PHI and requires safeguards and BAAs with vendors."
+    },
+    {
+     "q": "A SOC 2 Type II report differs from Type I because it covers:",
+     "options": [
+      "A single point in time",
+      "Operating effectiveness over a period of months",
+      "Only financial statements",
+      "Only physical security"
+     ],
+     "a": 1,
+     "why": "Type II evaluates how controls performed over time, not just design."
+    },
+    {
+     "q": "ISO 27001 certification is based on building and maintaining:",
+     "options": [
+      "A firewall only",
+      "An Information Security Management System (ISMS)",
+      "A single password policy",
+      "A marketing plan"
+     ],
+     "a": 1,
+     "why": "ISO 27001 is a comprehensive risk-based management system standard."
+    },
+    {
+     "q": "An organization handling both card payments and health billing data likely needs to comply with:",
+     "options": [
+      "Only one framework",
+      "Multiple frameworks such as PCI DSS and HIPAA together",
+      "No framework",
+      "Only SOX"
+     ],
+     "a": 1,
+     "why": "Different data types each trigger their own applicable regulations."
+    }
+   ],
+   "recap": [
+    "PCI DSS covers card data, HIPAA covers US health data, SOX covers financial reporting controls.",
+    "SOC 2 and ISO 27001 are independent assurance and certification standards.",
+    "Audits produce findings tracked in the same risk register as other security gaps."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Classify a data set",
+   "sim": "file-explorer",
+   "scenario": "Example Corp's file explorer shows a mixed folder of sample files and a database schema. You must label each item by sensitivity and choose the right handling.",
+   "objective": "Label sample files and database fields by sensitivity and pick required handling for each.",
+   "steps": [
+    {
+     "do": "Open marketing_flyer.pdf and review contents.",
+     "see": "Public announcement text, no personal data."
+    },
+    {
+     "do": "Open employee_directory.xlsx.",
+     "see": "Names, extensions and departments; internal use only."
+    },
+    {
+     "do": "Open contract_vendorA.docx.",
+     "see": "Signed vendor contract with pricing terms."
+    },
+    {
+     "do": "Open patients_billing.csv and inspect columns.",
+     "see": "Columns: name, diagnosis_code, card_last4, balance."
+    },
+    {
+     "do": "Label each item: Public, Internal, Confidential or Restricted.",
+     "see": "Flyer=Public, directory=Internal, contract=Confidential, billing=Restricted."
+    },
+    {
+     "do": "Assign handling: encryption, access list, disposal rule per item.",
+     "see": "Billing file flagged for encryption at rest, strict access list and logged access."
+    }
+   ],
+   "answer": "The flyer is Public, the directory is Internal, the vendor contract is Confidential, and the billing file is Restricted because it mixes PHI (diagnosis codes) and cardholder data fragments. Restricted data gets encryption, a strict need-to-know access list and audit logging, while Public data needs no special control.",
+   "hint": "Look for identifiers, health terms and payment fields; the most sensitive element in a file sets its overall level."
+  },
+  {
+   "title": "Handle a data subject request",
+   "sim": "scenario",
+   "scenario": "A customer in the EU emails asking what personal data Example Corp holds about them and asks for it to be deleted. You must handle the request correctly under GDPR.",
+   "objective": "Decide the steps and deadlines for an access or deletion request under GDPR.",
+   "steps": [
+    {
+     "do": "Open the request ticket and confirm identity of the requester.",
+     "see": "Identity verified via account login matching the email."
+    },
+    {
+     "do": "Classify the request type.",
+     "see": "Marked as both an access request and an erasure request."
+    },
+    {
+     "do": "Check for legal holds or retention requirements overriding erasure.",
+     "see": "None found for this customer; no open legal case or invoice retention requirement."
+    },
+    {
+     "do": "Search systems for all personal data linked to the customer.",
+     "see": "Found in: CRM, billing system, marketing list, support tickets."
+    },
+    {
+     "do": "Set the response deadline.",
+     "see": "Deadline set to 1 month from the request date, per GDPR."
+    },
+    {
+     "do": "Prepare the data export and schedule deletion from all systems.",
+     "see": "Export generated; deletion scheduled across 4 systems with confirmation step."
+    }
+   ],
+   "answer": "The request must be verified, classified, checked against any legal retention requirement, and then actioned within one month: providing the access export and deleting the data from every system that holds it, including backups within a reasonable timeframe, with confirmation recorded for compliance evidence.",
+   "hint": "Always check for a legal or contractual reason to retain data before erasing it, and track the one-month clock from the request date."
+  },
+  {
+   "title": "Tune a DLP policy",
+   "sim": "config-editor",
+   "scenario": "Example Corp wants a DLP policy that blocks outbound emails containing Social Security Numbers or card numbers but should avoid disrupting normal finance team work.",
+   "objective": "Write rules that block SSN and card numbers in outbound email while limiting false positives.",
+   "steps": [
+    {
+     "do": "Open the config editor for the DLP policy.",
+     "see": "Empty rule set shown with available pattern library."
+    },
+    {
+     "do": "Add a rule matching the SSN pattern (###-##-####) with a checksum-like validation.",
+     "see": "Rule added: Block-SSN-Outbound."
+    },
+    {
+     "do": "Add a rule matching card number patterns with a Luhn check.",
+     "see": "Rule added: Block-Card-Outbound."
+    },
+    {
+     "do": "Set both rules to apply to email and web upload channels.",
+     "see": "Channels set."
+    },
+    {
+     "do": "Add an exception for finance-dept@example.com requiring a logged justification.",
+     "see": "Exception added with mandatory justification field."
+    },
+    {
+     "do": "Test against a sample traffic set of 50 messages.",
+     "see": "3 true blocks, 1 false positive (a public-facing placeholder number in a template), 0 missed detections."
+    },
+    {
+     "do": "Adjust the pattern to exclude the known placeholder and retest.",
+     "see": "False positive resolved; 3 true blocks remain, 0 false positives, 0 missed."
+    }
+   ],
+   "answer": "The final policy blocks real SSNs and card numbers in outbound email and web uploads, using checksum validation to cut false positives, with a logged exception path for finance staff who have a legitimate business need, and it no longer flags the known placeholder number used in templates.",
+   "hint": "Use checksum-style validation (like Luhn for cards) and test against real sample traffic before enabling full blocking."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which classification level would patient diagnosis data usually receive?",
+   "options": [
+    "Public",
+    "Internal",
+    "Confidential",
+    "Restricted"
+   ],
+   "a": 3,
+   "why": "Health data is highly sensitive and usually classified as Restricted."
+  },
+  {
+   "q": "PHI stands for:",
+   "options": [
+    "Personal Hosting Information",
+    "Protected Health Information",
+    "Public Health Index",
+    "Private Hardware Inventory"
+   ],
+   "a": 1,
+   "why": "PHI is health information tied to an identifiable person."
+  },
+  {
+   "q": "Under GDPR, a qualifying breach must generally be reported to the supervisory authority within:",
+   "options": [
+    "24 hours",
+    "72 hours",
+    "7 days",
+    "30 days"
+   ],
+   "a": 1,
+   "why": "GDPR's notification deadline is 72 hours from becoming aware."
+  },
+  {
+   "q": "CCPA primarily gives California residents the right to:",
+   "options": [
+    "Only access data",
+    "Know, delete, correct and opt out of sale/sharing of their data",
+    "Only delete data",
+    "Nothing enforceable"
+   ],
+   "a": 1,
+   "why": "CCPA/CPRA cover multiple consumer rights, including opt-out of sale."
+  },
+  {
+   "q": "Which technique irreversibly removes the ability to link data back to a person?",
+   "options": [
+    "Pseudonymization",
+    "Encryption in transit",
+    "Anonymization",
+    "Tokenless login"
+   ],
+   "a": 2,
+   "why": "Anonymization permanently removes identifying links."
+  },
+  {
+   "q": "A DLP rule that blocks too broadly tends to cause:",
+   "options": [
+    "Better security with no downside",
+    "Users finding risky workarounds",
+    "Lower storage costs",
+    "Faster emails"
+   ],
+   "a": 1,
+   "why": "Overblocking pushes users toward unsafe shadow practices."
+  },
+  {
+   "q": "Which framework specifically applies to protecting cardholder data?",
+   "options": [
+    "HIPAA",
+    "PCI DSS",
+    "SOX",
+    "ISO 27001 only"
+   ],
+   "a": 1,
+   "why": "PCI DSS governs storage, processing and transmission of card data."
+  },
+  {
+   "q": "A BAA is required when:",
+   "options": [
+    "Any vendor is hired",
+    "A vendor handles PHI on behalf of a HIPAA covered entity",
+    "A company signs SOX reports",
+    "ISO certification is sought"
+   ],
+   "a": 1,
+   "why": "HIPAA requires a Business Associate Agreement for PHI handling by vendors."
+  },
+  {
+   "q": "A SOC 2 Type II report evaluates:",
+   "options": [
+    "Design only, at one point in time",
+    "Operating effectiveness of controls over a period of time",
+    "Only physical security cameras",
+    "Marketing claims"
+   ],
+   "a": 1,
+   "why": "Type II covers how controls actually performed over months."
+  },
+  {
+   "q": "What should happen to data once its retention period ends?",
+   "options": [
+    "Nothing, keep it forever",
+    "It should be securely disposed of or anonymized",
+    "It should be made public",
+    "It should be emailed to all staff"
+   ],
+   "a": 1,
+   "why": "Retention policies require timely, secure disposal at end of life."
+  }
+ ]
+}

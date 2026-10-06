@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Label the diagram</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+a{color:inherit}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="width:390px;height:844px;box-sizing:border-box;position:relative;overflow:hidden;display:flex;flex-direction:column;background-color:#F3F5F9;background-image:radial-gradient(#D3DAE8 1px,transparent 1px);background-size:18px 18px;font-family:'Hanken Grotesk',sans-serif;color:#101B33">
+  <div style="flex:1;min-height:0;padding:48px 20px 0;box-sizing:border-box;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;gap:10px">
+      <a href="Module.dc.html" aria-label="Close" style="width:44px;height:44px;margin-left:-12px;display:flex;align-items:center;justify-content:center;text-decoration:none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#101B33" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></a>
+      <div style="flex:1;display:flex;gap:3px">
+        <span style="flex:1;height:6px;border-radius:3px;background:#0F9D8A"></span><span style="flex:1;height:6px;border-radius:3px;background:#0F9D8A"></span><span style="flex:1;height:6px;border-radius:3px;background:#0F9D8A"></span><span style="flex:1;height:6px;border-radius:3px;background:#0F9D8A"></span>
+        <span style="flex:1;height:6px;border-radius:3px;background:linear-gradient(90deg,#0F9D8A 0 50%,#DCE2EC 50%)"></span>
+        <span style="flex:1;height:6px;border-radius:3px;background:#DCE2EC"></span><span style="flex:1;height:6px;border-radius:3px;background:#DCE2EC"></span><span style="flex:1;height:6px;border-radius:3px;background:#DCE2EC"></span>
+      </div>
+    </div>
+    <div style="margin-top:20px;font:600 12px/1 'Hanken Grotesk',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#5B6781">Question 5 of 8 · Fill the blanks</div>
+    <h1 style="margin:10px 0 0;font:700 26px/1.15 'Bricolage Grotesque',sans-serif;letter-spacing:-.01em">Put each part of a lookup in order</h1>
+    <p style="margin:8px 0 0;font:400 15px/1.4 'Hanken Grotesk',sans-serif;color:#46546F">Tap a word below. It fills the next empty box. Tap a filled box to remove it.</p>
+
+    <div style="margin-top:16px;background:#fff;border:1px solid #DCE2EC;border-radius:20px;padding:14px 16px;display:flex;flex-direction:column">
+      <sc-for list="{{slots}}" as="s" hint-placeholder-count="3">
+        <div style="display:flex;flex-direction:column;align-items:stretch">
+          <div style="display:flex;align-items:center;gap:12px;min-height:56px">
+            <span style="font:600 13px/1 'Hanken Grotesk',sans-serif;color:#5B6781;width:70px;flex:none">{{s.role}}</span>
+            <button type="button" aria-label="{{s.aria}}" style="{{s.style}}" onClick="{{s.clear}}">{{s.word}}</button>
+          </div>
+          <sc-if value="{{s.hasArrow}}" hint-placeholder-val="{{true}}">
+            <div style="margin-left:82px;height:14px;display:flex;align-items:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#46546F" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v16M6 14l6 6 6-6"/></svg></div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+      <sc-for list="{{bank}}" as="c" hint-placeholder-count="4">
+        <button type="button" style="{{c.style}}" onClick="{{c.pick}}">{{c.t}}</button>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="flex:none;padding:12px 20px 30px;box-sizing:border-box">
+    <sc-if value="{{allFilled}}" hint-placeholder-val="{{false}}">
+      <a href="Complete.dc.html" style="height:54px;border-radius:16px;background:#101B33;color:#fff;text-decoration:none;font:600 16px/1 'Hanken Grotesk',sans-serif;display:flex;align-items:center;justify-content:center">Check answer</a>
+    </sc-if>
+    <sc-if value="{{notFilled}}" hint-placeholder-val="{{true}}">
+      <div style="height:54px;border-radius:16px;background:#DCE2EC;color:#5B6781;font:600 16px/1 'Hanken Grotesk',sans-serif;display:flex;align-items:center;justify-content:center">Check answer</div>
+    </sc-if>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  state = { placed: ['', '', ''] };
+  renderVals() {
+    const placed = this.state.placed;
+    const roles = ['Asks', 'Looks up', 'Answers'];
+    const words = ['Your phone', 'Resolver', 'Name server'];
+    const empty = "flex:1;min-height:44px;box-sizing:border-box;border-radius:12px;border:2px dashed #C9D1E0;background:#F7F9FC;color:#5B6781;font:500 15px/1 'Hanken Grotesk',sans-serif;cursor:default;";
+    const full = "flex:1;min-height:44px;box-sizing:border-box;border-radius:12px;border:2px solid #101B33;background:#FFE066;color:#101B33;font:700 15px/1 'Hanken Grotesk',sans-serif;cursor:pointer;";
+    const slots = roles.map((r, i) => ({
+      role: r,
+      word: placed[i] || 'Empty',
+      style: placed[i] ? full : empty,
+      aria: placed[i] ? 'Remove ' + placed[i] : 'Empty box ' + (i + 1),
+      hasArrow: i < 2,
+      clear: () => {
+        const n = placed.slice();
+        n[i] = '';
+        this.setState({ placed: n });
+      }
+    }));
+    const bankOrder = ['Resolver', 'Name server', 'Your phone'];
+    const bank = bankOrder.map((w) => {
+      const used = placed.indexOf(w) !== -1;
+      return {
+        t: w,
+        style: "min-height:44px;padding:0 16px;border-radius:12px;font:600 15px/1 'Hanken Grotesk',sans-serif;cursor:pointer;" + (used
+          ? 'background:#E6EAF2;border:1px solid #DCE2EC;color:#8B96AD;'
+          : 'background:#fff;border:1px solid #101B33;color:#101B33;'),
+        pick: () => {
+          if (used) return;
+          const n = placed.slice();
+          const idx = n.indexOf('');
+          if (idx === -1) return;
+          n[idx] = w;
+          this.setState({ placed: n });
+        }
+      };
+    });
+    const filled = placed.every((x) => x !== '');
+    return { slots: slots, bank: bank, allFilled: filled, notFilled: !filled };
+  }
+}
+</script>
+</body>
+</html>

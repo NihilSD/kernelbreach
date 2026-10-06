@@ -1,0 +1,416 @@
+{
+ "code": "CORE-15",
+ "intro": "This capstone brings together everything from the Security Core path. You will review principles, cryptography, identity, network, web, endpoint, detection, privacy and cloud topics in mixed form, then learn how to read scenario questions, eliminate distractors, manage time and log missed topics. The labs ask you to make decisions across a full incident and to review logs while tracking which domains need more study before the final exam.",
+ "lessons": [
+  {
+   "title": "Mixed review across modules",
+   "why": "Real problems do not arrive labeled by topic, so you must connect principles, cryptography, web, network and defense ideas on demand.",
+   "sections": [
+    {
+     "h": "Principles, threats and people",
+     "p": [
+      "Start from the foundations. Confidentiality, integrity and availability describe what you protect, while authentication, authorization and accounting describe how access is controlled. Frameworks give structure: the cyber kill chain and MITRE ATT&CK describe attacker behavior, NIST CSF organizes functions such as identify, protect, detect, respond and recover, and ISO 27001 and CIS Controls provide control sets. Threat actors range from criminals seeking money to state groups seeking secrets. Social engineering ties many incidents together: phishing, smishing, vishing and business email compromise exploit trust, so verification by a second channel and awareness training are core defenses."
+     ]
+    },
+    {
+     "h": "Cryptography and identity",
+     "p": [
+      "Keep the three transformations distinct. Encoding such as Base64 is reversible by anyone and gives no secrecy. Encryption is reversible with a key: symmetric (AES) uses one shared key, asymmetric (RSA, elliptic curves) uses a key pair. Hashing is one-way, and passwords should be stored with a slow salted hash such as bcrypt, scrypt or Argon2. Digital signatures prove origin and integrity, and certificates issued by a certificate authority bind a public key to a name in the TLS handshake. For access, combine strong passwords or a manager with MFA, least privilege through RBAC or ABAC, SSO with SAML or OIDC, and well-handled session tokens."
+     ]
+    },
+    {
+     "h": "Network, web and endpoint defense",
+     "p": [
+      "Network controls layer: firewalls filter by rule, IDS detects and IPS blocks, proxies mediate traffic, VPNs protect links, and segmentation with a DMZ limits spread. Know classic attacks such as ARP spoofing, man-in-the-middle and DDoS, and prefer secure protocols like HTTPS, SSH and SFTP over HTTP, Telnet and FTP. For web applications, remember the OWASP Top 10: injection is prevented with parameterized queries, XSS with output encoding and a content security policy, CSRF with tokens and SameSite cookies, and IDOR with server-side authorization checks. On endpoints use hardening, patching, EDR, disk encryption and 3-2-1 backups: three copies, two media types, one offsite."
+     ]
+    },
+    {
+     "h": "Detection, response, privacy and cloud",
+     "p": [
+      "Vulnerability management uses CVE identifiers, CWE weaknesses and CVSS scores, but priority also depends on exposure and asset value. Detection relies on logs, a SIEM, alert triage and threat intelligence; incident response follows preparation, detection and analysis, containment, eradication, recovery and lessons learned. Offensive work must stay within written rules of engagement. Privacy brings PII, GDPR and CCPA, classification, DLP and retention limits. In the cloud, the shared responsibility model means the provider secures the platform while you secure your identities, configuration and data. Public storage buckets and over-permissive roles remain leading causes of exposure."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Fast recall sheet",
+    "text": "CIA: confidentiality, integrity, availability\nEncode != encrypt != hash\nSQLi -> parameterized queries | XSS -> output encoding\nCSRF -> tokens + SameSite | IDOR -> authz check\nBackups 3-2-1 | IR: prep, detect, contain, eradicate, recover, lessons\nCloud: provider secures platform, you secure config, IAM, data"
+   },
+   "example": "A fictional employee at Example Corp enters credentials on a fake login page (social engineering). The attacker logs in because MFA was not enforced (authentication), reads a shared storage bucket that was set to public (cloud misconfiguration), and personal data leaves the company (privacy and GDPR duty). Logs in the SIEM show the unusual login, and the response team resets sessions and notifies the regulator. One incident touches six modules.",
+   "terms": [
+    {
+     "term": "Defense in depth",
+     "def": "Layering multiple controls so one failure does not cause a breach."
+    },
+    {
+     "term": "Least privilege",
+     "def": "Granting only the access needed to do a task."
+    },
+    {
+     "term": "CVSS",
+     "def": "A 0 to 10 severity scoring system for vulnerabilities."
+    },
+    {
+     "term": "Shared responsibility",
+     "def": "The split of security duties between a cloud provider and its customer."
+    },
+    {
+     "term": "3-2-1 backup",
+     "def": "Three copies of data on two media types with one kept offsite."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which control best prevents SQL injection?",
+     "options": [
+      "Output encoding",
+      "Parameterized queries",
+      "SameSite cookies",
+      "Larger passwords"
+     ],
+     "a": 1,
+     "why": "Parameterized queries keep user input as data, not SQL code."
+    },
+    {
+     "q": "Which statement about hashing is correct?",
+     "options": [
+      "It is reversible with a key",
+      "It is one-way and suited to password storage when salted and slow",
+      "It is the same as Base64",
+      "It requires a public key"
+     ],
+     "a": 1,
+     "why": "Password hashes should be one-way, salted and computationally slow, like Argon2 or bcrypt."
+    },
+    {
+     "q": "In the cloud shared responsibility model, who secures customer data and IAM configuration?",
+     "options": [
+      "Always the provider",
+      "The customer",
+      "Nobody",
+      "The internet registrar"
+     ],
+     "a": 1,
+     "why": "The customer is responsible for their data, identities and configuration."
+    },
+    {
+     "q": "Which backup rule is 3-2-1?",
+     "options": [
+      "3 users, 2 servers, 1 admin",
+      "3 copies, 2 media types, 1 offsite",
+      "3 days, 2 weeks, 1 month",
+      "3 firewalls, 2 VPNs, 1 proxy"
+     ],
+     "a": 1,
+     "why": "It means three copies, on two types of media, with one offsite."
+    }
+   ],
+   "recap": [
+    "Connect principles, crypto, identity, network, web, endpoint, detection, privacy and cloud into one picture.",
+    "Match attacks to their standard fixes, such as parameterized queries for injection.",
+    "Real incidents cross many modules, so practice tracing the full chain."
+   ]
+  },
+  {
+   "title": "Final exam strategy and review",
+   "why": "Knowing the material is half the task; reading scenario questions carefully and spending time well is the other half.",
+   "sections": [
+    {
+     "h": "Reading scenario questions",
+     "p": [
+      "Scenario questions describe a situation and ask for the best action, the most likely cause, or the first step. Read the last sentence first so you know what is being asked, then read the scenario for facts. Underline qualifiers such as best, first, most likely, least and not, because they change the answer. Identify the domain being tested: is this identity, network, cryptography, response? Then predict an answer before looking at the options, which stops attractive distractors from steering you. If the stem mentions a stage of incident response, remember that containment normally comes before eradication."
+     ]
+    },
+    {
+     "h": "Eliminating distractors",
+     "p": [
+      "Distractors are usually wrong for a reason you can name. Some answers are true statements that do not answer the question. Some are too extreme, using words like always or never. Some solve a different problem, such as suggesting encryption for an availability issue. Some are the right action at the wrong time, for example restoring from backup before containing the intruder. Remove options you can disprove, then compare the remaining ones against the exact wording. Prefer preventive, least-privilege, defense-in-depth answers over drastic ones, and prefer fixing the root cause over treating a symptom."
+     ]
+    },
+    {
+     "h": "Managing time and uncertainty",
+     "p": [
+      "Divide the exam time by the number of questions to get a pace, for example 60 questions in 60 minutes is about one minute each. Answer easy items first, flag uncertain ones, and return after one pass. Never leave a question blank unless negative marking applies; make an informed guess after eliminating options. Do not change an answer without a concrete reason, since first instincts based on knowledge are often right. Keep a few minutes at the end to check flagged items and to confirm that every question has a response."
+     ]
+    },
+    {
+     "h": "Reviewing missed topics",
+     "p": [
+      "After every practice set, log each miss and classify it: knowledge gap, misread question, or careless slip. Group knowledge gaps by module and revisit that lesson, then redo similar questions after a day and again after a week, which uses spacing to strengthen memory. Rewrite the rule in your own words and add a one-line example. Track your score by domain, so a weak area such as cryptography or cloud shows up clearly. Before the final exam, sleep, review your recall sheet, and aim for a steady pace, not last-minute cramming."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Miss log template",
+    "text": "Q# | Module | Type (gap/misread/slip) | Rule in my words | Retry date\n12 | CORE-04 | gap     | salt defeats precomputed tables | +1 day\n27 | CORE-10 | misread | 'first' step = containment      | +1 day\n41 | CORE-06 | slip    | IPS blocks, IDS only alerts     | +7 days"
+   },
+   "example": "A question at the fictional firm Example Corp says that an analyst confirms ransomware on one workstation and asks for the FIRST action. Options are restore from backup, isolate the host from the network, reset all passwords, and write a report. The candidate predicts containment, sees that isolation matches, and eliminates restoring first as wrong timing and the report as later. The qualifier first made the difference.",
+   "terms": [
+    {
+     "term": "Qualifier",
+     "def": "A word such as best, first or least that defines what the question wants."
+    },
+    {
+     "term": "Distractor",
+     "def": "A plausible but incorrect answer option."
+    },
+    {
+     "term": "Spaced review",
+     "def": "Revisiting material at increasing intervals to improve retention."
+    },
+    {
+     "term": "Root cause",
+     "def": "The underlying reason for a problem, as opposed to its symptom."
+    },
+    {
+     "term": "Miss log",
+     "def": "A record of wrong answers with the reason and the correct rule."
+    }
+   ],
+   "check": [
+    {
+     "q": "What should you identify before reading the answer options?",
+     "options": [
+      "The longest option",
+      "What the question is asking and a predicted answer",
+      "The most technical word",
+      "How many options there are"
+     ],
+     "a": 1,
+     "why": "Predicting an answer first reduces the pull of distractors."
+    },
+    {
+     "q": "Which option type is usually a distractor?",
+     "options": [
+      "One that answers the exact question",
+      "One that is true but solves a different problem",
+      "One matching the qualifier",
+      "One using least privilege correctly"
+     ],
+     "a": 1,
+     "why": "A true statement can still be the wrong answer if it does not address the question."
+    },
+    {
+     "q": "A question asks for the FIRST step after confirming malware on a host. What is the best typical answer?",
+     "options": [
+      "Containment, such as isolating the host",
+      "Writing the final report",
+      "Wiping all backups",
+      "Buying new tools"
+     ],
+     "a": 0,
+     "why": "Containment limits spread before eradication and recovery."
+    },
+    {
+     "q": "Which review habit is most effective for missed topics?",
+     "options": [
+      "Reading the same page once more",
+      "Logging misses by type and module and retesting with spacing",
+      "Ignoring them",
+      "Memorizing answer letters"
+     ],
+     "a": 1,
+     "why": "Classifying misses and spaced retesting target actual gaps."
+    }
+   ],
+   "recap": [
+    "Read the question, find qualifiers and predict an answer before viewing options.",
+    "Eliminate options by naming why each is wrong, including wrong timing and wrong problem.",
+    "Pace yourself, flag, log misses by module and retest with spacing."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Mixed incident scenario",
+   "sim": "scenario",
+   "scenario": "At the fictional firm Example Corp, an employee named Jordan receives an email that appears to be from IT and enters credentials on a fake login page hosted at login.example.net. Within hours, the attacker signs in from 203.0.113.50 and finds a cloud storage container with customer data. The simulator walks through five decision points from the phishing email to the data exposure, and at each point you pick the single best control or action from four options.",
+   "objective": "Choose the right control at each step of a phishing-to-data-exposure incident.",
+   "steps": [
+    {
+     "do": "Decision 1: The phishing email arrives. Choose the best preventive control.",
+     "see": "Options include email filtering with link checks and user awareness; select it and the simulator confirms."
+    },
+    {
+     "do": "Decision 2: The attacker uses stolen credentials. Choose what would have blocked the login.",
+     "see": "Select multi-factor authentication; the simulator notes a stolen password alone is then insufficient."
+    },
+    {
+     "do": "Decision 3: Logs show a login from 203.0.113.50 at an unusual hour. Choose the detection step.",
+     "see": "Select SIEM alert triage on the anomalous login; the simulator opens an incident."
+    },
+    {
+     "do": "Decision 4: Data in a public storage container is exposed. Choose the fix.",
+     "see": "Select blocking public access and tightening IAM with least privilege."
+    },
+    {
+     "do": "Decision 5: Containment. Choose the first response action.",
+     "see": "Select disabling Jordan's sessions, resetting credentials and blocking the source address."
+    },
+    {
+     "do": "Decision 6: Personal data may be involved. Choose the compliance action.",
+     "see": "Select assessing the breach and notifying the regulator and affected people as GDPR or local law requires."
+    },
+    {
+     "do": "Review the final summary.",
+     "see": "The simulator lists each control, the module it belongs to, and your score."
+    }
+   ],
+   "answer": "Best choices: email filtering and awareness, MFA, SIEM triage of the anomalous login, blocking public storage with least-privilege IAM, session revocation and credential reset for containment, then breach assessment and notification. Each maps to a different module, showing defense in depth.",
+   "hint": "Ask at each step whether the question is prevention, detection, containment or compliance, and pick the control that matches that stage."
+  },
+  {
+   "title": "Weak-area log review",
+   "sim": "siem",
+   "scenario": "You are a junior analyst at the fictional firm Example Corp reviewing a small SIEM data set built from earlier modules. It contains authentication logs, web server entries, firewall events and a DNS record sample using addresses such as 192.0.2.10 and 198.51.100.7. Ten review tasks ask you to find items like repeated failed logins, a suspicious query string and an unusual outbound connection. A scoreboard tracks which domains you miss.",
+   "objective": "Answer review tasks on alerts and logs and identify weak domains.",
+   "steps": [
+    {
+     "do": "Open the authentication log and search for repeated failed logins from one source.",
+     "see": "Many failures from 198.51.100.7 appear; the task asks what attack this suggests."
+    },
+    {
+     "do": "Answer: password guessing or brute force, mitigated by lockout and MFA.",
+     "see": "Scoreboard credits Authentication."
+    },
+    {
+     "do": "Open the web log and find a request with a quote and OR 1=1 in the query string.",
+     "see": "The entry is highlighted and a question asks for the category."
+    },
+    {
+     "do": "Answer: SQL injection, fixed by parameterized queries.",
+     "see": "Scoreboard credits Web security."
+    },
+    {
+     "do": "Open firewall events and find a large outbound transfer to 203.0.113.80 at night.",
+     "see": "The task asks for the likely concern and next action."
+    },
+    {
+     "do": "Answer: possible data exfiltration; investigate the host and contain if confirmed.",
+     "see": "Scoreboard credits Defense and response."
+    },
+    {
+     "do": "Open the DNS sample and identify a very long random-looking subdomain.",
+     "see": "A question asks what this may indicate."
+    },
+    {
+     "do": "Answer: possible DNS tunneling or malware beaconing; review the domain with threat intelligence.",
+     "see": "Scoreboard credits Network security, then shows your weakest domains."
+    }
+   ],
+   "answer": "Expected answers are brute force (lockout and MFA), SQL injection (parameterized queries), possible exfiltration (investigate and contain) and DNS tunneling or beaconing (threat intelligence). Use the scoreboard to revisit the modules where you missed items.",
+   "hint": "Name the pattern first (repetition, injection characters, unusual volume or timing), then the matching defense."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which pair correctly maps an attack to a primary defense?",
+   "options": [
+    "XSS and output encoding",
+    "SQL injection and larger monitors",
+    "CSRF and disk encryption",
+    "IDOR and Base64"
+   ],
+   "a": 0,
+   "why": "Output encoding with a content security policy mitigates XSS."
+  },
+  {
+   "q": "An attacker alters a transferred file without being detected. Which CIA property failed?",
+   "options": [
+    "Confidentiality",
+    "Integrity",
+    "Availability",
+    "Anonymity"
+   ],
+   "a": 1,
+   "why": "Unauthorized modification breaks integrity, which hashes and signatures help detect."
+  },
+  {
+   "q": "Which statement about Base64 is correct?",
+   "options": [
+    "It encrypts data securely",
+    "It is an encoding that anyone can reverse",
+    "It is a hash",
+    "It is a signature"
+   ],
+   "a": 1,
+   "why": "Base64 is reversible encoding with no secrecy."
+  },
+  {
+   "q": "Why is a salt added when hashing passwords?",
+   "options": [
+    "To make the hash reversible",
+    "To defeat precomputed lookup tables and make identical passwords hash differently",
+    "To shorten the hash",
+    "To encrypt the database"
+   ],
+   "a": 1,
+   "why": "A unique salt per password stops rainbow tables and reuse patterns."
+  },
+  {
+   "q": "A user can read another user's invoice by changing id=100 to id=101 in the URL. What is this flaw?",
+   "options": [
+    "IDOR",
+    "CSRF",
+    "DDoS",
+    "ARP spoofing"
+   ],
+   "a": 0,
+   "why": "Insecure direct object reference arises from missing server-side authorization checks."
+  },
+  {
+   "q": "Which device both detects and actively blocks malicious traffic?",
+   "options": [
+    "IDS",
+    "IPS",
+    "Hub",
+    "Passive tap"
+   ],
+   "a": 1,
+   "why": "An intrusion prevention system sits in line and can drop traffic, while an IDS only alerts."
+  },
+  {
+   "q": "Which backup approach follows 3-2-1?",
+   "options": [
+    "Three copies, two media types, one offsite",
+    "Three drives in one room",
+    "Two copies on the same server",
+    "One copy only"
+   ],
+   "a": 0,
+   "why": "The rule gives resilience against both device failure and site loss."
+  },
+  {
+   "q": "In incident response, what normally comes right after detection and analysis?",
+   "options": [
+    "Containment",
+    "Lessons learned",
+    "Hiring",
+    "Archiving"
+   ],
+   "a": 0,
+   "why": "Containment limits damage before eradication and recovery."
+  },
+  {
+   "q": "A company puts customer data in a cloud storage bucket set to public. Whose duty was it to configure access correctly under shared responsibility?",
+   "options": [
+    "The customer",
+    "The cloud provider only",
+    "The ISP",
+    "Nobody"
+   ],
+   "a": 0,
+   "why": "Customers configure access to their own data and identities."
+  },
+  {
+   "q": "An email from the 'CEO' urgently asks finance to wire money to a new account. What is the best first action?",
+   "options": [
+    "Wire it quickly",
+    "Verify through a separate trusted channel such as a known phone number",
+    "Reply asking for more details by email",
+    "Forward to everyone"
+   ],
+   "a": 1,
+   "why": "Out-of-band verification defeats business email compromise."
+  }
+ ]
+}

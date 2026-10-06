@@ -1,0 +1,1164 @@
+{
+ "code": "SOC-06",
+ "intro": "Network Traffic Analysis teaches you to read what actually crossed the wire. You will learn packet headers and TCP flags, a repeatable Wireshark workflow, and a triage method for large captures. You then examine DNS, HTTP and SMB for abuse such as tunneling, command and control, and lateral movement, and move from single packets to Zeek logs, Suricata alerts and flow statistics for beaconing and exfiltration. Network evidence is hard for an attacker to erase, so this skill underpins investigations.",
+ "lessons": [
+  {
+   "title": "Packet and protocol basics",
+   "why": "Every network investigation rests on reading packets correctly. If you cannot tell a SYN from a RST, or a source port from a destination port, you will misread what a host was doing.",
+   "sections": [
+    {
+     "h": "Layers and encapsulation",
+     "p": [
+      "Network data is wrapped in layers. An Ethernet frame carries source and destination MAC addresses and an EtherType (0x0800 for IPv4, 0x86DD for IPv6). Inside it sits the IP header with source and destination addresses, a TTL, and a protocol number (6 for TCP, 17 for UDP, 1 for ICMP). Inside that sits the TCP or UDP header with ports, and finally the application payload such as HTTP or DNS. Analysts read from the outside in: who talked to whom, over which transport, on which port, and only then what was said. MAC addresses only matter on the local segment; routers rewrite them at every hop, while IP addresses stay end to end."
+     ]
+    },
+    {
+     "h": "TCP and UDP headers",
+     "p": [
+      "TCP is connection oriented. Its header holds source and destination ports, a 32-bit sequence number, an acknowledgment number, a window size and a set of flags: SYN, ACK, FIN, RST, PSH and URG. UDP is far simpler: ports, length and checksum, with no handshake and no delivery guarantee. DNS, DHCP, NTP and many streaming protocols use UDP. Well-known server ports include 22 SSH, 53 DNS, 80 HTTP, 443 HTTPS, 445 SMB and 3389 RDP. The client usually picks a high ephemeral port (49152-65535 by IANA convention), so the lower port in a pair is normally the service."
+     ]
+    },
+    {
+     "h": "The three-way handshake and teardown",
+     "p": [
+      "A TCP session opens with SYN from the client, SYN-ACK from the server, then ACK from the client. A normal close uses FIN and ACK in each direction. A RST aborts the connection immediately. These flags tell stories. Many SYN packets with no completing ACK suggest a scan or SYN flood. A SYN answered by RST means the port is closed. A SYN with no reply at all points to filtering by a firewall or a dead host. Sequence numbers let Wireshark reassemble out-of-order segments into a clean stream, which is why following a stream works at all."
+     ]
+    },
+    {
+     "h": "Putting it to use",
+     "p": [
+      "When you open a capture, resist the urge to read packet by packet. First note timestamps, the pair of addresses, the ports and the flags. A client at 192.0.2.10 using port 50514 to reach 198.51.100.20 on port 443 is almost certainly HTTPS, and you will see only encrypted payload, so metadata such as the TLS handshake, packet sizes and timing becomes your evidence. If the same client uses port 53 over TCP, ask why: large zone transfers and some tunneling tools use it. Knowing the normal shape of each protocol is what makes the abnormal stand out."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Packet header (annotated)",
+    "text": "Ethernet: 00:00:5e:00:53:01 -> 00:00:5e:00:53:02 type 0x0800\nIPv4: 192.0.2.10 -> 198.51.100.20 ttl 64 proto 6 (TCP)\nTCP: 50514 -> 443 seq 0 flags [SYN] win 64240\nTCP: 443 -> 50514 seq 0 ack 1 flags [SYN,ACK]\nTCP: 50514 -> 443 seq 1 ack 1 flags [ACK]"
+   },
+   "example": "A capture shows host 192.0.2.10 sending 400 SYN packets to 198.51.100.20 on different destination ports within three seconds. Most are answered by RST,ACK, a few by SYN-ACK. Reading the flags, the analyst concludes this is a port scan: the RSTs mark closed ports and the SYN-ACKs mark open ones. The source never completes the handshake with ACK on the open ports, which is typical of a half-open SYN scan. The analyst lists the open ports and checks whether the scanner was an approved vulnerability scanner.",
+   "terms": [
+    {
+     "term": "Encapsulation",
+     "def": "Wrapping data in successive headers as it moves down the protocol stack."
+    },
+    {
+     "term": "Ephemeral port",
+     "def": "A temporary high source port chosen by a client for one connection."
+    },
+    {
+     "term": "SYN",
+     "def": "The TCP flag used to start a connection and synchronize sequence numbers."
+    },
+    {
+     "term": "RST",
+     "def": "A TCP flag that abruptly resets and ends a connection."
+    },
+    {
+     "term": "TTL",
+     "def": "An IP field that limits how many hops a packet may travel."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which pair of flags does a server send in reply to a SYN on an open port?",
+     "options": [
+      "ACK only",
+      "SYN-ACK",
+      "FIN-ACK",
+      "RST-ACK"
+     ],
+     "a": 1,
+     "why": "An open port answers a SYN with SYN and ACK set to continue the handshake."
+    },
+    {
+     "q": "A SYN sent to a closed port typically draws which response?",
+     "options": [
+      "SYN-ACK",
+      "No response ever",
+      "RST",
+      "FIN"
+     ],
+     "a": 2,
+     "why": "Closed ports on a reachable host normally reply with RST."
+    },
+    {
+     "q": "Which IP protocol number identifies UDP?",
+     "options": [
+      "1",
+      "6",
+      "17",
+      "47"
+     ],
+     "a": 2,
+     "why": "Protocol 17 is UDP; 6 is TCP and 1 is ICMP."
+    },
+    {
+     "q": "In a pair of ports 50514 and 443, which is most likely the service?",
+     "options": [
+      "50514",
+      "443",
+      "Neither",
+      "Both"
+     ],
+     "a": 1,
+     "why": "The lower well-known port is normally the server side and 443 is HTTPS."
+    }
+   ],
+   "recap": [
+    "Read captures outside-in: MAC, IP, transport, then payload.",
+    "TCP flags SYN, ACK, FIN and RST describe the life of a connection.",
+    "Port numbers and the handshake outcome reveal scans, filtering and services."
+   ]
+  },
+  {
+   "title": "Wireshark workflow",
+   "why": "Wireshark is the standard tool for packet analysis. Knowing which filter to use, and where, saves hours and prevents you from losing data.",
+   "sections": [
+    {
+     "h": "Capture filters versus display filters",
+     "p": [
+      "Wireshark has two filter languages that are easy to confuse. Capture filters use BPF syntax and are applied before packets are stored, for example host 192.0.2.10 and port 53. They reduce file size but discard everything else forever, so use them only when volume forces you to. Display filters use Wireshark's own field syntax and only hide packets in the view, so the data remains intact. Examples: ip.addr == 192.0.2.10, tcp.port == 445, dns.qry.name contains \"example\", http.request.method == \"POST\", tcp.flags.syn == 1 && tcp.flags.ack == 0. A green filter bar means valid syntax; red means an error."
+     ]
+    },
+    {
+     "h": "Following streams and reading context",
+     "p": [
+      "Right-click a packet and choose Follow, then TCP Stream, UDP Stream, TLS Stream or HTTP Stream. Wireshark reassembles the segments and shows the conversation, coloring client data and server data differently. This is the fastest way to read a plaintext protocol such as HTTP, FTP or SMTP and to spot commands, credentials sent in cleartext, or file names. The window title shows the stream index, and you can step through other streams with the spinner. Each followed stream sets a display filter such as tcp.stream eq 4, which you can reuse or combine with other conditions to keep the investigation focused."
+     ]
+    },
+    {
+     "h": "Statistics menus and exporting objects",
+     "p": [
+      "The Statistics menu gives summaries that guide you before you read packets: Capture File Properties, Protocol Hierarchy, Conversations, Endpoints, I/O Graphs and DNS or HTTP request tables. Use File, Export Objects to carve files transferred over HTTP, SMB, IMF or TFTP out of the capture. Always hash the exported file with sha256sum and handle it in an isolated analysis machine, since it may be live malware. Add useful fields as columns (right-click a field, Apply as Column) such as dns.qry.name or http.host, and save a profile so your layout persists."
+     ]
+    },
+    {
+     "h": "Good habits",
+     "p": [
+      "Work on a copy of the PCAP and record its hash so your evidence is reproducible. Turn off name resolution in the View menu when you want literal addresses, and note that time can be shown as UTC through View, Time Display Format. Color rules help but do not trust them blindly; a red packet is only a hint. Combine filters with && and ||, and use the ! operator to exclude noise, for example !(arp || dns || mdns). Document each filter you used so a colleague can reproduce your findings from the report."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Display filters",
+    "text": "ip.addr == 192.0.2.10 && tcp.port == 80\nhttp.request.method == \"POST\"\ndns.flags.rcode == 3\ntcp.flags.syn == 1 && tcp.flags.ack == 0\nsmb2.cmd == 5\ntcp.stream eq 4"
+   },
+   "example": "An analyst receives a 300 MB PCAP from a suspected infected workstation 192.0.2.10. She applies ip.addr == 192.0.2.10 && http.request, adds http.host and http.user_agent as columns, and sees one request for /update.exe from an unfamiliar host. She follows that TCP stream, reads the cleartext GET and response headers, then uses Export Objects, HTTP to save the file and computes its SHA-256 for lookup. At no point did she alter the original capture.",
+   "terms": [
+    {
+     "term": "Capture filter",
+     "def": "A BPF expression that limits which packets are recorded."
+    },
+    {
+     "term": "Display filter",
+     "def": "A Wireshark expression that hides packets in the view without deleting them."
+    },
+    {
+     "term": "Follow Stream",
+     "def": "A feature that reassembles and displays one conversation in order."
+    },
+    {
+     "term": "Export Objects",
+     "def": "A feature that extracts files carried in protocols such as HTTP or SMB."
+    },
+    {
+     "term": "Profile",
+     "def": "A saved set of columns, filters and colors."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which filter type permanently discards packets that do not match?",
+     "options": [
+      "Display filter",
+      "Capture filter",
+      "Color rule",
+      "Profile"
+     ],
+     "a": 1,
+     "why": "Capture filters act before storage, so unmatched packets are never saved."
+    },
+    {
+     "q": "Which expression finds TCP connection attempts?",
+     "options": [
+      "tcp.flags.syn == 1 && tcp.flags.ack == 0",
+      "tcp.flags.fin == 1",
+      "http.request",
+      "ip.ttl == 1"
+     ],
+     "a": 0,
+     "why": "A SYN without ACK is the first packet of a handshake."
+    },
+    {
+     "q": "What does Export Objects do?",
+     "options": [
+      "Encrypts the PCAP",
+      "Extracts files carried over protocols like HTTP",
+      "Deletes duplicates",
+      "Resolves DNS names"
+     ],
+     "a": 1,
+     "why": "It carves transferred files out of reassembled streams."
+    },
+    {
+     "q": "Why work on a copy of the PCAP and record its hash?",
+     "options": [
+      "To speed up filtering",
+      "To keep evidence integrity and reproducibility",
+      "To enable decryption",
+      "To reduce RAM use"
+     ],
+     "a": 1,
+     "why": "A hash proves the evidence was not changed and lets others verify your work."
+    }
+   ],
+   "recap": [
+    "Capture filters use BPF and discard; display filters hide only.",
+    "Follow Stream and Export Objects turn packets into readable content and files.",
+    "Document filters and hash evidence so findings are reproducible."
+   ]
+  },
+  {
+   "title": "PCAP triage method",
+   "why": "A large capture can hold millions of packets. A fixed method gets you to the one interesting host in minutes instead of hours.",
+   "sections": [
+    {
+     "h": "Start from summaries, not packets",
+     "p": [
+      "Open Statistics, Capture File Properties to learn the time span, packet count and link type. Then check Protocol Hierarchy: the share of each protocol quickly shows oddities, such as a large percentage of DNS bytes on a workstation, or ICMP carrying much more data than expected. Next open Conversations and sort by bytes or by packets for the IPv4 and TCP tabs. The pair at the top is either a backup, a download, or the incident. Finally open Endpoints to see which single hosts account for traffic, including external addresses that you should recognize or look up."
+     ]
+    },
+    {
+     "h": "Form a question and a hypothesis",
+     "p": [
+      "Triage works best when anchored to a question: which internal host is compromised, what did it contact, and what was transferred. Use the alert or ticket to pick a starting host and time window. Filter to that host and ask whether the protocols match its role. A file server speaking SMB is normal; a file server querying random domains is not. Write down each hypothesis, such as beaconing or data theft, and the specific evidence that would confirm or refute it. This prevents wandering and gives you a clean list of findings to report."
+     ]
+    },
+    {
+     "h": "Pivot on what you find",
+     "p": [
+      "Each finding supplies new filters. A suspicious external IP leads to ip.addr == 203.0.113.50, which leads to the domain it served in the TLS Server Name or the HTTP Host header, which leads to the other hosts that also contacted it. Check the first packet time for that destination to find patient zero. Compare timestamps with logs from the proxy, DNS server and EDR to confirm the story. Pivoting outward from a single anomaly through shared IPs, domains, ports and times is the core skill of network forensics."
+     ]
+    },
+    {
+     "h": "Record and escalate",
+     "p": [
+      "Keep a running timeline with UTC timestamps, packet numbers and stream indexes. Save filtered subsets with File, Export Specified Packets so evidence for the report is small and focused. Extract indicators: IPs, domains, URLs, user agents and file hashes, and hand them to the team for hunting across the environment. State confidence honestly: a connection to a known bad IP is a lead, while a followed stream showing a payload download is proof. Stop when your original question is answered and escalate with clear next steps."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Triage order",
+    "text": "1. Statistics > Capture File Properties\n2. Statistics > Protocol Hierarchy\n3. Statistics > Conversations (sort by Bytes)\n4. Statistics > Endpoints\n5. Filter to the top internal host\n6. Pivot: DNS names, HTTP hosts, TLS SNI\n7. Export objects, hash, record IOCs"
+   },
+   "example": "A PCAP from a branch office shows Conversations dominated by 192.0.2.77 to 203.0.113.9 with 1.8 GB sent outbound over TCP 443, while every other host sent under 20 MB. Endpoints confirms the imbalance. The analyst filters to 192.0.2.77, sees TLS SNI of an unfamiliar file-sharing name, and finds the transfer began at 02:14 UTC outside business hours. She records the host, destination and time, and escalates as possible data exfiltration pending a check of the user's activity.",
+   "terms": [
+    {
+     "term": "Protocol Hierarchy",
+     "def": "A summary showing the share of packets and bytes per protocol."
+    },
+    {
+     "term": "Conversations",
+     "def": "A table of traffic between pairs of endpoints."
+    },
+    {
+     "term": "Endpoint",
+     "def": "A single address that sends or receives traffic in a capture."
+    },
+    {
+     "term": "Pivot",
+     "def": "Using one finding to form a new search for related activity."
+    },
+    {
+     "term": "Patient zero",
+     "def": "The first host affected in an incident."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which view best shows which host pairs moved the most data?",
+     "options": [
+      "Protocol Hierarchy",
+      "Conversations sorted by bytes",
+      "Capture Properties",
+      "Expert Info"
+     ],
+     "a": 1,
+     "why": "Conversations lists pairs with byte counts that can be sorted."
+    },
+    {
+     "q": "Why start with summaries instead of reading packets?",
+     "options": [
+      "Packets cannot be read",
+      "Summaries quickly narrow millions of packets to the host of interest",
+      "Summaries decrypt traffic",
+      "It is required by law"
+     ],
+     "a": 1,
+     "why": "Statistics views help you find where to look first."
+    },
+    {
+     "q": "What does pivoting mean in triage?",
+     "options": [
+      "Rebooting the sensor",
+      "Using one indicator to search for related activity",
+      "Deleting noise",
+      "Changing profiles"
+     ],
+     "a": 1,
+     "why": "A found IP or domain becomes a new filter for more evidence."
+    },
+    {
+     "q": "Which action best preserves focused evidence for a report?",
+     "options": [
+      "Screenshot of the desktop",
+      "Export Specified Packets for the filtered subset",
+      "Delete other packets from the original",
+      "Rename the file"
+     ],
+     "a": 1,
+     "why": "Exporting the filtered subset keeps a small, reproducible evidence file."
+    }
+   ],
+   "recap": [
+    "Start with Properties, Protocol Hierarchy, Conversations and Endpoints.",
+    "Work from a question and a hypothesis, then pivot on shared IPs, domains and times.",
+    "Keep a UTC timeline and export focused evidence."
+   ]
+  },
+  {
+   "title": "DNS analysis",
+   "why": "DNS is allowed through almost every network, so attackers use it for command and control and data theft. Its logs are also one of the best detection sources you have.",
+   "sections": [
+    {
+     "h": "What normal DNS looks like",
+     "p": [
+      "DNS uses UDP port 53 for most queries and TCP port 53 for large responses and zone transfers. A query carries a name and a record type such as A, AAAA, MX, TXT or CNAME, and the response carries an RCODE: 0 NOERROR, 2 SERVFAIL, 3 NXDOMAIN. Normal workstation traffic is dominated by A and AAAA lookups of recognizable names that repeat often and resolve successfully. In Wireshark use the dns filter, add dns.qry.name and dns.qry.type as columns, and use Statistics, DNS for a breakdown. Establishing this baseline is what lets you notice the unusual."
+     ]
+    },
+    {
+     "h": "DNS tunneling and long TXT queries",
+     "p": [
+      "DNS tunneling hides data inside query names or record data. A tunnel encodes bytes into subdomain labels, for example a long string of letters and digits before the parent domain, so each query carries a small chunk to an attacker-controlled name server. Replies, often TXT or NULL records, carry data back. Indicators include very long names (a label can be up to 63 characters and a name up to 253), high entropy random-looking labels, many unique subdomains of a single parent domain, unusually frequent TXT queries, and a single host producing far more DNS than its peers."
+     ]
+    },
+    {
+     "h": "DGA and NXDOMAIN storms",
+     "p": [
+      "Malware that uses a domain generation algorithm computes many pseudo-random names per day and tries them until one resolves to its server. From the network this looks like many NXDOMAIN responses to names that look like random strings, such as xkqpzv7a.example, from one host in a short time. A rate of NXDOMAIN well above baseline is a strong signal and easy to alert on in dns.log. Defenders can also predict generated names for known families and sinkhole them. Note that misconfigured software can also produce NXDOMAIN bursts, so verify the host and process."
+     ]
+    },
+    {
+     "h": "Fast-flux and context",
+     "p": [
+      "Fast-flux means a domain resolves to a changing set of IP addresses with very short TTLs, sometimes a few seconds, to hide infrastructure and survive takedowns. Look for many A records per answer, rapid changes across repeated queries, and addresses spread over unrelated networks. Combine DNS evidence with context: domain age from WHOIS, passive DNS history, and which process on the host made the query. Content delivery networks also use short TTLs legitimately, so weigh multiple signals before calling a domain malicious, and prefer to block at the resolver once confident."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "dns.log style excerpt",
+    "text": "host 192.0.2.10 qtype TXT rcode NOERROR\n 4f3a9c01b7e2d8aa11c0ffee5d.t1.example.com\n 9be2077ad41c53e8bb02aa91fd.t1.example.com\n 11d07ce5a39b2f4408de61c7a2.t1.example.com\nunique subdomains of t1.example.com: 2,340 in 10 min\navg query name length: 61"
+   },
+   "example": "A resolver log shows workstation 192.0.2.10 issued 2,340 TXT queries in ten minutes, all subdomains of t1.example.com, each with a 26 to 40 character random-looking label. No other host queries that domain. The analyst concludes this fits DNS tunneling, notes the volume as potential staging of data out, blocks the domain at the resolver, and asks the endpoint team to identify the process that produced the queries.",
+   "terms": [
+    {
+     "term": "NXDOMAIN",
+     "def": "A DNS response meaning the queried name does not exist."
+    },
+    {
+     "term": "DGA",
+     "def": "A routine that generates many pseudo-random domain names for malware to contact."
+    },
+    {
+     "term": "DNS tunneling",
+     "def": "Encoding data inside DNS queries and responses to bypass controls."
+    },
+    {
+     "term": "TTL (DNS)",
+     "def": "How long a resolver may cache an answer, in seconds."
+    },
+    {
+     "term": "Fast-flux",
+     "def": "Rapidly rotating the IP addresses behind a domain."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which signal best suggests DNS tunneling?",
+     "options": [
+      "One short A query",
+      "Many unique long high-entropy subdomains of one domain",
+      "A single MX lookup",
+      "A PTR query"
+     ],
+     "a": 1,
+     "why": "Tunnels need many unique encoded names under one controlled domain."
+    },
+    {
+     "q": "A burst of NXDOMAIN responses for random-looking names from one host most likely indicates",
+     "options": [
+      "DGA activity",
+      "Normal browsing",
+      "A CDN",
+      "A zone transfer"
+     ],
+     "a": 0,
+     "why": "DGA malware tries many generated names that mostly do not exist."
+    },
+    {
+     "q": "What is the maximum length of a full DNS name?",
+     "options": [
+      "63 characters",
+      "128 characters",
+      "253 characters",
+      "1024 characters"
+     ],
+     "a": 2,
+     "why": "A name may be 253 characters, with each label limited to 63."
+    },
+    {
+     "q": "Fast-flux is characterized by",
+     "options": [
+      "Long TTLs and one stable IP",
+      "Short TTLs and rapidly changing IPs",
+      "Only TCP queries",
+      "Only IPv6 answers"
+     ],
+     "a": 1,
+     "why": "Short TTLs and rotating addresses hide the real infrastructure."
+    }
+   ],
+   "recap": [
+    "Know normal DNS so abnormal volume, length and entropy stand out.",
+    "Tunneling, DGA and fast-flux each leave distinct DNS patterns.",
+    "Confirm with WHOIS, passive DNS and the originating process before blocking."
+   ]
+  },
+  {
+   "title": "HTTP analysis",
+   "why": "Plain HTTP and even some malware over HTTPS metadata reveal command and control, payload delivery and data theft. HTTP fields are easy to filter and hunt.",
+   "sections": [
+    {
+     "h": "Reading an HTTP exchange",
+     "p": [
+      "An HTTP request has a method (GET, POST, PUT), a path, a version and headers such as Host, User-Agent, Content-Type and Content-Length. The response has a status code (200, 302, 404, 500) and its own headers. In Wireshark filter with http.request, http.response, http.host contains \"example\" or http.user_agent. Following the TCP stream shows both sides. Cleartext HTTP exposes everything; for HTTPS you see only metadata such as the TLS Server Name Indication, certificate fields and sizes unless you hold the session keys or an inspecting proxy decrypts it."
+     ]
+    },
+    {
+     "h": "Command and control over HTTP",
+     "p": [
+      "Malware often chooses HTTP or HTTPS because the traffic blends with web browsing. Signs include a hard-coded or missing User-Agent (for example a default library string such as python-requests or a very old browser), requests to a bare IP address instead of a name, unusual paths with long encoded parameters, small repeating POSTs to the same URI, and a Host header that does not match the destination. Servers on odd ports such as 8080 or 8443 are not suspicious by themselves, but combined with the signs above they are worth a look."
+     ]
+    },
+    {
+     "h": "Downloads and uploads",
+     "p": [
+      "Payload delivery appears as a GET for an executable, script, archive or document, with a Content-Type such as application/octet-stream or application/x-msdownload, and a magic number such as MZ at the start of the data. Data theft appears as large POST or PUT requests, often multipart/form-data, from an internal host to an external server. Use File, Export Objects, HTTP to extract files, then calculate hashes and check them against reputation services. Note the file name in Content-Disposition and the timing relative to the first suspicious connection."
+     ]
+    },
+    {
+     "h": "Limits and good practice",
+     "p": [
+      "Many sites use HTTPS, so look for TLS indicators too: rare certificates, self-signed or very new certificates, mismatched SNI, and fingerprints such as JA3 or JA4 that identify the client library. Attackers can fake User-Agents, so treat any single field as a lead, not proof. Corroborate with proxy logs, DNS and endpoint data. Never open a downloaded file on your normal workstation, and defang URLs when you write reports, for example hxxp://malware[.]example[.]com/update.exe."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "HTTP request in a stream",
+    "text": "POST /api/v2/sync HTTP/1.1\nHost: 203.0.113.50\nUser-Agent: python-requests/2.28\nContent-Type: application/x-www-form-urlencoded\nContent-Length: 482\n\nd=Qk9HVVMtREFUQS1GT1ItVFJBSU5JTkc..."
+   },
+   "example": "Following a TCP stream from 192.0.2.10, the analyst sees a POST to 203.0.113.50 with a python-requests User-Agent every 60 seconds, each with a base64 body of about 480 bytes, and a 200 response returning a short token. The destination is an IP rather than a domain and the user's workstation has no Python-based business tool. The analyst flags probable HTTP command and control, exports the traffic, and passes the IP and User-Agent to the hunt team.",
+   "terms": [
+    {
+     "term": "User-Agent",
+     "def": "An HTTP header identifying the client software."
+    },
+    {
+     "term": "Content-Type",
+     "def": "A header that describes the media type of the body."
+    },
+    {
+     "term": "SNI",
+     "def": "The TLS extension that shows the requested server name in the clear."
+    },
+    {
+     "term": "JA3",
+     "def": "A fingerprint of TLS client parameters used to identify client software."
+    },
+    {
+     "term": "Defang",
+     "def": "Altering a URL or IP so it cannot be clicked or resolved by accident."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which pairing is most suspicious on a workstation?",
+     "options": [
+      "GET to a news site",
+      "Repeating small POSTs to a bare IP with a library User-Agent",
+      "A 304 response",
+      "HEAD to a CDN"
+     ],
+     "a": 1,
+     "why": "Regular small POSTs to an IP with a scripting UA look like C2 check-ins."
+    },
+    {
+     "q": "What can you see in HTTPS traffic without decryption?",
+     "options": [
+      "Full URL paths",
+      "Server name, certificate data, sizes and timing",
+      "Cookie values",
+      "POST bodies"
+     ],
+     "a": 1,
+     "why": "Only the TLS metadata is visible, not the encrypted content."
+    },
+    {
+     "q": "Which Wireshark feature saves files from HTTP traffic?",
+     "options": [
+      "Follow Stream",
+      "Export Objects",
+      "Protocol Hierarchy",
+      "I/O Graph"
+     ],
+     "a": 1,
+     "why": "Export Objects, HTTP carves transferred files."
+    },
+    {
+     "q": "Why defang URLs in reports?",
+     "options": [
+      "To shorten them",
+      "To prevent accidental clicks or resolution",
+      "To encrypt them",
+      "To improve SEO"
+     ],
+     "a": 1,
+     "why": "Defanging stops readers from touching a live malicious link."
+    }
+   ],
+   "recap": [
+    "HTTP exposes methods, hosts, user agents and payloads in cleartext.",
+    "C2 shows as regular small requests, odd agents and bare IP hosts.",
+    "Hash exported files and defang URLs when reporting."
+   ]
+  },
+  {
+   "title": "SMB and lateral movement traffic",
+   "why": "After gaining a foothold, attackers move between internal hosts, often over SMB. Seeing that traffic is how you find the spread of an intrusion.",
+   "sections": [
+    {
+     "h": "SMB basics",
+     "p": [
+      "Server Message Block runs on TCP port 445 and provides file, printer and named-pipe access in Windows networks. A session starts with protocol negotiation (SMB2 Negotiate), then Session Setup with authentication (NTLM or Kerberos), then Tree Connect to a share such as \\\\HOST\\C$. In Wireshark use smb2 or smb, and filter commands, for example smb2.cmd == 5 for Create and smb2.cmd == 9 for Write. Normal SMB exists everywhere, so the question is always whether this client should talk to this server, and at this time."
+     ]
+    },
+    {
+     "h": "Admin shares and named pipes",
+     "p": [
+      "Hidden administrative shares exist by default: C$ for the drive root, ADMIN$ for the Windows directory and IPC$ for inter-process communication. Writing an executable into ADMIN$ or C$\\Windows by a non-administrative workstation is a classic lateral movement step. IPC$ gives access to named pipes such as svcctl (service control), atsvc and samr, which let a remote caller run remote procedure calls over DCE/RPC. Seeing svcctl calls such as CreateService and StartService right after a file write is a strong sign of remote execution."
+     ]
+    },
+    {
+     "h": "PsExec and similar patterns",
+     "p": [
+      "PsExec and clones follow a recognizable sequence: authenticate over SMB, connect to ADMIN$, write a service executable (the original uses PSEXESVC.exe), open the svcctl pipe on IPC$, create and start a service, then communicate through further named pipes. Impacket-style tools and some frameworks randomize names but keep the same structure. The authenticated account is often a domain admin or a recently stolen credential. On the endpoint the same activity creates Windows events such as 7045 for a service installation and 4624 logon type 3, which you should correlate."
+     ]
+    },
+    {
+     "h": "Detection and response",
+     "p": [
+      "Baseline which workstations legitimately talk SMB to which servers. Alert on workstation-to-workstation SMB, writes to ADMIN$, many failed logons followed by a success, and a single source touching many hosts in a short time, which indicates scanning or spreading. Segmentation, disabling SMBv1, and host firewalls that block inbound 445 between workstations reduce the risk. During investigation, record source, destination, account, share, file name and times, and ask for the file from the target host to analyze."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "SMB2 command sequence",
+    "text": "192.0.2.10 -> 192.0.2.50 Session Setup (user: svc-fake)\n192.0.2.10 -> 192.0.2.50 Tree Connect \\\\192.0.2.50\\ADMIN$\n192.0.2.10 -> 192.0.2.50 Create/Write evilsvc.exe\n192.0.2.10 -> 192.0.2.50 Tree Connect \\\\192.0.2.50\\IPC$\n192.0.2.10 -> 192.0.2.50 Create pipe svcctl\n192.0.2.10 -> 192.0.2.50 DCERPC CreateServiceW, StartServiceW"
+   },
+   "example": "The capture shows 192.0.2.10, a user workstation, authenticating to 192.0.2.50, a file server, writing evilsvc.exe to ADMIN$ and then calling CreateServiceW over the svcctl pipe. Minutes later 192.0.2.50 begins an outbound connection to 203.0.113.50. The analyst names 192.0.2.10 as the source of lateral movement and 192.0.2.50 as the target, notes the account used, and recommends isolating both hosts and resetting the account.",
+   "terms": [
+    {
+     "term": "ADMIN$",
+     "def": "A hidden administrative share that maps to the Windows directory."
+    },
+    {
+     "term": "IPC$",
+     "def": "A share used for named pipes and remote procedure calls."
+    },
+    {
+     "term": "Named pipe",
+     "def": "An inter-process channel exposed over SMB such as svcctl."
+    },
+    {
+     "term": "Lateral movement",
+     "def": "Moving from one compromised host to others inside a network."
+    },
+    {
+     "term": "PsExec",
+     "def": "A tool that runs commands remotely by installing a service over SMB."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which TCP port does SMB normally use?",
+     "options": [
+      "139 only",
+      "445",
+      "3389",
+      "5985"
+     ],
+     "a": 1,
+     "why": "Modern SMB runs directly over TCP 445."
+    },
+    {
+     "q": "Which sequence is typical of PsExec-style movement?",
+     "options": [
+      "DNS then HTTP",
+      "ADMIN$ write, svcctl pipe, service creation",
+      "FTP login",
+      "ICMP flood"
+     ],
+     "a": 1,
+     "why": "The tool copies an executable and starts it as a remote service."
+    },
+    {
+     "q": "Which Windows event ID records a service installation?",
+     "options": [
+      "4624",
+      "7045",
+      "4688 only",
+      "1102"
+     ],
+     "a": 1,
+     "why": "Event 7045 in the System log records a new service."
+    },
+    {
+     "q": "Which SMB observation is most alarming?",
+     "options": [
+      "A user opening a file server share",
+      "A workstation writing an executable to another workstation's ADMIN$",
+      "A server talking to a domain controller",
+      "DNS to a resolver"
+     ],
+     "a": 1,
+     "why": "Workstation-to-workstation admin share writes rarely have a legitimate reason."
+    }
+   ],
+   "recap": [
+    "SMB on 445 carries sessions, shares and named pipes.",
+    "ADMIN$, IPC$, svcctl and service creation mark PsExec-like movement.",
+    "Baseline normal SMB, segment the network and correlate with Windows events."
+   ]
+  },
+  {
+   "title": "Zeek logs and Suricata alerts",
+   "why": "Packet captures do not scale to a whole network. Zeek and Suricata turn traffic into structured logs and alerts that a SOC can search every day.",
+   "sections": [
+    {
+     "h": "Zeek logs",
+     "p": [
+      "Zeek is a network analysis framework that writes one log per protocol. conn.log records every connection with fields such as ts, uid, id.orig_h, id.orig_p, id.resp_h, id.resp_p, proto, service, duration, orig_bytes, resp_bytes and conn_state (S0 means attempted with no reply, SF a normal completed session, REJ rejected). dns.log records query, qtype_name and rcode_name; http.log records host, uri, method, user_agent and status_code; ssl.log records server_name and certificate details; files.log records hashes of transferred files. Logs are tab-separated or JSON."
+     ]
+    },
+    {
+     "h": "The uid and community_id pivot",
+     "p": [
+      "Each connection gets a unique identifier called uid, such as CYn21N3p0F9mFhq9a2. The same uid appears in conn.log and in the protocol logs for that connection, so you can join a connection to the DNS query, HTTP request, SSL handshake and files it contained. This is the key pivot: find a suspicious row in conn.log, then search for the same uid in http.log to see the URI and user agent. Community ID is another hash that is stable across tools, which lets you match a Zeek connection with a Suricata alert for the same flow."
+     ]
+    },
+    {
+     "h": "Suricata and eve.json",
+     "p": [
+      "Suricata is an intrusion detection system that matches traffic against rules, such as Emerging Threats signatures, and can also log protocol metadata. Alerts are written to eve.json, one JSON object per line, with event_type alert, src_ip, dest_ip, proto, and an alert object holding signature, signature_id, category and severity. Metadata events for dns, http, tls and flow appear in the same file. A rule has an action, header (protocol, addresses, ports) and options such as msg, content, sid and rev. The alert tells you which signature matched, not that an attack succeeded."
+     ]
+    },
+    {
+     "h": "Using them together",
+     "p": [
+      "Typical workflow: a Suricata alert names a signature and a host, you pivot to Zeek conn.log by address and time, follow the uid into dns.log and http.log, then open the PCAP segment if a full-packet record exists. Check whether the signature is noisy, whether the destination answered, and how many bytes flowed in each direction. Tune rules by suppressing confirmed false positives rather than disabling whole categories. Retain logs long enough to look back at earlier activity from a newly learned indicator."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "eve.json alert (abridged)",
+    "text": "{\"timestamp\":\"2026-03-02T02:14:09Z\",\"event_type\":\"alert\",\n \"src_ip\":\"192.0.2.10\",\"dest_ip\":\"203.0.113.50\",\"proto\":\"TCP\",\n \"alert\":{\"signature\":\"ET MALWARE Example C2 Checkin\",\n \"signature_id\":2000001,\"category\":\"A Network Trojan was detected\",\"severity\":1}}"
+   },
+   "example": "A Suricata alert flags a C2 check-in from 192.0.2.10 to 203.0.113.50. The analyst searches conn.log for that pair, finds uid CYn21N3p0F9mFhq9a2 with 480 bytes out and 1,900 bytes back, state SF, then searches http.log with the same uid to see a POST with a python-requests agent. dns.log shows the host resolved update.example.net to that IP a moment earlier. The pieces agree, so the alert is treated as true.",
+   "terms": [
+    {
+     "term": "uid",
+     "def": "A unique identifier tying a Zeek connection to its protocol logs."
+    },
+    {
+     "term": "conn.log",
+     "def": "The Zeek log with one row per network connection."
+    },
+    {
+     "term": "eve.json",
+     "def": "Suricata's JSON output of alerts and metadata."
+    },
+    {
+     "term": "Signature",
+     "def": "A rule that matches known malicious or suspicious traffic."
+    },
+    {
+     "term": "conn_state",
+     "def": "A Zeek field summarizing how a connection began and ended."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which field joins conn.log rows to http.log rows?",
+     "options": [
+      "ts",
+      "uid",
+      "proto",
+      "service"
+     ],
+     "a": 1,
+     "why": "uid is the shared connection identifier."
+    },
+    {
+     "q": "A conn_state of S0 means",
+     "options": [
+      "Normal completion",
+      "Connection attempt seen with no reply",
+      "Reset by responder",
+      "Data only"
+     ],
+     "a": 1,
+     "why": "S0 is an attempt with no response, as in a scan or filtered port."
+    },
+    {
+     "q": "Where does Suricata write alerts in JSON?",
+     "options": [
+      "conn.log",
+      "eve.json",
+      "files.log",
+      "weird.log"
+     ],
+     "a": 1,
+     "why": "eve.json is Suricata's JSON event log."
+    },
+    {
+     "q": "A Suricata alert alone proves",
+     "options": [
+      "A successful compromise",
+      "That a signature matched the traffic",
+      "The file hash",
+      "The user's identity"
+     ],
+     "a": 1,
+     "why": "An alert shows a match and needs corroboration to show impact."
+    }
+   ],
+   "recap": [
+    "Zeek writes protocol logs; Suricata writes rule-based alerts to eve.json.",
+    "Pivot with uid and community_id across logs.",
+    "Corroborate alerts with conn bytes, DNS and HTTP context."
+   ]
+  },
+  {
+   "title": "Beaconing and exfiltration patterns",
+   "why": "Compromised hosts must talk to their operators and ship data out. Statistical patterns in connection logs reveal both even when the content is encrypted.",
+   "sections": [
+    {
+     "h": "What beaconing looks like",
+     "p": [
+      "A beacon is a periodic check-in from malware to its server asking for tasks. In flow data it appears as connections from one internal host to one external destination at near-constant intervals, such as every 60 seconds, with similar byte counts each time. Operators add jitter, a random percentage variation such as 10 to 30 percent, to avoid exact periodicity, so analysts look at the distribution of time deltas rather than a perfect clock. Long sleep times of minutes or hours exist too, which means you need long time windows."
+     ]
+    },
+    {
+     "h": "Finding beacons with statistics",
+     "p": [
+      "Compute the time between consecutive connections for each source and destination pair. A low standard deviation or a tight cluster around a median suggests automation, as does a high count of connections over hours with tiny payloads. Visual aids help: an I/O graph or a scatter plot of connection times shows steady vertical ticks for a beacon, unlike human browsing, which is bursty. Tools such as RITA score beacons from Zeek logs. Exclude known periodic legitimate traffic like NTP, software updates and monitoring agents using allowlists, or you will drown in false positives."
+     ]
+    },
+    {
+     "h": "Exfiltration patterns",
+     "p": [
+      "Exfiltration shows as unusually large outbound transfers, a skewed ratio of orig_bytes to resp_bytes, uploads at odd hours, or traffic to rarely seen destinations such as personal storage services. Attackers may compress and encrypt archives first, stage data on one internal host, and then send it in chunks over HTTPS, DNS, FTP or cloud APIs to stay below size thresholds. Compare each host against its own history and its peer group. Data volume to a new destination within a day of suspicious internal collection activity is a strong correlation."
+     ]
+    },
+    {
+     "h": "Response",
+     "p": [
+      "When you find a likely beacon, confirm with another source: the process on the endpoint, the DNS name, the certificate and the JA3 fingerprint. Block the destination at the firewall or proxy, but preserve the logs and PCAP first, and look for other hosts talking to the same address. For exfiltration, estimate how much and what data, tell the incident lead promptly, and consider legal and notification duties. Document statistics such as interval, jitter, count and total bytes so your finding can be defended."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Connection intervals (conn.log)",
+    "text": "192.0.2.10 -> 203.0.113.50:443  intervals (s)\n60.1  59.8  60.3  60.0  59.9  60.2\ncount 1440/day  median 60.0  stdev 0.2\navg orig_bytes 480  avg resp_bytes 1900\nupload to 198.51.100.90:443 at 02:14  1.8 GB"
+   },
+   "example": "Three hosts are charted by connection interval. Host A is bursty and irregular, host B connects every 300 seconds to an update server on an allowlist, and host C connects to 203.0.113.50 every 60 seconds plus or minus 0.3 seconds all day with about 480 bytes each. The analyst picks host C as the beacon, rules out B as expected and A as human, and notes the destination for blocking and for a search across other hosts.",
+   "terms": [
+    {
+     "term": "Beacon",
+     "def": "A periodic call-home connection from malware to its controller."
+    },
+    {
+     "term": "Jitter",
+     "def": "Random variation added to a beacon interval to avoid exact periodicity."
+    },
+    {
+     "term": "Exfiltration",
+     "def": "Unauthorized transfer of data out of a network."
+    },
+    {
+     "term": "Staging",
+     "def": "Collecting data in one place before sending it out."
+    },
+    {
+     "term": "Allowlist",
+     "def": "A list of known legitimate destinations excluded from alerts."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which pattern best indicates beaconing?",
+     "options": [
+      "One 2 GB download",
+      "Connections to one destination every 60 seconds with similar sizes",
+      "A random burst while browsing",
+      "One DNS query"
+     ],
+     "a": 1,
+     "why": "Regular intervals and similar sizes point to automated check-ins."
+    },
+    {
+     "q": "Why do operators add jitter?",
+     "options": [
+      "To increase speed",
+      "To avoid exact periodic detection",
+      "To encrypt traffic",
+      "To reduce port use"
+     ],
+     "a": 1,
+     "why": "Jitter blurs the interval so simple periodicity checks fail."
+    },
+    {
+     "q": "Which indicator suggests exfiltration?",
+     "options": [
+      "High orig_bytes to a new external destination at 02:00",
+      "Small DNS queries to the resolver",
+      "Local DHCP renewals",
+      "ARP requests"
+     ],
+     "a": 0,
+     "why": "Large outbound volume to a new destination at an odd hour is a classic sign."
+    },
+    {
+     "q": "What should you do before blocking a beacon destination?",
+     "options": [
+      "Nothing",
+      "Preserve logs and PCAP and look for other affected hosts",
+      "Delete the logs",
+      "Reboot the router"
+     ],
+     "a": 1,
+     "why": "Evidence and scope are needed before the IOC is blocked."
+    }
+   ],
+   "recap": [
+    "Beacons show regular intervals, small repeated payloads and low variance.",
+    "Exfiltration shows as large outbound volume to new destinations.",
+    "Allowlist benign periodic traffic and back findings with statistics."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Filter a capture",
+   "sim": "packet-viewer",
+   "scenario": "You have a 12,000-packet capture from a small office. Host 192.0.2.10 is reported to be acting strangely. The simulator loads the capture into a viewer with a display filter bar.",
+   "objective": "Use display filters to isolate the host's traffic and its web requests.",
+   "steps": [
+    {
+     "do": "Type ip.addr == 192.0.2.10 and press Enter.",
+     "see": "Filter applied. Displaying 3,412 of 12,000 packets."
+    },
+    {
+     "do": "Add && tcp.flags.syn == 1 && tcp.flags.ack == 0.",
+     "see": "Displaying 96 packets. 90 are to 198.51.100.20."
+    },
+    {
+     "do": "Replace the filter with ip.addr == 192.0.2.10 && http.request.",
+     "see": "Displaying 14 packets. Hosts: 203.0.113.50, example.com."
+    },
+    {
+     "do": "Add http.host and http.user_agent as columns.",
+     "see": "Columns added. 11 requests use user agent python-requests/2.28."
+    },
+    {
+     "do": "Select the first request to 203.0.113.50.",
+     "see": "GET /update.exe HTTP/1.1, Host: 203.0.113.50, frame 4,117."
+    }
+   ],
+   "answer": "The host 192.0.2.10 made 14 HTTP requests, 11 of them to the bare IP 203.0.113.50 with a python-requests user agent, including a GET for /update.exe in frame 4,117. This is the suspicious activity to follow up.",
+   "hint": "Combine conditions with && and add columns so you can compare fields at a glance."
+  },
+  {
+   "title": "Follow the TCP stream",
+   "sim": "packet-viewer",
+   "scenario": "Frame 4,117 from the previous capture begins a plaintext HTTP download from 203.0.113.50. You need to know what file was fetched and whether the transfer completed.",
+   "objective": "Follow the stream and extract the downloaded file name.",
+   "steps": [
+    {
+     "do": "Right-click frame 4,117 and choose Follow, TCP Stream.",
+     "see": "Stream 21 opened: 1 client pkt, 38 server pkts, 52 KB."
+    },
+    {
+     "do": "Read the client section.",
+     "see": "GET /update.exe HTTP/1.1 / Host: 203.0.113.50 / User-Agent: python-requests/2.28"
+    },
+    {
+     "do": "Read the server headers.",
+     "see": "HTTP/1.1 200 OK / Content-Type: application/octet-stream / Content-Disposition: attachment; filename=\"invoice_viewer.exe\""
+    },
+    {
+     "do": "Look at the start of the body.",
+     "see": "First bytes: 4D 5A 90 00 (MZ header)."
+    },
+    {
+     "do": "Open File, Export Objects, HTTP.",
+     "see": "One object listed: invoice_viewer.exe, 51,200 bytes."
+    },
+    {
+     "do": "Save the object and calculate the hash.",
+     "see": "SHA-256 shown: 9f2c...e1a4 (simulated)."
+    }
+   ],
+   "answer": "The file name is invoice_viewer.exe, a 51,200 byte Windows executable (MZ header) downloaded over cleartext HTTP from 203.0.113.50 despite the path /update.exe. It should be hashed and checked for reputation.",
+   "hint": "The real file name is in the Content-Disposition header, not necessarily the URL path."
+  },
+  {
+   "title": "Find the DNS tunnel",
+   "sim": "packet-viewer",
+   "scenario": "The same capture holds thousands of DNS queries. One domain is suspected of carrying hidden data in its subdomains.",
+   "objective": "Identify the domain with long subdomain labels and count its queries.",
+   "steps": [
+    {
+     "do": "Filter with dns.",
+     "see": "Displaying 2,980 DNS packets."
+    },
+    {
+     "do": "Open Statistics, DNS and sort by query count.",
+     "see": "Top parent domains: example.com 40, t1.example.net 1,150, cdn.example.org 22."
+    },
+    {
+     "do": "Add dns.qry.name as a column and sort by length.",
+     "see": "Longest names are 58 to 71 characters, all ending in t1.example.net."
+    },
+    {
+     "do": "Apply dns.qry.name contains \"t1.example.net\".",
+     "see": "Displaying 2,300 packets (1,150 queries and 1,150 responses)."
+    },
+    {
+     "do": "Check record types.",
+     "see": "1,150 queries of type TXT; 1,148 NOERROR."
+    }
+   ],
+   "answer": "The domain t1.example.net received 1,150 TXT queries with long, random-looking subdomain labels, which is consistent with DNS tunneling from 192.0.2.10.",
+   "hint": "Count queries, not packets; each query has a matching response."
+  },
+  {
+   "title": "Spot SMB lateral movement",
+   "sim": "packet-viewer",
+   "scenario": "A second capture from the server VLAN shows suspicious SMB activity near 03:00 UTC. Hosts involved are in 192.0.2.0/24.",
+   "objective": "Locate ADMIN$ writes and a service creation and name the source and target.",
+   "steps": [
+    {
+     "do": "Filter with smb2.",
+     "see": "Displaying 640 SMB2 packets."
+    },
+    {
+     "do": "Filter smb2.filename contains \"ADMIN$\" or smb2.tree contains \"ADMIN$\".",
+     "see": "Tree Connect \\\\192.0.2.50\\ADMIN$ from 192.0.2.10 at 03:02:11."
+    },
+    {
+     "do": "Filter smb2.cmd == 9 && ip.dst == 192.0.2.50.",
+     "see": "Write request: file evilsvc.exe, 71,680 bytes, from 192.0.2.10."
+    },
+    {
+     "do": "Filter dcerpc.",
+     "see": "svcctl: CreateServiceW, StartServiceW from 192.0.2.10 to 192.0.2.50."
+    },
+    {
+     "do": "Check the authenticated account in Session Setup.",
+     "see": "Account: EXAMPLE\\svc-fake."
+    }
+   ],
+   "answer": "Source 192.0.2.10 wrote evilsvc.exe to ADMIN$ on target 192.0.2.50 and created and started a service via svcctl, using the account EXAMPLE\\svc-fake. This is PsExec-style lateral movement.",
+   "hint": "Look for a file write to ADMIN$ followed by service control calls."
+  },
+  {
+   "title": "Pivot through Zeek logs",
+   "sim": "log-viewer",
+   "scenario": "A Suricata alert named 203.0.113.50. You have Zeek logs and need to learn which domain the host resolved before connecting.",
+   "objective": "Join conn.log and dns.log by uid and link the connection to a domain.",
+   "steps": [
+    {
+     "do": "Search conn.log for id.resp_h 203.0.113.50.",
+     "see": "1 row: uid CYn21N3p0F9mFhq9a2, orig 192.0.2.10:50514, resp 203.0.113.50:80, SF, orig_bytes 482."
+    },
+    {
+     "do": "Search http.log for uid CYn21N3p0F9mFhq9a2.",
+     "see": "POST /api/v2/sync, user_agent python-requests/2.28, status 200."
+    },
+    {
+     "do": "Search dns.log for id.orig_h 192.0.2.10 with answers containing 203.0.113.50.",
+     "see": "query update.example.net, A, answers 203.0.113.50, ts 02:13:58 (a different uid)."
+    },
+    {
+     "do": "Compare timestamps.",
+     "see": "DNS answer 11 seconds before the connection."
+    }
+   ],
+   "answer": "The connection (uid CYn21N3p0F9mFhq9a2) to 203.0.113.50 is linked to the domain update.example.net, which 192.0.2.10 resolved 11 seconds earlier. DNS has its own uid, so the link is made by address and time.",
+   "hint": "DNS queries have their own uid; match on the answer IP and timing."
+  },
+  {
+   "title": "Detect beaconing",
+   "sim": "scenario",
+   "scenario": "Three workstations appear in the connection interval view for the last 24 hours. One is infected with malware that calls home.",
+   "objective": "Choose the host that beacons every 60 seconds.",
+   "steps": [
+    {
+     "do": "Open host WS-A chart.",
+     "see": "Irregular bursts, 9am to 5pm, intervals from 2 s to 40 min."
+    },
+    {
+     "do": "Open host WS-B chart.",
+     "see": "Steady 300 s interval to an allowlisted update server."
+    },
+    {
+     "do": "Open host WS-C chart.",
+     "see": "Ticks every 60 s (stdev 0.3 s) to 203.0.113.50 all 24 hours, ~480 bytes each."
+    },
+    {
+     "do": "Select a verdict.",
+     "see": "Choose WS-A, WS-B or WS-C."
+    },
+    {
+     "do": "Submit WS-C.",
+     "see": "Correct. Recorded: 60 s beacon to 203.0.113.50, escalate for containment."
+    }
+   ],
+   "answer": "WS-C is beaconing: constant 60 second intervals, small uniform payloads, 24 hour activity and an unrecognized destination. WS-A is human, WS-B is benign and allowlisted.",
+   "hint": "Humans are bursty; allowlisted updaters are periodic but expected."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which TCP flag combination is the first packet of a handshake?",
+   "options": [
+    "SYN",
+    "SYN,ACK",
+    "ACK",
+    "FIN"
+   ],
+   "a": 0,
+   "why": "A client starts with SYN alone."
+  },
+  {
+   "q": "Which filter hides packets without discarding them?",
+   "options": [
+    "BPF capture filter",
+    "Display filter",
+    "Snap length",
+    "Ring buffer"
+   ],
+   "a": 1,
+   "why": "Display filters only change the view."
+  },
+  {
+   "q": "Which statistics view best finds the top talkers by bytes?",
+   "options": [
+    "Conversations",
+    "Flow Graph",
+    "Packet Lengths",
+    "Expert Info"
+   ],
+   "a": 0,
+   "why": "Conversations can be sorted by bytes."
+  },
+  {
+   "q": "Many random-looking NXDOMAIN lookups from one host suggest",
+   "options": [
+    "DGA",
+    "A zone transfer",
+    "Fast DHCP",
+    "IPv6 SLAAC"
+   ],
+   "a": 0,
+   "why": "DGA malware tries many generated names."
+  },
+  {
+   "q": "Which header most clearly hints at script-based HTTP C2?",
+   "options": [
+    "Accept-Language",
+    "User-Agent python-requests",
+    "Cache-Control",
+    "Connection"
+   ],
+   "a": 1,
+   "why": "A scripting library UA on a workstation is unusual."
+  },
+  {
+   "q": "Writing an executable to ADMIN$ then using svcctl suggests",
+   "options": [
+    "Printing",
+    "PsExec-style execution",
+    "DNS tunneling",
+    "Backup"
+   ],
+   "a": 1,
+   "why": "This is the classic remote service execution sequence."
+  },
+  {
+   "q": "Which Zeek field joins conn.log with http.log?",
+   "options": [
+    "uid",
+    "ts",
+    "proto",
+    "duration"
+   ],
+   "a": 0,
+   "why": "uid links all logs of a connection."
+  },
+  {
+   "q": "Suricata alerts are stored in",
+   "options": [
+    "eve.json",
+    "conn.log",
+    "dns.log",
+    "pcap.txt"
+   ],
+   "a": 0,
+   "why": "eve.json is Suricata's event output."
+  },
+  {
+   "q": "A beacon with jitter will most likely show",
+   "options": [
+    "Exactly equal intervals",
+    "Intervals clustered around a median with some variation",
+    "Only one packet",
+    "Only UDP"
+   ],
+   "a": 1,
+   "why": "Jitter widens the spread but the pattern stays clustered."
+  },
+  {
+   "q": "Which is the strongest sign of exfiltration?",
+   "options": [
+    "Large outbound upload to a new destination at 02:00",
+    "Many ARP broadcasts",
+    "A short DNS lookup",
+    "An NTP sync"
+   ],
+   "a": 0,
+   "why": "Unusual volume, destination and time together are strong evidence."
+  }
+ ]
+}

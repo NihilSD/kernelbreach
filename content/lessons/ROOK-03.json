@@ -1,0 +1,1212 @@
+{
+ "code": "ROOK-03",
+ "intro": "Networks connect every computer you will ever defend or attack, so this is the longest module in the stage. You will read IPv4, IPv6 and MAC addresses, calculate subnets, and map protocols to the OSI and TCP/IP layers. You will study TCP and UDP, the three-way handshake, well-known ports, DNS, DHCP and NAT, then switches, routers and Wi-Fi. The module ends with ping, traceroute, nslookup and ARP, the first tools you will use to find where a connection fails.",
+ "lessons": [
+  {
+   "title": "IPv4, IPv6 and MAC Addresses",
+   "why": "Addresses identify devices on a network, and reading them quickly is the foundation of every later networking and log analysis task.",
+   "sections": [
+    {
+     "h": "IPv4 addresses",
+     "p": [
+      "An IPv4 address is a 32-bit number written as four decimal octets separated by dots, such as 192.0.2.10. Each octet is eight bits, so it ranges from 0 to 255. The address has two parts: a network portion that identifies the network and a host portion that identifies the device on it. IPv4 offers about 4.3 billion addresses, which is fewer than the number of connected devices today. That shortage drove the use of private addressing and NAT, covered later. Every device that communicates over IP, whether a laptop, a server or a printer, needs an address, which may be assigned manually or by DHCP."
+     ]
+    },
+    {
+     "h": "Private, public and special ranges",
+     "p": [
+      "RFC 1918 reserves three private ranges that are not routed on the public internet: 10.0.0.0 to 10.255.255.255 (10.0.0.0/8), 172.16.0.0 to 172.31.255.255 (172.16.0.0/12) and 192.168.0.0 to 192.168.255.255 (192.168.0.0/16). Home and office networks use them internally. Other special blocks include 127.0.0.1, the loopback address that always means this computer, and 169.254.0.0/16, used for automatic link-local addresses when DHCP fails. Documentation blocks 192.0.2.0/24, 198.51.100.0/24 and 203.0.113.0/24 are reserved for examples, which is why this book uses them."
+     ]
+    },
+    {
+     "h": "IPv6 addresses",
+     "p": [
+      "IPv6 uses 128-bit addresses written as eight groups of four hex digits separated by colons, for example 2001:db8:0:0:0:0:0:1. Leading zeros in a group can be dropped and one run of all-zero groups can be replaced by a double colon, so the same address becomes 2001:db8::1. The prefix 2001:db8::/32 is reserved for documentation. IPv6 provides an enormous address space, so NAT is not needed for scarcity. Link-local addresses begin with fe80::, and ::1 is loopback. Many networks run IPv4 and IPv6 together, so defenders must monitor and secure both, because ignoring IPv6 leaves a blind spot."
+     ]
+    },
+    {
+     "h": "MAC addresses",
+     "p": [
+      "A Media Access Control, or MAC, address is a 48-bit hardware identifier for a network interface, written as six hex pairs such as 00:00:5E:00:53:01. The first three bytes are the Organizationally Unique Identifier, or OUI, assigned to the manufacturer, and the last three are chosen by that manufacturer. MAC addresses work at the local network segment, while IP addresses work across networks. A MAC address can be changed in software, so it should not be treated as proof of identity. Randomized MAC addresses are now common on phones to reduce tracking, which can complicate device inventories."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Address formats",
+    "text": "IPv4  : 192.0.2.10            (32 bits)\nIPv6  : 2001:db8::1            (128 bits)\nMAC   : 00:00:5E:00:53:01      (48 bits)\n        OUI=00:00:5E  device=00:53:01\nLoop  : 127.0.0.1 and ::1"
+   },
+   "example": "Your laptop reports the address 169.254.17.9 and cannot reach the internet. A learner who knows the special ranges recognizes this immediately: it is a link-local address that the operating system assigned itself because it received no answer from a DHCP server. The fault is not the website but the local connection to DHCP, so the next step is to check the cable or Wi-Fi association and the DHCP service. Meanwhile, a printer shows 192.168.1.40, an RFC 1918 private address, so it is reachable only inside the local network.",
+   "terms": [
+    {
+     "term": "IPv4",
+     "def": "A 32-bit addressing scheme written as four decimal octets."
+    },
+    {
+     "term": "RFC 1918",
+     "def": "The standard defining private IPv4 ranges not routed on the internet."
+    },
+    {
+     "term": "IPv6",
+     "def": "A 128-bit addressing scheme written in hexadecimal groups."
+    },
+    {
+     "term": "MAC address",
+     "def": "A 48-bit hardware identifier for a network interface."
+    },
+    {
+     "term": "OUI",
+     "def": "The first three bytes of a MAC address identifying the manufacturer."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which is a private RFC 1918 address?",
+     "options": [
+      "8.8.8.8",
+      "172.20.4.5",
+      "192.0.2.1",
+      "169.254.1.1"
+     ],
+     "a": 1,
+     "why": "172.16.0.0/12 spans 172.16 to 172.31."
+    },
+    {
+     "q": "What does 169.254.x.x usually indicate?",
+     "options": [
+      "A working DHCP lease",
+      "The device could not reach a DHCP server",
+      "A public server",
+      "A VPN"
+     ],
+     "a": 1,
+     "why": "It is an automatic link-local address assigned after DHCP failure."
+    },
+    {
+     "q": "What is the shortened form of 2001:0db8:0000:0000:0000:0000:0000:0001?",
+     "options": [
+      "2001:db8::1",
+      "2001::db8::1",
+      "2001:db8:1",
+      "::2001:db8"
+     ],
+     "a": 0,
+     "why": "Zero runs collapse once into a double colon."
+    },
+    {
+     "q": "What do the first three bytes of a MAC address identify?",
+     "options": [
+      "The VLAN",
+      "The manufacturer",
+      "The IP network",
+      "The port"
+     ],
+     "a": 1,
+     "why": "That portion is the OUI assigned to the vendor."
+    }
+   ],
+   "recap": [
+    "IPv4 is 32 bits, IPv6 is 128 bits and a MAC is 48 bits.",
+    "RFC 1918 ranges are private; 169.254.x.x means DHCP failed.",
+    "MAC addresses work locally and can be spoofed."
+   ]
+  },
+  {
+   "title": "Subnet Masks and CIDR",
+   "why": "Subnetting tells you which devices can talk directly and how big a network is, and it appears in firewall rules and scan scopes.",
+   "sections": [
+    {
+     "h": "What a mask does",
+     "p": [
+      "A subnet mask divides an IPv4 address into network and host parts. Where the mask has a 1 bit, the address bit belongs to the network, and where it has a 0 bit, it belongs to the host. The mask 255.255.255.0 is 24 ones followed by 8 zeros, so the first three octets are the network and the last is the host. Two devices are on the same subnet if their addresses match under the mask. If not, traffic must go through a router, also called the default gateway. Getting the mask wrong is a common cause of partial connectivity."
+     ]
+    },
+    {
+     "h": "CIDR notation",
+     "p": [
+      "Classless Inter-Domain Routing, or CIDR, writes the mask as a slash and the number of network bits, so 255.255.255.0 becomes /24 and 255.255.255.192 becomes /26. The number of host bits is 32 minus the prefix length. A /24 has 8 host bits, giving 256 addresses, and a /26 has 6 host bits, giving 64. Of these, two are reserved: the first is the network address and the last is the broadcast address. Usable hosts are therefore two to the power of the host bits, minus two. A /24 offers 254 hosts, a /26 offers 62, a /30 offers 2."
+     ]
+    },
+    {
+     "h": "Working an example",
+     "p": [
+      "Take 192.168.1.0/26. The prefix is 26, so 6 host bits remain and the block size is 64. The network address is 192.168.1.0. Blocks start at 0, 64, 128 and 192. The broadcast address is the last address in the block, 192.168.1.63. Usable hosts run from 192.168.1.1 to 192.168.1.62, which is 62 addresses. For 192.168.1.70/26, it falls in the block starting at 64, so the network is 192.168.1.64 and the broadcast is 192.168.1.127. A quick method is to find the block size from the last mask octet: 256 minus 192 equals 64."
+     ]
+    },
+    {
+     "h": "Why defenders care",
+     "p": [
+      "Subnets are how networks are segmented. Placing servers, staff computers and guest Wi-Fi in different subnets lets firewalls control traffic between them. Security teams write rules and scan scopes in CIDR, for example allowing management access only from 192.0.2.0/28. Reading a log entry from a source in 198.51.100.64/26 tells you the range the address belongs to. Mistakes cause either open access, if a prefix is too short and covers too many hosts, or outages, if too long. Remember also that a larger prefix number means a smaller network, which often confuses beginners."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Subnet worksheet",
+    "text": "Network   : 192.168.1.0/26\nMask      : 255.255.255.192\nBlock size: 64\nNetwork   : 192.168.1.0\nBroadcast : 192.168.1.63\nHosts     : 192.168.1.1 - 192.168.1.62  (62)"
+   },
+   "example": "A branch office is given 203.0.113.0/24 and needs four equal segments for servers, staff, guests and cameras. Borrowing two bits creates four /26 subnets: 203.0.113.0/26, 203.0.113.64/26, 203.0.113.128/26 and 203.0.113.192/26. Each has 62 usable hosts. The firewall rule for guests then reads: deny 203.0.113.128/26 to 203.0.113.0/26. The administrator confirms that a guest laptop at 203.0.113.140 falls inside the guest block, because 140 is between 128 and 191, and so is blocked from reaching servers.",
+   "terms": [
+    {
+     "term": "Subnet mask",
+     "def": "A value that separates the network part of an IP address from the host part."
+    },
+    {
+     "term": "CIDR",
+     "def": "Notation giving the number of network bits after a slash, such as /24."
+    },
+    {
+     "term": "Default gateway",
+     "def": "The router address used to reach other networks."
+    },
+    {
+     "term": "Broadcast address",
+     "def": "The last address in a subnet, used to reach all hosts in it."
+    },
+    {
+     "term": "Subnetting",
+     "def": "Dividing a network into smaller networks."
+    }
+   ],
+   "check": [
+    {
+     "q": "How many usable hosts are in a /26?",
+     "options": [
+      "64",
+      "62",
+      "30",
+      "126"
+     ],
+     "a": 1,
+     "why": "64 addresses minus network and broadcast leaves 62."
+    },
+    {
+     "q": "What is the broadcast address of 192.168.1.0/26?",
+     "options": [
+      "192.168.1.31",
+      "192.168.1.63",
+      "192.168.1.64",
+      "192.168.1.255"
+     ],
+     "a": 1,
+     "why": "The block spans .0 to .63."
+    },
+    {
+     "q": "What is the CIDR for mask 255.255.255.0?",
+     "options": [
+      "/16",
+      "/24",
+      "/26",
+      "/30"
+     ],
+     "a": 1,
+     "why": "Three full octets equal 24 bits."
+    },
+    {
+     "q": "A larger prefix number means what?",
+     "options": [
+      "A larger network",
+      "A smaller network",
+      "No change",
+      "IPv6"
+     ],
+     "a": 1,
+     "why": "More network bits leave fewer host bits."
+    }
+   ],
+   "recap": [
+    "Hosts per subnet equal 2 to the host bits, minus 2.",
+    "The block size comes from the last mask octet: 256 minus the octet value.",
+    "Segmentation by subnet enables firewall control."
+   ]
+  },
+  {
+   "title": "OSI and TCP/IP Models",
+   "why": "Layer models give you a shared language to locate where a problem or an attack occurs.",
+   "sections": [
+    {
+     "h": "The seven OSI layers",
+     "p": [
+      "The OSI model splits network communication into seven layers. From bottom to top: Physical (bits on cables or radio), Data Link (frames, MAC addresses, switches), Network (packets, IP addresses, routers), Transport (TCP and UDP, ports), Session (managing conversations), Presentation (formatting, encryption, encoding) and Application (protocols such as HTTP, DNS and SMTP). A memory aid from the top is All People Seem To Need Data Processing. The model is a teaching tool rather than an exact description of real software, but it is used universally in job interviews and in troubleshooting talk."
+     ]
+    },
+    {
+     "h": "The TCP/IP model",
+     "p": [
+      "The TCP/IP model, which the internet actually uses, has four layers. The Link layer covers physical and data link functions. The Internet layer handles IP addressing and routing. The Transport layer provides TCP and UDP. The Application layer combines OSI layers 5 to 7. When people say layer 3 they usually mean the OSI Network layer, which is IP, and layer 2 means the Data Link layer, which is Ethernet and MAC addresses. Layer 4 is transport and layer 7 is application, as in a layer 7 firewall that understands HTTP."
+     ]
+    },
+    {
+     "h": "Encapsulation",
+     "p": [
+      "Data moves down the stack at the sender and each layer adds its own header, a process called encapsulation. An application hands HTTP data to TCP, which adds a header with ports and sequence numbers to form a segment. IP adds source and destination addresses to form a packet. Ethernet adds MAC addresses and a trailer to form a frame. The receiver reverses the process, removing headers going up, which is de-encapsulation. Data units have names: bits, frames, packets, segments and data. Understanding this nesting is essential for reading packet captures, which display each layer separately."
+     ]
+    },
+    {
+     "h": "Devices and attacks by layer",
+     "p": [
+      "Devices map to layers. Hubs and cables are layer 1, switches are layer 2, routers are layer 3, and firewalls work from layer 3 to 7. Attacks also map to layers. Cable tapping is layer 1, ARP spoofing and MAC flooding are layer 2, IP spoofing is layer 3, SYN floods are layer 4 and SQL injection or phishing pages are layer 7. When you hear an alert description, placing it on a layer tells you which control is relevant and which team to ask. A ping that fails points to layers 1 to 3, while a working ping with a broken website points higher."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Layer map",
+    "text": "7 Application  HTTP, DNS, SMTP\n6 Presentation TLS, encoding\n5 Session\n4 Transport    TCP, UDP     segment\n3 Network      IP, ICMP     packet   router\n2 Data Link    Ethernet     frame    switch\n1 Physical     bits         cable, radio"
+   },
+   "example": "A user says the intranet page will not load. The technician pings the server's IP and gets replies, so layers 1 to 3 are healthy. A test to port 443 fails, pointing at layer 4 or above. Checking the server shows the web service stopped, a layer 7 problem. Contrast this with a case where ping fails and the cable is unplugged: that is layer 1. Working upward from the bottom and ruling out layers quickly narrows the cause, and the same approach helps analysts decide whether an alert is network noise or a real application attack.",
+   "terms": [
+    {
+     "term": "OSI model",
+     "def": "A seven-layer reference model for network communication."
+    },
+    {
+     "term": "Encapsulation",
+     "def": "Adding headers at each layer as data moves down the stack."
+    },
+    {
+     "term": "Frame",
+     "def": "The layer 2 data unit containing MAC addresses."
+    },
+    {
+     "term": "Packet",
+     "def": "The layer 3 data unit containing IP addresses."
+    },
+    {
+     "term": "Segment",
+     "def": "The layer 4 data unit used by TCP."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which OSI layer handles IP addresses and routing?",
+     "options": [
+      "Data Link",
+      "Network",
+      "Transport",
+      "Session"
+     ],
+     "a": 1,
+     "why": "Layer 3 is the Network layer."
+    },
+    {
+     "q": "A switch primarily operates at which layer?",
+     "options": [
+      "1",
+      "2",
+      "3",
+      "7"
+     ],
+     "a": 1,
+     "why": "Switches forward frames using MAC addresses at layer 2."
+    },
+    {
+     "q": "What is the data unit at the Transport layer for TCP?",
+     "options": [
+      "Frame",
+      "Segment",
+      "Bit",
+      "Packet"
+     ],
+     "a": 1,
+     "why": "TCP data units are segments."
+    },
+    {
+     "q": "ARP spoofing is an attack at which layer?",
+     "options": [
+      "Layer 2",
+      "Layer 4",
+      "Layer 7",
+      "Layer 6"
+     ],
+     "a": 0,
+     "why": "ARP maps IP to MAC at the data link layer."
+    }
+   ],
+   "recap": [
+    "OSI has seven layers; TCP/IP has four.",
+    "Each layer wraps data with its own header during encapsulation.",
+    "Devices and attacks can be mapped to layers to speed troubleshooting."
+   ]
+  },
+  {
+   "title": "TCP vs UDP and the Three-Way Handshake",
+   "why": "Almost all network traffic rides on TCP or UDP, and their behavior explains scans, floods and many log lines.",
+   "sections": [
+    {
+     "h": "TCP: reliable delivery",
+     "p": [
+      "The Transmission Control Protocol, or TCP, provides reliable, ordered delivery. It first establishes a connection, numbers every byte with sequence numbers, acknowledges received data, retransmits what is lost and slows down when the network is congested. Applications that cannot tolerate missing data use it: web pages over HTTP and HTTPS, email, file transfer and remote login with SSH. The cost is overhead and delay from the setup and acknowledgements. TCP is called connection-oriented because both ends keep state about the conversation, and this state is what firewalls and intrusion detection systems track."
+     ]
+    },
+    {
+     "h": "The three-way handshake",
+     "p": [
+      "A TCP connection starts with three packets. The client sends SYN, meaning synchronize, with its initial sequence number. The server replies SYN-ACK, acknowledging the client and offering its own sequence number. The client then sends ACK, and the connection is established. TCP flags in the header include SYN, ACK, FIN (finish), RST (reset, abrupt close) and PSH and URG. A normal close uses FIN and ACK exchanges. Seeing a SYN answered with RST means the port is closed, while no reply at all often means a firewall is dropping the packet. This difference is how port scanners classify ports."
+     ]
+    },
+    {
+     "h": "UDP: fast and connectionless",
+     "p": [
+      "The User Datagram Protocol, or UDP, sends independent datagrams with no handshake, no acknowledgements and no guarantee of order or delivery. Its header is only 8 bytes. That makes it quick and light, suited to traffic where speed matters more than perfection or where the application handles loss itself: DNS queries, DHCP, voice and video calls, streaming, online games and many VPN protocols. Because UDP has no handshake, source addresses are easy to forge, which is why UDP services are abused for reflection and amplification denial of service attacks. Scanning UDP is slower because silence is ambiguous."
+     ]
+    },
+    {
+     "h": "Choosing and recognizing",
+     "p": [
+      "Choose TCP when correctness matters and UDP when timeliness matters. A dropped frame in a video call is better skipped than resent late, whereas a dropped byte in a bank transfer is unacceptable. In security, a flood of SYN packets that never complete the handshake is a SYN flood, which exhausts the server's table of half-open connections. Many SYN packets from one source to many ports suggests a port scan. Knowing the normal handshake gives you the pattern to compare against when you read a capture or firewall log."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Packet capture lines",
+    "text": "1 192.0.2.10:51514 -> 198.51.100.5:443 [SYN]     seq=100\n2 198.51.100.5:443 -> 192.0.2.10:51514 [SYN,ACK] seq=900 ack=101\n3 192.0.2.10:51514 -> 198.51.100.5:443 [ACK]     seq=101 ack=901"
+   },
+   "example": "A capture shows 192.0.2.10 sending a SYN from port 51514 to 198.51.100.5 on port 443. The server replies SYN-ACK with acknowledgment 101, one more than the client's sequence number 100, and the client completes with ACK. The three packets prove a successful connection to an HTTPS service. If the server had instead returned RST, the analyst would conclude that nothing was listening on 443. If a hundred SYNs from one source arrived in a second with no final ACKs, the pattern would suggest a SYN flood or scan.",
+   "terms": [
+    {
+     "term": "TCP",
+     "def": "A connection-oriented transport protocol providing reliable, ordered delivery."
+    },
+    {
+     "term": "UDP",
+     "def": "A connectionless transport protocol with no delivery guarantee."
+    },
+    {
+     "term": "SYN",
+     "def": "The TCP flag used to start a connection."
+    },
+    {
+     "term": "RST",
+     "def": "The TCP flag that abruptly resets a connection."
+    },
+    {
+     "term": "SYN flood",
+     "def": "A denial of service attack sending many SYNs without completing the handshake."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the correct order of the TCP handshake?",
+     "options": [
+      "SYN, SYN-ACK, ACK",
+      "ACK, SYN, FIN",
+      "SYN, ACK, SYN-ACK",
+      "FIN, ACK, SYN"
+     ],
+     "a": 0,
+     "why": "The client sends SYN, server SYN-ACK, client ACK."
+    },
+    {
+     "q": "Which protocol is typically chosen for a live voice call?",
+     "options": [
+      "TCP",
+      "UDP",
+      "FTP",
+      "SMTP"
+     ],
+     "a": 1,
+     "why": "UDP favors low delay over reliability."
+    },
+    {
+     "q": "A SYN answered with RST suggests what?",
+     "options": [
+      "Port is closed",
+      "Port is open",
+      "Firewall allowed it",
+      "DNS failed"
+     ],
+     "a": 0,
+     "why": "RST means no service is listening."
+    },
+    {
+     "q": "Why are UDP services abused in amplification attacks?",
+     "options": [
+      "They require handshakes",
+      "Source addresses are easy to forge",
+      "They encrypt data",
+      "They are slow"
+     ],
+     "a": 1,
+     "why": "No handshake means spoofed sources are not validated."
+    }
+   ],
+   "recap": [
+    "TCP is reliable and connection-oriented; UDP is fast and connectionless.",
+    "The handshake is SYN, SYN-ACK, ACK.",
+    "Abnormal flag patterns reveal scans and floods."
+   ]
+  },
+  {
+   "title": "Ports and Common Services",
+   "why": "Ports tell you which service a connection is aiming at, so they are central to firewall rules, scans and log reading.",
+   "sections": [
+    {
+     "h": "What a port is",
+     "p": [
+      "An IP address finds a host, and a port number finds the service on it. A port is a 16-bit number from 0 to 65535 used by TCP and UDP. A server application listens on a port, waiting for connections, and a client picks a temporary high source port, usually in the range 49152 to 65535, for its side of each conversation. The combination of IP address and port is a socket, and a connection is identified by the full set of source IP, source port, destination IP, destination port and protocol. This is why one server can handle thousands of clients on port 443."
+     ]
+    },
+    {
+     "h": "Well-known ports",
+     "p": [
+      "Ports 0 to 1023 are well known and assigned by IANA to standard services. Learn these first: 20 and 21 FTP, 22 SSH, 23 Telnet, 25 SMTP, 53 DNS, 67 and 68 DHCP, 80 HTTP, 110 POP3, 123 NTP, 143 IMAP, 161 SNMP, 389 LDAP, 443 HTTPS, 445 SMB, 3306 MySQL, 3389 RDP and 5432 PostgreSQL, the last three being registered ports above 1023. Ports 1024 to 49151 are registered, and the rest are dynamic. A service can run on a nonstandard port, so the port number is a strong hint but not proof of what is listening."
+     ]
+    },
+    {
+     "h": "Listening states and exposure",
+     "p": [
+      "A port on a server can be listening, meaning a service is waiting for connections, or closed, meaning nothing is there. From the network a port may be open (a service answers), closed (the host replies with a reset) or filtered (a firewall silently drops probes). Tools such as netstat and ss list local listening sockets, and a scanner such as Nmap probes from outside. Every listening port is part of the attack surface. A database listening on all interfaces, written as 0.0.0.0:3306, is reachable from anywhere the network allows, while 127.0.0.1:3306 is reachable only from the machine itself."
+     ]
+    },
+    {
+     "h": "Security habits",
+     "p": [
+      "Defenders reduce exposure by disabling unneeded services and blocking unused ports at the firewall. Insecure legacy services such as Telnet on 23 and FTP on 21 send passwords in clear text and should be replaced by SSH on 22 and SFTP. Administrative ports such as SSH and RDP on 3389 are heavily attacked, so they should not face the internet directly and should require strong authentication or a VPN. When reading logs, a burst of attempts to port 22 or 3389 across many addresses is common background scanning, while an unexpected outbound connection to an unusual port deserves a closer look."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "ss output",
+    "text": "$ ss -tuln\nNetid State  Local Address:Port\ntcp   LISTEN 0.0.0.0:22\ntcp   LISTEN 127.0.0.1:3306\ntcp   LISTEN 0.0.0.0:80\nudp   UNCONN 0.0.0.0:68"
+   },
+   "example": "A small office server at 192.0.2.20 shows the listening sockets above. SSH on 22 and a web server on 80 listen on all interfaces, so they are reachable from the network. MySQL on 3306 listens only on 127.0.0.1, so remote users cannot connect to it directly, which is the safer design. The administrator notes that port 80 carries unencrypted HTTP and plans to add TLS on 443 and redirect. If a later scan found 3306 open on 0.0.0.0, that change in exposure would be investigated immediately.",
+   "terms": [
+    {
+     "term": "Port",
+     "def": "A 16-bit number identifying a service endpoint on a host."
+    },
+    {
+     "term": "Socket",
+     "def": "The combination of an IP address and port."
+    },
+    {
+     "term": "Listening",
+     "def": "A state where a service waits for incoming connections."
+    },
+    {
+     "term": "Filtered",
+     "def": "A port whose probes are dropped, usually by a firewall."
+    },
+    {
+     "term": "Well-known ports",
+     "def": "Ports 0 to 1023 assigned to standard services."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which port does SSH use by default?",
+     "options": [
+      "21",
+      "22",
+      "23",
+      "25"
+     ],
+     "a": 1,
+     "why": "SSH uses TCP 22."
+    },
+    {
+     "q": "Which port is HTTPS?",
+     "options": [
+      "80",
+      "443",
+      "3389",
+      "53"
+     ],
+     "a": 1,
+     "why": "HTTPS uses TCP 443."
+    },
+    {
+     "q": "What does 127.0.0.1:3306 listening mean?",
+     "options": [
+      "Reachable from anywhere",
+      "Reachable only from the same machine",
+      "Closed",
+      "Filtered"
+     ],
+     "a": 1,
+     "why": "Loopback binding limits access to the local host."
+    },
+    {
+     "q": "Why is Telnet discouraged?",
+     "options": [
+      "It is fast",
+      "It sends data including passwords in clear text",
+      "It uses UDP",
+      "It is a database"
+     ],
+     "a": 1,
+     "why": "Telnet has no encryption."
+    }
+   ],
+   "recap": [
+    "Ports identify services; IP plus port forms a socket.",
+    "Learn 22, 53, 80, 443 and 3389 first.",
+    "Every listening port widens the attack surface."
+   ]
+  },
+  {
+   "title": "DNS, DHCP and NAT",
+   "why": "These three services quietly make a network usable, and each is a frequent target or source of evidence.",
+   "sections": [
+    {
+     "h": "DNS: names to addresses",
+     "p": [
+      "The Domain Name System translates names like www.example.com into IP addresses. A client asks a recursive resolver, which queries the hierarchy of root, top-level domain and authoritative servers and caches the answer for a period called the TTL. DNS uses UDP port 53 for most queries and TCP 53 for large responses and zone transfers. Key record types are A (name to IPv4), AAAA (name to IPv6), CNAME (alias to another name), MX (mail server), NS (authoritative name server), TXT (free text, used for SPF and verification) and PTR (address to name). DNS logs reveal which names a host looks up, which is valuable evidence."
+     ]
+    },
+    {
+     "h": "DHCP: automatic addressing",
+     "p": [
+      "The Dynamic Host Configuration Protocol assigns IP settings automatically. It uses UDP ports 67 for the server and 68 for the client, and a four-step exchange known as DORA. The client broadcasts a Discover, a server answers with an Offer of an address, the client sends a Request for that offer, and the server finishes with an Acknowledgment. The lease includes address, mask, default gateway, DNS servers and a lease time. If no server answers, Windows and many systems fall back to a 169.254.x.x link-local address. A rogue DHCP server on a network can hand out malicious gateway or DNS settings, which is why switches offer DHCP snooping."
+     ]
+    },
+    {
+     "h": "NAT and PAT",
+     "p": [
+      "Network Address Translation lets many private hosts share public addresses. A router at the edge rewrites the source address of outbound packets. The common form, Port Address Translation or PAT, maps each internal address and port to the router's one public address with a unique port, and keeps a translation table so replies return to the right host. Internal machines with RFC 1918 addresses such as 192.168.1.20 therefore appear as one public address, for example 203.0.113.9. NAT also blocks unsolicited inbound connections by default, which gives a side benefit, but it is not a replacement for a firewall."
+     ]
+    },
+    {
+     "h": "Security implications",
+     "p": [
+      "DNS is trusted by everything, so attacks on it matter. Cache poisoning tries to plant false answers, and attackers use DNS for command and control or to smuggle data out inside queries, called DNS tunneling. Defenders log queries and look for odd patterns such as very long random-looking names. DHCP logs map an IP address to a device at a particular time, which is essential for tracing an alert back to a machine. NAT complicates investigation because many users share one public address, so logs from both sides and timestamps are needed to identify the actual host."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "DNS and DHCP samples",
+    "text": "$ nslookup -type=MX example.com\nexample.com mail exchanger = 10 mail.example.com.\n\nDHCP: DISCOVER (broadcast) -> OFFER 192.168.1.50\n      REQUEST 192.168.1.50 -> ACK, lease 24h"
+   },
+   "example": "A laptop joins the office Wi-Fi. It broadcasts a DHCP Discover and receives an Offer of 192.168.1.50 with gateway 192.168.1.1 and DNS 192.168.1.2. After Request and Ack it can browse. It asks DNS for www.example.com, receives an A record for 198.51.100.5 and connects to port 443. At the edge router, PAT rewrites the source to 203.0.113.9 with a unique port. A log at the web server shows only 203.0.113.9, so the analyst needs the router's translation log to identify which internal laptop made the request.",
+   "terms": [
+    {
+     "term": "DNS",
+     "def": "The system that resolves domain names to IP addresses."
+    },
+    {
+     "term": "TTL",
+     "def": "The time a DNS answer may be cached."
+    },
+    {
+     "term": "DORA",
+     "def": "Discover, Offer, Request, Acknowledge: the DHCP exchange."
+    },
+    {
+     "term": "NAT",
+     "def": "Rewriting addresses so private hosts share public addresses."
+    },
+    {
+     "term": "PAT",
+     "def": "NAT that also maps ports so many hosts use one public address."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which DNS record maps a name to an IPv4 address?",
+     "options": [
+      "MX",
+      "A",
+      "NS",
+      "PTR"
+     ],
+     "a": 1,
+     "why": "An A record holds an IPv4 address."
+    },
+    {
+     "q": "What is the correct DHCP sequence?",
+     "options": [
+      "Discover, Offer, Request, Acknowledge",
+      "Request, Discover, Offer, Ack",
+      "Offer, Discover, Ack, Request",
+      "Ack, Offer, Request, Discover"
+     ],
+     "a": 0,
+     "why": "DORA stands for that order."
+    },
+    {
+     "q": "What does PAT use to separate internal hosts sharing one public address?",
+     "options": [
+      "Port numbers",
+      "Cable color",
+      "MAC OUI",
+      "VLAN tags"
+     ],
+     "a": 0,
+     "why": "Unique source ports identify each translation."
+    },
+    {
+     "q": "Which DNS record type identifies a domain's mail server?",
+     "options": [
+      "MX",
+      "TXT",
+      "AAAA",
+      "SOA only"
+     ],
+     "a": 0,
+     "why": "MX records list mail exchangers."
+    }
+   ],
+   "recap": [
+    "DNS resolves names, DHCP assigns settings, NAT shares public addresses.",
+    "DNS uses port 53; DHCP uses 67 and 68.",
+    "Logs from DHCP and NAT are needed to map an address to a device."
+   ]
+  },
+  {
+   "title": "Routers, Switches and Wi-Fi",
+   "why": "Understanding how traffic is forwarded locally and wirelessly shows where it can be intercepted, segmented or blocked.",
+   "sections": [
+    {
+     "h": "Switches and CAM tables",
+     "p": [
+      "A switch connects devices on one local network and forwards Ethernet frames at layer 2. It learns by watching the source MAC address of each frame and storing the MAC and the port in its content addressable memory, the CAM table or MAC address table. When a frame arrives, the switch looks up the destination MAC and sends it out only the matching port. If the destination is unknown it floods the frame to all ports. A hub, by contrast, repeats everything everywhere. Attackers can fill a CAM table with fake entries to make a switch flood, called MAC flooding, which port security settings can limit."
+     ]
+    },
+    {
+     "h": "Routers and routing",
+     "p": [
+      "A router connects different networks and forwards packets at layer 3 using a routing table. Each entry lists a destination network, a next hop and an interface, and the most specific match wins. The default route 0.0.0.0/0 sends everything unknown to the upstream gateway. Hosts send traffic for other networks to their default gateway, which is a router. Routers can also apply access control lists that permit or deny traffic by address and port, and they often perform NAT. Compared to switches, which separate collision domains, routers separate broadcast domains, so broadcasts do not cross them."
+     ]
+    },
+    {
+     "h": "VLANs",
+     "p": [
+      "A virtual LAN splits one physical switch into several logical networks. Ports are assigned to a VLAN, identified by an ID number such as 10 or 20, and traffic stays inside its VLAN unless a router or layer 3 switch forwards it. Between switches, a trunk link carries several VLANs using 802.1Q tags. Typical designs use separate VLANs for staff, servers, guests and cameras so that a compromised device has limited reach. VLANs improve organization and security, but they are not a perfect barrier, since misconfigured trunks can allow attacks known as VLAN hopping."
+     ]
+    },
+    {
+     "h": "Wi-Fi basics and security",
+     "p": [
+      "Wi-Fi follows the IEEE 802.11 standards, such as 802.11n, ac (Wi-Fi 5) and ax (Wi-Fi 6), on 2.4, 5 and 6 GHz bands. A network is named by its SSID, which is only a label and not a security feature. Hiding the SSID adds almost no protection. WEP is broken and must not be used. WPA2 with AES-CCMP and a strong passphrase is the minimum, and WPA3 improves protection against offline password guessing with SAE. Enterprise networks use 802.1X with individual credentials. Guest Wi-Fi belongs on its own VLAN, and attackers sometimes run evil twin access points that copy a legitimate SSID."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Switch and route tables",
+    "text": "MAC table (VLAN 10)           Route table\n0050.0000.0001  Fa0/1        192.168.10.0/24  eth1 direct\n0050.0000.0002  Fa0/2        192.168.20.0/24  eth2 direct\n0050.0000.0003  Fa0/3        0.0.0.0/0  via 203.0.113.1"
+   },
+   "example": "A company puts staff laptops on VLAN 10 and visitors on VLAN 30. A visitor connects to the guest SSID, which uses WPA2 and sits on VLAN 30. The router permits VLAN 30 only to the internet, and an access control list blocks it from 192.168.10.0/24. When the visitor tries to open a staff file server at 192.168.10.5, the packet reaches the router, which checks its ACL and drops it. The switch's CAM table shows the visitor's MAC only on its guest port, confirming layer 2 separation.",
+   "terms": [
+    {
+     "term": "CAM table",
+     "def": "A switch table mapping MAC addresses to ports."
+    },
+    {
+     "term": "Default gateway",
+     "def": "The router a host uses for traffic leaving its network."
+    },
+    {
+     "term": "VLAN",
+     "def": "A logical network created on switch ports, identified by an ID."
+    },
+    {
+     "term": "SSID",
+     "def": "The name of a Wi-Fi network."
+    },
+    {
+     "term": "WPA3",
+     "def": "The newer Wi-Fi security standard using SAE for stronger password protection."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does a switch use to decide which port to send a frame to?",
+     "options": [
+      "IP address",
+      "MAC address",
+      "Port number",
+      "Hostname"
+     ],
+     "a": 1,
+     "why": "Switches use MAC addresses and the CAM table."
+    },
+    {
+     "q": "Which device separates broadcast domains?",
+     "options": [
+      "Hub",
+      "Router",
+      "Cable",
+      "Repeater"
+     ],
+     "a": 1,
+     "why": "Routers do not forward broadcasts."
+    },
+    {
+     "q": "Which Wi-Fi security option should not be used?",
+     "options": [
+      "WPA2",
+      "WPA3",
+      "WEP",
+      "802.1X"
+     ],
+     "a": 2,
+     "why": "WEP is broken."
+    },
+    {
+     "q": "What carries multiple VLANs between switches?",
+     "options": [
+      "A trunk",
+      "A hub",
+      "A modem",
+      "An SSID"
+     ],
+     "a": 0,
+     "why": "Trunk links use 802.1Q tagging."
+    }
+   ],
+   "recap": [
+    "Switches forward by MAC; routers forward by IP.",
+    "VLANs segment a network logically.",
+    "Use WPA2 or WPA3 and keep guests on a separate VLAN."
+   ]
+  },
+  {
+   "title": "ping, traceroute, nslookup and ARP",
+   "why": "These four commands are the first tools for finding where a connection breaks, and you will use them every week.",
+   "sections": [
+    {
+     "h": "ping and ICMP",
+     "p": [
+      "The ping command sends ICMP echo requests and waits for echo replies. ICMP, the Internet Control Message Protocol, is a layer 3 helper protocol that reports errors and tests reachability. A reply shows that the path works both ways. Output includes the round trip time in milliseconds and the TTL, the time to live value. Each router that forwards a packet decreases TTL by one. Replies with TTL 64 often come from Linux and 128 from Windows, though this is only a hint. Loss, such as 4 sent and 0 received, may mean the host is down, the route is broken or a firewall blocks ICMP."
+     ]
+    },
+    {
+     "h": "traceroute and the path",
+     "p": [
+      "Traceroute, called tracert on Windows, shows each router along the path. It sends packets with TTL 1, then 2, then 3 and so on. Each router that sees the TTL expire returns an ICMP Time Exceeded message, revealing its address and the delay. Lines with asterisks mean no reply, which can be a router that does not answer or a drop point. Reading the output from top to bottom, a sudden jump in latency shows a slow link, and a path that stops at a hop and never continues points at the failing router or a filtering firewall beyond it."
+     ]
+    },
+    {
+     "h": "nslookup, dig and ARP",
+     "p": [
+      "Use nslookup or dig to test DNS. nslookup www.example.com returns the resolver used and the address found, and nslookup -type=MX example.com returns mail servers. If an IP address works but a name fails, the fault is in DNS. The arp command shows the ARP cache, which maps IPv4 addresses to MAC addresses on the local segment. ARP, the Address Resolution Protocol, asks who has an IP address and learns the answer. An entry marked incomplete means no one answered. Two IP addresses with the same MAC, or the gateway MAC changing suddenly, may signal ARP spoofing."
+     ]
+    },
+    {
+     "h": "A troubleshooting method",
+     "p": [
+      "Work from the bottom up. First check the link and your own address with ip a or ipconfig. Ping the loopback 127.0.0.1 to test the local stack, then your default gateway, then a public IP such as 192.0.2.1, then a name. A failure at gateway means a local problem. A failure after the gateway means the path or the provider. If the IP works but the name fails, check DNS with nslookup. Recording each result gives a clear picture, and the same method supports incident triage when you need to prove a host is truly unreachable."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Command output",
+    "text": "$ ping -c 2 192.0.2.1\n64 bytes from 192.0.2.1: icmp_seq=1 ttl=63 time=4.1 ms\n$ traceroute 198.51.100.5\n 1  192.168.1.1   1.2 ms\n 2  203.0.113.1   8.9 ms\n 3  * * *\n$ arp -a\n? (192.168.1.1) at 00:00:5e:00:53:01 [ether]"
+   },
+   "example": "A user cannot open www.example.com. The technician pings the gateway 192.168.1.1 and gets replies, so the local link is fine. Ping to 198.51.100.5 also succeeds, so routing works. Ping to the name fails with unknown host. nslookup shows the configured DNS server does not answer. The fault is DNS, not connectivity. The technician switches the resolver to a working server, nslookup returns an A record, and the page loads. Four short commands separated three layers of possible faults in under two minutes.",
+   "terms": [
+    {
+     "term": "ICMP",
+     "def": "A layer 3 protocol for error messages and tests such as ping."
+    },
+    {
+     "term": "TTL",
+     "def": "A counter decreased at every router hop that limits packet lifetime."
+    },
+    {
+     "term": "traceroute",
+     "def": "A tool that lists the routers along a path using increasing TTL values."
+    },
+    {
+     "term": "ARP",
+     "def": "A protocol mapping IPv4 addresses to MAC addresses locally."
+    },
+    {
+     "term": "nslookup",
+     "def": "A tool for querying DNS records."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does a traceroute line with * * * mean?",
+     "options": [
+      "No reply was received for that hop",
+      "The hop is fastest",
+      "The host is a Linux machine",
+      "ARP failed"
+     ],
+     "a": 0,
+     "why": "Asterisks show missing replies."
+    },
+    {
+     "q": "Ping works to an IP but not to a name. What is likely wrong?",
+     "options": [
+      "DNS",
+      "Cable",
+      "Switch power",
+      "MAC address"
+     ],
+     "a": 0,
+     "why": "Name resolution is failing."
+    },
+    {
+     "q": "Which command shows the IP to MAC mapping cache?",
+     "options": [
+      "arp -a",
+      "ping",
+      "nslookup",
+      "tracert"
+     ],
+     "a": 0,
+     "why": "arp -a lists the ARP cache."
+    },
+    {
+     "q": "What does each router do to TTL?",
+     "options": [
+      "Decrease by one",
+      "Double it",
+      "Reset it",
+      "Ignore it"
+     ],
+     "a": 0,
+     "why": "TTL decreases per hop, and at zero the packet is dropped."
+    }
+   ],
+   "recap": [
+    "Ping tests reachability; traceroute shows the path.",
+    "nslookup tests DNS; arp shows local IP to MAC mappings.",
+    "Troubleshoot from the bottom up and record each result."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Subnet Calculator Practice",
+   "sim": "scenario",
+   "scenario": "A fictional network team at Example Corp has handed you six address blocks to document for a firewall change request. The simulator provides a form for each block with fields for network address, broadcast address and usable host count, and it validates each answer immediately. You should work out the block size from the prefix, find where the block starts, and subtract two from the total addresses to get usable hosts, showing your method before submitting each result.",
+   "objective": "Enter the network address, broadcast address and usable hosts for six CIDR blocks.",
+   "steps": [
+    {
+     "do": "Block 1: 192.168.1.0/26. Enter network, broadcast and hosts.",
+     "see": "Accepted: 192.168.1.0, 192.168.1.63, 62 hosts."
+    },
+    {
+     "do": "Block 2: 192.0.2.0/24.",
+     "see": "Accepted: 192.0.2.0, 192.0.2.255, 254 hosts."
+    },
+    {
+     "do": "Block 3: 198.51.100.64/26.",
+     "see": "Accepted: 198.51.100.64, 198.51.100.127, 62 hosts."
+    },
+    {
+     "do": "Block 4: 203.0.113.128/25.",
+     "see": "Accepted: 203.0.113.128, 203.0.113.255, 126 hosts."
+    },
+    {
+     "do": "Block 5: 192.0.2.16/28.",
+     "see": "Accepted: 192.0.2.16, 192.0.2.31, 14 hosts."
+    },
+    {
+     "do": "Block 6: 198.51.100.0/30.",
+     "see": "Accepted: 198.51.100.0, 198.51.100.3, 2 hosts."
+    },
+    {
+     "do": "Submit the worksheet.",
+     "see": "Score 6 of 6. Hint shown: block size = 2^(32 - prefix)."
+    }
+   ],
+   "answer": "/26 blocks of 64 give 62 hosts. /24 gives 254, /25 gives 126, /28 gives 14 and /30 gives 2. In each case the network address is the block start, the broadcast address is the block start plus size minus one, and usable hosts are size minus two.",
+   "hint": "Find the block size first, then the multiple of that size at or below the address."
+  },
+  {
+   "title": "Read the Handshake",
+   "sim": "packet-viewer",
+   "scenario": "You open a short capture from a fictional office network in a packet viewer. The file contains eight packets between a client at 192.0.2.10 and a server at 198.51.100.5. The columns show source, destination, protocol, flags and sequence numbers. Your job is to label the three handshake packets, identify which packet begins the data exchange, and determine the destination port of the service the client connected to.",
+   "objective": "Label SYN, SYN-ACK and ACK packets and find the server port.",
+   "steps": [
+    {
+     "do": "Open the capture and sort by packet number.",
+     "see": "Eight packets listed, numbered 1 to 8."
+    },
+    {
+     "do": "Select packet 1.",
+     "see": "192.0.2.10:51514 -> 198.51.100.5:443 TCP [SYN] seq=100."
+    },
+    {
+     "do": "Label packet 1 as SYN.",
+     "see": "Correct."
+    },
+    {
+     "do": "Select packet 2.",
+     "see": "198.51.100.5:443 -> 192.0.2.10:51514 [SYN, ACK] seq=900 ack=101."
+    },
+    {
+     "do": "Label packet 2 as SYN-ACK and packet 3 as ACK.",
+     "see": "Correct. Packet 3: [ACK] seq=101 ack=901."
+    },
+    {
+     "do": "Select packet 4 and read the protocol column.",
+     "see": "TLSv1.2 Client Hello. First data after the handshake."
+    },
+    {
+     "do": "Enter the server port.",
+     "see": "Correct: 443 (HTTPS). Client source port 51514 is ephemeral."
+    }
+   ],
+   "answer": "Packet 1 is SYN, packet 2 is SYN-ACK and packet 3 is ACK. The server port is 443, so the service is HTTPS. The client port 51514 is a temporary source port, and packet 4 is the TLS Client Hello starting data exchange.",
+   "hint": "The SYN comes from the client; the server replies from the service port."
+  },
+  {
+   "title": "Layer the Packet",
+   "sim": "diagram-builder",
+   "scenario": "A trainee must show how an HTTP request is wrapped for transmission. The diagram builder gives you four header blocks labeled Ethernet, IP, TCP and HTTP, and an empty frame outline with positions for outermost to innermost. Place the headers in the order they would appear on the wire, with the first bytes sent on the left, and then confirm the field each layer uses for addressing so the frame can cross a network to a web server.",
+   "objective": "Arrange Ethernet, IP, TCP and HTTP headers in the correct order and name their addressing fields.",
+   "steps": [
+    {
+     "do": "Drag the Ethernet block to position 1.",
+     "see": "Accepted. Outermost header goes first on the wire."
+    },
+    {
+     "do": "Drag the IP block to position 2.",
+     "see": "Accepted."
+    },
+    {
+     "do": "Drag the TCP block to position 3.",
+     "see": "Accepted."
+    },
+    {
+     "do": "Drag the HTTP block to position 4.",
+     "see": "Accepted. Application data is innermost."
+    },
+    {
+     "do": "Click the Ethernet header.",
+     "see": "Fields: destination MAC, source MAC, type 0x0800 (IPv4)."
+    },
+    {
+     "do": "Click the IP header.",
+     "see": "Fields: source IP 192.0.2.10, destination IP 198.51.100.5, protocol 6 (TCP)."
+    },
+    {
+     "do": "Click TCP, then run the check.",
+     "see": "TCP: source port 51514, destination port 80, flags. Check: PASS."
+    }
+   ],
+   "answer": "The order is Ethernet, IP, TCP, HTTP. Ethernet uses MAC addresses, IP uses IP addresses with protocol number 6 for TCP, TCP uses ports and flags, and HTTP carries the request text. Each layer wraps the one above it.",
+   "hint": "Think of the envelopes: the outermost header is the local delivery label."
+  },
+  {
+   "title": "DNS Lookup Troubleshoot",
+   "sim": "terminal",
+   "scenario": "You have a terminal on a fictional help desk workstation. Users report that www.example.com works but a newer name, intranet.example.com, does not resolve. You will use nslookup and dig to query A, MX and NS records, compare the answers and decide why one hostname fails while the other works. The resolver for the lab is 192.0.2.53. Record each result as you go, because the final answer depends on comparing what the resolver says with what the authoritative servers say.",
+   "objective": "Query A, MX and NS records and find why one hostname fails.",
+   "steps": [
+    {
+     "do": "Run: nslookup www.example.com",
+     "see": "Server 192.0.2.53. Address: 198.51.100.5."
+    },
+    {
+     "do": "Run: nslookup intranet.example.com",
+     "see": "** server can't find intranet.example.com: NXDOMAIN"
+    },
+    {
+     "do": "Run: dig example.com NS +short",
+     "see": "ns1.example.com. ns2.example.com."
+    },
+    {
+     "do": "Run: dig example.com MX +short",
+     "see": "10 mail.example.com."
+    },
+    {
+     "do": "Run: dig @ns1.example.com intranet.example.com A +short",
+     "see": "(empty). The authoritative server has no A record."
+    },
+    {
+     "do": "Run: dig @ns1.example.com intranet-app.example.com A +short",
+     "see": "198.51.100.30. A record exists under a different name."
+    },
+    {
+     "do": "State the cause.",
+     "see": "Recorded: record missing or misspelled in the zone."
+    }
+   ],
+   "answer": "The name intranet.example.com returns NXDOMAIN and the authoritative server has no A record for it, while a similar record exists as intranet-app.example.com. The fault is a missing or misnamed record in the zone, not the resolver.",
+   "hint": "If the authoritative server also lacks the record, the problem is the zone data."
+  },
+  {
+   "title": "DHCP Lease Debug",
+   "sim": "log-viewer",
+   "scenario": "A fictional laptop named LAPTOP-07 in a branch office shows the address 169.254.33.8 and cannot reach the network. You are given a log from the client and the DHCP relay. The log viewer lets you filter by MAC address 00:00:5E:00:53:07. Find the point in the DORA exchange that never happened and explain why the client picked a link-local address. Read entries in time order and note which messages appear for this MAC.",
+   "objective": "Identify the missing DHCP step that left the client on a 169.254.x.x address.",
+   "steps": [
+    {
+     "do": "Filter the log by MAC 00:00:5E:00:53:07.",
+     "see": "Six entries shown."
+    },
+    {
+     "do": "Read entry 1.",
+     "see": "10:02:11 client DHCPDISCOVER broadcast sent."
+    },
+    {
+     "do": "Read entry 2.",
+     "see": "10:02:15 client DHCPDISCOVER retry 1."
+    },
+    {
+     "do": "Look for a DHCPOFFER from the server.",
+     "see": "No DHCPOFFER entry found for this MAC."
+    },
+    {
+     "do": "Read entry 5.",
+     "see": "10:02:50 no response; assigning link-local 169.254.33.8."
+    },
+    {
+     "do": "Check the relay log.",
+     "see": "Relay 192.168.30.1: link to DHCP server 192.168.1.2 down."
+    },
+    {
+     "do": "State the missing step.",
+     "see": "Recorded: Offer never arrived, so Request and Ack never occurred."
+    }
+   ],
+   "answer": "The client sent Discover but never received an Offer, so no Request or Acknowledge followed. The relay could not reach the DHCP server, so the client self-assigned 169.254.33.8. Restoring the relay link or server reachability fixes it.",
+   "hint": "Count which of D, O, R, A appear for that MAC."
+  },
+  {
+   "title": "Where Does the Packet Die?",
+   "sim": "terminal",
+   "scenario": "You are in a terminal on a fictional host at 192.168.1.20 and a user cannot reach a server at 198.51.100.5. You will run ping and traceroute to see where traffic stops. The simulated path crosses the local gateway, an ISP edge router and an upstream router. Use the hop output to decide which device is dropping the packets and what to report to the provider.",
+   "objective": "Locate the hop at which traffic stops using ping and traceroute.",
+   "steps": [
+    {
+     "do": "Run: ping -c 3 192.168.1.1",
+     "see": "3 replies, ttl=64, 1 ms. Gateway is reachable."
+    },
+    {
+     "do": "Run: ping -c 3 198.51.100.5",
+     "see": "3 packets sent, 0 received, 100 percent loss."
+    },
+    {
+     "do": "Run: traceroute 198.51.100.5",
+     "see": "Hop 1 192.168.1.1 1.1 ms."
+    },
+    {
+     "do": "Read hop 2.",
+     "see": "Hop 2 203.0.113.1 9.8 ms."
+    },
+    {
+     "do": "Read hop 3.",
+     "see": "Hop 3 203.0.113.9 14.2 ms."
+    },
+    {
+     "do": "Read hops 4 to 6.",
+     "see": "Hops 4, 5, 6: * * *"
+    },
+    {
+     "do": "State the finding.",
+     "see": "Recorded: last responding hop is 203.0.113.9."
+    }
+   ],
+   "answer": "The local network and the first two routers work. Traffic stops after 203.0.113.9, the last responding hop, so the fault lies at or beyond the next router on the provider side. Report 203.0.113.9 as the last good hop.",
+   "hint": "The failing device is just beyond the last hop that answered."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which address is a private RFC 1918 address?",
+   "options": [
+    "198.51.100.4",
+    "192.168.5.9",
+    "203.0.113.7",
+    "169.254.2.2"
+   ],
+   "a": 1,
+   "why": "192.168.0.0/16 is private."
+  },
+  {
+   "q": "What is the broadcast address of 192.168.1.0/26?",
+   "options": [
+    "192.168.1.63",
+    "192.168.1.64",
+    "192.168.1.255",
+    "192.168.1.31"
+   ],
+   "a": 0,
+   "why": "The block runs .0 to .63."
+  },
+  {
+   "q": "How many usable hosts are in a /28?",
+   "options": [
+    "16",
+    "14",
+    "30",
+    "6"
+   ],
+   "a": 1,
+   "why": "16 addresses minus two."
+  },
+  {
+   "q": "At which OSI layer does a router work?",
+   "options": [
+    "1",
+    "2",
+    "3",
+    "7"
+   ],
+   "a": 2,
+   "why": "Routers forward packets at layer 3."
+  },
+  {
+   "q": "What is the correct handshake order?",
+   "options": [
+    "SYN, ACK, SYN-ACK",
+    "SYN, SYN-ACK, ACK",
+    "ACK, SYN, FIN",
+    "SYN-ACK, SYN, ACK"
+   ],
+   "a": 1,
+   "why": "Client SYN, server SYN-ACK, client ACK."
+  },
+  {
+   "q": "Which transport protocol suits a live video call?",
+   "options": [
+    "UDP",
+    "FTP",
+    "Telnet",
+    "SMTP"
+   ],
+   "a": 0,
+   "why": "UDP favors timeliness."
+  },
+  {
+   "q": "Which port does RDP use by default?",
+   "options": [
+    "22",
+    "443",
+    "3389",
+    "25"
+   ],
+   "a": 2,
+   "why": "RDP uses TCP 3389."
+  },
+  {
+   "q": "A client self-assigns 169.254.x.x. What probably failed?",
+   "options": [
+    "DNS",
+    "DHCP",
+    "NAT",
+    "ARP spoofing"
+   ],
+   "a": 1,
+   "why": "No DHCP server answered."
+  },
+  {
+   "q": "What does PAT allow?",
+   "options": [
+    "Many private hosts to share one public address",
+    "Encrypt traffic",
+    "Block ICMP",
+    "Assign MAC addresses"
+   ],
+   "a": 0,
+   "why": "Port translation lets hosts share one address."
+  },
+  {
+   "q": "Ping to an IP works but the hostname fails. Where is the fault?",
+   "options": [
+    "DNS",
+    "Cable",
+    "Switch CAM table",
+    "Wi-Fi band"
+   ],
+   "a": 0,
+   "why": "Name resolution is failing."
+  }
+ ]
+}

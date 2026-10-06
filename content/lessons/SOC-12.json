@@ -1,0 +1,1061 @@
+{
+ "code": "SOC-12",
+ "intro": "Incident response is the disciplined process of handling a security incident from first alert to final lessons. This module compares NIST SP 800-61 and SANS PICERL, covers preparation and severity, containment trade-offs, eradication and recovery, evidence handling by order of volatility, communication and escalation duties, and blameless post-incident reviews with playbooks. You will practice choosing actions that stop damage, preserve evidence and keep the business running. Each lesson ends with practice questions and hands-on lab drills.",
+ "lessons": [
+  {
+   "title": "IR frameworks and lifecycle",
+   "why": "A shared lifecycle keeps a stressful incident orderly. Everyone knows the current phase, the next decision and who owns it.",
+   "sections": [
+    {
+     "h": "NIST SP 800-61",
+     "p": [
+      "NIST Special Publication 800-61, the Computer Security Incident Handling Guide, describes the lifecycle most public-sector and many private teams use. In Revision 2 it has four phases: Preparation; Detection and Analysis; Containment, Eradication and Recovery; and Post-Incident Activity. The phases form a cycle, because lessons from one incident feed preparation for the next. Revision 3, published in 2025, aligns incident response with the NIST Cybersecurity Framework 2.0 functions rather than presenting the older four-phase model, but the underlying activities are the same and the older phases remain the common teaching vocabulary."
+     ]
+    },
+    {
+     "h": "SANS PICERL",
+     "p": [
+      "The SANS Institute describes six steps remembered as PICERL: Preparation, Identification, Containment, Eradication, Recovery and Lessons Learned. Compared with NIST, SANS splits containment, eradication and recovery into three separate phases and renames detection and analysis as identification. Neither model is more correct. Choose one, document it in the plan, and map the other onto it so that vendors, auditors and partners using different terms can still coordinate. What matters is that the team does not skip the first and last phases, which are the ones most often neglected."
+     ]
+    },
+    {
+     "h": "Phases are not strictly linear",
+     "p": [
+      "Real incidents loop. While containing a compromised server you may discover a second compromised host, which sends you back to identification. Eradication may reveal that the attacker had a second persistence method, returning you to containment. Analysis continues throughout, because scope changes with every new indicator. Build the plan to allow iteration: define criteria for moving to the next phase, such as 'all known compromised accounts disabled and no new beaconing for 24 hours' before declaring containment complete."
+     ]
+    },
+    {
+     "h": "Roles on the team",
+     "p": [
+      "A Computer Security Incident Response Team usually includes an incident commander who owns decisions and coordination, analysts who triage and investigate, forensic specialists, IT and system owners who execute changes, a communications lead for internal and external messages, legal counsel, human resources for insider cases, and an executive sponsor who approves business-impacting actions. A scribe records the timeline. Write down names, backups and contact methods before an incident, and practice the roles in tabletop exercises so the first time is not during a real breach.",
+      "Define what counts as an incident versus an event. An event is any observable occurrence, such as a failed login; an incident is an event, or set of events, that violates policy or threatens confidentiality, integrity or availability. Triage decides which events deserve a case. Keeping this distinction prevents analysts from escalating routine noise and ensures real incidents get the named roles and communication paths described in the plan."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "IR phase map",
+    "text": "NIST 800-61 r2             SANS PICERL\n1 Preparation             Preparation\n2 Detection & Analysis    Identification\n3 Containment,            Containment\n  Eradication, Recovery   Eradication\n                          Recovery\n4 Post-Incident Activity  Lessons Learned"
+   },
+   "example": "At 02:10 an alert reports mass file renames on a file server. The on-call analyst opens a case and notifies the incident commander. In the SANS language this is identification; in NIST it is detection and analysis. The commander assigns a scribe, a forensic lead and an IT contact, then sets the next decision point for 03:00: whether to isolate the server. Roles and phase are clear within minutes.",
+   "terms": [
+    {
+     "term": "NIST SP 800-61",
+     "def": "The US national guide for computer security incident handling."
+    },
+    {
+     "term": "PICERL",
+     "def": "SANS six-step model: Preparation to Lessons Learned."
+    },
+    {
+     "term": "Incident commander",
+     "def": "The person who owns decisions and coordination during an incident."
+    },
+    {
+     "term": "CSIRT",
+     "def": "A team responsible for receiving, analyzing and responding to incidents."
+    },
+    {
+     "term": "Tabletop exercise",
+     "def": "A discussion-based drill that rehearses incident roles and decisions."
+    }
+   ],
+   "check": [
+    {
+     "q": "How many phases does the NIST 800-61 Rev 2 lifecycle have?",
+     "options": [
+      "3",
+      "4",
+      "6",
+      "8"
+     ],
+     "a": 1,
+     "why": "Preparation; Detection and Analysis; Containment, Eradication and Recovery; Post-Incident Activity."
+    },
+    {
+     "q": "Which SANS step corresponds to NIST Detection and Analysis?",
+     "options": [
+      "Preparation",
+      "Identification",
+      "Recovery",
+      "Eradication"
+     ],
+     "a": 1,
+     "why": "SANS calls it Identification."
+    },
+    {
+     "q": "Who owns decisions and coordination during an incident?",
+     "options": [
+      "Scribe",
+      "Incident commander",
+      "Intern",
+      "Vendor"
+     ],
+     "a": 1,
+     "why": "The incident commander leads."
+    },
+    {
+     "q": "Why do incident phases loop?",
+     "options": [
+      "Scope changes as new evidence appears",
+      "Tools require it",
+      "Auditors demand it",
+      "Logs expire"
+     ],
+     "a": 0,
+     "why": "New findings send teams back to earlier phases."
+    }
+   ],
+   "recap": [
+    "NIST has four phases; SANS PICERL has six.",
+    "Phases iterate as scope changes.",
+    "Define roles and practice them before an incident."
+   ]
+  },
+  {
+   "title": "Preparation and detection",
+   "why": "Most incident outcomes are decided before the incident starts. Plans, tools and clear severity rules turn confusion into action.",
+   "sections": [
+    {
+     "h": "The IR plan and retainers",
+     "p": [
+      "An incident response plan states purpose, scope, roles, phases, escalation paths, communication templates and authority to act, such as the right to isolate a production system. It is approved by management, stored where it is reachable when systems are down (printed or offline copy), and reviewed at least annually. Many organizations also sign an IR retainer with an external firm that guarantees response time and prior legal terms, and engage outside counsel in advance. Contacts for ISPs, cloud providers, law enforcement and cyber insurers belong in the plan."
+     ]
+    },
+    {
+     "h": "Tooling and visibility",
+     "p": [
+      "Preparation includes tools: EDR agents, centralized logging in a SIEM, packet capture capability, a forensic workstation, write blockers, clean media, a jump kit with cables and notebooks, a secure case management system and an out-of-band chat or phone bridge. Prepare golden images and tested backups. Enable valuable logs in advance: Windows process creation (event ID 4688 with command line), PowerShell script block logging (4104), authentication logs, DNS, proxy and firewall logs. Time must be synchronized by NTP so that events across systems line up."
+     ]
+    },
+    {
+     "h": "Asset inventory and baselines",
+     "p": [
+      "You cannot protect or contain what you do not know exists. Maintain an inventory of hosts, owners, criticality, data classification and network location, and record baselines of normal behavior. During an incident this answers urgent questions: who owns server FS-02 at 192.0.2.60, does it hold regulated data, can it be taken offline, and what depends on it. Also keep network diagrams, a list of privileged accounts and a list of crown-jewel systems whose compromise would be severe."
+     ]
+    },
+    {
+     "h": "Classification and severity",
+     "p": [
+      "Detection yields many alerts, so define categories and severity criteria. Categories might include malware, unauthorized access, denial of service, data loss, insider misuse and web compromise. Severity combines impact on business and data, scope (number of systems or users), and the incident's trajectory. For example: Sev 1 is confirmed compromise of critical systems or regulated data exfiltration; Sev 2 is confirmed compromise of a non-critical host with lateral movement risk; Sev 3 is contained malware on a single workstation; Sev 4 is a policy violation. Tie each level to response times, notification duties and who is paged.",
+      "Test the plan rather than trusting it. Run tabletop exercises with realistic scenarios such as ransomware on a Friday evening or a leaked cloud key, and technical drills such as restoring a server from backup within a target time. Record gaps, for example a missing phone number or an expired retainer contract, and fix them. Plans that have never been exercised tend to fail on contact with a real incident, usually in the first hour when people are tired and uncertain."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Severity matrix",
+    "text": "Sev  Criteria                                  Response   Notify\n1    Critical system / regulated data loss     15 min     CISO, legal, exec\n2    Confirmed compromise, spread risk         1 hour     IR lead, IT head\n3    Single endpoint malware, contained        4 hours    SOC lead\n4    Policy violation, no compromise           Next day   Ticket owner"
+   },
+   "example": "A SOC receives an alert about suspicious PowerShell on a finance laptop. Using the asset inventory, the analyst sees the user handles payment approvals, which raises criticality. Process creation logs show an encoded command and an outbound connection. Meeting the matrix, the case starts as Sev 3 but is raised to Sev 2 when a second host with the same indicators appears, which automatically pages the IR lead.",
+   "terms": [
+    {
+     "term": "IR plan",
+     "def": "A documented set of roles, procedures and authority for handling incidents."
+    },
+    {
+     "term": "Retainer",
+     "def": "A pre-arranged contract with an external responder."
+    },
+    {
+     "term": "Jump kit",
+     "def": "A prepared set of tools and media for rapid response."
+    },
+    {
+     "term": "Severity",
+     "def": "A rating of an incident's impact, scope and urgency."
+    },
+    {
+     "term": "Baseline",
+     "def": "A record of normal behavior used to spot deviations."
+    }
+   ],
+   "check": [
+    {
+     "q": "An IR retainer provides:",
+     "options": [
+      "Free hardware",
+      "Pre-arranged external responders",
+      "Log storage",
+      "A firewall"
+     ],
+     "a": 1,
+     "why": "It guarantees expert help and terms before an incident."
+    },
+    {
+     "q": "Why synchronize time with NTP?",
+     "options": [
+      "To align events across systems",
+      "To speed disks",
+      "To hide logs",
+      "To reduce alerts"
+     ],
+     "a": 0,
+     "why": "Correlation requires consistent timestamps."
+    },
+    {
+     "q": "Severity is driven by:",
+     "options": [
+      "Impact, scope and trajectory",
+      "Analyst mood",
+      "Alert name",
+      "Time of day only"
+     ],
+     "a": 0,
+     "why": "These factors reflect business risk."
+    },
+    {
+     "q": "Where should the IR plan be stored?",
+     "options": [
+      "Only on the file server that may be down",
+      "Where it is reachable during an outage",
+      "In personal email",
+      "Nowhere"
+     ],
+     "a": 1,
+     "why": "It must be available when systems fail."
+    }
+   ],
+   "recap": [
+    "Plan, tools, inventory and logging come first.",
+    "Define categories and severity tied to response times.",
+    "Keep the plan and contacts reachable offline."
+   ]
+  },
+  {
+   "title": "Containment strategies",
+   "why": "Containment stops the damage from growing. Good containment balances speed against business impact and against tipping off the attacker.",
+   "sections": [
+    {
+     "h": "Short-term versus long-term",
+     "p": [
+      "Short-term containment acts immediately to stop spread: isolating a host from the network with the EDR network isolation feature, disabling a compromised account, blocking an IP address or domain at the firewall and DNS, or pulling a network cable. Long-term containment holds the situation stable while you prepare a clean recovery: applying temporary patches, moving a service to a clean system, adding segmentation rules and tightening access. Short-term actions are quick but crude; long-term actions keep business running while the investigation continues."
+     ]
+    },
+    {
+     "h": "Methods and their effects",
+     "p": [
+      "Network isolation preserves the machine state and memory, which helps forensics, whereas powering off destroys volatile evidence and may trigger destructive logic, so prefer isolation to shutdown unless ransomware is actively encrypting and you cannot isolate. Disabling accounts stops use but may lock out business processes; service accounts need special care. Resetting credentials must follow scope: in an Active Directory compromise the krbtgt account may need a reset twice. Block indicators at multiple layers, and watch for the attacker switching to alternate infrastructure."
+     ]
+    },
+    {
+     "h": "Business impact and decisions",
+     "p": [
+      "Every containment step has a cost. Isolating a domain controller or an ERP server can stop the business, so decisions involve system owners and management. Use the severity and criticality data from preparation. A common approach is to contain in order of risk: stop spread first, protect crown jewels second, restore less critical services third. Document who approved each action and when. If you cannot decide quickly, consider the least disruptive control that still stops the growth, such as blocking a port between segments instead of unplugging a site."
+     ]
+    },
+    {
+     "h": "Avoiding common mistakes",
+     "p": [
+      "Do not alert the attacker prematurely when scoping is incomplete; sometimes coordinated, simultaneous containment across all known compromised assets is better than isolating hosts one by one. Do not reboot or wipe machines before evidence is captured. Do not use the compromised network to discuss the response; use an out-of-band channel. Verify that containment works by monitoring for new beaconing, new logons by the disabled account and attempts to contact the blocked domains. Keep a running list of what was contained, by whom and when.",
+      "Consider adding decision criteria that remove debate under pressure. For example, pre-authorize the on-call analyst to isolate any endpoint showing confirmed ransomware behavior, and to disable any account with confirmed attacker activity, without waiting for management approval. Pre-approval is paired with an obligation to notify immediately afterward. This gives speed where minutes matter while keeping accountability, and it should be written in the plan, signed by management and tested during exercises."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Containment log",
+    "text": "02:24 EDR isolate FS-02 (192.0.2.60)        by: analyst1\n02:31 Disable account svc-backup@example.com      by: AD admin\n02:35 Block 203.0.113.9 at firewall, sinkhole domain\n02:50 SMB 445 denied between VLAN20 and VLAN30\n03:10 Verify: no new beacons for 20 min"
+   },
+   "example": "Ransomware encrypts shares on FS-02 while backup server BK-01 and the ERP system are still healthy. The commander isolates FS-02 with EDR, disables the compromised service account, and blocks SMB between the user VLAN and the server VLAN. ERP stays online because the finance close is tonight. Verification shows no new encryption events, and the team schedules deeper scoping of the remaining hosts.",
+   "terms": [
+    {
+     "term": "Isolation",
+     "def": "Cutting a host off from the network while keeping it powered on."
+    },
+    {
+     "term": "Short-term containment",
+     "def": "Immediate actions to stop spread."
+    },
+    {
+     "term": "Long-term containment",
+     "def": "Stable temporary measures while preparing a clean recovery."
+    },
+    {
+     "term": "krbtgt",
+     "def": "The Active Directory account whose key signs Kerberos tickets."
+    },
+    {
+     "term": "Out-of-band channel",
+     "def": "A communication path independent of the compromised network."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why prefer isolation to powering off a host?",
+     "options": [
+      "Isolation preserves memory and state",
+      "It is slower",
+      "It deletes logs",
+      "It repairs malware"
+     ],
+     "a": 0,
+     "why": "Powering off destroys volatile evidence."
+    },
+    {
+     "q": "Long-term containment aims to:",
+     "options": [
+      "Delete evidence",
+      "Hold stability while preparing clean recovery",
+      "Close the case",
+      "Notify the press"
+     ],
+     "a": 1,
+     "why": "It buys time for safe recovery."
+    },
+    {
+     "q": "Why use an out-of-band channel?",
+     "options": [
+      "The attacker may read the compromised network",
+      "It is cheaper",
+      "It is required by NIST",
+      "It is encrypted by default"
+     ],
+     "a": 0,
+     "why": "The attacker may be monitoring internal communications."
+    },
+    {
+     "q": "Containment decisions should involve:",
+     "options": [
+      "Only the analyst",
+      "System owners and management for critical systems",
+      "No one",
+      "Only vendors"
+     ],
+     "a": 1,
+     "why": "Business impact needs owner approval."
+    }
+   ],
+   "recap": [
+    "Contain in order of risk: spread, crown jewels, then the rest.",
+    "Prefer isolation over shutdown to keep evidence.",
+    "Verify containment and log every action."
+   ]
+  },
+  {
+   "title": "Eradication and recovery",
+   "why": "Removing the visible malware is not enough. Eradication finds every foothold and the root cause; recovery restores service safely.",
+   "sections": [
+    {
+     "h": "Finding all persistence",
+     "p": [
+      "After containment, remove everything the attacker left behind. On Windows, check scheduled tasks (schtasks /query /fo LIST /v), services (sc query), Run and RunOnce registry keys, startup folders, WMI event subscriptions, new local or domain accounts, added SSH keys, web shells, modified group memberships, DLL search-order hijacks and rogue remote access tools. Compare with the baseline and with golden images. Use EDR and forensic findings to build the list of artifacts; every new indicator discovered should trigger a search across the whole environment, not only the first host."
+     ]
+    },
+    {
+     "h": "Root cause and patching",
+     "p": [
+      "Eradication also means closing the door the attacker used. Identify the initial access vector, such as an unpatched VPN appliance (T1190), a phished credential (T1566), an exposed RDP service or a weak password, and fix it: patch, disable the service, enforce MFA, restrict exposure. Without this step the attacker, or another one, simply returns. Reset passwords and keys for any account that may have been exposed, including service accounts, API keys and certificates, in a coordinated way so the attacker cannot use a not-yet-reset secret."
+     ]
+    },
+    {
+     "h": "Rebuild and restore",
+     "p": [
+      "For any system where you cannot prove cleanliness, rebuild from a known-good image and reinstall applications, then restore data, not executables, from backups taken before the compromise date. Verify that backups are clean and not themselves encrypted or infected; test restoration in a separate segment first. Apply hardening during rebuild rather than recreating the old weak configuration. Recover in stages, beginning with the most critical services, and validate each with the business owner before returning it to production."
+     ]
+    },
+    {
+     "h": "Monitoring after restore",
+     "p": [
+      "Recovery is not the end. Place heightened monitoring on restored systems, the accounts involved and the indicators from the case, for weeks. Watch for beaconing, new persistence, unusual logons and any reuse of the same infrastructure. Define the exit criteria in advance, for example 30 days without related alerts. Communicate the status to system owners and decide when the incident can be formally closed. Keep detections created during the case in production, since attackers often retry after a quiet period.",
+      "Eradication needs a verification step. After removal, re-query every persistence location, scan the host with updated signatures, and watch EDR telemetry for the previously seen behavior for a defined period. Compare the host to the golden image where possible. If any doubt remains about integrity, such as evidence of kernel-level tampering or domain-controller compromise, choose rebuild. For Active Directory compromises, plan a full credential reset, including privileged accounts and trust relationships, rather than piecemeal fixes."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "C:\\> schtasks /query /fo LIST /v | findstr /i \"TaskName Run\"\nTaskName: \\Microsoft\\Windows\\UpdateCheck\nTask To Run: C:\\Users\\Public\\svc32.exe\nC:\\> sc query type= service state= all | findstr /i svc32\nSERVICE_NAME: SvcUpdater32"
+   },
+   "example": "Responders find a scheduled task and a service on HOST-07 both launching C:\\Users\\Public\\svc32.exe. They delete both, remove the file, and search the fleet for the same hash and task name, finding one more host. The VPN appliance patched last week had been exploited before patching, so they also reset all VPN-visible credentials. HOST-07 is rebuilt from the golden image and returned after a week of added monitoring.",
+   "terms": [
+    {
+     "term": "Persistence",
+     "def": "Mechanism that lets an attacker keep access across reboots or logoffs."
+    },
+    {
+     "term": "Root cause",
+     "def": "The underlying weakness that allowed the incident."
+    },
+    {
+     "term": "Golden image",
+     "def": "A trusted, hardened, known-good system build."
+    },
+    {
+     "term": "Rebuild",
+     "def": "Reinstalling a system from clean media instead of cleaning it in place."
+    },
+    {
+     "term": "Exit criteria",
+     "def": "Predefined conditions for declaring the incident resolved."
+    }
+   ],
+   "check": [
+    {
+     "q": "Eradication should include:",
+     "options": [
+      "Only deleting malware files",
+      "Removing persistence and fixing root cause",
+      "Rebooting",
+      "Changing the wallpaper"
+     ],
+     "a": 1,
+     "why": "Both footholds and entry points must be closed."
+    },
+    {
+     "q": "Where should restored data come from?",
+     "options": [
+      "Backups taken before the compromise",
+      "Any recent copy",
+      "The attacker's server",
+      "Memory dumps"
+     ],
+     "a": 0,
+     "why": "Backups must predate the compromise and be verified clean."
+    },
+    {
+     "q": "Why rebuild instead of clean in place?",
+     "options": [
+      "It is cheaper",
+      "You cannot prove a cleaned system is clean",
+      "It is faster always",
+      "Required by law"
+     ],
+     "a": 1,
+     "why": "Unknown persistence may remain."
+    },
+    {
+     "q": "After restore you should:",
+     "options": [
+      "Stop monitoring",
+      "Monitor closely for reuse of indicators",
+      "Delete logs",
+      "Close all alerts"
+     ],
+     "a": 1,
+     "why": "Attackers often return."
+    }
+   ],
+   "recap": [
+    "Hunt persistence everywhere, not just on the first host.",
+    "Fix the root cause and reset exposed credentials.",
+    "Rebuild from known-good, restore clean data, monitor."
+   ]
+  },
+  {
+   "title": "Evidence handling",
+   "why": "Evidence decides whether you can explain what happened, defend decisions and support legal action. Poor handling destroys it.",
+   "sections": [
+    {
+     "h": "Order of volatility",
+     "p": [
+      "Collect the most volatile data first, because it disappears soonest. RFC 3227 gives the order: CPU registers and cache; routing table, ARP cache, process table, kernel statistics and memory; temporary file systems; disk; remote logging and monitoring data; physical configuration and network topology; and archival media. In practice for a live host: capture memory, then network connections and process lists, then logged-on users, then volatile logs, then a disk image. Every action on a live system changes it, so keep actions few, scripted and documented."
+     ]
+    },
+    {
+     "h": "Documentation: who, what, when",
+     "p": [
+      "For every item record who collected it, what it is (host name, serial number, source path), when it was collected with time zone, how it was collected (tool and version, command), and where it is stored. Photograph hardware and labels. Note system clock offset against a trusted source. Recording the commands you typed on the live system is as important as the output, so that others can distinguish your changes from the attacker's."
+     ]
+    },
+    {
+     "h": "Hashing and integrity",
+     "p": [
+      "Create a forensic copy and verify it: compute SHA-256 of the source and the image and compare. Work on copies, and keep the original sealed. Record hashes in the case notes, and recompute them whenever the item moves. If a hash later differs, the item's reliability is in question. Store evidence in access-controlled, write-protected locations, and for physical media use sealed bags with tamper-evident tape."
+     ]
+    },
+    {
+     "h": "Chain of custody",
+     "p": [
+      "Chain of custody is a log showing every person who held an item, when, and why, from collection to disposal. Each transfer is signed by both parties. It lets you demonstrate the item has not been altered, which matters for HR actions, regulators and courts. Limit access, avoid unnecessary handling and never leave evidence unattended. If law enforcement involvement is likely, consult legal counsel before collecting, as improper collection could make evidence inadmissible or violate privacy law.",
+      "Storage and retention deserve a policy. Evidence from an incident may be needed months later for litigation, insurance claims or regulator questions, so define retention periods that match legal advice and keep the case notes, hashes and custody logs with the artifacts. Restrict access to those who need it, and log each access. When the retention period ends, dispose of the data using approved methods and record the disposal, keeping the chain of custody complete from start to finish."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Custody record",
+    "text": "Item: EV-007  Memory image HOST-07.raw\nCollected: 2026-10-03 02:41 UTC by A. Rivera  Tool: winpmem 4.0\nSHA-256: 4a1f...c09e\nTransfers:\n 03:05 Rivera -> Chen   (to forensic workstation)  signed\n 09:30 Chen -> Evidence locker L2                 signed"
+   },
+   "example": "A suspicious host is still running. The responder first captures memory with a trusted tool from a clean USB drive, then saves the process list and network connections to the external drive, records the commands used, and hashes the outputs. The disk is imaged next with a verified hash. Each item gets a custody entry and is stored in the evidence locker, ready for later analysis or potential legal use.",
+   "terms": [
+    {
+     "term": "Volatility order",
+     "def": "The sequence for collecting data from the most to least short-lived."
+    },
+    {
+     "term": "Chain of custody",
+     "def": "A record of who handled evidence and when."
+    },
+    {
+     "term": "Forensic image",
+     "def": "A bit-for-bit copy of storage media."
+    },
+    {
+     "term": "Hash verification",
+     "def": "Comparing digests to prove a copy is unchanged."
+    },
+    {
+     "term": "Tamper-evident seal",
+     "def": "A bag or tape that shows if evidence was opened."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which data is most volatile?",
+     "options": [
+      "Disk contents",
+      "Memory",
+      "Backups",
+      "Archive tapes"
+     ],
+     "a": 1,
+     "why": "Memory vanishes on power loss."
+    },
+    {
+     "q": "Why hash an image?",
+     "options": [
+      "To prove integrity",
+      "To shrink it",
+      "To encrypt it",
+      "To rename it"
+     ],
+     "a": 0,
+     "why": "Matching hashes show the copy is unchanged."
+    },
+    {
+     "q": "Chain of custody records:",
+     "options": [
+      "Only the file name",
+      "Each handler, time and purpose",
+      "The attacker's name",
+      "Disk speed"
+     ],
+     "a": 1,
+     "why": "It documents every transfer."
+    },
+    {
+     "q": "On a live host you should record:",
+     "options": [
+      "Only the output",
+      "Commands you ran and times",
+      "Nothing",
+      "Only screenshots"
+     ],
+     "a": 1,
+     "why": "Your actions alter the system and must be documented."
+    }
+   ],
+   "recap": [
+    "Collect most volatile data first.",
+    "Record who, what, when and how, and hash everything.",
+    "Maintain a signed chain of custody."
+   ]
+  },
+  {
+   "title": "Communication and escalation",
+   "why": "Technical work fails without coordination. Clear, timely and controlled communication limits legal, financial and reputational harm.",
+   "sections": [
+    {
+     "h": "Who needs to know and when",
+     "p": [
+      "Define escalation in advance. Common recipients are the IR lead, CISO, IT and system owners, legal counsel, privacy officer, human resources for insider cases, executive management, communications or public relations, the cyber insurer and, when required, regulators and law enforcement. Tie notifications to severity: a Sev 1 may require executive notice within an hour. Use short, factual updates on a schedule, such as every two hours, with sections for status, impact, actions taken, next steps and decisions required."
+     ]
+    },
+    {
+     "h": "Legal and regulatory clocks",
+     "p": [
+      "Many regimes impose deadlines. For example, GDPR requires notification of a personal data breach to the supervisory authority without undue delay and where feasible within 72 hours of becoming aware; the EU NIS2 directive adds early warning within 24 hours for significant incidents; US public companies must disclose material cybersecurity incidents on Form 8-K within four business days of determining materiality; HIPAA breach rules and state laws set their own timelines. Counsel decides what is reportable. The IR team supplies accurate facts and times, and records when awareness began."
+     ]
+    },
+    {
+     "h": "Need-to-know and secure channels",
+     "p": [
+      "Limit information to people who need it. Assume the attacker may monitor email and chat on a compromised environment, so use out-of-band channels such as a phone bridge or a separate, clean collaboration tenant, with a call list stored offline. Mark documents with handling labels, keep the incident name neutral, and do not speculate in writing. Involve counsel early, because communications under attorney direction may be privileged. Avoid putting unverified attribution or blame in tickets."
+     ]
+    },
+    {
+     "h": "External messages",
+     "p": [
+      "Customers, partners and the press require carefully prepared statements that are accurate, avoid speculation and are approved by legal and communications. Designate a single spokesperson. Share indicators with trusted peers and sector sharing groups such as an ISAC when appropriate and approved. If law enforcement is engaged, coordinate on timing. Internally, tell employees what to do, such as reset passwords or report phishing, in plain language. After the incident, send a closing summary to all stakeholders that records final impact and actions.",
+      "Practice the messages before you need them. Maintain templates for executive updates, employee notices, customer notices and regulator notices, reviewed by counsel in advance, with placeholders for facts. Also maintain a contact sheet with phone numbers for each role and a backup for each person. During long incidents rotate staff so that fatigue does not cause errors, and hand over with a written briefing that includes current status, open decisions and what has already been tried."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Status update template",
+    "text": "INCIDENT 2026-041  Sev 2  Update #3  15:00 UTC\nStatus: contained, eradication in progress\nImpact: 2 file servers offline, no confirmed data loss\nActions: hosts isolated, VPN creds reset, IOCs blocked\nNext: forensic review, backup test at 18:00\nDecisions needed: approve overnight rebuild of FS-02"
+   },
+   "example": "Within two hours of confirming data exfiltration, the incident commander informs the CISO and legal counsel by phone bridge. Counsel starts the regulatory assessment and notes that awareness began at 14:10 UTC, which sets the 72-hour clock. The communications lead drafts a holding statement, and IT receives need-to-know instructions. Updates go out every two hours using the template, with no speculation about attackers in written messages.",
+   "terms": [
+    {
+     "term": "Escalation path",
+     "def": "The defined chain of people to notify as severity rises."
+    },
+    {
+     "term": "Need-to-know",
+     "def": "Sharing information only with those who require it."
+    },
+    {
+     "term": "Holding statement",
+     "def": "A short approved message used until facts are confirmed."
+    },
+    {
+     "term": "Notification clock",
+     "def": "A legal deadline starting when the organization becomes aware."
+    },
+    {
+     "term": "ISAC",
+     "def": "An information sharing and analysis center for a sector."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why use out-of-band communication?",
+     "options": [
+      "The attacker may monitor normal channels",
+      "It is faster",
+      "Auditors require it",
+      "It is free"
+     ],
+     "a": 0,
+     "why": "A compromised network cannot be trusted."
+    },
+    {
+     "q": "GDPR breach notification to authorities is generally within:",
+     "options": [
+      "24 hours",
+      "72 hours",
+      "30 days",
+      "1 year"
+     ],
+     "a": 1,
+     "why": "The standard is 72 hours where feasible."
+    },
+    {
+     "q": "Who decides whether an incident is legally reportable?",
+     "options": [
+      "Legal counsel",
+      "The analyst",
+      "The attacker",
+      "The vendor"
+     ],
+     "a": 0,
+     "why": "Counsel makes the call using IR facts."
+    },
+    {
+     "q": "A good status update contains:",
+     "options": [
+      "Speculation about attackers",
+      "Status, impact, actions, next steps and decisions",
+      "Passwords",
+      "Only a log dump"
+     ],
+     "a": 1,
+     "why": "Concise structured facts help leaders decide."
+    }
+   ],
+   "recap": [
+    "Predefine escalation tied to severity.",
+    "Know legal clocks and let counsel decide reporting.",
+    "Use need-to-know and out-of-band channels."
+   ]
+  },
+  {
+   "title": "Post-incident review and playbooks",
+   "why": "Reviews turn pain into improvement. Without them the same failure repeats, and your detections and playbooks stay out of date.",
+   "sections": [
+    {
+     "h": "The blameless review",
+     "p": [
+      "Hold a lessons-learned meeting within about one to two weeks of closing the incident, while memories are fresh. A blameless format focuses on how systems, processes and information allowed the event, not on who erred. People who fear blame hide facts. Invite responders, system owners, and management. Use an agenda: what happened, what went well, what did not, what we were lucky about, and what we change. Assign a facilitator who is not the incident commander to keep discussion balanced."
+     ]
+    },
+    {
+     "h": "Timeline and root cause",
+     "p": [
+      "Reconstruct a precise timeline: first malicious activity, detection, triage, escalation, containment, eradication and recovery, with timestamps in UTC. Compute metrics such as dwell time, time to detect, time to contain and time to recover. Perform root-cause analysis with techniques like the five whys: the attacker got in through an unpatched VPN; patches were delayed because ownership was unclear; ownership was unclear because inventory lacked owners. The deepest actionable cause is where corrective action lands, rather than stopping at 'user clicked a link'."
+     ]
+    },
+    {
+     "h": "Corrective actions",
+     "p": [
+      "Convert findings into specific actions with an owner, a due date and a measure of success. Examples: deploy process creation logging with command line to all servers by 31 October; add a detection for T1003.001; update the escalation list; shorten VPN patch SLA to 72 hours; run a tabletop on ransomware next quarter. Track actions in the same system as other work and report progress to leadership. Reviews with no tracked actions are theater."
+     ]
+    },
+    {
+     "h": "Playbooks and detection updates",
+     "p": [
+      "A playbook is a step-by-step procedure for a common incident type, such as phishing, ransomware, compromised account or web shell. It lists triggers, decision points, containment options, evidence to collect, notification triggers and closure criteria. Update playbooks after each incident, and consider automation for repeatable steps in SOAR tools, keeping human approval for disruptive actions. Add new detections for observed techniques and test them. Maintain metrics over time to show whether the program is getting faster and more effective.",
+      "Measure the program over time. Useful metrics include mean time to detect, mean time to contain, mean time to recover, percentage of incidents closed with documented root cause, and percentage of corrective actions completed on time. Review them quarterly with leadership, and compare to previous periods rather than to arbitrary targets. Share anonymized lessons across the wider IT organization, since many fixes, such as patching owners and logging standards, sit outside the security team."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Review summary",
+    "text": "Incident 2026-041  Root cause: unpatched VPN (CVE pending), no owner\nDwell time: 6 days   Time to contain: 3h 20m\nWent well: EDR isolation in 4 min\nGaps: no cmdline logging on servers; slow backup test\nActions: A1 logging (IT, 10/31); A2 VPN SLA 72h (SecOps, 10/15); A3 ransomware tabletop (IR, Q1)"
+   },
+   "example": "After a contained intrusion, the team meets and builds a UTC timeline showing six days between initial access and detection. Using the five whys they trace the cause to a VPN appliance with no clear patch owner. They list three corrective actions with owners and dates, add a detection for the credential dumping that went unseen, and revise the ransomware playbook to include a backup restore test in the first hour.",
+   "terms": [
+    {
+     "term": "Blameless review",
+     "def": "A lessons-learned practice focused on systems, not individual fault."
+    },
+    {
+     "term": "Dwell time",
+     "def": "The time an attacker remains undetected in an environment."
+    },
+    {
+     "term": "Root-cause analysis",
+     "def": "A method to find the underlying reason for a failure."
+    },
+    {
+     "term": "Playbook",
+     "def": "A step-by-step procedure for a specific incident type."
+    },
+    {
+     "term": "SOAR",
+     "def": "Security orchestration, automation and response tooling."
+    }
+   ],
+   "check": [
+    {
+     "q": "A blameless review focuses on:",
+     "options": [
+      "Who made the mistake",
+      "How processes and systems allowed the event",
+      "The attacker's identity",
+      "Reducing meetings"
+     ],
+     "a": 1,
+     "why": "It encourages candor and system fixes."
+    },
+    {
+     "q": "Dwell time is:",
+     "options": [
+      "Time attackers remain undetected",
+      "Time to restore",
+      "Meeting length",
+      "Backup duration"
+     ],
+     "a": 0,
+     "why": "It measures how long the attacker was present."
+    },
+    {
+     "q": "A good corrective action has:",
+     "options": [
+      "An owner, due date and measure",
+      "A vague goal",
+      "No deadline",
+      "Only a title"
+     ],
+     "a": 0,
+     "why": "Specifics make follow-through possible."
+    },
+    {
+     "q": "After an incident, playbooks should be:",
+     "options": [
+      "Ignored",
+      "Updated with lessons learned",
+      "Deleted",
+      "Kept secret from analysts"
+     ],
+     "a": 1,
+     "why": "Improvement is the purpose of the review."
+    }
+   ],
+   "recap": [
+    "Hold a blameless review soon after closure.",
+    "Build a UTC timeline and find root cause.",
+    "Track corrective actions and update playbooks and detections."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Classify the incident",
+   "sim": "scenario",
+   "scenario": "Four fictional events arrive at the SOC of example.com in one hour. You must label each by type and severity using the matrix and choose the matching playbook, so that the right people are paged and no event is under- or over-escalated. The queue is busy and leadership expects each case to be paged correctly, so base your choice on impact, scope and whether spread is active.",
+   "objective": "Assign type and severity for four events and select the playbook.",
+   "steps": [
+    {
+     "do": "Event 1: user reports a phishing email, no click",
+     "see": "Type: phishing attempt. Sev 4. Playbook: Phishing."
+    },
+    {
+     "do": "Event 2: EDR shows ransomware encrypting FS-02",
+     "see": "Type: malware/ransomware. Sev 1. Playbook: Ransomware."
+    },
+    {
+     "do": "Event 3: impossible-travel sign-in for a finance user, MFA approved",
+     "see": "Type: compromised account. Sev 2. Playbook: Account Compromise."
+    },
+    {
+     "do": "Event 4: new file shell.aspx on web server 203.0.113.50",
+     "see": "Type: web compromise. Sev 2. Playbook: Web Shell."
+    },
+    {
+     "do": "Review pages sent",
+     "see": "Sev 1 paged: CISO, legal. Sev 2 paged: IR lead."
+    },
+    {
+     "do": "Submit classification",
+     "see": "Score 4/4. Classification accepted."
+    }
+   ],
+   "answer": "Event 1 is phishing, Sev 4; Event 2 is ransomware, Sev 1; Event 3 is account compromise, Sev 2; Event 4 is web compromise, Sev 2. Each is paired with its own playbook, with Sev 1 triggering executive and legal notification.",
+   "hint": "Judge impact on critical systems and whether spread is active."
+  },
+  {
+   "title": "Contain the outbreak",
+   "sim": "scenario",
+   "scenario": "Ransomware is spreading from user VLAN 192.0.2.0/24 to file servers. Backup server BK-01 and the ERP system are still healthy, and the finance close happens tonight. Choose containment steps that stop spread while keeping critical services running as far as possible. Several stakeholders are asking for immediate action, so compare each option against business impact and evidence preservation before you commit.",
+   "objective": "Select containment steps weighing impact on critical services.",
+   "steps": [
+    {
+     "do": "Isolate infected hosts with EDR",
+     "see": "Isolated 11 hosts. Encryption events on user VLAN stop."
+    },
+    {
+     "do": "Deny SMB 445 from user VLAN to server VLAN",
+     "see": "Rule applied. 3 file servers no longer reachable by infected hosts."
+    },
+    {
+     "do": "Disable the compromised service account svc-backup",
+     "see": "Disabled. Backup jobs paused; BK-01 protected."
+    },
+    {
+     "do": "Option: shut down the ERP server",
+     "see": "Warning: finance close blocked, no evidence of infection. Step rejected."
+    },
+    {
+     "do": "Option: power off infected hosts",
+     "see": "Warning: memory evidence lost. Step rejected in favor of isolation."
+    },
+    {
+     "do": "Verify containment",
+     "see": "No new encryption in 20 min. Next: scope and eradication."
+    }
+   ],
+   "answer": "Best actions: EDR-isolate infected hosts, block SMB between segments, disable the compromised service account and protect backups. Do not shut down healthy ERP or power off hosts, since that harms the business and destroys evidence.",
+   "hint": "Stop spread and protect crown jewels without taking healthy services down."
+  },
+  {
+   "title": "Eradicate persistence",
+   "sim": "terminal",
+   "scenario": "You have a fictional sandbox Windows host HOST-07 that was infected. A containment is in place and evidence has been collected. You must find and remove a rogue scheduled task and service, then verify the clean state before the host returns to the rebuild queue. Containment and evidence capture are complete. Your task is only to find and remove the attacker's footholds on this one host and prove the result with the same queries.",
+   "objective": "Find and remove a rogue task and service and verify clean state.",
+   "steps": [
+    {
+     "do": "Run: schtasks /query /fo LIST /v",
+     "see": "TaskName: \\UpdateCheck  Task To Run: C:\\Users\\Public\\svc32.exe  Author: HOST-07\\user1"
+    },
+    {
+     "do": "Run: sc query type= service state= all | findstr svc",
+     "see": "SERVICE_NAME: SvcUpdater32  DISPLAY_NAME: Update Service 32"
+    },
+    {
+     "do": "Run: sc qc SvcUpdater32",
+     "see": "BINARY_PATH_NAME: C:\\Users\\Public\\svc32.exe"
+    },
+    {
+     "do": "Run: schtasks /delete /tn \\UpdateCheck /f",
+     "see": "SUCCESS: The scheduled task was successfully deleted."
+    },
+    {
+     "do": "Run: sc stop SvcUpdater32 && sc delete SvcUpdater32",
+     "see": "SERVICE_STOP; [SC] DeleteService SUCCESS"
+    },
+    {
+     "do": "Run: del C:\\Users\\Public\\svc32.exe",
+     "see": "File deleted."
+    },
+    {
+     "do": "Re-run the three queries",
+     "see": "No matches. Clean state verified."
+    }
+   ],
+   "answer": "The rogue task \\UpdateCheck and the service SvcUpdater32 both launched C:\\Users\\Public\\svc32.exe. After removing both and the file, queries return nothing. Next, hunt for the same hash and names fleet-wide, and rebuild the host.",
+   "hint": "Look at what path each persistence entry runs and compare them."
+  },
+  {
+   "title": "Evidence collection order",
+   "sim": "diagram-builder",
+   "scenario": "A suspect fictional laptop is still powered on and connected. You must decide which data sources to collect first, dragging them into the volatility order, and for each item record chain of custody details including time, collector and hash. The device is powered on and holding a running session. Think about what disappears soonest, and write down each custody detail as though it will be examined by counsel.",
+   "objective": "Order data sources by volatility and record custody entries.",
+   "steps": [
+    {
+     "do": "Drag 'Memory' into position 1",
+     "see": "Accepted. Capture with winpmem; hash recorded."
+    },
+    {
+     "do": "Drag 'Network connections and ARP cache' to 2",
+     "see": "Accepted. Saved netstat output; hash recorded."
+    },
+    {
+     "do": "Drag 'Running processes' to 3",
+     "see": "Accepted. Saved process list."
+    },
+    {
+     "do": "Drag 'Temporary files' to 4",
+     "see": "Accepted."
+    },
+    {
+     "do": "Drag 'Disk image' to 5",
+     "see": "Accepted. SHA-256 computed for source and image; match."
+    },
+    {
+     "do": "Drag 'Remote logs' to 6 and 'Archive backups' to 7",
+     "see": "Accepted. Order complete."
+    },
+    {
+     "do": "Record custody entry for EV-001",
+     "see": "Entry saved: collector, time UTC, hash, storage location."
+    }
+   ],
+   "answer": "The order is memory, network state, running processes, temporary files, disk image, remote logs, and archival backups. Each item gets a custody entry with collector, time in UTC, tool, SHA-256 and storage location.",
+   "hint": "The less time something survives, the sooner you collect it."
+  },
+  {
+   "title": "Write the lessons learned",
+   "sim": "chat-sim",
+   "scenario": "An incident has been closed after a six-day dwell. Your manager joins a chat to help you draft the blameless post-incident review. You need a timeline, a root cause that goes deeper than 'user error', and three specific corrective actions with owners and dates. The review meeting is tomorrow, so the draft should be factual and in UTC, avoid naming individuals as the cause, and end with measurable actions that people can own.",
+   "objective": "Draft a blameless review with timeline, root cause and three actions.",
+   "steps": [
+    {
+     "do": "Ask manager for the timeline facts",
+     "see": "Manager: 'Access 09-27, detection 10-03, contained 10-03, recovered 10-05.'"
+    },
+    {
+     "do": "Write: dwell time 6 days",
+     "see": "Manager: 'Good. Root cause?'"
+    },
+    {
+     "do": "Write: unpatched VPN, no patch owner",
+     "see": "Manager: 'Better than blaming the user. Why no owner?'"
+    },
+    {
+     "do": "Write: asset inventory lacked owners",
+     "see": "Manager: 'That is the actionable cause. Actions?'"
+    },
+    {
+     "do": "Propose three actions with owners and dates",
+     "see": "Manager: 'Logging, VPN SLA, tabletop. Make sure each has a measure.'"
+    },
+    {
+     "do": "Submit review",
+     "see": "Review accepted: blameless tone, timeline complete, three SMART actions."
+    }
+   ],
+   "answer": "Timeline: access 27 Sep, detection 3 Oct, contained same day, recovered 5 Oct, six-day dwell. Root cause: unpatched VPN appliance with no owner. Actions: owner field in inventory (IT, 31 Oct), 72-hour VPN patch SLA (SecOps), command line logging on servers (IT, 15 Oct).",
+   "hint": "Ask 'why' repeatedly until you reach a process or system cause."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "NIST SP 800-61 Rev 2 phase that includes eradication:",
+   "options": [
+    "Preparation",
+    "Detection and Analysis",
+    "Containment, Eradication and Recovery",
+    "Post-Incident Activity"
+   ],
+   "a": 2,
+   "why": "These three are grouped in one phase."
+  },
+  {
+   "q": "SANS PICERL has how many steps?",
+   "options": [
+    "4",
+    "5",
+    "6",
+    "8"
+   ],
+   "a": 2,
+   "why": "Preparation to Lessons Learned is six steps."
+  },
+  {
+   "q": "Short-term containment example:",
+   "options": [
+    "Rebuilding a server",
+    "EDR isolation of a host",
+    "Writing a playbook",
+    "Holding a review"
+   ],
+   "a": 1,
+   "why": "Isolation is immediate."
+  },
+  {
+   "q": "Why prefer isolating a host over powering it off?",
+   "options": [
+    "It keeps memory evidence",
+    "It is slower",
+    "It deletes malware",
+    "It saves money"
+   ],
+   "a": 0,
+   "why": "Volatile data survives."
+  },
+  {
+   "q": "Which is the most volatile?",
+   "options": [
+    "Disk",
+    "Memory",
+    "Archive tape",
+    "Printed log"
+   ],
+   "a": 1,
+   "why": "Memory is lost first."
+  },
+  {
+   "q": "Chain of custody shows:",
+   "options": [
+    "Who handled evidence, when and why",
+    "Attack path",
+    "Firewall rules",
+    "Backup dates"
+   ],
+   "a": 0,
+   "why": "It documents each handler and transfer."
+  },
+  {
+   "q": "Eradication must include:",
+   "options": [
+    "Persistence removal and root cause fix",
+    "Only a reboot",
+    "Deleting logs",
+    "Skipping patches"
+   ],
+   "a": 0,
+   "why": "Both are required to prevent return."
+  },
+  {
+   "q": "Restored data should come from:",
+   "options": [
+    "Backups taken before compromise",
+    "Attacker files",
+    "Any copy",
+    "Memory"
+   ],
+   "a": 0,
+   "why": "Pre-compromise verified backups."
+  },
+  {
+   "q": "A blameless review is mainly about:",
+   "options": [
+    "Systems and processes",
+    "Individual fault",
+    "Legal blame",
+    "Vendor selection"
+   ],
+   "a": 0,
+   "why": "It improves learning and candor."
+  },
+  {
+   "q": "GDPR breach notification period is generally:",
+   "options": [
+    "24 hours",
+    "72 hours",
+    "7 days",
+    "90 days"
+   ],
+   "a": 1,
+   "why": "72 hours where feasible."
+  }
+ ]
+}

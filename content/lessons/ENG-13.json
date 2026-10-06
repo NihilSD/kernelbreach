@@ -1,0 +1,832 @@
+{
+ "code": "ENG-13",
+ "intro": "This module covers the controls that sit closest to users: endpoint agents, device management, email defenses and browsers. You will plan an EDR pilot and measure coverage, enforce encryption and compliance with MDM and conditional access, and tune an email gateway with a reporting workflow. You will also move a domain from DMARC p=none to reject without breaking mail, and harden browsers with policy and isolation. These are the areas where phishing and malware most often begin, so careful rollout matters as much as the tools.",
+ "lessons": [
+  {
+   "title": "EDR selection and rollout",
+   "why": "Endpoints are where most intrusions finally execute, so an EDR agent that is deployed badly, or only on half the fleet, gives a false sense of safety.",
+   "sections": [
+    {
+     "h": "What an EDR does and how to choose one",
+     "p": [
+      "Endpoint detection and response (EDR) software runs a lightweight sensor on each laptop, workstation and server. It records process starts, command lines, file writes, registry changes, network connections and logon events, sends that telemetry to a cloud or on-premises console, and applies detections based on behavior rather than only file signatures. When selecting a product, compare telemetry depth, detection quality, response actions, operating system coverage (Windows, macOS, Linux, sometimes mobile), API and SIEM integration, and sensor impact on CPU and memory. Public evaluations such as MITRE ATT&CK Evaluations show how a product detects specific techniques, but they are one input. Always test against your own workloads in a proof of concept."
+     ]
+    },
+    {
+     "h": "Pilot first, then roll out in rings",
+     "p": [
+      "Never install a new sensor on every machine in one weekend. Start with an inventory taken from your asset database, directory and network scans, because you cannot cover devices you do not know about. Then deploy in rings: the security and IT teams first, then a pilot group of roughly 5 percent that includes each hardware model and key application, then wider business groups, and servers last with change approval. Run the sensor in detect-only or audit mode during the pilot so that a false positive does not block a payroll application. Move each ring forward only after a defined soak period, often one to two weeks, with no unresolved performance or compatibility tickets."
+     ]
+    },
+    {
+     "h": "Coverage, exclusions and tamper protection",
+     "p": [
+      "Coverage is a measurable outcome: divide hosts reporting a healthy sensor in the last 24 hours by hosts in the asset inventory, and chase the gap. Watch for sensors in reduced functionality mode, which happens when an operating system version is unsupported or a kernel component fails to load. Exclusions deserve special care. Every excluded path or process is a place where an attacker can hide, so scope exclusions narrowly by full path, signing certificate and process, document the owner and reason, and review them quarterly. Enable tamper protection so that stopping, uninstalling or modifying the agent requires a console-issued token or password, and alert when a sensor goes silent."
+     ]
+    },
+    {
+     "h": "Response actions and operating the tool",
+     "p": [
+      "The value of EDR shows in the response features: isolating a host from the network while keeping the console channel open, killing a process tree, quarantining a file, collecting a triage package, and opening a remote shell for live investigation. Write down who may use each action. Isolating a laptop is routine, while isolating a domain controller or a production database server needs approval and a runbook. Use role-based access control and log every console action. Forward EDR alerts to the SIEM and ticketing system so they are triaged with other signals. Finally, plan upgrades, since sensors need version updates, and test those in the same rings you used for the first deployment."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Coverage check (pseudo-query)",
+    "text": "assets      = 1,240 hosts in inventory\nreporting   = 1,118 sensors seen in last 24h\nreduced_fn  = 31 sensors in reduced mode\nunmanaged   = 122 + 31 = 153 gaps\ncoverage    = 1118 / 1240 = 90.2%  (target 98%+)"
+   },
+   "example": "Example Corp buys an EDR and wants it live in six weeks. The team exports 1,240 hosts from the asset database and starts with 25 IT laptops in audit mode. The pilot reveals that a legacy accounting program is flagged, so a narrow exclusion by signed publisher and path is added with an owner and review date. Ring two covers 60 mixed users, ring three the remaining laptops, and servers follow after change approval. Weekly coverage is 90 percent after ring three, and the gap list shows 31 hosts in reduced functionality mode due to an old OS build that is then upgraded.",
+   "terms": [
+    {
+     "term": "EDR",
+     "def": "Endpoint detection and response: a sensor plus console that records endpoint behavior, detects threats and enables response."
+    },
+    {
+     "term": "Sensor coverage",
+     "def": "Share of inventoried hosts reporting a healthy EDR agent."
+    },
+    {
+     "term": "Exclusion",
+     "def": "A path, process or hash the agent is told to ignore, which creates a potential blind spot."
+    },
+    {
+     "term": "Tamper protection",
+     "def": "Controls that stop users or malware from disabling or removing the agent."
+    },
+    {
+     "term": "Host isolation",
+     "def": "A response action that cuts a host off from the network except the management channel."
+    },
+    {
+     "term": "Reduced functionality mode",
+     "def": "A state where the sensor runs with fewer protections, often due to an unsupported OS or failed driver."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the safest way to start an EDR deployment?",
+     "options": [
+      "Install on every host overnight with blocking on",
+      "A pilot ring in detect-only mode with varied hardware and applications",
+      "Install only on servers",
+      "Skip the pilot to save time"
+     ],
+     "a": 1,
+     "why": "A small, varied pilot in audit mode surfaces compatibility problems before they affect everyone."
+    },
+    {
+     "q": "Why should exclusions be narrow and reviewed?",
+     "options": [
+      "Exclusions make the sensor faster in every case",
+      "Exclusions are required by law",
+      "Excluded files are automatically scanned twice",
+      "Each exclusion is a place malware can run unseen"
+     ],
+     "a": 3,
+     "why": "Overbroad exclusions create blind spots attackers can abuse."
+    },
+    {
+     "q": "What does tamper protection do?",
+     "options": [
+      "Requires a token or password to stop, remove or alter the agent",
+      "Encrypts the disk",
+      "Blocks all USB devices",
+      "Hides the agent in task manager"
+     ],
+     "a": 0,
+     "why": "It prevents attackers and users from disabling the sensor."
+    },
+    {
+     "q": "Which metric best shows deployment health?",
+     "options": [
+      "Number of alerts per day",
+      "Console logins per week",
+      "Hosts with a healthy sensor divided by hosts in the asset inventory",
+      "Size of the sensor installer"
+     ],
+     "a": 2,
+     "why": "Coverage against a trusted inventory shows how many endpoints are actually protected."
+    }
+   ],
+   "recap": [
+    "Test EDR in a pilot using real workloads and audit mode before enforcing.",
+    "Measure coverage against the asset inventory and fix sensors in reduced mode.",
+    "Keep exclusions narrow, enable tamper protection and restrict who can isolate hosts."
+   ]
+  },
+  {
+   "title": "MDM and device compliance",
+   "why": "Phones and laptops hold company data wherever their owners carry them, and mobile device management is how an organization sets and proves a minimum security state.",
+   "sections": [
+    {
+     "h": "What MDM controls",
+     "p": [
+      "Mobile device management (MDM) enrolls a device with a management service so the organization can push configuration and read device state. Platforms such as Apple's MDM protocol, Android Enterprise and the Windows MDM channel expose settings for encryption, screen lock, application installation, VPN and Wi-Fi profiles, and remote actions. MDM is usually combined with mobile application management (MAM), which protects data inside specific apps without controlling the whole device. Typical remote actions are lock, passcode reset, selective wipe that removes only corporate data, and full wipe. Enrollment can be automated for company devices through programs such as Apple Business Manager or Windows Autopilot, so a device is configured from first power-on."
+     ]
+    },
+    {
+     "h": "Compliance baselines",
+     "p": [
+      "A compliance policy is a list of conditions a device must meet to be called healthy. Common rules include storage encryption on (FileVault, BitLocker, or default Android and iOS encryption), a passcode of at least six digits or a complex password with a short lock timeout, a minimum operating system version, no jailbreak or root, a healthy EDR or mobile threat defense signal, and a firewall enabled. Choose rules that match the data being protected. A grace period of a few days lets users fix problems, such as installing an update, before access is affected. Write the baseline once, test it against a pilot group, and report compliance percentages to owners."
+     ]
+    },
+    {
+     "h": "Conditional access",
+     "p": [
+      "Compliance data becomes powerful when identity systems use it. In conditional access, a sign-in to email or a business application is allowed only if the user passes multifactor authentication and the device is marked compliant or enrolled. A non-compliant device is blocked, or given limited access such as web-only without download. This stops a stolen password from working on an unmanaged machine. Design the policies with report-only mode first to see who would be blocked, keep a break-glass administrator account excluded and monitored, and publish clear instructions for users on how to remediate. Conditional access moves enforcement to the moment of access, which is when it matters."
+     ]
+    },
+    {
+     "h": "BYOD and privacy",
+     "p": [
+      "Personally owned devices need a lighter model. With bring your own device (BYOD), organizations often use app protection policies or work profiles: iOS User Enrollment and the Android work profile separate corporate apps and data from personal ones. The company can require a PIN for the work apps, block copy and paste to personal apps, and perform a selective wipe, but it cannot see personal photos, messages or browsing. State this boundary in writing, since trust affects adoption. Pick a minimum OS version and device age that keeps old, unpatched phones out. Lost and stolen device procedures should be quick: report, lock, selective wipe and credential reset."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Example compliance rules",
+    "text": "Platform: iOS / Android (BYOD group)\n  require passcode, length >= 6\n  require device encryption\n  block jailbroken or rooted\n  min OS: iOS 17.x / Android 13\n  grace period: 3 days\nConditional access:\n  apps: Mail, Files\n  grant: MFA + compliant device\n  noncompliant: block"
+   },
+   "example": "A fictional firm lets staff read email on personal phones. The security engineer creates a BYOD group and a work-profile policy: PIN of six digits, device encryption, no root, and a minimum OS version. Conditional access allows Mail and Files only with MFA and a compliant status. The rule is first run in report-only mode for two weeks, which shows 40 users on old OS versions. They receive guidance, and after the grace period non-compliant phones are blocked. When an employee loses a phone, the help desk performs a selective wipe, and personal data is untouched.",
+   "terms": [
+    {
+     "term": "MDM",
+     "def": "Mobile device management: enrolling devices to push settings and issue remote actions."
+    },
+    {
+     "term": "MAM",
+     "def": "Mobile application management: controlling and protecting data at the app level."
+    },
+    {
+     "term": "Compliance policy",
+     "def": "Set of conditions a device must meet to be considered healthy."
+    },
+    {
+     "term": "Conditional access",
+     "def": "Access decisions that combine identity, device state and context."
+    },
+    {
+     "term": "Selective wipe",
+     "def": "Removing only corporate data and apps from a device."
+    },
+    {
+     "term": "BYOD",
+     "def": "Bring your own device: using personal hardware for work with limited management."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which action removes only company data from a personal phone?",
+     "options": [
+      "Full factory reset",
+      "Selective wipe",
+      "Remote lock only",
+      "Passcode removal"
+     ],
+     "a": 1,
+     "why": "Selective wipe deletes managed apps and data and leaves personal content."
+    },
+    {
+     "q": "What does a conditional access rule requiring a compliant device achieve?",
+     "options": [
+      "Replaces passwords with usernames",
+      "Disables MFA",
+      "Encrypts email in transit",
+      "Blocks access from devices that fail MDM health checks even with a valid password"
+     ],
+     "a": 3,
+     "why": "Identity checks are combined with device posture."
+    },
+    {
+     "q": "Why use report-only mode first?",
+     "options": [
+      "To see who would be blocked before enforcing",
+      "To turn off logging",
+      "To speed up sign-in",
+      "To avoid writing a policy"
+     ],
+     "a": 0,
+     "why": "It reveals impact and lets you fix problems before enforcement."
+    },
+    {
+     "q": "Which setting is a typical compliance rule?",
+     "options": [
+      "Wallpaper color",
+      "Preferred browser tab count",
+      "Storage encryption enabled and minimum OS version",
+      "Number of installed games"
+     ],
+     "a": 2,
+     "why": "Encryption and patch level are core baseline controls."
+    }
+   ],
+   "recap": [
+    "MDM enforces a baseline and enables remote lock and wipe.",
+    "Compliance status feeds conditional access so only healthy devices reach data.",
+    "BYOD uses work profiles and selective wipe to respect privacy."
+   ]
+  },
+  {
+   "title": "Email gateway and phishing defense",
+   "why": "Email remains the most common delivery path for phishing and malware, so layered filtering plus user reporting cuts risk before anyone clicks.",
+   "sections": [
+    {
+     "h": "The filtering pipeline",
+     "p": [
+      "A secure email gateway, or the filtering built into a cloud mail platform, inspects each message before delivery. It checks the sending IP and domain reputation, authentication results (SPF, DKIM, DMARC), content for spam and phishing traits, and attachment types. Messages receive a verdict such as deliver, junk, quarantine or reject. Tune the policy by risk: quarantine high-confidence phishing and known malware, send bulk mail to the junk folder, and block risky file types such as executables, script files and macro-enabled Office documents from external senders. Add banners that mark external email, and use impersonation protection for executive display names and lookalike domains such as examp1e.com."
+     ]
+    },
+    {
+     "h": "Attachment sandboxing and link protection",
+     "p": [
+      "Signature scanning misses new malware, so gateways detonate attachments in a sandbox, a controlled virtual machine where behavior is observed, before the message is released. Sandboxing adds a delay of a minute or two, and some products deliver the body first and the attachment afterward. For links, URL rewriting sends the click through the vendor's proxy so the destination is checked at the time of click, which catches sites that were clean at delivery and turned malicious later. Time-of-click checks also protect against delayed attacks. Content disarm and reconstruction removes active content from documents and delivers a safe copy."
+     ]
+    },
+    {
+     "h": "User reporting and response workflow",
+     "p": [
+      "Filters will miss some messages, so give users a one-click Report Phishing button in the mail client. A reported message goes to a mailbox or to automation that extracts the sender, URLs and attachment hashes, checks reputation, and classifies it. If it is malicious, the security team searches every mailbox for the same message and purges it, blocks the sender and domain, and adds the URL to the blocklist. Thank the reporter, because feedback keeps reporting rates high. Track metrics such as report rate, median time from delivery to removal, and the number of users who clicked, rather than punishing people for failing a simulation."
+     ]
+    },
+    {
+     "h": "Reading a suspicious message",
+     "p": [
+      "Teach staff and analysts to look beyond the display name. Check the real sender address, mismatched reply-to, urgency and requests for payment, and hover over links to see the true destination. Analysts read full headers: the Received lines show the path of the message, and the Authentication-Results header shows spf, dkim and dmarc outcomes. A message claiming to be from your finance team yet showing spf=fail and dmarc=fail from an unrelated IP is a strong spoofing sign. Be aware of newer tactics too, such as QR codes embedded in images, links in shared document notifications from legitimate services, and multi-stage attacks that harvest session tokens. Layer controls instead of relying on one."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Header excerpt (fictional)",
+    "text": "From: \"Accounts\" <billing@examp1e.com>\nReply-To: pay@mail.example.net\nReceived: from unknown (HELO mail.example.net) [203.0.113.45]\nAuthentication-Results: mx.example.com;\n  spf=fail smtp.mailfrom=examp1e.com;\n  dkim=none; dmarc=fail header.from=examp1e.com\nSubject: Urgent invoice - action today"
+   },
+   "example": "A finance clerk at Example Corp receives an invoice email with a PDF. The gateway holds it for sandbox analysis, which finds the file opens a link to a credential page, and the message is quarantined for most recipients. One copy slipped through to a user who had received it earlier through a different route. She presses Report Phishing. Automation extracts the URL, the analyst confirms it is malicious, and a mailbox search purges four more copies within 20 minutes. The domain is added to the block list and a short note tells staff what to look for.",
+   "terms": [
+    {
+     "term": "Secure email gateway",
+     "def": "Service that filters inbound and outbound email for spam, phishing and malware."
+    },
+    {
+     "term": "Sandbox",
+     "def": "Isolated environment used to run a file and observe its behavior."
+    },
+    {
+     "term": "URL rewriting",
+     "def": "Replacing links with proxy links so the destination is checked at click time."
+    },
+    {
+     "term": "Quarantine",
+     "def": "A holding area for suspicious messages pending review."
+    },
+    {
+     "term": "Impersonation protection",
+     "def": "Detection of messages that mimic trusted people or domains."
+    },
+    {
+     "term": "Report Phishing button",
+     "def": "A client feature that sends a suspicious message to security for analysis."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why does URL rewriting help?",
+     "options": [
+      "It deletes all links",
+      "The link is checked when clicked, catching sites that turn malicious after delivery",
+      "It makes the link shorter only",
+      "It blocks internal mail"
+     ],
+     "a": 1,
+     "why": "Time-of-click checks catch delayed attacks."
+    },
+    {
+     "q": "What does attachment sandboxing do?",
+     "options": [
+      "Encrypts the attachment",
+      "Changes the file name",
+      "Scans only the file extension",
+      "Runs the file in an isolated VM to observe malicious behavior"
+     ],
+     "a": 3,
+     "why": "Behavioral detonation finds malware with no known signature."
+    },
+    {
+     "q": "What should happen after a user reports a confirmed phish?",
+     "options": [
+      "Search all mailboxes, purge copies and block the sender and URL",
+      "Do nothing",
+      "Reboot the mail server",
+      "Delete the user's account"
+     ],
+     "a": 0,
+     "why": "Removal and blocking limit exposure for everyone else."
+    },
+    {
+     "q": "Which header result suggests spoofing?",
+     "options": [
+      "spf=pass and dkim=pass aligned",
+      "Message size of 40 KB",
+      "spf=fail and dmarc=fail for the claimed domain",
+      "Received header present"
+     ],
+     "a": 2,
+     "why": "Failed authentication for the From domain is a spoofing indicator."
+    }
+   ],
+   "recap": [
+    "Use layered filtering: reputation, authentication, content, sandbox and time-of-click link checks.",
+    "Make reporting easy and automate purge, block and feedback.",
+    "Read headers and authentication results to spot spoofing."
+   ]
+  },
+  {
+   "title": "SPF, DKIM and DMARC rollout",
+   "why": "Without these three DNS-based controls anyone can send mail that appears to come from your domain, and a rushed DMARC policy can also block your own legitimate mail.",
+   "sections": [
+    {
+     "h": "SPF and DKIM",
+     "p": [
+      "Sender Policy Framework (SPF, RFC 7208) is a DNS TXT record listing the servers allowed to send mail for a domain. The receiver checks the connecting IP against the record of the envelope sender (MAIL FROM) domain. Keep it under the limit of 10 DNS lookups, and end with ~all during testing or -all when you are confident. DomainKeys Identified Mail (DKIM, RFC 6376) signs selected headers and the body with a private key, and publishes the public key in DNS at selector._domainkey.example.com. The receiver verifies the signature, proving the content was not altered and that the signing domain authorized it. SPF breaks on forwarding, while DKIM usually survives it."
+     ]
+    },
+    {
+     "h": "DMARC and alignment",
+     "p": [
+      "DMARC (RFC 7489) ties these together. It requires that SPF or DKIM passes and that the passing domain aligns with the visible From domain, then tells receivers what to do on failure and where to send reports. The record is a TXT at _dmarc.example.com with tags: v, p (policy), rua (aggregate report address), ruf (forensic), pct (percentage) and adkim/aspf (strict or relaxed alignment). The policy has three values: none (monitor only), quarantine (treat as suspicious, usually spam folder) and reject (refuse the message). Alignment matters because an attacker can pass SPF for their own domain while showing yours in the From header."
+     ]
+    },
+    {
+     "h": "The staged rollout",
+     "p": [
+      "Start with p=none and an rua mailbox or a DMARC reporting service. Aggregate reports are daily XML files from receivers showing source IPs, volumes and pass or fail results. Inventory every legitimate sender: your mail platform, marketing platforms, ticketing, HR and payment systems. For each, add it to SPF or, better, configure custom-domain DKIM signing. When legitimate sources pass consistently, move to p=quarantine with pct=10, then 25, 50 and 100, reviewing reports at each step. Finally set p=reject. The process often takes several months, and a pause at each stage is normal. Also publish sp= for subdomains and a p=reject record for parked domains that never send mail."
+     ]
+    },
+    {
+     "h": "Pitfalls and ongoing care",
+     "p": [
+      "Common failures include exceeding the SPF 10-lookup limit with many include statements, signing with a DKIM key under a different domain than the From address (misalignment), forgetting third-party senders, mailing lists that modify messages and break DKIM, and forwarders that break SPF. ARC can help preserve results through forwarding. Rotate DKIM keys at least yearly, using 2048-bit keys where supported, and remove old selectors. Monitor reports continuously, since a new SaaS tool can start sending as your domain without anyone telling security. Layer on MTA-STS and BIMI later if desired. A reject policy is the goal, because it is the setting that actually stops spoofing."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "DNS records (documentation domain)",
+    "text": "example.com.  TXT  \"v=spf1 ip4:192.0.2.25 include:_spf.mailer.example.net -all\"\nsel1._domainkey.example.com.  TXT  \"v=DKIM1; k=rsa; p=MIIBIjANBgkq...\"\n_dmarc.example.com.  TXT  \"v=DMARC1; p=none; rua=mailto:dmarc-reports@example.com; adkim=r; aspf=r\"\n# later stage:\n_dmarc.example.com.  TXT  \"v=DMARC1; p=quarantine; pct=25; rua=mailto:dmarc-reports@example.com\""
+   },
+   "example": "Example Corp publishes p=none with reports. After four weeks the XML shows 92 percent of volume passing, plus a failing source at 198.51.100.77 that turns out to be the newsletter platform. The admin enables custom DKIM signing for that platform and adds its include to SPF while staying under 10 lookups. Two weeks later every legitimate source aligns. The policy moves to quarantine at pct=10, then 50, then 100, and after another month of clean reports to reject. A spoof attempt from an unknown IP is now refused at the receiver.",
+   "terms": [
+    {
+     "term": "SPF",
+     "def": "DNS record listing IPs or services allowed to send mail for a domain."
+    },
+    {
+     "term": "DKIM",
+     "def": "Cryptographic signature on mail verified with a public key in DNS."
+    },
+    {
+     "term": "DMARC",
+     "def": "Policy that requires aligned SPF or DKIM and sets handling and reporting."
+    },
+    {
+     "term": "Alignment",
+     "def": "Match between the authenticated domain and the visible From domain."
+    },
+    {
+     "term": "Aggregate report (rua)",
+     "def": "Daily XML summary of authentication results sent by receivers."
+    },
+    {
+     "term": "p=reject",
+     "def": "Policy telling receivers to refuse messages that fail DMARC."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the safest first DMARC policy?",
+     "options": [
+      "p=reject immediately",
+      "p=none with reporting enabled",
+      "No record at all",
+      "p=quarantine with pct=100"
+     ],
+     "a": 1,
+     "why": "Monitoring first reveals legitimate senders before any mail is affected."
+    },
+    {
+     "q": "What does DMARC alignment require?",
+     "options": [
+      "The message is under 1 MB",
+      "DNS TTL is 300",
+      "The sender uses TLS",
+      "The domain passing SPF or DKIM matches the visible From domain"
+     ],
+     "a": 3,
+     "why": "Alignment stops a passing attacker domain from covering a spoofed From."
+    },
+    {
+     "q": "Which common SPF mistake breaks evaluation?",
+     "options": [
+      "More than 10 DNS lookups",
+      "Using a TXT record",
+      "Listing an IPv4 address",
+      "Ending with -all"
+     ],
+     "a": 0,
+     "why": "RFC 7208 limits lookups to 10, causing a permerror."
+    },
+    {
+     "q": "What is the purpose of the pct tag?",
+     "options": [
+      "Set key length",
+      "Choose the report format",
+      "Apply the policy to only a percentage of failing mail during rollout",
+      "Limit message size"
+     ],
+     "a": 2,
+     "why": "It lets you ramp enforcement gradually."
+    }
+   ],
+   "recap": [
+    "SPF authorizes sending IPs, DKIM signs messages, DMARC requires alignment and sets policy.",
+    "Roll out none, then quarantine with rising pct, then reject, guided by aggregate reports.",
+    "Inventory third-party senders and watch the SPF lookup limit."
+   ]
+  },
+  {
+   "title": "Browser security",
+   "why": "The browser is the front door to cloud applications and the web, so managing it centrally removes many drive-by and phishing risks.",
+   "sections": [
+    {
+     "h": "Managed browser policy",
+     "p": [
+      "Modern browsers such as Chrome, Edge and Firefox can be configured centrally through group policy, MDM profiles or a cloud management console. Useful settings include forcing automatic updates, turning on Safe Browsing or SmartScreen, blocking pop-ups, disabling the built-in password manager for corporate accounts when you provide an enterprise vault, requiring HTTPS-first mode, restricting developer tools, and controlling which sites may use the camera, microphone or notifications. Set a baseline from a trusted benchmark, such as the CIS Benchmarks for browsers, then add exceptions with documented owners. Keep browser versions current, because many web attacks target recently disclosed flaws that vendors have already fixed."
+     ]
+    },
+    {
+     "h": "Extension control",
+     "p": [
+      "Extensions run with deep access to pages and can read or change data on the sites you visit, so they are a supply-chain risk. Attackers buy popular extensions, push a malicious update, or publish lookalikes. Use an allowlist approach: block everything by default and approve extensions by ID after a review of permissions, publisher, update history and business need. Force-install the few you require, such as a password manager. Review permissions like read and change all data on all websites, and rerun the review when an update asks for new permissions. Report on installed extensions through the management console and remove stale ones."
+     ]
+    },
+    {
+     "h": "Safe browsing, isolation and DNS filtering",
+     "p": [
+      "Layered web protection reduces exposure to malicious sites. Reputation services such as Safe Browsing and secure web gateways block known phishing and malware domains, and DNS filtering can stop lookups for newly registered domains and command-and-control hosts. For risky content, remote browser isolation (RBI) runs the page in a disposable container in the cloud and streams only a safe rendering to the user, so exploit code never reaches the endpoint. Use isolation for uncategorized sites, links from email and high-risk roles such as finance. Download controls, such as blocking executables from the web or scanning them first, add another barrier, and TLS inspection may be needed where policy and privacy rules allow it."
+     ]
+    },
+    {
+     "h": "Identity, data and monitoring",
+     "p": [
+      "Many attacks now steal session cookies after a successful login, so pair browser hardening with phishing-resistant MFA such as FIDO2 passkeys and short session lifetimes, and bind sessions to device state through conditional access. Enterprise browsers and data loss prevention can restrict upload, copy and print on sensitive web apps, and watermark screens. Separate profiles for personal and work reduce cross-contamination. Send browser telemetry, extension inventories and blocked-site events to the SIEM. Provide users with an easy way to report warnings. Finally, test policies with a pilot group before enforcing, since over-strict settings drive staff toward unmanaged browsers."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Example managed-browser settings",
+    "text": "AutoUpdate            : enforced\nSafeBrowsing          : enhanced protection\nHttpsOnlyMode         : enabled\nExtensionInstallBlocklist : *\nExtensionInstallAllowlist : <approved extension IDs>\nExtensionInstallForcelist : <password manager ID>\nPasswordManagerEnabled: false (use enterprise vault)\nDownloadRestrictions  : block dangerous files"
+   },
+   "example": "A finance team at Example Corp reports slow pages and strange pop-ups. An audit of the browser console shows a coupon extension with permission to read all site data that was updated to a new publisher. The admin removes it by ID, switches the policy to block all extensions except an allowlist, and enables isolation for uncategorized links in email. Two weeks later a click on a newly registered phishing domain is blocked by DNS filtering. Because the session lifetime is short and tied to a compliant device, a stolen cookie would also be of little use.",
+   "terms": [
+    {
+     "term": "Browser policy",
+     "def": "Centrally managed settings applied to browsers by GPO, MDM or console."
+    },
+    {
+     "term": "Extension allowlist",
+     "def": "Approved list of extension IDs; all others are blocked."
+    },
+    {
+     "term": "Safe Browsing",
+     "def": "Reputation service that warns about or blocks phishing and malware sites."
+    },
+    {
+     "term": "Remote browser isolation",
+     "def": "Running web content in a remote disposable container and streaming a safe view."
+    },
+    {
+     "term": "HTTPS-first mode",
+     "def": "Setting that upgrades connections to HTTPS and warns when it is unavailable."
+    },
+    {
+     "term": "Session hijacking",
+     "def": "Stealing a valid session cookie or token to impersonate a user."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the safest extension strategy?",
+     "options": [
+      "Allow any extension with 4 stars",
+      "Block by default and allow reviewed extension IDs",
+      "Let users decide",
+      "Allow only extensions older than a year"
+     ],
+     "a": 1,
+     "why": "An allowlist limits the supply-chain risk of extensions."
+    },
+    {
+     "q": "What does remote browser isolation prevent?",
+     "options": [
+      "All phishing emails",
+      "Password reuse",
+      "Slow DNS",
+      "Web exploit code from executing on the user's endpoint"
+     ],
+     "a": 3,
+     "why": "The page runs elsewhere and only a safe rendering reaches the user."
+    },
+    {
+     "q": "Why keep browsers updated automatically?",
+     "options": [
+      "Attacks target recently fixed flaws",
+      "Updates remove all extensions",
+      "Updates change the theme",
+      "Updates disable TLS"
+     ],
+     "a": 0,
+     "why": "Patching closes known vulnerabilities quickly."
+    },
+    {
+     "q": "Which control best reduces stolen-cookie risk?",
+     "options": [
+      "Larger bookmark folder",
+      "Disabling pop-ups only",
+      "Phishing-resistant MFA, short sessions and device-bound conditional access",
+      "Using dark mode"
+     ],
+     "a": 2,
+     "why": "These controls make a stolen session less useful and harder to obtain."
+    }
+   ],
+   "recap": [
+    "Manage browsers by policy: updates, safe browsing, HTTPS-first and download controls.",
+    "Use an extension allowlist and review permissions regularly.",
+    "Isolate risky content and protect sessions with strong MFA and device state."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Triage EDR coverage",
+   "sim": "siem",
+   "scenario": "Example Corp's security lead asks for an EDR coverage review before the board meeting. In the SIEM simulator you have the asset inventory feed and sensor heartbeat events for the last 24 hours. Several hosts either never reported a heartbeat or report that the sensor is in reduced functionality mode. Your task is to produce a prioritized list of gaps and a remediation plan that distinguishes servers, laptops and unsupported systems.",
+   "objective": "Identify hosts without a healthy sensor and plan fixes by priority.",
+   "steps": [
+    {
+     "do": "Run a search comparing the asset inventory with sensor heartbeat events from the last 24 hours.",
+     "see": "1,240 assets, 1,118 hosts with heartbeats, so 122 hosts are missing."
+    },
+    {
+     "do": "Filter heartbeat events where sensor_mode equals reduced.",
+     "see": "31 hosts listed, mostly Windows 7 and an old Linux kernel."
+    },
+    {
+     "do": "Add the host role field and sort by criticality.",
+     "see": "9 of the missing hosts are servers, including FS-02 and DB-05."
+    },
+    {
+     "do": "Check last_seen for the missing hosts.",
+     "see": "Most laptops were last seen 20 days ago, suggesting they are offline or retired."
+    },
+    {
+     "do": "Cross-check missing hosts against the CMDB status field.",
+     "see": "40 hosts are marked decommissioned and should leave the inventory."
+    },
+    {
+     "do": "Assign actions: install on new servers, upgrade OS on reduced hosts, retire stale records.",
+     "see": "Plan shows coverage rising from 90.2 percent to about 98 percent."
+    },
+    {
+     "do": "Confirm tamper protection status for the healthy hosts.",
+     "see": "Four hosts show tamper protection off and are added to a fix list."
+    }
+   ],
+   "answer": "122 hosts lack a healthy sensor and 31 run reduced mode. Prioritize the 9 servers, upgrade or replace unsupported operating systems, remove the 40 decommissioned records, and enable tamper protection on four hosts. Expected coverage is about 98 percent.",
+   "hint": "Compare inventory to heartbeats, then split the gap by server criticality and cause."
+  },
+  {
+   "title": "Fix DMARC records",
+   "sim": "config-editor",
+   "scenario": "Example Corp publishes DMARC at p=none and has collected four weeks of aggregate reports. The reports show the newsletter platform at 198.51.100.77 failing both SPF and DKIM alignment, while corporate mail from 192.0.2.25 passes. The SPF record also exceeds 10 lookups. In the config editor you can change the DNS zone for example.com. Fix the authentication so the domain can move toward enforcement without blocking legitimate mail.",
+   "objective": "Edit SPF, DKIM and DMARC records so legitimate senders align, then raise policy safely.",
+   "steps": [
+    {
+     "do": "Open the zone file and read the current TXT records for example.com.",
+     "see": "SPF has five include statements and ends with ~all."
+    },
+    {
+     "do": "Run the lookup counter in the editor.",
+     "see": "Count is 12, above the limit of 10, causing permerror."
+    },
+    {
+     "do": "Remove an obsolete include for a retired survey tool and flatten one include to its IP range.",
+     "see": "Lookup count drops to 8."
+    },
+    {
+     "do": "Add the DKIM selector record for the newsletter platform with its public key.",
+     "see": "Validator shows the selector news1._domainkey.example.com resolves."
+    },
+    {
+     "do": "Change SPF ending from ~all to -all only after confirming all sources are listed.",
+     "see": "Validator passes with all known senders included."
+    },
+    {
+     "do": "Update DMARC to p=quarantine; pct=10 keeping the rua address.",
+     "see": "Record valid; the simulated replay shows legitimate mail passing."
+    },
+    {
+     "do": "Replay the aggregate report data against the new records.",
+     "see": "Newsletter now passes DKIM with alignment; unknown sender 203.0.113.88 fails."
+    }
+   ],
+   "answer": "Reduce SPF to 10 or fewer lookups, add custom DKIM for the newsletter platform so it aligns, keep reporting, and move DMARC to quarantine at pct=10 first. The unknown sender at 203.0.113.88 should be treated as spoofing and will be quarantined.",
+   "hint": "Fix lookups and alignment first; ramp the DMARC policy gradually with pct."
+  },
+  {
+   "title": "Analyze a phish",
+   "sim": "log-viewer",
+   "scenario": "A user at Example Corp forwarded a suspicious message that claims to be from the finance department and asks for an urgent gift card purchase. You have the raw message headers in the log viewer. Your job is to trace the delivery path, interpret the authentication results, identify the signs of spoofing, and decide what actions the security team should take for the mailbox and the domain.",
+   "objective": "Read headers to find spoofing and the failing authentication results.",
+   "steps": [
+    {
+     "do": "Open the raw headers and read the Received lines from bottom to top.",
+     "see": "The first hop is mail.example.net at 203.0.113.45, not an Example Corp server."
+    },
+    {
+     "do": "Find the Authentication-Results header.",
+     "see": "spf=fail, dkim=none, dmarc=fail for example.com."
+    },
+    {
+     "do": "Compare the From address with the Return-Path and Reply-To.",
+     "see": "From shows cfo@example.com, but Reply-To is pay@mail.example.net."
+    },
+    {
+     "do": "Check the Date and Message-ID.",
+     "see": "Message-ID domain is mail.example.net, which does not match the claimed sender."
+    },
+    {
+     "do": "Extract URLs and sender IP and look them up in the reputation panel.",
+     "see": "Domain registered 3 days ago; IP flagged as bulk sender."
+    },
+    {
+     "do": "Choose containment actions.",
+     "see": "Options include purge, block sender, block URL, notify user."
+    },
+    {
+     "do": "Select purge from all mailboxes, block domain and IP, and notify recipients.",
+     "see": "Case closed as confirmed spoofing; DMARC reject is recommended."
+    }
+   ],
+   "answer": "The message came from 203.0.113.45 via mail.example.net, failed SPF, had no DKIM and failed DMARC for example.com, with a mismatched Reply-To. It is spoofed. Purge copies, block the domain and IP, warn users, and move DMARC toward reject.",
+   "hint": "Compare the claimed From domain with the first external hop and authentication results."
+  },
+  {
+   "title": "Set MDM policy",
+   "sim": "config-editor",
+   "scenario": "Example Corp wants employees in the Sales group to read email and files on personal phones. Your task in the config editor is to write the compliance policy and conditional access rule for this BYOD group. The business wants strong protection without reading personal data. You must pick sensible settings, set a grace period, and make sure non-compliant devices cannot access corporate apps while giving users a path to fix problems.",
+   "objective": "Configure compliance rules and conditional access for a BYOD group.",
+   "steps": [
+    {
+     "do": "Create a new compliance policy named BYOD-Sales for iOS and Android.",
+     "see": "Policy editor opens with empty rules."
+    },
+    {
+     "do": "Require a passcode of at least 6 digits and a lock timeout of 5 minutes.",
+     "see": "Rule saved and shown as required."
+    },
+    {
+     "do": "Require device encryption and block jailbroken or rooted devices.",
+     "see": "Both rules are enabled."
+    },
+    {
+     "do": "Set minimum OS versions to iOS 17 and Android 13.",
+     "see": "Preview shows 12 of 150 devices would be non-compliant."
+    },
+    {
+     "do": "Set a 3-day grace period and a notification message with update instructions.",
+     "see": "Users receive a notice with steps to fix."
+    },
+    {
+     "do": "Create a conditional access rule for Mail and Files requiring MFA and a compliant device, in report-only mode.",
+     "see": "Report-only shows 12 would be blocked; no break-glass account is affected."
+    },
+    {
+     "do": "Enable the rule after the grace period.",
+     "see": "Non-compliant devices are blocked; compliant ones work normally."
+    }
+   ],
+   "answer": "Use a BYOD compliance policy with passcode, encryption, no root or jailbreak, and a minimum OS version, with a 3-day grace period. Add a conditional access rule requiring MFA and compliant device for Mail and Files, tested in report-only mode first.",
+   "hint": "Start with report-only, grace period and a work profile that protects privacy."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which metric best shows EDR deployment health?",
+   "options": [
+    "Number of alerts closed",
+    "Healthy sensors divided by inventoried hosts",
+    "Installer file size",
+    "Console license count"
+   ],
+   "a": 1,
+   "why": "Coverage against inventory shows true protection."
+  },
+  {
+   "q": "Why is a pilot ring recommended for EDR?",
+   "options": [
+    "To find compatibility and false-positive issues before wide rollout",
+    "To avoid buying licenses",
+    "To skip testing servers",
+    "To disable tamper protection"
+   ],
+   "a": 0,
+   "why": "A small varied pilot limits the impact of mistakes."
+  },
+  {
+   "q": "Which MDM compliance rule is typical?",
+   "options": [
+    "Wallpaper must be corporate",
+    "No camera ever",
+    "Encryption on, passcode set, minimum OS version",
+    "Only one app installed"
+   ],
+   "a": 2,
+   "why": "These are baseline device controls."
+  },
+  {
+   "q": "What does conditional access do with MDM data?",
+   "options": [
+    "Creates user accounts",
+    "Patches the OS",
+    "Scans email attachments",
+    "Allows access only from compliant devices with MFA"
+   ],
+   "a": 3,
+   "why": "Device posture becomes an access condition."
+  },
+  {
+   "q": "Which DMARC order is safest?",
+   "options": [
+    "reject, then none",
+    "none, then quarantine with rising pct, then reject",
+    "quarantine at 100 first",
+    "No monitoring phase"
+   ],
+   "a": 1,
+   "why": "Monitor first, enforce gradually."
+  },
+  {
+   "q": "What does DMARC alignment check?",
+   "options": [
+    "That TLS is enabled",
+    "That the sender has an MX record",
+    "That the authenticated domain matches the From domain",
+    "That the message is signed twice"
+   ],
+   "a": 2,
+   "why": "Alignment prevents spoofed From headers hiding behind another domain's pass."
+  },
+  {
+   "q": "What does a sandbox do for attachments?",
+   "options": [
+    "Detonates the file in isolation to observe behavior",
+    "Renames the file",
+    "Deletes macros only",
+    "Signs it with DKIM"
+   ],
+   "a": 0,
+   "why": "Behavior analysis finds unknown malware."
+  },
+  {
+   "q": "Which header result most strongly shows spoofing?",
+   "options": [
+    "dkim=pass aligned",
+    "Received count of 3",
+    "Message size 20 KB",
+    "spf=fail and dmarc=fail for the claimed domain"
+   ],
+   "a": 3,
+   "why": "Authentication failures for the visible domain indicate forgery."
+  },
+  {
+   "q": "Which browser control reduces extension risk?",
+   "options": [
+    "Allow all extensions from stores",
+    "Allowlist of reviewed extension IDs",
+    "Disable updates",
+    "Let users add any extension"
+   ],
+   "a": 1,
+   "why": "Allowlisting limits unreviewed code."
+  },
+  {
+   "q": "What does remote browser isolation protect against?",
+   "options": [
+    "Weak passwords",
+    "Lost phones",
+    "Web exploit code running on the endpoint",
+    "Slow networks"
+   ],
+   "a": 2,
+   "why": "The page executes remotely and only a safe view is streamed."
+  }
+ ]
+}

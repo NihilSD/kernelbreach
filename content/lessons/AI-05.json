@@ -1,0 +1,1200 @@
+{
+ "code": "AI-05",
+ "intro": "This module walks through the OWASP Top 10 for LLM Applications (2025 edition), the community list of the most serious risks in systems built on large language models. You will learn each category, the code and configuration patterns that create it, and the primary control that reduces it. The list gives teams a shared vocabulary for threat modeling, code review and vendor assessment, and it maps cleanly onto MITRE ATLAS and the NIST AI Risk Management Framework. The labs let you practice finding and fixing the flaws yourself.",
+ "lessons": [
+  {
+   "title": "OWASP LLM Top 10 overview",
+   "why": "The list is the most widely used checklist for reviewing LLM applications, so you need to know its ten items and how they are ranked.",
+   "sections": [
+    {
+     "h": "What the list is",
+     "p": [
+      "The OWASP Top 10 for LLM Applications is a community-maintained awareness document from the OWASP GenAI Security Project. It first appeared in 2023 and was revised for 2025. Like the classic OWASP Top 10 for web apps, it is not a standard you can certify against; it is a ranked starting point that helps developers, architects and auditors talk about the same risks. Entries are drawn from real incidents, contributor surveys and published research, and each one describes the risk, common examples, attack scenarios and prevention guidance."
+     ]
+    },
+    {
+     "h": "The ten categories",
+     "p": [
+      "The 2025 list is: LLM01 Prompt Injection, LLM02 Sensitive Information Disclosure, LLM03 Supply Chain, LLM04 Data and Model Poisoning, LLM05 Improper Output Handling, LLM06 Excessive Agency, LLM07 System Prompt Leakage, LLM08 Vector and Embedding Weaknesses, LLM09 Misinformation, and LLM10 Unbounded Consumption. Compared with 2023, system prompt leakage and vector weaknesses are new entries reflecting retrieval augmented generation, and denial of service was broadened into unbounded consumption to cover cost abuse as well as outages."
+     ]
+    },
+    {
+     "h": "Ranking logic",
+     "p": [
+      "Ranking blends prevalence, exploitability and impact, informed by practitioner voting rather than a strict formula. A lower number does not mean a risk is always worse for your system. A read-only chatbot with no tools may care little about excessive agency, while an autonomous agent with payment access cares about it above almost everything. Use the ranking to prioritize reading, then rank risks again using your own data sensitivity, user population and the permissions your application grants the model."
+     ]
+    },
+    {
+     "h": "Relationship to other frameworks",
+     "p": [
+      "The list complements rather than replaces other frameworks. MITRE ATLAS catalogs adversary tactics and techniques against AI systems, so an OWASP risk such as poisoning maps to ATLAS techniques you can detect and hunt for. The NIST AI Risk Management Framework (Govern, Map, Measure, Manage) supplies the organizational process, and NIST AI 600-1 adds a generative AI profile. In practice you identify risks with OWASP, describe attacker behavior with ATLAS, and manage them through NIST-style governance, tying controls to evidence for auditors. Keep a living register of the ten risks per application, review it at each design change, and record which entries were judged not applicable and why, so decisions can be audited later."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Reference table",
+    "text": "LLM01 Prompt Injection\nLLM02 Sensitive Information Disclosure\nLLM03 Supply Chain\nLLM04 Data and Model Poisoning\nLLM05 Improper Output Handling\nLLM06 Excessive Agency\nLLM07 System Prompt Leakage\nLLM08 Vector and Embedding Weaknesses\nLLM09 Misinformation\nLLM10 Unbounded Consumption"
+   },
+   "example": "A team is reviewing an internal HR assistant that retrieves policy documents and can email employees. Using the list as a checklist, they flag LLM01 (injected text in documents), LLM06 (email tool scope), LLM08 (access control on the vector store) and LLM02 (salary data in context). They skip LLM10 for now because the tool is internal and rate-limited. Each flagged item becomes a ticket with an owner, and ATLAS technique IDs are attached to detection work.",
+   "terms": [
+    {
+     "term": "OWASP LLM Top 10",
+     "def": "A ranked list of the most critical security risks for applications built on large language models."
+    },
+    {
+     "term": "MITRE ATLAS",
+     "def": "A knowledge base of adversary tactics and techniques against AI-enabled systems."
+    },
+    {
+     "term": "NIST AI RMF",
+     "def": "A voluntary framework for governing, mapping, measuring and managing AI risk."
+    },
+    {
+     "term": "RAG",
+     "def": "Retrieval augmented generation, where retrieved documents are added to the model prompt."
+    },
+    {
+     "term": "Threat modeling",
+     "def": "Structured analysis of what can go wrong in a system and which controls address it."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which 2025 entry covers poisoned training or fine-tuning data?",
+     "options": [
+      "LLM03 Supply Chain",
+      "LLM10 Unbounded Consumption",
+      "LLM09 Misinformation",
+      "LLM04 Data and Model Poisoning"
+     ],
+     "a": 3,
+     "why": "LLM04 is the category for tampered training, fine-tuning and embedding data."
+    },
+    {
+     "q": "Which framework catalogs adversary techniques against AI systems?",
+     "options": [
+      "SOC 2",
+      "ISO 9001",
+      "PCI DSS",
+      "MITRE ATLAS"
+     ],
+     "a": 3,
+     "why": "ATLAS is the ATT&CK-style knowledge base for AI threats."
+    },
+    {
+     "q": "What new risk area did 2025 add that reflects RAG adoption?",
+     "options": [
+      "Vector and Embedding Weaknesses",
+      "Buffer overflows",
+      "Clickjacking",
+      "SQL injection"
+     ],
+     "a": 0,
+     "why": "LLM08 covers weaknesses in vector stores and embeddings."
+    },
+    {
+     "q": "Is the OWASP ranking a fixed priority order for every application?",
+     "options": [
+      "No, you re-rank using your own context and permissions",
+      "Yes, always fix LLM01 first",
+      "Yes, it is legally binding",
+      "No, because the list changes daily"
+     ],
+     "a": 0,
+     "why": "Impact depends on the data and permissions of your specific system."
+    }
+   ],
+   "recap": [
+    "OWASP LLM Top 10 (2025) has ten categories, LLM01 to LLM10.",
+    "Use it for risk identification, ATLAS for attacker behavior and NIST AI RMF for governance.",
+    "Re-rank risks for your own application context."
+   ]
+  },
+  {
+   "title": "LLM01 Prompt injection and LLM05 output handling",
+   "why": "Prompt injection lets attackers steer the model, and improper output handling turns that steering into classic web and system compromise.",
+   "sections": [
+    {
+     "h": "Prompt injection in brief",
+     "p": [
+      "LLM01 Prompt Injection occurs when input changes the model behavior in ways the developer did not intend. Direct injection comes from the user prompt; indirect injection hides in content the model reads, such as web pages, emails or documents. Models cannot reliably separate instructions from data because both arrive as text in one context window. Defenses therefore reduce impact rather than promise prevention: constrain what the model can do, segregate untrusted content, filter inputs and outputs, and require human approval for sensitive actions."
+     ]
+    },
+    {
+     "h": "Why output is untrusted",
+     "p": [
+      "LLM05 Improper Output Handling is the failure to validate, sanitize or encode model output before passing it to other components. The model is an untrusted source because its output can be shaped by any text it has seen, including attacker text. Treating a response as trusted code or markup is the same mistake as trusting raw user input in a web form. The key idea is that the model sits between an attacker and your back end, acting as a confused intermediary that can emit payloads the attacker could not submit directly."
+     ]
+    },
+    {
+     "h": "Sinks that cause damage",
+     "p": [
+      "Dangerous sinks include shells (a model-generated filename concatenated into a command line), SQL (a generated WHERE clause appended to a query string), HTML (a chat widget that sets innerHTML with the reply, giving cross-site scripting), and templates or evaluators (eval, exec or server-side template rendering, giving remote code execution). Markdown rendering can also leak data when an image URL embeds conversation content in a query string to an attacker-controlled host. Each sink has a standard remedy: an allow-list, encoding or a parameterized interface."
+     ]
+    },
+    {
+     "h": "Controls",
+     "p": [
+      "Apply context-aware output encoding: HTML-escape for the DOM, use textContent instead of innerHTML, and add a strict Content-Security-Policy. Use parameterized queries and ORMs so generated values are bound as data, never executed as SQL. Never pass output to eval or a shell; if tool calls are needed, require structured output validated against a JSON schema with allow-listed values. Run any generated code in a sandbox with no credentials. Log blocked outputs, and test with injection payloads in CI so regressions are caught before release."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Vulnerable vs safer pattern",
+    "text": "# vulnerable\nhtml = '<div>' + reply + '</div>'\ncur.execute(\"SELECT * FROM t WHERE \" + reply)\n\n# safer\nel.textContent = reply\ncur.execute(\"SELECT * FROM t WHERE id = %s\", (valid_id,))"
+   },
+   "example": "A support chatbot renders replies with innerHTML. A tester stores a harmless test string containing an img tag with an onerror handler in a ticket. When the bot summarizes that ticket, the markup appears in the agent console and the handler runs, proving cross-site scripting through the model. The fix is two lines: render with textContent and add a Content-Security-Policy that blocks inline script. A second fix is to sanitize with an allow-list HTML sanitizer if rich text is needed.",
+   "terms": [
+    {
+     "term": "Prompt injection",
+     "def": "Input that causes an LLM to deviate from intended behavior."
+    },
+    {
+     "term": "Indirect injection",
+     "def": "Injection delivered through external content the model processes."
+    },
+    {
+     "term": "Output encoding",
+     "def": "Escaping data for the context it will be inserted into."
+    },
+    {
+     "term": "Parameterized query",
+     "def": "A query where user data is bound separately from the SQL text."
+    },
+    {
+     "term": "CSP",
+     "def": "Content-Security-Policy, a header restricting which scripts a page may run."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why is model output considered untrusted?",
+     "options": [
+      "It is always encrypted",
+      "It is too long",
+      "It is generated on a GPU",
+      "It can be influenced by attacker-controlled text"
+     ],
+     "a": 3,
+     "why": "Any text the model reads can shape what it emits."
+    },
+    {
+     "q": "Which is the best fix for SQL built from model output?",
+     "options": [
+      "Lower temperature",
+      "Bigger model",
+      "Parameterized queries",
+      "Longer system prompts"
+     ],
+     "a": 2,
+     "why": "Binding values as parameters prevents them being parsed as SQL."
+    },
+    {
+     "q": "Which DOM property avoids HTML injection of replies?",
+     "options": [
+      "document.write",
+      "innerHTML",
+      "textContent",
+      "outerHTML"
+     ],
+     "a": 2,
+     "why": "textContent inserts text without parsing markup."
+    },
+    {
+     "q": "Indirect prompt injection arrives through:",
+     "options": [
+      "Only model weights",
+      "Only the chat box",
+      "External content such as web pages or emails",
+      "Only system prompts"
+     ],
+     "a": 2,
+     "why": "The model reads attacker text embedded in retrieved or fetched content."
+    }
+   ],
+   "recap": [
+    "Treat model output like untrusted user input.",
+    "Encode for the sink: HTML, SQL, shell or template.",
+    "Reduce prompt injection impact with least privilege and approval."
+   ]
+  },
+  {
+   "title": "Sensitive information disclosure",
+   "why": "LLM applications can leak secrets and personal data through several paths that traditional apps do not have.",
+   "sections": [
+    {
+     "h": "How leakage happens",
+     "p": [
+      "LLM02 Sensitive Information Disclosure covers unintended exposure of personal data, credentials, proprietary data or confidential business details. Paths include memorization of training data, retrieval of documents the user should not see, sensitive values pasted into prompts, secrets placed in system prompts, verbose error messages, and logs or analytics that store full conversations. Because the model reproduces patterns it has seen, anything in training data, fine-tuning sets or context may later appear in an answer to a different user."
+     ]
+    },
+    {
+     "h": "Where data hides",
+     "p": [
+      "Review the whole data path. Prompts and completions are often written to application logs, observability platforms and vendor dashboards where many staff can read them. Conversation history may persist in caches or browser storage. Fine-tuning on customer chats can embed personal data in weights. Third-party providers may retain prompts for abuse monitoring. API keys are sometimes left in prompt templates, tool descriptions or example snippets. Each location has its own retention and access rules, so a data-flow diagram showing every hop is the first deliverable of a disclosure review."
+     ]
+    },
+    {
+     "h": "Prevention controls",
+     "p": [
+      "Minimize and classify data before it reaches the model. Redact or tokenize PII with detectors, and replace secrets with references the tool layer resolves server-side. Enforce authorization in the retrieval layer so the model only sees documents the requesting user may read. Sanitize training data and consider differential privacy for sensitive fine-tuning. Set log retention limits and mask fields. Use data loss prevention on outputs to catch patterns such as card numbers or key formats, and contract with providers for zero retention where required."
+     ]
+    },
+    {
+     "h": "Detection and response",
+     "p": [
+      "Search logs for key patterns (for example strings beginning with sk- or AKIA), national ID formats, email addresses and fragments of the system prompt. Scan repositories for secrets that appear in prompt files. If a credential appears in any prompt or log, treat it as compromised: rotate it, review access logs for misuse, and purge the stored copy. Run red-team prompts that try to elicit memorized data and measure how often outputs contain canary strings planted in the training set, which gives a testable leakage metric. Finally, tell users plainly what is stored and for how long, and give them a way to request deletion, because privacy law such as GDPR applies to prompts and logs just as it does to databases."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Log excerpt (fictional)",
+    "text": "2026-03-02T10:14:09Z req=8f2 user=u1042\nprompt: Summarize ticket for jdoe@example.com\ncontext: api_key=EXAMPLEKEY-0000-FAKE\nresponse: Customer phone 555-0100 asked ..."
+   },
+   "example": "An engineer debugging a chatbot enables full request logging to a shared dashboard. A week later an audit finds a fake-format API key and customer emails in the logs, readable by forty staff. The remediation: rotate the key, move credentials to a vault referenced by the tool layer, mask email and phone fields before logging, cut retention to 14 days, and restrict dashboard access to the on-call group. A recurring scan for key patterns is added.",
+   "terms": [
+    {
+     "term": "PII",
+     "def": "Personally identifiable information that can identify an individual."
+    },
+    {
+     "term": "Memorization",
+     "def": "A model reproducing exact training sequences."
+    },
+    {
+     "term": "Redaction",
+     "def": "Removing or masking sensitive values before storage or processing."
+    },
+    {
+     "term": "Canary string",
+     "def": "A unique planted value used to test for leakage."
+    },
+    {
+     "term": "DLP",
+     "def": "Data loss prevention tooling that detects and blocks sensitive data exfiltration."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which is a common leakage path unique to LLM apps?",
+     "options": [
+      "Prompts and completions stored in logs",
+      "Expired certificates",
+      "Open SSH ports",
+      "Weak TLS ciphers"
+     ],
+     "a": 0,
+     "why": "Conversations often contain sensitive data and are widely logged."
+    },
+    {
+     "q": "What should you do if an API key appears in a prompt log?",
+     "options": [
+      "Move it to a wiki",
+      "Rotate it and purge the copy",
+      "Shorten the log",
+      "Ignore it"
+     ],
+     "a": 1,
+     "why": "Any exposed credential must be treated as compromised."
+    },
+    {
+     "q": "Where should document authorization be enforced for RAG?",
+     "options": [
+      "Only in the system prompt",
+      "In the retrieval layer",
+      "In the browser",
+      "Nowhere"
+     ],
+     "a": 1,
+     "why": "The model must only receive documents the user may access."
+    },
+    {
+     "q": "A canary string test measures:",
+     "options": [
+      "GPU load",
+      "Training data leakage",
+      "Latency",
+      "Token cost"
+     ],
+     "a": 1,
+     "why": "If canaries appear in output, memorized data is leaking."
+    }
+   ],
+   "recap": [
+    "Map every place prompts and outputs are stored.",
+    "Keep secrets out of context and enforce authorization before retrieval.",
+    "Redact, limit retention and rotate any exposed credential."
+   ]
+  },
+  {
+   "title": "Supply chain risks",
+   "why": "Models, datasets and plugins are third-party code and data, so they carry the same trust problems as software dependencies, plus new ones.",
+   "sections": [
+    {
+     "h": "The AI supply chain",
+     "p": [
+      "LLM03 Supply Chain covers vulnerabilities in the components used to build and run an LLM application. These include pretrained base models downloaded from hubs, fine-tuning adapters such as LoRA files, datasets, embedding models, plugins and tool servers, Python packages, container images and hosting platforms. A compromised component can embed malicious code, hidden backdoors in weights, biased behavior or vulnerable libraries. Because models are large opaque files, teams often accept them with less scrutiny than an ordinary dependency, which makes the category attractive to attackers."
+     ]
+    },
+    {
+     "h": "Typical attack patterns",
+     "p": [
+      "Common patterns include typosquatted model or package names, malicious files that run code when loaded (pickle-based formats), poisoned datasets published for public reuse, outdated models with known weaknesses, unclear licensing and terms, and compromised maintainer accounts that push malicious updates. Low-trust model conversion services and unofficial mirrors add more exposure. Plugins and agent tools may request broad permissions, and a vendor model update may silently change behavior. Pin and monitor everything, because a floating latest tag is an unreviewed code change."
+     ]
+    },
+    {
+     "h": "Verification with hashes",
+     "p": [
+      "Verify artifacts before use. Download from the official publisher and compare a SHA-256 digest against a value obtained over a separate trusted channel, for example sha256sum model.safetensors. Pin dependencies by hash in requirements files and pin container images by digest. Prefer signed artifacts and safe formats such as safetensors. Mirror approved models into an internal registry so builds do not fetch directly from public hubs, and record which revision was approved, by whom and when, so you can answer what is running in production."
+     ]
+    },
+    {
+     "h": "SBOM and AIBOM",
+     "p": [
+      "A software bill of materials (SBOM), in SPDX or CycloneDX format, lists packages and versions so you can match them to vulnerability advisories. CycloneDX also supports an ML bill of materials, often called an AIBOM, which records model name, version, architecture, training datasets, licenses, evaluation results and provenance. Generate them in CI, store them with the release, and diff them between versions. When an advisory lands, you can query the inventory to find affected systems in minutes instead of days, and procurement can demand the same documentation from vendors. Also review the vendor itself: ask about its security attestations, incident history and update policy, and plan an exit path in case a model or hosting provider must be replaced quickly."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Hash check (fictional)",
+    "text": "$ sha256sum model.safetensors\n3b1f...e07a  model.safetensors\n$ grep model.safetensors approved.sha256\n3b1f...e07a  model.safetensors\nresult: match"
+   },
+   "example": "A team wants to use a community fine-tune of a popular model. Before adoption they check the publisher, notice the repo name differs by one character from the official one, and find the file is a pickle checkpoint with no signature. They instead pull the official safetensors weights, verify the SHA-256 against the vendor release notes, record the revision in the AIBOM, and mirror it internally. Builds now fail if the digest changes.",
+   "terms": [
+    {
+     "term": "Typosquatting",
+     "def": "Publishing a malicious package or model with a name resembling a legitimate one."
+    },
+    {
+     "term": "SBOM",
+     "def": "A machine-readable inventory of software components."
+    },
+    {
+     "term": "AIBOM",
+     "def": "A bill of materials describing model, data and provenance."
+    },
+    {
+     "term": "Hash pinning",
+     "def": "Locking a dependency to a specific cryptographic digest."
+    },
+    {
+     "term": "safetensors",
+     "def": "A model file format that stores tensors without executable code."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which format is riskier to load from an unknown source?",
+     "options": [
+      "CSV",
+      "safetensors",
+      "Pickle checkpoint",
+      "Plain text"
+     ],
+     "a": 2,
+     "why": "Pickle can execute code during deserialization."
+    },
+    {
+     "q": "What does hash pinning protect against?",
+     "options": [
+      "Prompt injection",
+      "Silent artifact substitution",
+      "Rate limits",
+      "Slow networks"
+     ],
+     "a": 1,
+     "why": "The build fails if the digest differs from the approved one."
+    },
+    {
+     "q": "An AIBOM typically records:",
+     "options": [
+      "Model, datasets, licenses and provenance",
+      "Only GPU type",
+      "Only CSS files",
+      "Only user names"
+     ],
+     "a": 0,
+     "why": "It documents what the model is made of and where it came from."
+    },
+    {
+     "q": "Why mirror approved models internally?",
+     "options": [
+      "Builds avoid fetching unreviewed content from public hubs",
+      "It makes models smarter",
+      "It prevents hallucination",
+      "It removes licensing"
+     ],
+     "a": 0,
+     "why": "A controlled mirror reduces exposure to changed or malicious upstream files."
+    }
+   ],
+   "recap": [
+    "Treat models, datasets and plugins as untrusted third-party code.",
+    "Verify hashes, prefer safe formats and pin versions.",
+    "Keep SBOM and AIBOM inventories for fast incident response."
+   ]
+  },
+  {
+   "title": "Data and model poisoning",
+   "why": "Poisoning corrupts what a model learns, so the damage is baked into the weights and can survive long after the attack.",
+   "sections": [
+    {
+     "h": "What poisoning is",
+     "p": [
+      "LLM04 Data and Model Poisoning is manipulation of pre-training, fine-tuning or embedding data, or of the model itself, to introduce vulnerabilities, bias or backdoors. It attacks integrity: the model still works on ordinary inputs but fails or misbehaves in ways the attacker chose. Entry points include scraped web data, user feedback loops, third-party datasets, crowdsourced labels, retrieval corpora and shared model files. Because training pipelines often ingest data automatically, one writable source can influence a model used by thousands of customers."
+     ]
+    },
+    {
+     "h": "Forms of tampering",
+     "p": [
+      "Poisoning appears as biased or false content seeded into public sources that a crawler will ingest, label flipping in supervised sets, trigger phrases that cause a specific response, malicious fine-tuning examples that remove safety behavior, and modified weights uploaded to a hub. In RAG systems the equivalent is planting documents in the knowledge base so retrieval returns attacker-chosen content. Research has shown that a small number of crafted documents can have outsized influence, so you cannot rely on poisoned samples being a tiny, ignorable fraction."
+     ]
+    },
+    {
+     "h": "Detection",
+     "p": [
+      "Detection combines data and model checks. For data, validate source, track versions, deduplicate, run outlier and label-consistency analysis, and review samples that contain unusual repeated strings. For models, evaluate on held-out clean sets, run behavioral tests with suspicious trigger phrases, compare against a trusted baseline, and watch for sudden metric shifts between versions. Red-team the fine-tuned model for refusal regression. Keep a golden evaluation suite that runs on every training job and blocks promotion when results regress."
+     ]
+    },
+    {
+     "h": "Prevention",
+     "p": [
+      "Control the data pipeline like production code. Use an allow-list of vetted sources, hash and version datasets (for example with DVC), require review for new data, and separate who can add data from who can approve training runs. Sandbox training infrastructure and limit its network access. Apply anomaly detection on user-feedback data before using it for fine-tuning. Use trusted, signed base models, and for RAG apply access control and provenance metadata to documents so low-trust content can be ranked lower or excluded. Document the response plan in advance: which model version to roll back to, who can freeze training, and how affected customers are notified when contamination is confirmed."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Dataset check (fictional)",
+    "text": "$ dvc status\ndata/train.csv: modified\n$ python audit.py data/train.csv\nrows=50000 dup_trigger='zx-promo-9' count=212\nlabel_conflict=187\nresult: quarantine batch 2026-02"
+   },
+   "example": "A fine-tuning job ingests weekly customer feedback. After one run, the model starts recommending a fictional brand whenever a user mentions the phrase zx-promo-9. The audit script finds 212 rows containing that phrase with consistent positive labels, all submitted from two fake accounts. The team quarantines the batch, rolls back to the previous model, adds account-level rate limits and review for feedback data, and adds the trigger test to the golden suite.",
+   "terms": [
+    {
+     "term": "Poisoning",
+     "def": "Tampering with training or retrieval data to change model behavior."
+    },
+    {
+     "term": "Label flipping",
+     "def": "Changing labels in a dataset to degrade or steer a model."
+    },
+    {
+     "term": "Backdoor",
+     "def": "Hidden behavior activated by a specific trigger."
+    },
+    {
+     "term": "Golden test set",
+     "def": "A trusted evaluation set used to detect regressions."
+    },
+    {
+     "term": "Data lineage",
+     "def": "The recorded origin and transformations of a dataset."
+    }
+   ],
+   "check": [
+    {
+     "q": "Poisoning primarily attacks which property?",
+     "options": [
+      "Integrity of model behavior",
+      "Network latency",
+      "Availability only",
+      "Licensing"
+     ],
+     "a": 0,
+     "why": "The model behaves incorrectly in attacker-chosen ways."
+    },
+    {
+     "q": "A RAG equivalent of poisoning is:",
+     "options": [
+      "Overheating GPUs",
+      "Reducing batch size",
+      "Planting malicious documents in the knowledge base",
+      "Using HTTPS"
+     ],
+     "a": 2,
+     "why": "Retrieval of attacker content steers answers."
+    },
+    {
+     "q": "Which control helps detect poisoning before release?",
+     "options": [
+      "More logging of cookies",
+      "Golden evaluation suite on every run",
+      "Larger fonts",
+      "Longer prompts"
+     ],
+     "a": 1,
+     "why": "Regression tests catch unexpected behavior changes."
+    },
+    {
+     "q": "Why separate data submitters from training approvers?",
+     "options": [
+      "It lowers cost",
+      "It reduces tokens",
+      "Separation of duties limits single-person tampering",
+      "It speeds training"
+     ],
+     "a": 2,
+     "why": "No single party can insert and approve malicious data."
+    }
+   ],
+   "recap": [
+    "Poisoning corrupts integrity and persists in the weights.",
+    "Version, vet and review data before training.",
+    "Test models for triggers and regressions before promotion."
+   ]
+  },
+  {
+   "title": "Excessive agency",
+   "why": "Giving a model tools turns wrong or manipulated output into real actions, so the permissions you grant define the damage.",
+   "sections": [
+    {
+     "h": "Three root causes",
+     "p": [
+      "LLM06 Excessive Agency occurs when an LLM-based system can take damaging actions in response to unexpected, ambiguous or manipulated output. OWASP breaks the root causes into excessive functionality (tools the use case does not need), excessive permissions (tools running with more privilege than required) and excessive autonomy (high-impact actions with no human check). The trigger may be a hallucination, a prompt injection in a retrieved page, or a compromised plugin, but the exposure is the same: the model holds authority that attackers can borrow."
+     ]
+    },
+    {
+     "h": "Recognizing it in config",
+     "p": [
+      "Look for warning signs in tool manifests and code. An email tool that can send as any user when the use case only needs drafts. A database connector using an admin account instead of a read-only role. A file tool with access to the whole disk rather than one directory. A shell or generic HTTP tool exposed for convenience. Wildcard scopes such as *:* or admin on an API token. Delete, payment or deploy actions that execute without confirmation. Open-ended plugin discovery that loads new tools at runtime without review."
+     ]
+    },
+    {
+     "h": "Controls",
+     "p": [
+      "Apply least privilege everywhere. Offer only the minimum tools, with narrow parameters and allow-lists, rather than general-purpose ones. Run tools under the end user identity so downstream systems enforce that person authorization instead of a powerful service account. Prefer read-only access and short-lived scoped tokens. Require human approval for irreversible or high-value actions. Validate parameters server-side, apply rate limits, and enforce authorization in the tool or API, never by trusting the model to refuse. Log every call with the triggering context for review."
+     ]
+    },
+    {
+     "h": "Approval design",
+     "p": [
+      "Approval should be proportionate. Auto-approve low-risk reads, require explicit confirmation showing the exact action and parameters for writes, and deny dangerous operations outright. Show the real payload, not the model summary of it, because a summary can be misleading. Beware approval fatigue: if users click yes on every prompt, the control is decorative. Batch low-risk items, keep prompts rare and meaningful, and monitor override rates. Combine with anomaly alerts, for example a sudden burst of delete calls, which should halt the agent automatically."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Tool manifest (fictional)",
+    "text": "tools:\n  - name: mail_send\n    scope: \"mail:*\"        # too broad\n    approval: none\n  - name: db_query\n    role: admin             # use read-only role\n  - name: file_read\n    root: \"/\"               # restrict to /data/reports"
+   },
+   "example": "An assistant meant to summarize invoices is given a mail tool with send-as-anyone rights and no approval. A malicious PDF contains hidden text telling the model to forward all invoices to an outside address. With least privilege (draft-only mail tool, recipients restricted to the company domain, human approval on send) the injected instruction would fail or be caught. The fix cost a manifest edit, not a model change.",
+   "terms": [
+    {
+     "term": "Excessive agency",
+     "def": "Granting an LLM system more functionality, permission or autonomy than needed."
+    },
+    {
+     "term": "Least privilege",
+     "def": "Giving only the minimum access needed for a task."
+    },
+    {
+     "term": "Scoped token",
+     "def": "A credential limited to specific actions and resources."
+    },
+    {
+     "term": "Human in the loop",
+     "def": "A person approves actions before they execute."
+    },
+    {
+     "term": "Confused deputy",
+     "def": "A privileged component tricked into acting for an attacker."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which is NOT one of the root causes of excessive agency?",
+     "options": [
+      "Excessive temperature",
+      "Excessive permissions",
+      "Excessive functionality",
+      "Excessive autonomy"
+     ],
+     "a": 0,
+     "why": "Temperature is a sampling parameter, not an agency cause."
+    },
+    {
+     "q": "Best fix for a database tool using an admin role?",
+     "options": [
+      "Tell the model to be careful",
+      "Increase tokens",
+      "Read-only role scoped to needed tables",
+      "Add emoji"
+     ],
+     "a": 2,
+     "why": "Privilege should be enforced by the database, not by prompts."
+    },
+    {
+     "q": "Why show the real payload in an approval prompt?",
+     "options": [
+      "It saves tokens",
+      "It hides errors",
+      "It looks nicer",
+      "A summary can be misleading"
+     ],
+     "a": 3,
+     "why": "Approving a summary may approve a different action."
+    },
+    {
+     "q": "Where should authorization for a tool call be enforced?",
+     "options": [
+      "Nowhere",
+      "Only in the system prompt",
+      "Only in the UI",
+      "In the tool or API service"
+     ],
+     "a": 3,
+     "why": "Server-side checks cannot be talked around by the model."
+    }
+   ],
+   "recap": [
+    "Excess functionality, permissions and autonomy create the exposure.",
+    "Use narrow tools, user identity, read-only defaults and short-lived tokens.",
+    "Gate irreversible actions with meaningful approval."
+   ]
+  },
+  {
+   "title": "System prompt leakage and vector weaknesses",
+   "why": "These two newer categories cover what lives in the prompt and what lives in the retrieval store, both common sources of hidden exposure.",
+   "sections": [
+    {
+     "h": "System prompt leakage",
+     "p": [
+      "LLM07 System Prompt Leakage means the hidden instructions that steer the model can be extracted by users. The real risk is not that the wording is revealed but that prompts often contain things that should never be there: credentials, connection strings, internal URLs, role names, filtering rules or business logic that doubles as the only security control. Extraction is usually easy, by asking the model to repeat its instructions or by indirect tricks, so you must assume the prompt will be seen by a determined user."
+     ]
+    },
+    {
+     "h": "Prompt hygiene",
+     "p": [
+      "Design as if the prompt is public. Keep secrets, keys and sensitive data out of it; hold them in a vault and resolve them in the tool layer. Do not rely on the prompt to enforce authorization, spending limits or data separation, because those must be enforced by deterministic code outside the model. Keep behavioral guardrails in independent filters, and review prompts like source code in version control. Test with extraction attempts and treat any leaked content that matters as a defect, not a model quirk."
+     ]
+    },
+    {
+     "h": "Vector and embedding weaknesses",
+     "p": [
+      "LLM08 Vector and Embedding Weaknesses covers flaws in how retrieval stores are built and queried. Key issues are missing access control on documents, mixing data from multiple tenants in one index, poisoned or hidden-text documents entering the corpus, embedding inversion that recovers source text from vectors, and data leaks through similarity search. Because retrieval returns semantically similar chunks, a query from tenant A may surface tenant B content if nothing filters by owner, and the model will then happily quote it."
+     ]
+    },
+    {
+     "h": "Access-control design",
+     "p": [
+      "Store ownership and permission metadata with each chunk, such as tenant_id and an access control list, and apply them as a mandatory filter in the vector query using the authenticated identity, not a value supplied by the model. Use separate indexes or namespaces for strongly isolated tenants. Validate and sanitize documents on ingestion, strip hidden text, and record provenance. Encrypt vectors at rest, restrict who can query the store directly, and log retrievals. Test by querying with two tenant tokens and confirming neither sees the other documents."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Retrieval filter (fictional)",
+    "text": "query(\n  vector=embed(q),\n  top_k=5,\n  filter={\"tenant_id\": session.tenant_id}  # from auth, not from model\n)"
+   },
+   "example": "A multi-tenant help bot uses one shared index with no filter. A user at tenant A asks about their pricing contract and receives a snippet from tenant B because the text is semantically close. The fix is to write tenant_id into each chunk at ingestion and enforce it in every query from the authenticated session. A regression test queries with tenant A token for tenant B unique canary text and expects zero hits.",
+   "terms": [
+    {
+     "term": "System prompt",
+     "def": "Hidden instructions given to the model to define its role and rules."
+    },
+    {
+     "term": "Embedding",
+     "def": "A numeric vector representing the meaning of text."
+    },
+    {
+     "term": "Vector store",
+     "def": "A database that retrieves items by similarity of embeddings."
+    },
+    {
+     "term": "Tenant isolation",
+     "def": "Preventing one customer from accessing another customer data."
+    },
+    {
+     "term": "Metadata filter",
+     "def": "A mandatory condition on stored attributes applied to a query."
+    }
+   ],
+   "check": [
+    {
+     "q": "Where should API keys be kept?",
+     "options": [
+      "In a vault resolved by the tool layer",
+      "In the vector store",
+      "In user messages",
+      "In the system prompt"
+     ],
+     "a": 0,
+     "why": "Prompts can be extracted, so secrets must stay outside."
+    },
+    {
+     "q": "What causes cross-tenant retrieval?",
+     "options": [
+      "Too many GPUs",
+      "Missing owner filter on the shared index",
+      "Using HTTPS",
+      "Low temperature"
+     ],
+     "a": 1,
+     "why": "Similarity search returns anything close unless filtered."
+    },
+    {
+     "q": "Who should supply the tenant_id filter value?",
+     "options": [
+      "The authenticated session",
+      "The model",
+      "A random value",
+      "The user in free text"
+     ],
+     "a": 0,
+     "why": "Identity must come from authentication, not model output."
+    },
+    {
+     "q": "Treat a system prompt as:",
+     "options": [
+      "Secret security boundary",
+      "Encrypted data",
+      "A firewall rule",
+      "Potentially public text"
+     ],
+     "a": 3,
+     "why": "Assume users can extract it; do not rely on secrecy."
+    }
+   ],
+   "recap": [
+    "Assume the system prompt can be extracted.",
+    "Never place secrets or authorization logic in it.",
+    "Enforce ownership filters in vector queries from authenticated identity."
+   ]
+  },
+  {
+   "title": "Misinformation and unbounded consumption",
+   "why": "Wrong but confident answers and runaway resource use are the final two risks, hitting trust and budget respectively.",
+   "sections": [
+    {
+     "h": "Misinformation",
+     "p": [
+      "LLM09 Misinformation arises when a model produces false or misleading content that appears credible. Hallucination is the best-known cause, where the model generates fluent text not grounded in fact, such as invented citations, nonexistent software packages or wrong legal and medical statements. Bias in training data and gaps in knowledge also contribute. The security angle is overreliance: users and downstream systems act on output without verification. Attackers can exploit it, for example by registering a package name that models hallucinate so developers install malicious code."
+     ]
+    },
+    {
+     "h": "Mitigating misinformation",
+     "p": [
+      "Ground answers in trusted sources with retrieval augmented generation and show citations users can check. Use verification steps such as cross-checking claims against a database or a second system. Constrain outputs with structured formats and allow-lists, for example only package names that exist in an approved registry. Add clear UI cues that content is AI-generated and may be wrong, and require human review in high-stakes domains. Measure hallucination rates with evaluation sets and monitor them after every model or prompt change."
+     ]
+    },
+    {
+     "h": "Unbounded consumption",
+     "p": [
+      "LLM10 Unbounded Consumption covers uncontrolled use of inference resources, leading to denial of service, runaway cost (sometimes called denial of wallet), and model theft through excessive querying. Triggers include very long inputs, recursive or looping agent tasks, flooding with requests, and queries crafted to maximize output tokens. Since providers bill per token, an unauthenticated endpoint can generate a large invoice overnight. Resource limits also protect against extraction attempts that need many queries to copy model behavior."
+     ]
+    },
+    {
+     "h": "Controls for consumption",
+     "p": [
+      "Authenticate callers and apply per-user and per-key rate limits. Cap input size, maximum output tokens, context length, agent step counts and tool-call depth. Set quotas and budget alerts with hard spending stops at the provider. Use timeouts and circuit breakers, queue long jobs, and monitor token usage per tenant for anomalies. Cache repeated answers where safe. Log and alert on bursts, large prompts and systematic query patterns. Test limits with load simulations so the app degrades gracefully instead of failing or billing without bound. Both risks reward continuous measurement, so publish dashboards for hallucination rate, token spend per tenant and rejected requests, and review them in routine operations meetings."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Limits config (fictional)",
+    "text": "limits:\n  rate_per_key: 60/min\n  max_input_tokens: 4000\n  max_output_tokens: 800\n  agent_max_steps: 8\n  daily_budget_usd: 50   # hard stop"
+   },
+   "example": "A public demo chatbot has no login and no output cap. A script sends long prompts in a loop and the provider bill climbs by thousands of dollars in a weekend. Afterward the team adds API-key authentication, 60 requests per minute, an 800-token output cap, a daily hard budget with alerts at 50 percent, and per-IP throttling at the edge. The same limits also make bulk model-copying attempts impractical.",
+   "terms": [
+    {
+     "term": "Hallucination",
+     "def": "Fluent model output that is not supported by facts."
+    },
+    {
+     "term": "Overreliance",
+     "def": "Acting on model output without adequate verification."
+    },
+    {
+     "term": "Grounding",
+     "def": "Anchoring answers to retrieved trusted sources."
+    },
+    {
+     "term": "Denial of wallet",
+     "def": "Abuse that drives up usage costs rather than causing an outage."
+    },
+    {
+     "term": "Rate limiting",
+     "def": "Restricting the number of requests allowed in a time window."
+    }
+   ],
+   "check": [
+    {
+     "q": "A key defense against hallucination is:",
+     "options": [
+      "Shorter passwords",
+      "Removing logging",
+      "Grounding with retrieval and citations",
+      "Higher temperature"
+     ],
+     "a": 2,
+     "why": "Trusted sources let users and systems verify claims."
+    },
+    {
+     "q": "Denial of wallet means:",
+     "options": [
+      "Blocking DNS",
+      "Abuse that inflates inference costs",
+      "Deleting databases",
+      "Stealing credit cards"
+     ],
+     "a": 1,
+     "why": "Per-token billing lets attackers cause financial damage."
+    },
+    {
+     "q": "Which is a unbounded consumption control?",
+     "options": [
+      "Public API keys",
+      "More plugins",
+      "Max output tokens and spending quotas",
+      "Wider CORS"
+     ],
+     "a": 2,
+     "why": "Caps limit both outages and cost."
+    },
+    {
+     "q": "Why can hallucinated package names be dangerous?",
+     "options": [
+      "They are signed",
+      "Attackers may register them with malware",
+      "They improve security",
+      "They speed installs"
+     ],
+     "a": 1,
+     "why": "Developers may install a malicious package that matches the invented name."
+    }
+   ],
+   "recap": [
+    "Hallucinations plus overreliance create misinformation risk.",
+    "Ground, cite, verify and keep humans in high-stakes loops.",
+    "Authenticate, rate limit and cap tokens, steps and spend."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Exploit an output handling flaw",
+   "sim": "web-proxy",
+   "scenario": "In a sandbox chat app at https://chat.example.com, replies are inserted into the page with innerHTML. You have a proxy that lets you intercept and edit responses. All traffic is fictional and the app runs only inside the lab. Your task is to demonstrate that unsanitized model output executes as script, then name the fix.",
+   "objective": "Show script markup in a model response executing in the page and identify the vulnerable sink.",
+   "steps": [
+    {
+     "do": "Open the proxy and start intercepting traffic from the chat app.",
+     "see": "Intercept ON. Host chat.example.com listed."
+    },
+    {
+     "do": "Send the message 'hello' in the chat and view the response in the proxy.",
+     "see": "Response JSON: {\"reply\":\"Hi! How can I help?\"}"
+    },
+    {
+     "do": "Edit the reply value to include the harmless test markup <img src=x onerror=alert('lab')> and forward it.",
+     "see": "Request forwarded. Page updated."
+    },
+    {
+     "do": "Switch to the browser view of the chat app.",
+     "see": "An alert box with text 'lab' appears."
+    },
+    {
+     "do": "Open the page source inspector and locate the code that rendered the reply.",
+     "see": "chat.js line 42: msgDiv.innerHTML = data.reply"
+    },
+    {
+     "do": "Change line 42 to use textContent and replay the same response.",
+     "see": "The markup now appears as plain text; no alert."
+    }
+   ],
+   "answer": "The app writes model output into the DOM with innerHTML, so injected markup executes (cross-site scripting through LLM05 Improper Output Handling). The fix is textContent or an allow-list sanitizer, plus a Content-Security-Policy that blocks inline script.",
+   "hint": "Look for the property used to insert the reply into the page."
+  },
+  {
+   "title": "Fix unsafe output code",
+   "sim": "code-editor",
+   "scenario": "An internal analytics assistant converts questions to a filter string and the code runs it with eval, then builds SQL by string concatenation. The editor shows app.py with failing security tests. Patch it so model output is only ever treated as data, and re-run the tests until they pass.",
+   "objective": "Replace eval and string-built SQL with safe parsing and parameterized queries.",
+   "steps": [
+    {
+     "do": "Open app.py and find where model output is evaluated.",
+     "see": "Line 18: result = eval(reply)"
+    },
+    {
+     "do": "Replace eval with json.loads and validate against an allow-list of fields.",
+     "see": "Editor accepts change. Test test_no_eval: PASS"
+    },
+    {
+     "do": "Find the SQL construction line.",
+     "see": "Line 31: cur.execute(\"SELECT * FROM orders WHERE \" + filt)"
+    },
+    {
+     "do": "Rewrite it to use a fixed query and a bound parameter.",
+     "see": "cur.execute(\"SELECT * FROM orders WHERE customer_id = %s\", (cid,))"
+    },
+    {
+     "do": "Add a check that cid is an integer before querying.",
+     "see": "Validation added."
+    },
+    {
+     "do": "Run the test suite.",
+     "see": "4 passed, 0 failed. Injection payload test: BLOCKED."
+    }
+   ],
+   "answer": "The patch removes eval (use json.loads with schema or allow-list validation) and binds values through a parameterized query, so output is treated as data instead of code or SQL. All four tests pass, including the injection payload.",
+   "hint": "Values should be bound, not concatenated."
+  },
+  {
+   "title": "Find leaked secrets in logs",
+   "sim": "log-viewer",
+   "scenario": "You are given 24 hours of fictional LLM request logs from a support assistant at example.com. Engineers suspect secrets and personal data are being logged. Search the logs, identify what leaked, and list the exposure paths so they can be closed.",
+   "objective": "List the secrets, PII and system prompt text found and how each reached the logs.",
+   "steps": [
+    {
+     "do": "Search the log viewer for the pattern 'api_key'.",
+     "see": "3 matches: req=8f2, req=9a1, req=b77 containing EXAMPLEKEY-0000-FAKE"
+    },
+    {
+     "do": "Search for email addresses using the pattern @example.com.",
+     "see": "41 matches across user prompts."
+    },
+    {
+     "do": "Search for the phrase 'You are SupportBot'.",
+     "see": "12 matches in field system_prompt of debug entries."
+    },
+    {
+     "do": "Open req=8f2 and inspect which field holds the key.",
+     "see": "Field: tool_config.headers.Authorization"
+    },
+    {
+     "do": "Check the log level of the entries containing the system prompt.",
+     "see": "Level=DEBUG, enabled in production."
+    },
+    {
+     "do": "Check who can read the log index.",
+     "see": "Index acl: all-engineering (62 users)"
+    }
+   ],
+   "answer": "Leaked items: a fake API key in tool config headers, customer emails in prompts, and the full system prompt via DEBUG logging in production. Paths: verbose request logging, secrets inside tool config, and wide log access. Fixes: mask fields, vault references, disable DEBUG, restrict ACL, rotate the key.",
+   "hint": "Search the fields, not only the user prompt text."
+  },
+  {
+   "title": "Audit agent permissions",
+   "sim": "config-editor",
+   "scenario": "An agent manifest for a finance helper grants admin scope on every tool. It only needs to read invoices and draft reminders. Edit the manifest to least privilege and add approval for destructive or outbound actions, then run the validator.",
+   "objective": "Reduce scopes to the minimum and add approval gates for risky actions.",
+   "steps": [
+    {
+     "do": "Open agent.yaml and review the tool list.",
+     "see": "Tools: db (admin), mail (mail:*), files (root=/), shell (enabled)"
+    },
+    {
+     "do": "Remove the shell tool entirely.",
+     "see": "shell removed. Warning cleared."
+    },
+    {
+     "do": "Change db role from admin to invoices_ro.",
+     "see": "db role: invoices_ro (SELECT only)"
+    },
+    {
+     "do": "Restrict files root to /data/invoices and set read_only: true.",
+     "see": "files root=/data/invoices read_only=true"
+    },
+    {
+     "do": "Change mail scope to mail:draft and allow recipients only at example.com.",
+     "see": "mail scope=mail:draft allow=*@example.com"
+    },
+    {
+     "do": "Set approval: required for mail_send and any delete action.",
+     "see": "approval policy saved."
+    },
+    {
+     "do": "Run the validator.",
+     "see": "Validation: 0 high findings, 0 medium. Least privilege score 96/100."
+    }
+   ],
+   "answer": "Final state: no shell, read-only database role, files limited to one read-only directory, draft-only mail restricted to the company domain, and human approval on send and delete. This removes excessive functionality, permissions and autonomy.",
+   "hint": "Start by deleting tools the use case never needs."
+  },
+  {
+   "title": "Check cross-tenant retrieval",
+   "sim": "terminal",
+   "scenario": "A sandbox vector store at 192.0.2.40 serves a help bot for two fictional tenants, acme and globex. You hold one token per tenant. Use the terminal to test whether either tenant can retrieve the other documents and report the result.",
+   "objective": "Prove which tenant token can read the other tenant documents.",
+   "steps": [
+    {
+     "do": "Run: vq --token ACME_TOKEN 'globex pricing contract'",
+     "see": "0 results. filter applied: tenant_id=acme"
+    },
+    {
+     "do": "Run: vq --token GLOBEX_TOKEN 'acme pricing contract'",
+     "see": "2 results: doc-acme-114 (score 0.91), doc-acme-120 (score 0.88)"
+    },
+    {
+     "do": "Run: vq --token GLOBEX_TOKEN --show-meta doc-acme-114",
+     "see": "tenant_id=acme owner=acme-finance"
+    },
+    {
+     "do": "Run: vq --token GLOBEX_TOKEN --explain",
+     "see": "filter: none (index globex-shared, legacy mode)"
+    },
+    {
+     "do": "Run: vq --token ACME_TOKEN --explain",
+     "see": "filter: tenant_id=acme (enforced)"
+    },
+    {
+     "do": "Enable enforcement: vqctl set-filter globex tenant_id=required and rerun step 2.",
+     "see": "0 results. filter applied: tenant_id=globex"
+    }
+   ],
+   "answer": "The globex token can read acme documents because its index runs in legacy mode with no tenant filter, while the acme path enforces tenant_id. The finding is a cross-tenant retrieval flaw; the fix is a mandatory tenant filter derived from the authenticated token.",
+   "hint": "Compare the --explain output for both tokens."
+  },
+  {
+   "title": "Match risks to controls",
+   "sim": "scenario",
+   "scenario": "You review eight fictional application scenarios, each describing a flaw. For every scenario choose the matching OWASP LLM risk and the primary mitigation from the options the simulator provides.",
+   "objective": "Correctly pair eight scenarios with their OWASP LLM risk and main control.",
+   "steps": [
+    {
+     "do": "Scenario 1: reply rendered with innerHTML. Choose risk and control.",
+     "see": "Correct: LLM05 Improper Output Handling, encode output."
+    },
+    {
+     "do": "Scenario 2: API key in the system prompt.",
+     "see": "Correct: LLM07 System Prompt Leakage, move secrets to a vault."
+    },
+    {
+     "do": "Scenario 3: model downloaded as pickle from an unknown repo.",
+     "see": "Correct: LLM03 Supply Chain, verify hash and use safetensors."
+    },
+    {
+     "do": "Scenario 4: agent has delete rights without approval.",
+     "see": "Correct: LLM06 Excessive Agency, least privilege and approval."
+    },
+    {
+     "do": "Scenario 5: shared index returns other tenant documents.",
+     "see": "Correct: LLM08 Vector and Embedding Weaknesses, metadata filter."
+    },
+    {
+     "do": "Scenario 6: unauthenticated endpoint with no token caps.",
+     "see": "Correct: LLM10 Unbounded Consumption, rate limits and quotas."
+    },
+    {
+     "do": "Scenario 7: fine-tune data includes planted trigger phrase.",
+     "see": "Correct: LLM04 Data and Model Poisoning, vet and test data."
+    },
+    {
+     "do": "Scenario 8: bot invents legal citations.",
+     "see": "Correct: LLM09 Misinformation, grounding and human review."
+    }
+   ],
+   "answer": "All eight pairs: 1 LLM05, 2 LLM07, 3 LLM03, 4 LLM06, 5 LLM08, 6 LLM10, 7 LLM04, 8 LLM09, each with its stated primary mitigation. Score 8 of 8.",
+   "hint": "Ask what the model can reach or what it emits."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "How many categories are in the OWASP Top 10 for LLM Applications 2025?",
+   "options": [
+    "12",
+    "8",
+    "25",
+    "10"
+   ],
+   "a": 3,
+   "why": "The list contains ten entries."
+  },
+  {
+   "q": "Which risk covers model output flowing into shells, SQL or HTML?",
+   "options": [
+    "LLM10 Unbounded Consumption",
+    "LLM09 Misinformation",
+    "LLM03 Supply Chain",
+    "LLM05 Improper Output Handling"
+   ],
+   "a": 3,
+   "why": "Unvalidated output reaching sinks is LLM05."
+  },
+  {
+   "q": "What is the best control against SQL built from model text?",
+   "options": [
+    "Parameterized queries",
+    "A friendlier prompt",
+    "Larger context",
+    "Higher temperature"
+   ],
+   "a": 0,
+   "why": "Binding keeps data from being parsed as SQL."
+  },
+  {
+   "q": "Where should secrets be kept?",
+   "options": [
+    "System prompt",
+    "Vector store",
+    "Chat history",
+    "Vault referenced by the tool layer"
+   ],
+   "a": 3,
+   "why": "Prompts and context can be exposed."
+  },
+  {
+   "q": "Which pairing is correct for supply chain defense?",
+   "options": [
+    "Higher top_p",
+    "Hash verification and safetensors",
+    "More emoji",
+    "Longer prompts"
+   ],
+   "a": 1,
+   "why": "Integrity checks and safe formats reduce tampering and code execution."
+  },
+  {
+   "q": "A planted trigger phrase in fine-tuning data is an example of:",
+   "options": [
+    "LLM10 consumption",
+    "LLM04 Data and Model Poisoning",
+    "LLM08 retrieval",
+    "LLM02 only"
+   ],
+   "a": 1,
+   "why": "Tampered training data creating hidden behavior is poisoning."
+  },
+  {
+   "q": "Excessive autonomy is best countered by:",
+   "options": [
+    "Longer logs",
+    "More tools",
+    "Wider scopes",
+    "Human approval for high-impact actions"
+   ],
+   "a": 3,
+   "why": "Approval gates keep irreversible actions under human control."
+  },
+  {
+   "q": "What fixes cross-tenant retrieval?",
+   "options": [
+    "Shorter vectors",
+    "A stronger system prompt",
+    "A mandatory tenant filter from authenticated identity",
+    "Hiding the index name"
+   ],
+   "a": 2,
+   "why": "Access control must be enforced in the query layer."
+  },
+  {
+   "q": "Denial of wallet is part of which category?",
+   "options": [
+    "LLM01 Prompt Injection",
+    "LLM07 System Prompt Leakage",
+    "LLM10 Unbounded Consumption",
+    "LLM03 Supply Chain"
+   ],
+   "a": 2,
+   "why": "Runaway cost from unrestricted usage falls under LLM10."
+  },
+  {
+   "q": "Which framework is an ATT&CK-style catalog of AI attack techniques?",
+   "options": [
+    "MITRE ATLAS",
+    "PCI DSS",
+    "COBIT",
+    "ITIL"
+   ],
+   "a": 0,
+   "why": "ATLAS documents adversary techniques against AI systems."
+  }
+ ]
+}

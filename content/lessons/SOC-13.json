@@ -1,0 +1,918 @@
+{
+ "code": "SOC-13",
+ "intro": "Digital forensics reconstructs what happened on a system using evidence that must stand up to scrutiny. This module covers forensic principles and chain of custody, disk acquisition and NTFS structures, key Windows artifacts, timeline building, memory forensics with Volatility plugins, and Autopsy with defensible reporting. You will learn how to preserve evidence, correlate artifacts, avoid overstating conclusions and present findings that others can verify and repeat.",
+ "lessons": [
+  {
+   "title": "Forensic principles and chain of custody",
+   "why": "Forensics is evidence science. Methods that preserve integrity and document every step decide whether findings are trusted.",
+   "sections": [
+    {
+     "h": "Core principles",
+     "p": [
+      "Digital forensics is the identification, preservation, analysis and presentation of digital evidence. Its guiding principles are: do not change the original evidence, work on verified copies, document everything, and make results reproducible by another competent examiner. The examiner distinguishes facts (a file with this hash existed at this path) from interpretation (the user intended to steal data). Define the question first, such as 'was data copied to a USB drive between 14:00 and 15:00?', because an unfocused search wastes time and may overreach legal authority or privacy limits."
+     ]
+    },
+    {
+     "h": "Order of volatility and live versus dead",
+     "p": [
+      "The order of volatility says to capture short-lived data first: memory, network connections and process lists, then disk, then logs and backups. A live acquisition changes the system, so it is justified when the evidence would be lost otherwise, for example memory containing encryption keys or malware that never touches disk. A dead acquisition powers the system off and images the storage, which is cleaner but loses volatile data and, with full-disk encryption, may lose access to the data. Choose deliberately and record why."
+     ]
+    },
+    {
+     "h": "Write blockers and hashing",
+     "p": [
+      "A write blocker, hardware or software, lets you read a drive while preventing any writes, so mounting it cannot alter timestamps or contents. Always connect evidence drives through a write blocker. Compute a cryptographic hash, usually SHA-256, of the source and of the image; matching values prove an exact copy. Record the hash in the notes and re-verify before analysis and at handoff. Work on a copy of the image, and keep the master untouched in storage. A mismatch means the evidence integrity is in doubt and must be investigated and disclosed."
+     ]
+    },
+    {
+     "h": "Documentation and admissibility",
+     "p": [
+      "Keep contemporaneous notes with times, names, device identifiers, serial numbers, tools and versions, commands and results. Maintain a chain of custody listing every transfer with signatures. For court or HR proceedings, the evidence must be relevant, authentic and obtained lawfully, so confirm authority, such as a policy consent or a warrant, with counsel before collecting. Rules differ by country, so this book describes the general approach. Using accepted tools and methods and being able to explain them under questioning supports admissibility.",
+      "Define the scope before touching data. A written scope statement lists the systems, the date range, the questions and the legal basis. It protects privacy by preventing browsing of unrelated personal content, and it keeps the investigation focused. If you come across material outside the scope, such as illegal content or privileged communications, stop and consult counsel rather than continuing. Good practice includes peer review of notes so another examiner could repeat the process and reach the same findings."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Custody and hash record",
+    "text": "Case: 2026-FX-014  Item: EV-001 (500 GB SSD, S/N 8Q2X-4417)\nSource hash  SHA-256: 91ce...a07b\nImage hash   SHA-256: 91ce...a07b   MATCH\nAcquired: 2026-10-03 11:20 UTC  via hardware write blocker WB-2\nCustody: Rivera -> Chen (11:55, signed) -> Locker L2 (12:10, signed)"
+   },
+   "example": "An employee is suspected of copying files before resigning. The examiner records the laptop's serial number, photographs it, and finds it powered off. Using a write blocker she images the SSD, matches the source and image SHA-256, seals the original in a tamper-evident bag, and completes custody entries. She works only from the copy, with a written question: which files were copied to external storage on 1 October?",
+   "terms": [
+    {
+     "term": "Chain of custody",
+     "def": "A signed record of every person who handled evidence."
+    },
+    {
+     "term": "Write blocker",
+     "def": "A device or software that prevents writes to evidence media."
+    },
+    {
+     "term": "Live acquisition",
+     "def": "Collecting data from a running system."
+    },
+    {
+     "term": "Admissibility",
+     "def": "Whether evidence may be accepted in a legal or formal proceeding."
+    },
+    {
+     "term": "Fact versus opinion",
+     "def": "Observed data versus the examiner's interpretation of it."
+    }
+   ],
+   "check": [
+    {
+     "q": "A write blocker prevents:",
+     "options": [
+      "Reads",
+      "Writes to evidence media",
+      "Hashing",
+      "Imaging"
+     ],
+     "a": 1,
+     "why": "It protects the original from modification."
+    },
+    {
+     "q": "Matching source and image hashes show:",
+     "options": [
+      "The copy is exact",
+      "The disk is clean",
+      "The user is guilty",
+      "The files are encrypted"
+     ],
+     "a": 0,
+     "why": "Equal digests prove an exact copy."
+    },
+    {
+     "q": "When is live acquisition justified?",
+     "options": [
+      "Never",
+      "When volatile evidence would otherwise be lost",
+      "Always",
+      "Only on servers"
+     ],
+     "a": 1,
+     "why": "Memory and connections vanish at shutdown."
+    },
+    {
+     "q": "Which is a fact rather than an opinion?",
+     "options": [
+      "The user intended theft",
+      "A file with hash X existed at path Y",
+      "The attacker was skilled",
+      "The file was important"
+     ],
+     "a": 1,
+     "why": "Facts are observable and verifiable."
+    }
+   ],
+   "recap": [
+    "Preserve, copy, hash, document, reproduce.",
+    "Use write blockers and verify hashes.",
+    "Confirm legal authority and keep the chain of custody."
+   ]
+  },
+  {
+   "title": "Disk acquisition and file systems",
+   "why": "Everything on disk analysis starts with a correct image and an understanding of how the file system records files, times and deletions.",
+   "sections": [
+    {
+     "h": "Creating a forensic image",
+     "p": [
+      "A forensic image is a bit-for-bit copy of a drive, including unallocated space and slack space, not a file copy. Tools include dd, dc3dd, ewfacquire and FTK Imager. A raw image is created with a command like dc3dd if=/dev/sdb of=evidence.dd hash=sha256 log=acq.log, with the source attached through a write blocker. The E01 format from the Expert Witness family compresses and stores metadata and hashes. Record the tool and version, start and end time, and drive details. After acquisition verify that the image hash equals the source hash."
+     ]
+    },
+    {
+     "h": "Partitions and file systems",
+     "p": [
+      "Images contain partition tables, MBR or GPT, then volumes formatted with file systems such as NTFS (Windows), ext4 (Linux), APFS (macOS) and FAT32 or exFAT (removable media). Tools like mmls list partitions and fls lists files. Examiners also encounter encryption such as BitLocker, requiring recovery keys or memory-derived keys. Unallocated space may hold deleted data that can be carved by file signatures, though carved files lose names and timestamps. Slack space is the unused tail of the last cluster of a file and may contain remnants."
+     ]
+    },
+    {
+     "h": "NTFS structures",
+     "p": [
+      "NTFS stores metadata in the Master File Table, $MFT, where each file or folder has a record, typically 1024 bytes. Records hold attributes: $STANDARD_INFORMATION with the four timestamps (created, modified, MFT changed, accessed) and $FILE_NAME with its own set. Small files can be resident, their data stored inside the record. Deleted files have their MFT record flagged unallocated, but the entry may persist until reused. Alternate data streams can hide content under a file name. Timestamp manipulation, called timestomping, often changes $STANDARD_INFORMATION but not $FILE_NAME, so comparing the two can expose it."
+     ]
+    },
+    {
+     "h": "$UsnJrnl and $LogFile",
+     "p": [
+      "The NTFS change journal, $UsnJrnl and its $J stream, records changes to files and folders: creation, rename, deletion, data overwrite, with a timestamp and reason flags. It is valuable even when the file is gone, since it can show that archive.zip was created, then deleted. $LogFile is a transaction log that keeps recent low-level operations for recovery. Tools such as MFTECmd from Eric Zimmerman's tool set parse the $MFT and $J into CSV for review. Journals have limited size and wrap around, so act promptly."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ dc3dd if=/dev/sdb of=evidence.dd hash=sha256 log=acq.log\n  input hash: sha256 91ce...a07b\n  output hash: sha256 91ce...a07b\n$ mmls evidence.dd\n  002: 0000002048 0001000000 NTFS (0x07)\n$ MFTECmd.exe -f $MFT --csv out\n  Processed 412,883 records"
+   },
+   "example": "A drive is imaged through a write blocker. mmls shows an NTFS partition, and the examiner parses the $MFT and $J. The change journal shows that archive_q3.zip was created at 14:07 UTC, renamed, and deleted at 14:31, even though the file is no longer visible in the file listing. This confirms staging activity and guides the search for the file's remnants and any transfers.",
+   "terms": [
+    {
+     "term": "Forensic image",
+     "def": "A bit-for-bit copy of storage including unallocated space."
+    },
+    {
+     "term": "$MFT",
+     "def": "The NTFS table holding a record for each file and folder."
+    },
+    {
+     "term": "$UsnJrnl",
+     "def": "The NTFS change journal recording file operations."
+    },
+    {
+     "term": "Timestomping",
+     "def": "Altering file timestamps to hide activity."
+    },
+    {
+     "term": "File carving",
+     "def": "Recovering files from raw data using signatures."
+    }
+   ],
+   "check": [
+    {
+     "q": "A forensic image differs from a file copy because it:",
+     "options": [
+      "Copies unallocated space too",
+      "Is smaller",
+      "Skips deleted data",
+      "Is unverifiable"
+     ],
+     "a": 0,
+     "why": "It captures everything, including free space."
+    },
+    {
+     "q": "Which NTFS structure stores a record for each file?",
+     "options": [
+      "$MFT",
+      "$Boot",
+      "GPT",
+      "FAT"
+     ],
+     "a": 0,
+     "why": "The Master File Table holds file records."
+    },
+    {
+     "q": "The $UsnJrnl is useful because it:",
+     "options": [
+      "Records changes including deleted files",
+      "Encrypts files",
+      "Removes malware",
+      "Stores passwords"
+     ],
+     "a": 0,
+     "why": "It logs creates, renames and deletes."
+    },
+    {
+     "q": "Timestomping is often detected by comparing:",
+     "options": [
+      "$STANDARD_INFORMATION and $FILE_NAME times",
+      "File size",
+      "CPU model",
+      "Hostnames"
+     ],
+     "a": 0,
+     "why": "The attributes often disagree after manipulation."
+    }
+   ],
+   "recap": [
+    "Image bit-for-bit and verify the hash.",
+    "NTFS keeps timestamps in the MFT with two attribute sets.",
+    "The change journal shows activity even after deletion."
+   ]
+  },
+  {
+   "title": "Windows artifacts",
+   "why": "Windows leaves traces of program execution, file access and user activity. Knowing each artifact's meaning and limits prevents wrong conclusions.",
+   "sections": [
+    {
+     "h": "Evidence of execution",
+     "p": [
+      "Prefetch files, stored in C:\\Windows\\Prefetch as NAME-HASH.pf, record that an executable ran, the run count, the last run times (up to eight on recent Windows) and files loaded. Prefetch may be disabled on some systems, and servers often lack it. Amcache.hve under C:\\Windows\\appcompat\\Programs records executables with their paths, SHA-1 hashes and first-seen times, helpful for identifying unknown programs. Shimcache, also called AppCompatCache, in the SYSTEM hive lists file paths and modification times; on modern systems its presence shows the file was present or examined, and does not by itself prove execution."
+     ]
+    },
+    {
+     "h": "User activity",
+     "p": [
+      "LNK shortcut files in the Recent folder are created when a user opens a file; they store the target path, the target's timestamps, size and volume serial number, including for files on USB drives that no longer exist. Jump lists (AutomaticDestinations) record recent files per application. Browser history, such as the Chrome History SQLite database under AppData\\Local\\Google\\Chrome\\User Data\\Default, holds visited URLs, downloads with target paths and search terms with timestamps. ShellBags record folders a user browsed, and UserAssist records GUI program launches with counts."
+     ]
+    },
+    {
+     "h": "Registry hives",
+     "p": [
+      "The registry is stored in hive files. System hives live in C:\\Windows\\System32\\config: SYSTEM, SOFTWARE, SAM and SECURITY; each user has NTUSER.DAT in the profile and UsrClass.dat. Useful keys include Run and RunOnce for persistence, USBSTOR for connected USB devices with serial numbers and first and last connection times, MRU lists, network profiles and installed software. Tools such as RegRipper, Registry Explorer and RECmd parse them. Registry key last-write times show when a key changed, not necessarily which value did."
+     ]
+    },
+    {
+     "h": "Correlating artifacts",
+     "p": [
+      "No single artifact tells the whole story, so correlate. Prefetch shows run time of tool.exe; Amcache shows its hash; the $MFT shows when it was created; browser history shows where it was downloaded; an LNK file shows the user opened a document at the same time; USBSTOR shows a drive attached at 14:12. Together they form a chain that is far stronger than any one item. Note each artifact's limits and time zone, and convert to UTC consistently. State clearly what each artifact proves and what it only suggests.",
+      "Remember anti-forensic activity. Attackers or insiders may clear event logs (Security event 1102 is logged when the audit log is cleared), delete Prefetch files, or run tools from removable drives. Absence of an artifact is not proof of absence of activity; it may mean the artifact was disabled, deleted or never created. Document gaps and look for secondary evidence, such as the change journal showing that Prefetch files were deleted at a specific time."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Artifact summary",
+    "text": "Prefetch    C:\\Windows\\Prefetch\\RCLONE.EXE-3A1B2C4D.pf  runs=3  last=2026-10-01 14:09\nAmcache     C:\\Users\\Public\\rclone.exe  SHA1=ab12...  first=14:08\nLNK         Q3_customers.xlsx -> D:\\ (USB, serial 0123456789)\nUSBSTOR     Disk&Ven_Generic  first=14:12  last=14:55\nChrome      download rclone.zip  2026-10-01 14:06"
+   },
+   "example": "On a workstation, the examiner finds that Chrome downloaded a tool at 14:06, the Amcache lists it with a hash at 14:08, Prefetch shows three runs starting 14:09, and USBSTOR shows a USB device first connected at 14:12. An LNK file shows the user opened Q3_customers.xlsx from that drive. The artifacts together support a timeline of download, execution and external-device file access in under ten minutes.",
+   "terms": [
+    {
+     "term": "Prefetch",
+     "def": "Files recording program execution, count and times."
+    },
+    {
+     "term": "Amcache",
+     "def": "A registry hive recording executables with hashes and first-seen times."
+    },
+    {
+     "term": "Shimcache",
+     "def": "Compatibility cache listing paths, not proof of execution."
+    },
+    {
+     "term": "LNK file",
+     "def": "Shortcut file revealing target path and times of opened files."
+    },
+    {
+     "term": "USBSTOR",
+     "def": "Registry key listing connected USB storage devices."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which artifact records the SHA-1 of an executable?",
+     "options": [
+      "Amcache",
+      "Prefetch",
+      "LNK",
+      "Jump lists"
+     ],
+     "a": 0,
+     "why": "Amcache stores SHA-1 values and first-seen times."
+    },
+    {
+     "q": "Shimcache entries alone prove:",
+     "options": [
+      "Execution",
+      "Presence or examination of the file, not necessarily execution",
+      "Network access",
+      "Encryption"
+     ],
+     "a": 1,
+     "why": "Do not overstate its meaning."
+    },
+    {
+     "q": "LNK files can show files opened from:",
+     "options": [
+      "Only the local disk",
+      "Removable drives too",
+      "Only the cloud",
+      "Nothing"
+     ],
+     "a": 1,
+     "why": "They retain target path and volume serial."
+    },
+    {
+     "q": "Which hive holds per-user settings?",
+     "options": [
+      "SYSTEM",
+      "SOFTWARE",
+      "NTUSER.DAT",
+      "SAM"
+     ],
+     "a": 2,
+     "why": "NTUSER.DAT is the user's registry hive."
+    }
+   ],
+   "recap": [
+    "Prefetch, Amcache and Shimcache give execution and presence clues.",
+    "LNK, jump lists and browser history show user activity.",
+    "Correlate artifacts and state each one's limits."
+   ]
+  },
+  {
+   "title": "Timeline analysis",
+   "why": "A timeline puts scattered artifacts in order, revealing the story of an incident and showing which activities happened together.",
+   "sections": [
+    {
+     "h": "MAC times",
+     "p": [
+      "File systems keep timestamps often summarized as MAC or MACB: Modified (content changed), Accessed (read, though often unreliable or disabled), Changed (metadata or MFT entry changed) and Born (created). Their behavior differs by operating system and event. Copying a file typically gives a new created time but keeps the old modified time, so a file whose modified time precedes its created time was likely copied. Understanding these rules prevents misreadings, and NTFS keeps timestamps in both $STANDARD_INFORMATION and $FILE_NAME for cross-checking."
+     ]
+    },
+    {
+     "h": "Super timelines",
+     "p": [
+      "A super timeline combines timestamps from many sources into one chronological table: file system times, event logs, registry key writes, Prefetch, browser history, LNK files and application logs. The open-source Plaso toolkit, using log2timeline to extract and psort to sort and filter, produces such timelines, and Timesketch provides a collaborative interface. A Windows image can yield millions of rows, so filtering is essential. Start by establishing the time zone of each source and normalizing everything to UTC, noting any clock skew between systems."
+     ]
+    },
+    {
+     "h": "Pivoting around a time of interest",
+     "p": [
+      "Begin with an anchor: an alert time, a user report or a known malicious file creation. Examine a window of minutes before and after. Look for what led up to it, such as a download, a phishing email or a logon, and what followed, such as new processes, network connections, file creations and deletions. Pivot on discovered items: a filename, a username, a hash, a source IP address like 203.0.113.25. Expand or narrow the window as the story emerges, and note gaps that may be explained by log clearing or missing sources."
+     ]
+    },
+    {
+     "h": "Interpreting and presenting",
+     "p": [
+      "Treat each entry as a hypothesis until corroborated by a second source. Avoid confirmation bias: look for evidence that contradicts your theory too. Group events into phases, and record the exact meaning, such as 'file created' versus 'file last written'. Present a concise table of key events with timestamps, source artifacts and what each shows, followed by a plain-language narrative. Preserve the full timeline file and filters used, so another examiner can reproduce the view and check the conclusions."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Timeline excerpt (UTC)",
+    "text": "14:06:12 Chrome   download rclone.zip from example.org\n14:08:40 MFT     created C:\\Users\\Public\\rclone.exe\n14:09:03 Prefetch RCLONE.EXE run 1\n14:12:55 USBSTOR  device 0123456789 connected\n14:20:31 MFT     created D:\\archive_q3.7z\n14:31:09 USN     delete C:\\Users\\Public\\rclone.exe"
+   },
+   "example": "An alert says that data left a host at about 14:20. The examiner builds a Plaso timeline, filters 14:00-14:40 UTC, and notices a download at 14:06, a new tool at 14:08, execution at 14:09 and a USB device at 14:12. An archive is created on the USB drive at 14:20, and the tool is deleted at 14:31. The minute the data was staged is established, and the report cites each source row.",
+   "terms": [
+    {
+     "term": "MACB",
+     "def": "Modified, Accessed, Changed and Born timestamps."
+    },
+    {
+     "term": "Super timeline",
+     "def": "A merged chronological view of many artifact sources."
+    },
+    {
+     "term": "Plaso",
+     "def": "A toolkit that creates super timelines (log2timeline and psort)."
+    },
+    {
+     "term": "Pivot",
+     "def": "Following a discovered attribute to find related events."
+    },
+    {
+     "term": "Clock skew",
+     "def": "A difference between a system's clock and true time."
+    }
+   ],
+   "check": [
+    {
+     "q": "A super timeline combines:",
+     "options": [
+      "Only disk files",
+      "Many artifact sources in one chronology",
+      "Only logs",
+      "Only memory"
+     ],
+     "a": 1,
+     "why": "It merges file, log and registry times."
+    },
+    {
+     "q": "Why convert all times to UTC?",
+     "options": [
+      "It is required by Windows",
+      "To avoid time zone confusion",
+      "To hide events",
+      "To save space"
+     ],
+     "a": 1,
+     "why": "Mixed time zones corrupt ordering."
+    },
+    {
+     "q": "Pivoting means:",
+     "options": [
+      "Deleting the timeline",
+      "Following a discovered attribute to related events",
+      "Sorting by size",
+      "Rebooting"
+     ],
+     "a": 1,
+     "why": "You use a name, hash or IP to expand the search."
+    },
+    {
+     "q": "Each timeline entry should be treated as:",
+     "options": [
+      "Proof",
+      "A hypothesis until corroborated",
+      "Noise",
+      "A legal verdict"
+     ],
+     "a": 1,
+     "why": "Corroboration prevents wrong conclusions."
+    }
+   ],
+   "recap": [
+    "Combine sources into one UTC timeline.",
+    "Anchor on a time of interest, then pivot.",
+    "Corroborate entries and document filters."
+   ]
+  },
+  {
+   "title": "Memory forensics with Volatility",
+   "why": "Memory holds what disk does not: running processes, injected code, network connections and decrypted data. It can expose fileless malware.",
+   "sections": [
+    {
+     "h": "Why memory matters",
+     "p": [
+      "A memory image captures the state of a running system, including processes, loaded modules, network connections, command lines, registry fragments, encryption keys and code that was never written to disk. It is acquired live with tools like WinPmem, DumpIt or the EDR vendor's collector, writing a raw file such as mem.raw, and hashed immediately. Because acquisition disturbs memory slightly, record what you ran. Volatility, an open-source framework, analyzes these images. Volatility 3 uses plugin names like windows.pslist, while Volatility 2 used pslist and profiles."
+     ]
+    },
+    {
+     "h": "Process listing: pslist, psscan, cmdline",
+     "p": [
+      "windows.pslist walks the operating system's active process list, showing PID, parent PID, creation and exit times. windows.psscan scans memory for process structures, so it can find processes that were unlinked to hide, as well as terminated ones. A process in psscan but not in pslist, with no exit time, is suspicious. windows.pstree displays parent-child relations, and windows.cmdline shows each command line, such as powershell.exe -nop -w hidden -enc ... Check names and parents: svchost.exe should have services.exe as parent, and lsass.exe should be unique with wininit.exe as parent."
+     ]
+    },
+    {
+     "h": "Network and injected code: netscan, malfind",
+     "p": [
+      "windows.netscan lists TCP and UDP connections and listeners with the owning process, such as a connection from PID 3380 to 203.0.113.9:443 at an unusual process like notepad.exe. windows.malfind finds memory regions that are executable and writable (PAGE_EXECUTE_READWRITE) and not backed by a file on disk, a common sign of injection or reflective loading; the output often shows an MZ header or shellcode bytes in hex. False positives occur, notably with some JIT-compiled programs, so confirm using context."
+     ]
+    },
+    {
+     "h": "Workflow and pitfalls",
+     "p": [
+      "A typical workflow: list processes, find anomalies in parents, names and times, examine the command lines and network connections for those PIDs, run malfind on suspicious PIDs, and dump the region or module for hashing and further analysis with windows.dumpfiles or the memmap dump options. Note the image's capture time and operating system build. Symbol tables must match the Windows version. Treat results as leads, and validate them with disk artifacts, EDR telemetry and network logs."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ vol -f mem.raw windows.pslist | grep -i -E 'notepad|powershell'\n3380  2104  powershell.exe  2026-10-03 02:11:40\n4120  3380  notepad.exe     2026-10-03 02:12:05\n$ vol -f mem.raw windows.malfind --pid 4120\nPID 4120 notepad.exe  0x1f0000  PAGE_EXECUTE_READWRITE\n4d 5a 90 00 03 00 00 00 ...  MZ\n$ vol -f mem.raw windows.netscan | grep 4120\nTCPv4 192.0.2.44:49822 -> 203.0.113.9:443 ESTABLISHED  notepad.exe"
+   },
+   "example": "In a memory image, notepad.exe (PID 4120) has a parent of powershell.exe (PID 3380), which is unusual. malfind shows a PAGE_EXECUTE_READWRITE region beginning with an MZ header, and netscan shows that PID 4120 holds an established connection to 203.0.113.9 over port 443. The analyst concludes that code was injected into notepad.exe, identifies the PowerShell parent as the injector, and extracts the region for hashing.",
+   "terms": [
+    {
+     "term": "Volatility",
+     "def": "An open-source framework for analyzing memory images."
+    },
+    {
+     "term": "pslist",
+     "def": "Plugin listing processes by walking the active process list."
+    },
+    {
+     "term": "psscan",
+     "def": "Plugin scanning memory for process structures, finding hidden or ended ones."
+    },
+    {
+     "term": "malfind",
+     "def": "Plugin finding executable, unbacked memory regions suggesting injection."
+    },
+    {
+     "term": "netscan",
+     "def": "Plugin listing network connections and their owning processes."
+    }
+   ],
+   "check": [
+    {
+     "q": "A process seen by psscan but not pslist may be:",
+     "options": [
+      "Hidden or terminated",
+      "Safe",
+      "A driver",
+      "Antivirus"
+     ],
+     "a": 0,
+     "why": "psscan finds unlinked or exited processes."
+    },
+    {
+     "q": "What does malfind look for?",
+     "options": [
+      "Executable writable regions not backed by files",
+      "Open ports",
+      "Passwords",
+      "Kernel patches"
+     ],
+     "a": 0,
+     "why": "Such regions indicate possible injection."
+    },
+    {
+     "q": "Which plugin shows each process's command line?",
+     "options": [
+      "windows.cmdline",
+      "windows.netscan",
+      "windows.malfind",
+      "windows.hashdump"
+     ],
+     "a": 0,
+     "why": "cmdline displays launch arguments."
+    },
+    {
+     "q": "Notepad holding an outbound HTTPS connection is:",
+     "options": [
+      "Normal",
+      "Suspicious",
+      "A printer function",
+      "A DNS cache"
+     ],
+     "a": 1,
+     "why": "It suggests injected code."
+    }
+   ],
+   "recap": [
+    "Memory exposes injected and fileless code.",
+    "Compare pslist and psscan; check parents and command lines.",
+    "Use netscan and malfind, then validate with other sources."
+   ]
+  },
+  {
+   "title": "Autopsy and reporting",
+   "why": "Tools speed analysis, but findings only matter if you can report them clearly and defend how you reached them.",
+   "sections": [
+    {
+     "h": "What Autopsy does",
+     "p": [
+      "Autopsy is an open-source digital forensics platform built on The Sleuth Kit. You create a case, add a data source such as an E01 or raw image, and run ingest modules that process it. Typical modules include Recent Activity (browser, registry and USB artifacts), Hash Lookup, Keyword Search, File Type Identification, Extension Mismatch Detector, Embedded File Extractor, Email Parser and EXIF. Results appear in a tree by category, and you can tag items, add comments and bookmark files. Autopsy opens images read-only, preserving integrity, but you should still verify hashes."
+     ]
+    },
+    {
+     "h": "Keyword search and hash sets",
+     "p": [
+      "Keyword search indexes text so you can search literal strings or regular expressions across files, unallocated space and slack. Use specific terms: project names, customer identifiers, email addresses or card-number patterns, within scope. Hash sets reduce noise: the NSRL, the National Software Reference Library, lists hashes of known software, and ignoring known-good files removes most of the system files. Known-bad sets flag files already seen as malicious or contraband. Matching a hash proves the file content is identical, not that the user knew about it."
+     ]
+    },
+    {
+     "h": "Timeline view and file analysis",
+     "p": [
+      "The Timeline view in Autopsy charts events over time, such as file creations and web activity, so you can spot bursts like hundreds of files created within minutes, which suggests staging an archive. You can filter by type and zoom in on a period. Use extension mismatch detection to find a .jpg that is actually a ZIP, and examine deleted files recoverable from unallocated space. Cross-check key findings with other tools, for example parsing the $MFT with MFTECmd, to confirm both the results and the tool's behavior."
+     ]
+    },
+    {
+     "h": "A defensible report",
+     "p": [
+      "Report structure: purpose and scope; legal authority; evidence list with hashes; tools and versions; methods; findings, each tied to a source artifact and location; interpretations clearly labeled as opinion; limitations (such as encrypted volumes, unavailable logs or time zone uncertainty); and conclusion. Use plain language for non-technical readers, include a glossary and an appendix of exhibits. Present facts neutrally and cover evidence that does not support the theory. Peer review and reproducibility steps strengthen the report's credibility and let others verify your results."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Report outline",
+    "text": "1 Scope and authority   2 Evidence: EV-001 SHA-256 91ce...a07b\n3 Tools: Autopsy 4.x, MFTECmd, Plaso (versions)\n4 Findings F1..Fn  (artifact, path, UTC time)\n5 Interpretation (labeled opinion)\n6 Limitations   7 Conclusion   Appendix: exhibits, glossary"
+   },
+   "example": "On an image of an employee's laptop, the examiner runs Autopsy, ignores NSRL known files, and searches for the project term 'Falcon-Q3'. A hit appears in archive_q3.7z, which Timeline view shows was created at 14:20 UTC, minutes after a USB device was attached. She tags the archive and the LNK evidence, and writes a report that lists the hashes, tools, findings and limitations, separating facts from her interpretation.",
+   "terms": [
+    {
+     "term": "Autopsy",
+     "def": "An open-source forensic platform based on The Sleuth Kit."
+    },
+    {
+     "term": "Ingest module",
+     "def": "An Autopsy component that automatically analyzes data sources."
+    },
+    {
+     "term": "NSRL",
+     "def": "A database of known software hashes used to filter benign files."
+    },
+    {
+     "term": "Extension mismatch",
+     "def": "A file whose content type differs from its extension."
+    },
+    {
+     "term": "Limitations",
+     "def": "The documented constraints on findings in a report."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why use the NSRL hash set?",
+     "options": [
+      "To exclude known-good files",
+      "To find passwords",
+      "To encrypt images",
+      "To bypass legal rules"
+     ],
+     "a": 0,
+     "why": "It removes known software and reduces noise."
+    },
+    {
+     "q": "Which part of a report separates fact from opinion?",
+     "options": [
+      "Interpretation labeled as opinion",
+      "Appendix",
+      "Title",
+      "Glossary"
+     ],
+     "a": 0,
+     "why": "Opinions must be identified as such."
+    },
+    {
+     "q": "Autopsy Timeline view helps find:",
+     "options": [
+      "Bursts of activity like staging archives",
+      "Hardware faults",
+      "Disk speed",
+      "Compiler flags"
+     ],
+     "a": 0,
+     "why": "It shows when events cluster."
+    },
+    {
+     "q": "A defensible report includes:",
+     "options": [
+      "Tools, versions, hashes and limitations",
+      "Only conclusions",
+      "Only screenshots",
+      "Attacker names"
+     ],
+     "a": 0,
+     "why": "Transparency allows verification."
+    }
+   ],
+   "recap": [
+    "Autopsy ingests images read-only and runs modules.",
+    "Use keyword search and hash sets to focus.",
+    "Write reports with scope, hashes, methods, limitations and labeled opinions."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Verify the image",
+   "sim": "terminal",
+   "scenario": "You are the examiner for fictional case 2026-FX-014. An acquired image evidence.dd and the original source hash are provided in the lab shell. Before analysis you must confirm the image is an exact copy and create the chain of custody log entry. Your lead expects a written entry for each hand-off, and the original must stay untouched. The lab shell is read-only for the source, so only the working copy can be changed.",
+   "objective": "Compute and compare hashes of the evidence image and log the custody entry.",
+   "steps": [
+    {
+     "do": "Run: cat source_hash.txt",
+     "see": "SHA-256 (source SSD S/N 8Q2X-4417): 91ce4b...a07b"
+    },
+    {
+     "do": "Run: sha256sum evidence.dd",
+     "see": "91ce4b...a07b  evidence.dd"
+    },
+    {
+     "do": "Compare the two values",
+     "see": "Values match. Image is an exact copy."
+    },
+    {
+     "do": "Run: sha256sum -c hashes.txt",
+     "see": "evidence.dd: OK"
+    },
+    {
+     "do": "Run: custody add EV-001 --by rivera --time 2026-10-03T11:55Z",
+     "see": "Entry 1 saved: EV-001 collected by rivera at 11:55 UTC."
+    },
+    {
+     "do": "Run: custody transfer EV-001 --from rivera --to chen",
+     "see": "Entry 2 saved: transferred rivera -> chen, signature recorded."
+    },
+    {
+     "do": "Run: chmod a-w evidence.dd",
+     "see": "evidence.dd set read-only. Working copy created: evidence_work.dd"
+    }
+   ],
+   "answer": "The image hash 91ce4b...a07b matches the source hash, so the image is verified. The custody log records collection by Rivera and transfer to Chen, and the master image is read-only with analysis done on a working copy.",
+   "hint": "Compare the whole hash string, then record each hand-off."
+  },
+  {
+   "title": "Build a timeline",
+   "sim": "log-viewer",
+   "scenario": "A fictional analyst has MFT, event log and browser records for workstation WS-14. The suspected data theft occurred on 1 October 2026. Merge the sources in the viewer, normalize to UTC and find the minute when data was staged for removal. Nothing is wrong with any single source on its own. The challenge is aligning them in time, so spend your first step on time zones before looking for the key event.",
+   "objective": "Merge MFT, event log and browser records and identify the staging minute.",
+   "steps": [
+    {
+     "do": "Load MFT, Security log and Chrome history",
+     "see": "3 sources loaded: 41,220 rows. Time zones: MFT UTC, Chrome local (UTC-5), logs UTC."
+    },
+    {
+     "do": "Normalize all to UTC",
+     "see": "Chrome times shifted +5h. 41,220 rows normalized."
+    },
+    {
+     "do": "Filter 14:00 to 14:40 UTC",
+     "see": "212 rows remain."
+    },
+    {
+     "do": "Find the browser rows",
+     "see": "14:06:12 Chrome download rclone.zip from example.org"
+    },
+    {
+     "do": "Find the MFT rows",
+     "see": "14:08:40 created C:\\Users\\Public\\rclone.exe; 14:20:31 created D:\\archive_q3.7z"
+    },
+    {
+     "do": "Find the log rows",
+     "see": "14:12:55 Event 6416 USB device connected; 14:31:09 file deleted rclone.exe"
+    },
+    {
+     "do": "Mark the staging event",
+     "see": "Marked 14:20:31 UTC archive_q3.7z created on D:"
+    }
+   ],
+   "answer": "Data was staged at 14:20 UTC when archive_q3.7z was created on the USB drive D:. This follows the 14:06 download, 14:08 tool creation and 14:12 USB connection, and precedes the 14:31 deletion of the tool.",
+   "hint": "Fix the time zones first or the order will be wrong."
+  },
+  {
+   "title": "Volatility triage",
+   "sim": "terminal",
+   "scenario": "A fictional memory image mem.raw was captured from host WS-14 (192.0.2.44) and hashed. You are in the lab shell with Volatility 3. Review process and injection output to find the injected process and its parent, then note the connection it holds. The image is already hashed and recorded. You are not expected to extract malware, only to read the plugin output and draw a defensible, evidence-based conclusion.",
+   "objective": "Run pslist and malfind output review to find the injected process and its parent.",
+   "steps": [
+    {
+     "do": "Run: vol -f mem.raw windows.pslist",
+     "see": "PID 2104 winword.exe; 3380 powershell.exe PPID 2104; 4120 notepad.exe PPID 3380; others normal"
+    },
+    {
+     "do": "Run: vol -f mem.raw windows.pstree",
+     "see": "winword.exe > powershell.exe > notepad.exe chain highlighted"
+    },
+    {
+     "do": "Run: vol -f mem.raw windows.cmdline --pid 3380",
+     "see": "powershell.exe -nop -w hidden -enc JAB..."
+    },
+    {
+     "do": "Run: vol -f mem.raw windows.malfind",
+     "see": "PID 4120 notepad.exe 0x1f0000 PAGE_EXECUTE_READWRITE, MZ header"
+    },
+    {
+     "do": "Run: vol -f mem.raw windows.netscan | grep 4120",
+     "see": "TCPv4 192.0.2.44:49822 -> 203.0.113.9:443 ESTABLISHED"
+    },
+    {
+     "do": "Run: vol -f mem.raw windows.psscan | grep 4120",
+     "see": "Process found; no exit time. Consistent with pslist."
+    }
+   ],
+   "answer": "The injected process is notepad.exe (PID 4120), which contains a PAGE_EXECUTE_READWRITE region with an MZ header and holds a connection to 203.0.113.9:443. Its parent is powershell.exe (PID 3380), itself launched by winword.exe, indicating a macro-based injection chain.",
+   "hint": "Find the process with an unusual parent and executable unbacked memory."
+  },
+  {
+   "title": "Autopsy keyword search",
+   "sim": "file-explorer",
+   "scenario": "A fictional disk image, evidence_work.dd, is loaded in a simulated Autopsy. Investigators want to know which archive carried company data off the laptop. Use keyword search, hash sets and file filters to find and flag it. The image is read-only in the tool and you are limited to the scope in the written authorization. Report only what supports the question asked.",
+   "objective": "Search an image for keywords, filter by hash set and flag the exfiltrated archive.",
+   "steps": [
+    {
+     "do": "Open case 2026-FX-014 and run ingest modules",
+     "see": "Ingest complete: 218,440 files, Hash Lookup, Keyword Search, Extension Mismatch."
+    },
+    {
+     "do": "Apply NSRL known-good hash set filter",
+     "see": "Hidden 201,902 known files. 16,538 remain."
+    },
+    {
+     "do": "Search keyword: Falcon-Q3",
+     "see": "3 hits: Q3_plan.docx, notes.txt, archive_q3.7z"
+    },
+    {
+     "do": "Open archive_q3.7z properties",
+     "see": "Path D:\\archive_q3.7z, created 14:20:31 UTC, 48 MB, SHA-256 5d77...c3a1"
+    },
+    {
+     "do": "Run Extension Mismatch filter",
+     "see": "No mismatch on archive_q3.7z; 2 .jpg files are ZIP type, unrelated."
+    },
+    {
+     "do": "Check Timeline view around 14:20",
+     "see": "Burst of 126 file creations under D: between 14:19 and 14:21."
+    },
+    {
+     "do": "Tag archive_q3.7z as Evidence and add comment",
+     "see": "Tagged: Exfiltration candidate; comment saved."
+    }
+   ],
+   "answer": "The exfiltrated archive is archive_q3.7z on D:, created at 14:20:31 UTC with matching project keywords and a burst of file creations. Flag it as evidence, record its SHA-256 and path, and include it in the report with the timeline.",
+   "hint": "Remove known-good files first, then search for the project term and check the timeline."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "A write blocker is used to:",
+   "options": [
+    "Speed up imaging",
+    "Prevent writes to evidence media",
+    "Encrypt images",
+    "Hash files"
+   ],
+   "a": 1,
+   "why": "It preserves the original."
+  },
+  {
+   "q": "Which data is collected first by order of volatility?",
+   "options": [
+    "Disk",
+    "Memory",
+    "Archive",
+    "Backups"
+   ],
+   "a": 1,
+   "why": "Memory is the most volatile."
+  },
+  {
+   "q": "Matching source and image hashes demonstrate:",
+   "options": [
+    "An exact copy",
+    "Guilt",
+    "Encryption",
+    "Clean drive"
+   ],
+   "a": 0,
+   "why": "Identical digests show integrity."
+  },
+  {
+   "q": "NTFS stores a record per file in:",
+   "options": [
+    "$MFT",
+    "GPT",
+    "Registry",
+    "Prefetch"
+   ],
+   "a": 0,
+   "why": "The Master File Table holds file records."
+  },
+  {
+   "q": "Which artifact records an executable's SHA-1 and first-seen time?",
+   "options": [
+    "Amcache",
+    "LNK",
+    "Browser history",
+    "USBSTOR"
+   ],
+   "a": 0,
+   "why": "Amcache stores these values."
+  },
+  {
+   "q": "Shimcache presence alone shows:",
+   "options": [
+    "The file existed or was examined, not proof of execution",
+    "Definite execution",
+    "Network use",
+    "Deletion"
+   ],
+   "a": 0,
+   "why": "Avoid overstating."
+  },
+  {
+   "q": "Why normalize timeline sources to UTC?",
+   "options": [
+    "To avoid time zone mismatches",
+    "To save disk",
+    "To hide events",
+    "It is legally required everywhere"
+   ],
+   "a": 0,
+   "why": "Consistent time prevents ordering errors."
+  },
+  {
+   "q": "A process in psscan but not pslist may be:",
+   "options": [
+    "Hidden or terminated",
+    "Safe",
+    "Kernel only",
+    "A service"
+   ],
+   "a": 0,
+   "why": "psscan can find unlinked processes."
+  },
+  {
+   "q": "malfind flags regions that are:",
+   "options": [
+    "Executable, writable and not file-backed",
+    "Read-only",
+    "Compressed",
+    "Encrypted files"
+   ],
+   "a": 0,
+   "why": "These suggest injected code."
+  },
+  {
+   "q": "A defensible report should:",
+   "options": [
+    "List tools, hashes, findings and limitations",
+    "Only state conclusions",
+    "Omit contrary evidence",
+    "Avoid timestamps"
+   ],
+   "a": 0,
+   "why": "Transparency and reproducibility matter."
+  }
+ ]
+}

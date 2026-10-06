@@ -1,0 +1,812 @@
+{
+ "code": "AI-11",
+ "intro": "Governance turns good intentions about AI into repeatable, auditable practice. This module covers the NIST AI Risk Management Framework, the ISO/IEC 42001 management system standard, and the EU AI Act risk tiers, then shows how model cards and datasheets document intended use and limits. It closes with incident handling adapted to model failures and harmful outputs. Security professionals increasingly own or support these programs, and auditors and customers now ask for this evidence.",
+ "lessons": [
+  {
+   "title": "NIST AI RMF: Govern, Map, Measure, Manage",
+   "why": "The AI RMF is the most widely used voluntary framework for organizing AI risk work, and its four functions give teams a shared structure.",
+   "sections": [
+    {
+     "h": "Purpose and structure",
+     "p": [
+      "The NIST AI Risk Management Framework (AI RMF 1.0, released January 2023) is a voluntary framework to help organizations manage risks from AI to individuals, organizations and society. It is not a certification. It organizes work into four functions: Govern, Map, Measure and Manage. Each function has categories and subcategories describing outcomes, not prescriptive steps. NIST also publishes a Playbook with suggested actions and a Generative AI Profile (NIST AI 600-1) that applies the framework to risks specific to generative systems, such as confabulation, data privacy and information security."
+     ]
+    },
+    {
+     "h": "Govern and Map",
+     "p": [
+      "Govern is cross-cutting: it sets policies, roles, accountability, risk tolerance, workforce training, and processes for third-party AI and incident reporting. Without it, the other functions are ad hoc. Map establishes context for a specific system: its purpose, intended users, deployment setting, legal requirements, data sources, known limits, and potential impacts on groups and individuals. Mapping decides whether the system should be built or deployed at all. A hiring-screen model, for example, is mapped to include affected applicants, anti-discrimination law and the human reviewers who will rely on its scores."
+     ]
+    },
+    {
+     "h": "Measure and Manage",
+     "p": [
+      "Measure uses quantitative and qualitative methods to analyze and track risks: testing for accuracy, robustness, bias, privacy leakage and security weaknesses, with documented metrics, independent review and monitoring in operation. Manage allocates resources to treat risks that were mapped and measured: prioritize them, decide to mitigate, transfer, avoid or accept, plan responses and recovery, and communicate incidents. The functions are iterative, not a one-time sequence: measurement results feed back into mapping, and incidents reveal gaps in governance. Document decisions so that residual risk is visibly owned by a named person."
+     ]
+    },
+    {
+     "h": "Trustworthiness characteristics",
+     "p": [
+      "The framework describes trustworthy AI as valid and reliable, safe, secure and resilient, accountable and transparent, explainable and interpretable, privacy-enhanced, and fair with harmful bias managed. Valid and reliable is the foundation. These characteristics can conflict: stronger privacy can reduce accuracy, and more transparency can expose attack surface. Teams should state the trade-offs they accepted and why. For a use case, build a table listing each characteristic, the relevant risks, metrics, controls and owner, and review it when the model, data or context changes."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Control mapping excerpt",
+    "text": "GOVERN 1.1  legal requirements understood   -> policy AI-POL-01\nMAP 1.1     context and intended use       -> use-case brief v3\nMEASURE 2.11 fairness evaluated            -> bias report 2026-03\nMANAGE 2.3  response to unknown risks      -> AI incident runbook\nowner: risk@example.com   review: quarterly"
+   },
+   "example": "A bank plans a chatbot that answers account questions. Under Govern it assigns an accountable executive and a model risk policy. Under Map it documents users, data and the harm of a wrong answer. Under Measure it tests accuracy, injection and bias on a fixed suite. Under Manage it adds human handoff for disputes, monitors weekly and writes an incident runbook. Findings from monitoring return to Map when the scope expands to loans.",
+   "terms": [
+    {
+     "term": "AI RMF",
+     "def": "NIST's voluntary framework for managing AI risk."
+    },
+    {
+     "term": "Govern",
+     "def": "The function setting policies, roles and risk culture."
+    },
+    {
+     "term": "Map",
+     "def": "The function establishing context and identifying risks for a system."
+    },
+    {
+     "term": "Measure",
+     "def": "The function assessing and tracking risks with metrics."
+    },
+    {
+     "term": "Manage",
+     "def": "The function prioritizing and treating risks and responding to incidents."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which AI RMF function is cross-cutting and sets accountability?",
+     "options": [
+      "Map",
+      "Govern",
+      "Measure",
+      "Manage"
+     ],
+     "a": 1,
+     "why": "Govern supplies policies, roles and culture for all other functions."
+    },
+    {
+     "q": "Is the NIST AI RMF a certification?",
+     "options": [
+      "Yes",
+      "No, it is voluntary guidance",
+      "Yes, in the EU only",
+      "Only for banks"
+     ],
+     "a": 1,
+     "why": "It is a voluntary framework without certification."
+    },
+    {
+     "q": "Which function establishes intended use and affected groups?",
+     "options": [
+      "Map",
+      "Manage",
+      "Measure",
+      "Govern only"
+     ],
+     "a": 0,
+     "why": "Map defines context, purposes and potential impacts."
+    },
+    {
+     "q": "NIST AI 600-1 is:",
+     "options": [
+      "A hash standard",
+      "The Generative AI Profile of the AI RMF",
+      "A network protocol",
+      "A GPU specification"
+     ],
+     "a": 1,
+     "why": "It applies the AI RMF to generative AI risks."
+    }
+   ],
+   "recap": [
+    "Four functions: Govern, Map, Measure, Manage.",
+    "The framework is voluntary and iterative.",
+    "Trustworthiness traits can conflict, so record trade-offs."
+   ]
+  },
+  {
+   "title": "ISO/IEC 42001 AI management system",
+   "why": "ISO/IEC 42001 is the first certifiable management system standard for AI, giving organizations an auditable way to prove governance.",
+   "sections": [
+    {
+     "h": "What the standard is",
+     "p": [
+      "ISO/IEC 42001:2023 specifies requirements for an Artificial Intelligence Management System (AIMS). Unlike the AI RMF, it is certifiable by an accredited external auditor. It applies to organizations that develop, provide or use AI-based products and services. Like ISO 27001, it is a management system: it asks for policies, defined roles, risk processes, objectives, internal audit and continual improvement, not for specific technical settings. Certification shows a customer or regulator that a defined and audited process exists, but it does not prove any one model is safe or fair."
+     ]
+    },
+    {
+     "h": "Clauses 4 to 10",
+     "p": [
+      "The main clauses follow the common ISO harmonized structure. Clause 4 sets context, interested parties and scope. Clause 5 covers leadership, AI policy and roles. Clause 6 covers planning: risk and opportunity assessment, an AI system impact assessment, objectives and change planning. Clause 7 covers support: resources, competence, awareness, communication and documented information. Clause 8 covers operation, including risk treatment and lifecycle processes. Clause 9 covers performance evaluation: monitoring, internal audit and management review. Clause 10 covers improvement, nonconformity and corrective action."
+     ]
+    },
+    {
+     "h": "Annex A controls",
+     "p": [
+      "Annex A lists controls organized in areas such as policies related to AI, internal organization, resources for AI systems, assessing impacts of AI systems, the AI system life cycle, data for AI systems, information for interested parties, use of AI systems, and third-party and customer relationships. Annex B gives implementation guidance. The organization writes a Statement of Applicability listing which controls apply and why any are excluded. Controls cover items like data quality and provenance, documented system requirements, verification and validation, logging, and responsible use processes."
+     ]
+    },
+    {
+     "h": "Fit with ISO 27001",
+     "p": [
+      "Because both standards share the same high-level structure, an organization with an ISO/IEC 27001 information security management system can extend it: reuse the document control, internal audit, management review and corrective action processes, and add AI-specific risk assessment and controls. Security controls from Annex A of ISO 27001, such as access control and supplier management, support AIMS needs, while 42001 adds topics 27001 does not, like impact on individuals, data suitability and transparency. Integrated audits reduce effort, but scopes should be clearly defined so no AI system falls through the gap."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Statement of Applicability row",
+    "text": "Control: A.7 Data for AI systems (data quality, provenance)\nApplicable: Yes\nReason: models trained on customer-support data\nImplementation: dataset register, source checks, bias review\nEvidence: DS-REG-2026, audit report Q1\nOwner: Head of Data  Status: Implemented"
+   },
+   "example": "A software vendor already holds ISO 27001. To win enterprise deals it adds ISO 42001. It extends its existing risk register with AI impact assessments, adds a dataset register and model release checklist, writes a Statement of Applicability, and uses its existing internal audit program for the new scope. A Stage 1 and Stage 2 certification audit follows, and findings feed the corrective action process.",
+   "terms": [
+    {
+     "term": "AIMS",
+     "def": "An artificial intelligence management system under ISO/IEC 42001."
+    },
+    {
+     "term": "Statement of Applicability",
+     "def": "A document listing which Annex A controls apply and why."
+    },
+    {
+     "term": "Management review",
+     "def": "Leadership's periodic evaluation of the system's performance."
+    },
+    {
+     "term": "Nonconformity",
+     "def": "A failure to meet a requirement that needs corrective action."
+    },
+    {
+     "term": "Harmonized structure",
+     "def": "The common clause layout shared by ISO management system standards."
+    }
+   ],
+   "check": [
+    {
+     "q": "What distinguishes ISO 42001 from the NIST AI RMF?",
+     "options": [
+      "It can be certified by an external auditor",
+      "It is shorter",
+      "It covers only chatbots",
+      "It is a law"
+     ],
+     "a": 0,
+     "why": "ISO 42001 is a certifiable management system standard."
+    },
+    {
+     "q": "Which document lists applicable controls and reasons for exclusions?",
+     "options": [
+      "Model card",
+      "Statement of Applicability",
+      "Datasheet",
+      "Privacy notice"
+     ],
+     "a": 1,
+     "why": "The SoA records control selection and justification."
+    },
+    {
+     "q": "Which clause covers internal audit and management review?",
+     "options": [
+      "Clause 5",
+      "Clause 8",
+      "Clause 9",
+      "Clause 4"
+     ],
+     "a": 2,
+     "why": "Clause 9 is performance evaluation."
+    },
+    {
+     "q": "How does 42001 relate to 27001?",
+     "options": [
+      "They share a structure so processes can be reused",
+      "They conflict directly",
+      "27001 replaces it",
+      "They cover different continents"
+     ],
+     "a": 0,
+     "why": "Both use the harmonized structure, easing integration."
+    }
+   ],
+   "recap": [
+    "42001 is a certifiable AI management system standard.",
+    "Clauses 4-10 plus Annex A controls and a Statement of Applicability.",
+    "Extend an existing ISO 27001 system to save effort."
+   ]
+  },
+  {
+   "title": "EU AI Act risk tiers and obligations",
+   "why": "The EU AI Act is binding law with large fines, and its risk tier decides which duties apply to a system.",
+   "sections": [
+    {
+     "h": "A risk-based law",
+     "p": [
+      "The EU Artificial Intelligence Act (Regulation (EU) 2024/1689) entered into force in August 2024, with obligations phased in over several years. It applies to providers placing AI systems on the EU market and to deployers using them in the EU, including organizations outside the EU whose output is used there. It sorts systems into tiers by risk: prohibited practices, high-risk systems, limited-risk systems with transparency duties, and minimal risk. General-purpose AI models have their own obligations, with extra duties for models posing systemic risk. Check current official timelines, since application dates differ by provision."
+     ]
+    },
+    {
+     "h": "Prohibited and high-risk systems",
+     "p": [
+      "Prohibited practices include harmful manipulation, exploitation of vulnerabilities, social scoring, untargeted scraping of facial images, emotion recognition in workplaces and schools (with exceptions), and certain real-time remote biometric identification by law enforcement. High-risk systems fall in two groups: AI that is a safety component of products already regulated under EU harmonization law, and systems listed in Annex III, such as biometrics, critical infrastructure, education, employment and worker management, access to essential services like credit scoring, law enforcement, migration and justice. A hiring-screen model is therefore high-risk."
+     ]
+    },
+    {
+     "h": "Provider duties for high-risk systems",
+     "p": [
+      "Providers of high-risk systems must run a risk management system over the lifecycle, apply data governance for training, validation and test data, keep technical documentation, enable automatic logging, provide instructions for deployers, ensure appropriate human oversight, and achieve suitable accuracy, robustness and cybersecurity. They need a quality management system, a conformity assessment, CE marking, EU declaration of conformity, registration in an EU database, and post-market monitoring with serious incident reporting. Deployers have duties too, including using the system as instructed, assigning human oversight, and in some cases a fundamental rights impact assessment."
+     ]
+    },
+    {
+     "h": "Limited and minimal risk, and penalties",
+     "p": [
+      "Limited-risk systems carry transparency duties: people must be told when they interact with a chatbot, and deepfakes and AI-generated content must be disclosed or marked in machine-readable form. Emotion recognition and biometric categorization require informing those exposed. Most other AI, such as spam filters, is minimal risk with no mandatory duties, though voluntary codes are encouraged. Penalties are steep: up to 35 million euros or 7 percent of worldwide annual turnover for prohibited practices, and lower tiers for other breaches. Classification should be documented with reasons and revisited when the use changes."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Classification record",
+    "text": "system: ResumeRank v2 (CV screening)\nrole: provider (EU market)\nAnnex III area: employment, worker management\ntier: HIGH-RISK\nduties: risk mgmt, data governance, logging, human oversight,\n        conformity assessment, CE mark, EU DB registration\nreview date: on change of use or annually"
+   },
+   "example": "A company offers a CV ranking tool to EU employers. Employment screening appears in Annex III, so the tool is high-risk. The company sets up a quality management system, documents training data and bias tests, adds logs and a human reviewer step, performs conformity assessment, registers the system and plans post-market monitoring. Its marketing chatbot, in contrast, is limited-risk and only needs a disclosure that users talk to an AI.",
+   "terms": [
+    {
+     "term": "Provider",
+     "def": "The party that develops an AI system or places it on the market."
+    },
+    {
+     "term": "Deployer",
+     "def": "The party that uses an AI system under its authority."
+    },
+    {
+     "term": "Annex III",
+     "def": "The list of high-risk use areas in the AI Act."
+    },
+    {
+     "term": "Conformity assessment",
+     "def": "The process of showing a system meets the Act's requirements."
+    },
+    {
+     "term": "General-purpose AI model",
+     "def": "A broadly capable model with its own obligations under the Act."
+    }
+   ],
+   "check": [
+    {
+     "q": "A CV screening tool is classified as:",
+     "options": [
+      "Prohibited",
+      "High-risk",
+      "Minimal risk",
+      "Out of scope"
+     ],
+     "a": 1,
+     "why": "Employment and worker management uses are in Annex III."
+    },
+    {
+     "q": "Which duty applies to chatbots as limited-risk?",
+     "options": [
+      "Conformity assessment with CE mark",
+      "Telling users they are interacting with AI",
+      "Banning the system",
+      "Government licensing"
+     ],
+     "a": 1,
+     "why": "Transparency duties apply to limited-risk systems."
+    },
+    {
+     "q": "Which is a prohibited practice?",
+     "options": [
+      "Spam filtering",
+      "Social scoring",
+      "Spell checking",
+      "Video game enemies"
+     ],
+     "a": 1,
+     "why": "Social scoring is among the prohibited practices."
+    },
+    {
+     "q": "Who must ensure human oversight is possible in a high-risk system?",
+     "options": [
+      "Only the user's friend",
+      "Providers design for it and deployers assign it",
+      "Nobody",
+      "Only auditors"
+     ],
+     "a": 1,
+     "why": "Both roles have duties around human oversight."
+    }
+   ],
+   "recap": [
+    "Four tiers: prohibited, high-risk, limited, minimal.",
+    "High-risk providers need risk management, data governance, logging, oversight and conformity assessment.",
+    "Document classification and revisit it when use changes."
+   ]
+  },
+  {
+   "title": "Model cards, documentation and responsible AI",
+   "why": "Clear documentation lets users, auditors and regulators understand what a model is for, how it was tested and where it fails.",
+   "sections": [
+    {
+     "h": "Model cards",
+     "p": [
+      "A model card is a short, structured document that travels with a model. Introduced in a 2019 paper by Mitchell and colleagues, it states the model's details (version, owner, architecture), intended use and out-of-scope uses, relevant factors such as user groups and environments, metrics, evaluation data, training data summary, quantitative results, ethical considerations, caveats and recommendations. Its value lies in honest limits: it should say where the model fails, which languages or populations were not tested, and what monitoring is in place, not only list headline accuracy."
+     ]
+    },
+    {
+     "h": "Datasheets and system documentation",
+     "p": [
+      "Datasheets for datasets, proposed by Gebru and colleagues, do the same for data: why it was created, who funded it, how it was collected, what it contains, labeling process, preprocessing, known biases, recommended uses and maintenance. For deployed systems, add a system card or technical file describing architecture, tools, safeguards, red team results and human oversight design. Under the EU AI Act, high-risk providers must keep technical documentation that overlaps strongly with these artifacts, so maintaining them continuously costs less than assembling them under deadline pressure."
+     ]
+    },
+    {
+     "h": "Reporting bias and performance",
+     "p": [
+      "Report performance by subgroup, not just overall. If a face-matching model has 99 percent overall accuracy but much lower accuracy for one skin tone, the average hides harm. State the fairness metrics used, such as selection rate ratio or equalized odds gap, and acknowledge that different fairness definitions can conflict. Include confidence intervals and sample sizes. Describe the safety evaluation results from red teaming, including known jailbreak and injection weaknesses and the mitigations applied. Mark what was not evaluated; silence can be mistaken for assurance."
+     ]
+    },
+    {
+     "h": "Responsible AI practice",
+     "p": [
+      "Responsible AI principles, such as fairness, transparency, accountability, privacy, safety and human oversight, become practice through process: review boards, impact assessments before launch, escalation paths, user-facing explanations, appeal mechanisms, and monitoring after deployment. Assign an owner to each model card and update it on every material change: new data, new version, new use. Version-control documents with the model artifact, and publish a suitable summary to users. Documentation should be accurate and plain; overclaiming in a card creates legal and ethical exposure, while a candid card builds trust."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Model card excerpt",
+    "text": "Model: loan-triage-clf v1.4   Owner: Credit Risk ML\nIntended use: rank applications for human review\nOut of scope: automatic denial, use outside the US\nTraining data: 2019-2024 internal applications (DS-REG-77)\nEval: AUC 0.84; selection-rate ratio by sex 0.91, by age band 0.86\nLimits: not tested on thin-file applicants\nMonitoring: monthly drift and subgroup metrics"
+   },
+   "example": "A team ships a loan triage model. Its card states that it ranks applications for human review and must not issue automatic denials. Subgroup results show a selection-rate ratio of 0.86 for one age band, below the internal target of 0.90. The card records this, the mitigation in progress and a monthly monitoring plan. Six months later, a request to use the model for thin-file customers triggers a card update and new testing before approval.",
+   "terms": [
+    {
+     "term": "Model card",
+     "def": "A structured document describing a model's use, evaluation and limits."
+    },
+    {
+     "term": "Datasheet",
+     "def": "A structured description of a dataset's origin, contents and caveats."
+    },
+    {
+     "term": "Intended use",
+     "def": "The purposes and conditions for which a model was designed and tested."
+    },
+    {
+     "term": "Subgroup evaluation",
+     "def": "Measuring performance separately for different groups."
+    },
+    {
+     "term": "Out-of-scope use",
+     "def": "A use the model should not be applied to."
+    }
+   ],
+   "check": [
+    {
+     "q": "What should a model card include besides accuracy?",
+     "options": [
+      "Intended use, limits and subgroup results",
+      "Only the logo",
+      "Source code of the website",
+      "Employee salaries"
+     ],
+     "a": 0,
+     "why": "Cards must describe where and for whom the model works."
+    },
+    {
+     "q": "Why report subgroup results?",
+     "options": [
+      "Averages can hide harm to specific groups",
+      "It shortens the card",
+      "It is required by TLS",
+      "It increases accuracy"
+     ],
+     "a": 0,
+     "why": "Overall metrics can mask poor performance for some groups."
+    },
+    {
+     "q": "A datasheet documents:",
+     "options": [
+      "A dataset's origin, composition and caveats",
+      "A network switch",
+      "A cloud invoice",
+      "A password policy"
+     ],
+     "a": 0,
+     "why": "Datasheets are documentation for datasets."
+    },
+    {
+     "q": "When should a model card be updated?",
+     "options": [
+      "Never",
+      "On material changes such as new data, version or use",
+      "Only at retirement",
+      "Yearly regardless"
+     ],
+     "a": 1,
+     "why": "Cards should track the model through changes."
+    }
+   ],
+   "recap": [
+    "Model cards state intended use, metrics and limits.",
+    "Datasheets document data origin, contents and biases.",
+    "Report subgroups and what was not tested."
+   ]
+  },
+  {
+   "title": "AI incident handling",
+   "why": "AI systems fail in ways ordinary incident plans do not anticipate, so responders need adapted playbooks, evidence practices and reporting paths.",
+   "sections": [
+    {
+     "h": "What counts as an AI incident",
+     "p": [
+      "An AI incident is an event where an AI system causes or nearly causes harm or a policy breach. Examples include a chatbot exposing personal data, a model producing discriminatory decisions, a harmful or defamatory output going viral, a prompt injection that triggers unauthorized tool actions, a poisoned dataset, a model theft, or a silent drift that degrades accuracy. Public collections such as the AI Incident Database catalog real cases. Define severity levels that include harm to people and reputation, not only downtime, and make it easy for users, staff and researchers to report a problem."
+     ]
+    },
+    {
+     "h": "Response phases adapted",
+     "p": [
+      "The familiar phases still apply: preparation, detection and analysis, containment, eradication and recovery, and lessons learned. Containment options are specific: switch to a safer model version, disable a tool or plugin, tighten filters, block a retrieval source, add a human approval step, rate-limit or turn off the feature. Because behavior is probabilistic, analysis relies on logs of prompts, outputs, model and prompt versions, retrieved documents and tool calls. Keep versions of every artifact so you can reproduce the failure and determine when it started."
+     ]
+    },
+    {
+     "h": "Evidence, communication and reporting",
+     "p": [
+      "Preserve evidence early: full conversations, configuration hashes, model identifiers, training or index snapshots and timestamps, with access limited because logs may contain personal data. Notify the right people: legal, privacy, communications and affected customers. Personal data breaches may require notifying a supervisory authority within 72 hours under GDPR. The EU AI Act requires providers of high-risk systems to report serious incidents to market surveillance authorities within set deadlines. Contracts may add customer notification windows. Communications should state facts and actions, avoid speculation and avoid blaming the model as an agent."
+     ]
+    },
+    {
+     "h": "Root cause and lessons learned",
+     "p": [
+      "Root causes often sit in the system around the model: missing authorization checks, excessive tool permissions, untested prompt changes, weak monitoring, or unreviewed training data. After recovery, run a blameless review that produces tracked actions: new regression tests from the incident prompts, updated model cards and risk register entries, extra monitoring, vendor follow-up and training. Feed lessons into the governance framework so the Manage function improves. Track metrics such as time to detect, time to contain and number of repeat incidents, and test the runbook in exercises."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Incident record excerpt",
+    "text": "INC-2026-031  Sev: High  Opened: 2026-05-11 14:02 UTC\nSummary: assistant quoted another user's order notes\nContained 14:40: retrieval tool disabled, filter v7 deployed\nEvidence: conv ids 8812-8840, prompt v12, index snap-0509 (hashed)\nNotify: DPO 14:20; authority decision due within 72h\nActions: per-user retrieval auth; regression tests T-201..205"
+   },
+   "example": "A user reports that the support assistant displayed another customer's order notes. The on-call engineer disables the retrieval tool within 40 minutes, saves transcripts and the index snapshot, and informs the privacy officer, who starts the 72-hour breach assessment. Analysis shows the retrieval API ignored the user filter after a deployment. The fix adds backend authorization and regression tests built from the reported prompts, and the incident record feeds the risk register.",
+   "terms": [
+    {
+     "term": "AI incident",
+     "def": "An event in which an AI system causes or nearly causes harm or a breach."
+    },
+    {
+     "term": "Containment",
+     "def": "Actions that limit the spread or impact of an incident."
+    },
+    {
+     "term": "Blameless review",
+     "def": "A post-incident analysis focused on system causes, not individuals."
+    },
+    {
+     "term": "72-hour notification",
+     "def": "The GDPR deadline to notify the authority of a personal data breach where required."
+    },
+    {
+     "term": "Serious incident",
+     "def": "Under the EU AI Act, an incident with severe harm that triggers reporting."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which is an AI-specific containment action?",
+     "options": [
+      "Reboot the office router",
+      "Disable a tool or switch to a safer model version",
+      "Change the logo",
+      "Delay payroll"
+     ],
+     "a": 1,
+     "why": "Containment may mean limiting tools, filters or model versions."
+    },
+    {
+     "q": "Why log prompt and model versions?",
+     "options": [
+      "To reproduce and date the failure",
+      "To save storage",
+      "To hide errors",
+      "To slow responses"
+     ],
+     "a": 0,
+     "why": "Versioned logs let responders reproduce and bound the incident."
+    },
+    {
+     "q": "The GDPR deadline to notify authorities of a reportable personal data breach is:",
+     "options": [
+      "24 hours",
+      "72 hours",
+      "7 days",
+      "90 days"
+     ],
+     "a": 1,
+     "why": "The controller must notify the authority within 72 hours where required."
+    },
+    {
+     "q": "A good lessons-learned output is:",
+     "options": [
+      "Blame for the engineer",
+      "Regression tests and tracked corrective actions",
+      "Deleting logs",
+      "No change"
+     ],
+     "a": 1,
+     "why": "Concrete actions and tests prevent recurrence."
+    }
+   ],
+   "recap": [
+    "Define AI incidents to include harm, not just downtime.",
+    "Contain by limiting tools, filters or versions, and preserve evidence.",
+    "Meet notification duties and feed lessons into governance."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Classify under the EU AI Act",
+   "sim": "scenario",
+   "scenario": "You work for the compliance team of fictional Example Group. Six systems are proposed for deployment in the EU. For each you must choose a risk tier and list obligations, using the rules covered in this module.",
+   "objective": "Sort six systems into EU AI Act tiers and list their obligations.",
+   "steps": [
+    {
+     "do": "System 1: a spam filter for staff email.",
+     "see": "You choose Minimal. Accepted: no mandatory duties; voluntary code of conduct suggested."
+    },
+    {
+     "do": "System 2: a customer-service chatbot on the website.",
+     "see": "You choose Limited. Obligation: disclose that users talk to an AI."
+    },
+    {
+     "do": "System 3: a CV ranking tool for recruiters.",
+     "see": "You choose High-risk. Obligations: risk management, data governance, logs, human oversight, conformity assessment."
+    },
+    {
+     "do": "System 4: a social scoring system rating citizens' behavior.",
+     "see": "You choose Prohibited. Result: must not be deployed."
+    },
+    {
+     "do": "System 5: a credit scoring model for loan applications.",
+     "see": "You choose High-risk (access to essential services). Obligations as for System 3."
+    },
+    {
+     "do": "System 6: a tool producing realistic synthetic video for ads.",
+     "see": "You choose Limited. Obligation: label content as AI-generated."
+    },
+    {
+     "do": "Submit the classification table.",
+     "see": "Score 6/6. Note: record reasons and review when use changes."
+    }
+   ],
+   "answer": "Spam filter minimal; chatbot limited with AI disclosure; CV ranking and credit scoring high-risk with the full provider duties; social scoring prohibited; synthetic video limited with machine-readable labeling. Document the reasoning and revisit classification if use changes.",
+   "hint": "Check Annex III areas such as employment and essential services first."
+  },
+  {
+   "title": "Complete a model card",
+   "sim": "config-editor",
+   "scenario": "Fictional Example Health has a triage-priority model, triage-clf 2.0, trained on 2020-2024 hospital intake records. A card template is open with empty fields. Use the supplied evaluation notes to complete it honestly, including limits.",
+   "objective": "Fill in the card so intended use, data, results and limits are accurate and complete.",
+   "steps": [
+    {
+     "do": "Set intended use: rank intake cases for nurse review.",
+     "see": "Field saved. Validator: intended use present."
+    },
+    {
+     "do": "Set out-of-scope uses: automatic treatment decisions; pediatric patients.",
+     "see": "Saved. Validator: out-of-scope present."
+    },
+    {
+     "do": "Fill training data: de-identified intake records 2020-2024, 120,000 rows, dataset DS-114.",
+     "see": "Saved. Link to datasheet verified."
+    },
+    {
+     "do": "Enter evaluation results: AUC 0.88 overall; recall 0.91 for adults; 0.79 for age 65+.",
+     "see": "Saved. Warning: subgroup gap of 12 points flagged."
+    },
+    {
+     "do": "Add limitation: lower recall for age 65+, not tested on rural clinics.",
+     "see": "Saved. Validator: limitations present."
+    },
+    {
+     "do": "Add monitoring: monthly drift and subgroup recall, owner Clinical AI Lead.",
+     "see": "Saved. Validator: owner present."
+    },
+    {
+     "do": "Run the card validator.",
+     "see": "PASS: 7/7 sections. Note: reviewer should confirm mitigation plan for the 65+ gap."
+    }
+   ],
+   "answer": "A complete card names intended use and out-of-scope uses, training data with a datasheet link, overall and subgroup results including the lower recall for patients 65 and over, limitations such as untested rural clinics, and a monitoring plan with a named owner.",
+   "hint": "Include what the model cannot do, not just its best number."
+  },
+  {
+   "title": "Map controls to NIST AI RMF",
+   "sim": "diagram-builder",
+   "scenario": "A fictional firm, Example Talent, is deploying a hiring-screen model. You have eight candidate controls on cards and four boxes labeled Govern, Map, Measure and Manage. Place each control in the box where it mainly belongs.",
+   "objective": "Assign each control to the correct AI RMF function.",
+   "steps": [
+    {
+     "do": "Place 'AI policy and accountable executive' card.",
+     "see": "Dropped in Govern. Correct."
+    },
+    {
+     "do": "Place 'document intended use and affected applicants'.",
+     "see": "Dropped in Map. Correct."
+    },
+    {
+     "do": "Place 'subgroup selection-rate testing'.",
+     "see": "Dropped in Measure. Correct."
+    },
+    {
+     "do": "Place 'human review of every rejection'.",
+     "see": "Dropped in Manage. Correct."
+    },
+    {
+     "do": "Place 'vendor assessment for third-party models'.",
+     "see": "Dropped in Govern. Correct."
+    },
+    {
+     "do": "Place 'legal requirements inventory (anti-discrimination law)'.",
+     "see": "Dropped in Map. Correct."
+    },
+    {
+     "do": "Place 'monthly drift monitoring' in Measure and 'rollback plan' in Manage.",
+     "see": "Both accepted. Diagram complete 8/8."
+    }
+   ],
+   "answer": "Govern holds policy, accountability and vendor oversight; Map holds intended use, affected groups and legal context; Measure holds subgroup testing and drift monitoring; Manage holds human review of rejections and rollback plans.",
+   "hint": "Ask whether the control sets rules, defines context, assesses, or treats risk."
+  },
+  {
+   "title": "Triage an AI incident",
+   "sim": "chat-sim",
+   "scenario": "You are the on-call responder for fictional Example Bank. A customer reports that the assistant displayed another customer's account nickname and last transactions. The incident chat guides you; choose containment, evidence and notification steps.",
+   "objective": "Contain the issue, preserve evidence and trigger notifications correctly.",
+   "steps": [
+    {
+     "do": "Ask the reporter for the conversation ID and time.",
+     "see": "Reporter: conversation 5521, 10:14 UTC. Evidence reference noted."
+    },
+    {
+     "do": "Choose containment: disable the account-lookup tool, keep chat running.",
+     "see": "Tool disabled 10:31. Bot now answers general questions only."
+    },
+    {
+     "do": "Choose evidence: export logs, prompt version and retrieval index snapshot, hash them.",
+     "see": "Exports stored with SHA-256 values. Access limited to responders."
+    },
+    {
+     "do": "Check the logs for scope.",
+     "see": "Query shows 3 conversations affected over 2 days. Cause: filter removed in release 5.2."
+    },
+    {
+     "do": "Notify the privacy officer and legal.",
+     "see": "Privacy officer opens breach assessment; 72-hour clock noted."
+    },
+    {
+     "do": "Plan the fix and retest.",
+     "see": "Per-user authorization restored; regression tests added; tool re-enabled after verification."
+    },
+    {
+     "do": "Close with a blameless review.",
+     "see": "Actions logged: release checklist adds authorization test; model card and risk register updated."
+    }
+   ],
+   "answer": "Correct handling: disable the affected tool, preserve hashed logs and versions, determine scope (3 conversations), notify privacy and legal to assess the 72-hour obligation, fix authorization, add regression tests and hold a blameless review with tracked actions.",
+   "hint": "Contain first, preserve evidence second, then notify."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which AI RMF function covers policies, roles and accountability?",
+   "options": [
+    "Map",
+    "Measure",
+    "Govern",
+    "Manage"
+   ],
+   "a": 2,
+   "why": "Govern is the cross-cutting function for culture and accountability."
+  },
+  {
+   "q": "ISO/IEC 42001 differs from the AI RMF because it is:",
+   "options": [
+    "Certifiable",
+    "Legally binding",
+    "A hardware spec",
+    "Only for banks"
+   ],
+   "a": 0,
+   "why": "It is a certifiable management system standard."
+  },
+  {
+   "q": "What does the Statement of Applicability list?",
+   "options": [
+    "Applicable Annex A controls and justifications",
+    "Employee names",
+    "Model weights",
+    "Vendor prices"
+   ],
+   "a": 0,
+   "why": "It records control selection and exclusions."
+  },
+  {
+   "q": "Under the EU AI Act, credit scoring is generally:",
+   "options": [
+    "Prohibited",
+    "High-risk",
+    "Minimal risk",
+    "Exempt"
+   ],
+   "a": 1,
+   "why": "Access to essential services such as credit is an Annex III area."
+  },
+  {
+   "q": "Which is a limited-risk obligation?",
+   "options": [
+    "Disclose that users interact with AI",
+    "Annual hardware audit",
+    "Lock the model",
+    "Ban all use"
+   ],
+   "a": 0,
+   "why": "Chatbots must make clear people are talking to AI."
+  },
+  {
+   "q": "Maximum fine tier for prohibited practices is up to:",
+   "options": [
+    "1 million euros",
+    "35 million euros or 7 percent of turnover",
+    "5 thousand euros",
+    "No fines"
+   ],
+   "a": 1,
+   "why": "Prohibited practices attract the highest penalty tier."
+  },
+  {
+   "q": "A model card should state:",
+   "options": [
+    "Intended use and known limitations",
+    "Only marketing slogans",
+    "Server passwords",
+    "Training costs only"
+   ],
+   "a": 0,
+   "why": "Cards are for honest scope and limits."
+  },
+  {
+   "q": "Why report subgroup metrics?",
+   "options": [
+    "Averages can hide uneven performance",
+    "To lengthen reports",
+    "To avoid testing",
+    "Because regulators ban averages"
+   ],
+   "a": 0,
+   "why": "Disparities appear only when groups are examined separately."
+  },
+  {
+   "q": "Which is a typical AI incident containment step?",
+   "options": [
+    "Disable a tool or switch model version",
+    "Delete all logs",
+    "Wait for press",
+    "Change the office layout"
+   ],
+   "a": 0,
+   "why": "Limiting capability quickly reduces ongoing harm."
+  },
+  {
+   "q": "What should follow a closed AI incident?",
+   "options": [
+    "Blameless review with tracked actions and regression tests",
+    "Silence",
+    "Staff dismissal by default",
+    "Removing documentation"
+   ],
+   "a": 0,
+   "why": "Learning and prevention close the loop."
+  }
+ ]
+}

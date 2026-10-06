@@ -1,0 +1,832 @@
+{
+ "code": "CORE-13",
+ "intro": "Cloud platforms let teams create servers, storage and databases in minutes, and the same speed makes mistakes easy to repeat at scale. This module explains who is responsible for what in each service model, how identity and access management controls everything, which misconfigurations cause most cloud breaches, how to protect stored data, and how containers isolate workloads. Examples use generic AWS-style terms, but the ideas apply equally to Azure and Google Cloud.",
+ "lessons": [
+  {
+   "title": "Cloud service and deployment models",
+   "why": "Knowing which half of the security job the provider does and which half you do prevents the most common cloud blind spots.",
+   "sections": [
+    {
+     "h": "Service models: IaaS, PaaS, SaaS",
+     "p": [
+      "The NIST definition of cloud computing lists three service models. Infrastructure as a Service, IaaS, rents virtual machines, networks and storage; examples are Amazon EC2, Azure Virtual Machines and Google Compute Engine. You install and manage the operating system and everything above it. Platform as a Service, PaaS, adds a managed runtime or database, such as Azure App Service, AWS Elastic Beanstalk or a managed SQL database, so you deploy code and data without patching the operating system. Software as a Service, SaaS, delivers a finished application such as Microsoft 365 or Salesforce, where you mainly manage users, settings and data. The higher the service level, the less you control and the less you must operate."
+     ]
+    },
+    {
+     "h": "Deployment models",
+     "p": [
+      "Deployment models describe where the cloud runs and who shares it. A public cloud is operated by a provider such as AWS, Microsoft Azure or Google Cloud for many customers on shared physical hardware, with logical separation between tenants. A private cloud serves a single organization, hosted in its own data center or by a provider, giving more control at greater cost. A hybrid cloud connects the two, for example an on-premises directory and database linked to cloud applications over a VPN or a dedicated link. Multi-cloud means using more than one provider. Each mix changes where data lives, which laws apply and how networks and identities are connected."
+     ]
+    },
+    {
+     "h": "The shared responsibility model",
+     "p": [
+      "Every major provider publishes a shared responsibility model. The provider is responsible for security of the cloud: physical data centers, hardware, the host virtualization layer and core services. The customer is responsible for security in the cloud: their data, identities, access policies, configuration, and for IaaS also the guest operating system, patching and network rules. In PaaS the provider takes over the operating system and runtime, while the customer still owns the application code, data and access. In SaaS the provider runs almost everything, but the customer always remains accountable for data classification, user accounts, MFA and sharing settings. Responsibility for data and identity never transfers to the provider."
+     ]
+    },
+    {
+     "h": "Practical consequences",
+     "p": [
+      "The model tells you where to spend effort. With IaaS you need patch management, host hardening, endpoint protection and firewall rules for virtual machines. With PaaS you focus on application security, secrets handling, identities and data exposure. With SaaS you focus on identity, conditional access, sharing policies, logging and backups, since a provider outage or accidental deletion does not guarantee your data's recovery. Read provider documentation and compliance reports such as SOC 2 and ISO 27001 to see what they cover. Most real cloud incidents trace to customer-side issues like exposed storage or weak credentials, not to the provider's data center being breached."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Who patches what (summary)",
+    "text": "Layer         IaaS   PaaS   SaaS\nData          you    you    you\nIdentity      you    you    you\nApplication   you    you    provider\nRuntime/OS    you    provider provider\nHypervisor    provider (all models)\nData center   provider (all models)"
+   },
+   "example": "Example Corp runs a customer portal on a virtual machine in a public cloud (IaaS). A critical web server flaw is announced. The provider patches its hypervisor, but the guest operating system and web server are the customer's job, so the team patches them. Later they move the portal to a managed app service (PaaS). Operating system patches now belong to the provider, yet the team still reviews code, sets access policies and protects the database from public exposure.",
+   "terms": [
+    {
+     "term": "IaaS",
+     "def": "Rented virtual infrastructure where the customer manages the OS and above."
+    },
+    {
+     "term": "PaaS",
+     "def": "A managed platform for running code without handling the operating system."
+    },
+    {
+     "term": "SaaS",
+     "def": "A finished application delivered over the internet."
+    },
+    {
+     "term": "Hybrid cloud",
+     "def": "A mix of on-premises or private resources linked with a public cloud."
+    },
+    {
+     "term": "Shared responsibility",
+     "def": "The division of security duties between provider and customer."
+    },
+    {
+     "term": "Tenant",
+     "def": "A customer sharing the provider's infrastructure with logical isolation."
+    }
+   ],
+   "check": [
+    {
+     "q": "In IaaS, who patches the guest operating system?",
+     "options": [
+      "The provider",
+      "The customer",
+      "Nobody",
+      "The internet registrar"
+     ],
+     "a": 1,
+     "why": "IaaS customers manage everything above the hypervisor."
+    },
+    {
+     "q": "Which responsibility always remains with the customer in every model?",
+     "options": [
+      "Physical data center security",
+      "Data and identity management",
+      "Hypervisor patching",
+      "Power supply"
+     ],
+     "a": 1,
+     "why": "Data and who can access it stay with the customer."
+    },
+    {
+     "q": "What best describes a hybrid cloud?",
+     "options": [
+      "A cloud with no network",
+      "A mix of private or on-premises and public cloud resources connected together",
+      "A cloud for only one app",
+      "A cloud run by a university"
+     ],
+     "a": 1,
+     "why": "Hybrid links two or more deployment types."
+    },
+    {
+     "q": "Moving from IaaS to PaaS changes which duty?",
+     "options": [
+      "Operating system patching moves to the provider",
+      "Data classification moves to the provider",
+      "User accounts disappear",
+      "Encryption becomes illegal"
+     ],
+     "a": 0,
+     "why": "PaaS takes over the OS and runtime but not data or access."
+    }
+   ],
+   "recap": [
+    "IaaS, PaaS and SaaS shift how much the customer operates.",
+    "Public, private and hybrid describe where the cloud runs.",
+    "The customer always owns data, identities and configuration."
+   ]
+  },
+  {
+   "title": "Cloud IAM",
+   "why": "In the cloud, identity is the perimeter: whoever holds valid credentials can reach everything their permissions allow, so IAM design decides how bad a compromise can be.",
+   "sections": [
+    {
+     "h": "Users, groups and roles",
+     "p": [
+      "Cloud identity and access management, IAM, controls who can do what to which resource. A user represents a person or application with long-term credentials, a group collects users so permissions are assigned once, and a role is a set of permissions that a trusted entity assumes temporarily. Roles issue short-lived credentials from a service such as AWS STS, so a virtual machine or function can call other services without a stored password. Prefer roles over long-lived access keys wherever possible. The root account in AWS, or the global administrator in other clouds, has unrestricted power and should not be used for daily work."
+     ]
+    },
+    {
+     "h": "Least-privilege policies",
+     "p": [
+      "Permissions are written as policies, usually JSON documents with the elements Effect, Action and Resource, and sometimes Condition. A policy that says Action \"*\" on Resource \"*\" grants everything and is the classic mistake. Least privilege means naming only the specific actions, such as s3:GetObject, and only the specific resources, such as one bucket path. Explicit Deny statements override any Allow. Conditions can require MFA, restrict the source IP range or limit by tag. Start narrow and widen with evidence: tools such as IAM Access Analyzer and last-accessed data show which permissions are unused and can be removed. Review policies regularly because permissions tend to accumulate."
+     ]
+    },
+    {
+     "h": "Protecting root and MFA",
+     "p": [
+      "Secure the root or global administrator account first. Enable multi-factor authentication, ideally with a hardware security key or authenticator app, use a long unique password stored in a vault, delete any root access keys, and use the account only for the few tasks that require it. Enable MFA for all human users, and require it for sensitive actions through conditions. Use an identity provider with single sign-on so access is removed in one place when staff leave. Separate accounts or subscriptions for production, development and security logging limit the blast radius if one is compromised, and organization-level guardrails such as service control policies can block dangerous actions everywhere."
+     ]
+    },
+    {
+     "h": "Access key hygiene",
+     "p": [
+      "Access keys are a pair of an ID and a secret that act like a password for the API. They are frequently leaked in public code repositories, chat messages, container images and configuration files, and attackers run automated scanners that find them within minutes. Good hygiene: avoid creating keys at all by using roles; if keys are needed, give each a single purpose, rotate them regularly, deactivate unused ones, and never commit them to source control. Use secret scanning in repositories and a secrets manager to store and rotate credentials. If a key leaks, deactivate it at once, review audit logs for its use, and then create a replacement."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Least-privilege policy (example)",
+    "text": "{\"Version\":\"2012-10-17\",\n \"Statement\":[{\n  \"Effect\":\"Allow\",\n  \"Action\":[\"s3:GetObject\"],\n  \"Resource\":\"arn:aws:s3:::example-reports/2026/*\",\n  \"Condition\":{\"Bool\":{\n   \"aws:MultiFactorAuthPresent\":\"true\"}}\n }]}"
+   },
+   "example": "A developer at Example Corp needs to read monthly reports from one bucket. A teammate copies a policy with Action \"*\" and Resource \"*\" because it works immediately. A reviewer replaces it with s3:GetObject on only the example-reports path and adds an MFA condition. Weeks later the developer's key is accidentally pushed to a public repository. Because the permissions were narrow, the leaked key can read only reports, not delete databases or create servers.",
+   "terms": [
+    {
+     "term": "IAM",
+     "def": "The system that defines identities and what actions they may perform."
+    },
+    {
+     "term": "Role",
+     "def": "A set of permissions assumed temporarily, issuing short-lived credentials."
+    },
+    {
+     "term": "Least privilege",
+     "def": "Granting only the permissions needed for a task."
+    },
+    {
+     "term": "Access key",
+     "def": "A long-term ID and secret pair used for programmatic API access."
+    },
+    {
+     "term": "Root account",
+     "def": "The all-powerful original account owner identity, to be locked down."
+    },
+    {
+     "term": "Explicit deny",
+     "def": "A statement that overrides any allow."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which policy element makes the biggest security mistake when set to \"*\" for both?",
+     "options": [
+      "Version",
+      "Action and Resource",
+      "Sid",
+      "Region name"
+     ],
+     "a": 1,
+     "why": "Wildcards on Action and Resource grant everything."
+    },
+    {
+     "q": "Why prefer roles over long-term access keys?",
+     "options": [
+      "Roles are cheaper",
+      "Roles use short-lived credentials that expire",
+      "Roles have no permissions",
+      "Roles hide logs"
+     ],
+     "a": 1,
+     "why": "Temporary credentials limit the value of a leak."
+    },
+    {
+     "q": "What should you do first with a cloud root account?",
+     "options": [
+      "Create access keys for convenience",
+      "Enable MFA and avoid using it for daily tasks",
+      "Share the password with the team",
+      "Disable logging"
+     ],
+     "a": 1,
+     "why": "Root is unrestricted, so protect it and avoid routine use."
+    },
+    {
+     "q": "An access key is found in a public repository. What is the right first response?",
+     "options": [
+      "Wait to see if it is used",
+      "Deactivate it immediately, then review logs and replace it",
+      "Rename the repository",
+      "Delete only the commit message"
+     ],
+     "a": 1,
+     "why": "Revoke first, then investigate use and rotate."
+    }
+   ],
+   "recap": [
+    "Use roles and groups, and keep policies least-privilege with no wildcard grants.",
+    "Protect root with MFA and separate accounts by purpose.",
+    "Keep access keys rare, rotated and out of source code."
+   ]
+  },
+  {
+   "title": "Common cloud misconfigurations",
+   "why": "Cloud breaches are rarely clever exploits; they are usually a setting left open, and knowing the usual suspects lets you find them first.",
+   "sections": [
+    {
+     "h": "Open security groups",
+     "p": [
+      "A security group or network security group is a virtual firewall around cloud instances. A frequent error is a rule allowing inbound traffic from 0.0.0.0/0, meaning the entire internet, to administrative ports such as SSH on 22, RDP on 3389, or to database ports like 3306, 5432 and 27017. Internet scanners such as Shodan find these within hours, and brute force or exploitation follows. Restrict sources to specific ranges like 203.0.113.0/24, use a VPN or a bastion host, or use managed session tools that need no open inbound port. Place databases in private subnets without public IP addresses, and review default rules because defaults are sometimes permissive."
+     ]
+    },
+    {
+     "h": "Public snapshots and images",
+     "p": [
+      "Disk snapshots and machine images are copies of entire volumes and may contain databases, configuration files, private keys and customer data. Cloud platforms allow marking a snapshot or image as public or sharing it with other accounts, and a careless setting exposes it to anyone. Researchers have repeatedly found thousands of public snapshots containing secrets. Check sharing permissions on snapshots, images and database backups, enable account-level blocks where available, and encrypt snapshots with a customer-managed key so that sharing requires key access as well. Delete old snapshots that nobody owns, since they become forgotten, unpatched copies of sensitive data."
+     ]
+    },
+    {
+     "h": "Exposed secrets",
+     "p": [
+      "Secrets include passwords, API tokens, private keys and connection strings. They leak through source repositories, container images, public storage objects, instance user-data scripts, environment variables printed in logs, and unprotected configuration files such as .env. An attacker with a cloud key may spin up costly mining servers or copy data. Store secrets in a managed service such as AWS Secrets Manager, Azure Key Vault or HashiCorp Vault, give workloads roles to fetch them at run time, and scan code and images automatically with tools like gitleaks or trufflehog. Rotate any secret that has ever been exposed, even briefly, because copies persist."
+     ]
+    },
+    {
+     "h": "Missing logging and monitoring",
+     "p": [
+      "Without logs you cannot tell who did what. AWS CloudTrail records API calls, including the identity, time, source IP and parameters, while Azure has Activity Logs and Google Cloud has Audit Logs. Enable a trail in all regions, deliver logs to a separate, protected account or bucket with integrity validation, and keep them long enough to investigate, often 90 days to a year. Add flow logs for network traffic and alerts for risky events such as root login, disabled logging, policy changes or new access keys. Posture tools such as AWS Config, Security Hub, Microsoft Defender for Cloud and open-source scanners detect misconfigurations continuously."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Reading a risky rule (example)",
+    "text": "Rule: inbound  tcp  22   source 0.0.0.0/0   RISKY\nRule: inbound  tcp  3306 source 0.0.0.0/0   RISKY\nRule: inbound  tcp  22   source 203.0.113.0/24  OK\nSnapshot snap-0a1b2c   sharing: public       RISKY\nTrail: org-trail  logging: off          RISKY"
+   },
+   "example": "A review at Example Corp finds a database server at 192.0.2.40 whose security group allows port 3306 from 0.0.0.0/0. A snapshot of its disk is also public, and the account has no active trail. The team restricts the rule to the application subnet, makes the snapshot private, rotates the database password found in the snapshot, and turns on a multi-region trail writing to a locked-down log account. Auditors then close all four findings.",
+   "terms": [
+    {
+     "term": "0.0.0.0/0",
+     "def": "An address range meaning every IPv4 address on the internet."
+    },
+    {
+     "term": "Security group",
+     "def": "A virtual firewall controlling traffic to cloud instances."
+    },
+    {
+     "term": "Snapshot",
+     "def": "A point-in-time copy of a disk volume."
+    },
+    {
+     "term": "Secrets manager",
+     "def": "A service that stores and rotates credentials securely."
+    },
+    {
+     "term": "CloudTrail",
+     "def": "AWS service that logs API activity in an account."
+    },
+    {
+     "term": "CSPM",
+     "def": "Tools that continuously check cloud configuration against best practice."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which rule is the clearest security group misconfiguration?",
+     "options": [
+      "Allow 443 from the internet to a public website",
+      "Allow SSH 22 from 0.0.0.0/0",
+      "Allow DNS to the resolver",
+      "Allow 22 from a VPN range"
+     ],
+     "a": 1,
+     "why": "Administrative ports should not be exposed to the whole internet."
+    },
+    {
+     "q": "Why can a public disk snapshot be dangerous?",
+     "options": [
+      "It slows the instance",
+      "It may contain keys, data and secrets readable by anyone",
+      "It cannot be deleted",
+      "It costs nothing"
+     ],
+     "a": 1,
+     "why": "A snapshot is a full copy of everything on the volume."
+    },
+    {
+     "q": "What does CloudTrail record?",
+     "options": [
+      "Application CPU usage only",
+      "API calls with identity, time and source IP",
+      "Keyboard input",
+      "Physical door access"
+     ],
+     "a": 1,
+     "why": "It provides the audit trail of actions in the account."
+    },
+    {
+     "q": "Where should an application's database password be kept?",
+     "options": [
+      "In the source repository",
+      "In a secrets manager retrieved at run time",
+      "In a public wiki",
+      "In the image name"
+     ],
+     "a": 1,
+     "why": "Managed secrets stores control access, rotate and audit use."
+    }
+   ],
+   "recap": [
+    "Check security groups for 0.0.0.0/0 on admin and database ports.",
+    "Review snapshots and images for public sharing, and keep secrets out of code.",
+    "Enable CloudTrail and similar audit logging in every region and protect the logs."
+   ]
+  },
+  {
+   "title": "Storage exposure and data protection",
+   "why": "Publicly readable storage has caused many large data leaks, and a few settings control whether your data is private.",
+   "sections": [
+    {
+     "h": "How exposure happens",
+     "p": [
+      "Object storage such as Amazon S3, Azure Blob Storage and Google Cloud Storage holds files in containers called buckets. Access is governed by several layers: IAM policies, bucket policies, access control lists, ACLs, and in Azure the container access level and shared access signatures. Exposure usually follows a rushed setting, for example granting read to Everyone, or the Principal \"*\" in a bucket policy, to make a website work or to share a file quickly. Anyone who guesses or finds the bucket name, which scanners do at scale, can list and download data. Backups, logs, database dumps and employee documents are common leaks, and even a bucket containing only public images can still have a writable permission that lets attackers change it."
+     ]
+    },
+    {
+     "h": "Public access blocks and auditing",
+     "p": [
+      "Providers offer a safety net. S3 Block Public Access can be turned on for a bucket or an entire account and overrides any ACL or policy that would grant public access, with four settings covering public ACLs and public policies. Azure offers a storage account setting to disallow anonymous blob access, and Google Cloud has public access prevention. Turn these on by default and open exceptions deliberately for genuine static websites, preferably served through a content delivery network. Audit regularly using tools like AWS Access Analyzer for S3, Macie for sensitive data discovery, and posture management scanners, and review the list of objects for files that should never be stored, such as .env or database exports."
+     ]
+    },
+    {
+     "h": "Encryption at rest and KMS",
+     "p": [
+      "Encryption at rest protects stored data if disks are lost or accessed improperly at a lower level. S3 encrypts all new objects by default with AES-256, and the choice is whose key is used: provider-managed keys, customer-managed keys in a Key Management Service, KMS, or keys the customer holds entirely. KMS keys let you set a key policy, rotate keys, and log every use of the key in CloudTrail, adding a second control: a person with access to the object but not to the key cannot read it. Also use TLS for data in transit, and enforce it with a bucket policy that denies requests not using HTTPS."
+     ]
+    },
+    {
+     "h": "Presigned URLs and sharing safely",
+     "p": [
+      "A presigned URL, or in Azure a shared access signature, lets someone download or upload a specific object for a limited time without having cloud credentials. The URL carries a signature created by the credentials of whoever generated it, so it inherits their permissions and stops working if those credentials are revoked. Keep expiry short, from minutes to a few hours, scope it to one object and one action, and avoid logging URLs, since anyone holding the link can use it. Add versioning and object lock to recover from deletion or tampering, and enable access logging on the bucket so reads and writes can be traced to the requester."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Hardening a bucket (AWS CLI, example)",
+    "text": "aws s3api put-public-access-block --bucket example-reports \\\n --public-access-block-configuration \\\n BlockPublicAcls=true,IgnorePublicAcls=true,\\\nBlockPublicPolicy=true,RestrictPublicBuckets=true\naws s3api get-bucket-encryption --bucket example-reports\naws s3 presign s3://example-reports/q3.pdf --expires-in 900"
+   },
+   "example": "A marketing intern at Example Corp sets a bucket to public read so a partner can fetch one PDF. A scanner finds the bucket and lists database exports stored beside it. The security team enables account-level Block Public Access, moves the exports into a private bucket encrypted with a customer-managed KMS key, and sends the partner a presigned URL that expires after 15 minutes. Access logging then shows exactly one download of that single file.",
+   "terms": [
+    {
+     "term": "Bucket",
+     "def": "A container for objects in cloud object storage."
+    },
+    {
+     "term": "ACL",
+     "def": "A legacy per-object or per-bucket permission list."
+    },
+    {
+     "term": "Block Public Access",
+     "def": "An override setting that prevents public grants on buckets."
+    },
+    {
+     "term": "KMS",
+     "def": "A managed service that creates, stores and audits encryption keys."
+    },
+    {
+     "term": "Presigned URL",
+     "def": "A time-limited link granting access to one object."
+    },
+    {
+     "term": "Versioning",
+     "def": "Keeping previous versions of objects to recover from change or deletion."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does S3 Block Public Access do?",
+     "options": [
+      "Encrypts all objects",
+      "Overrides ACLs and policies that would make data public",
+      "Speeds up downloads",
+      "Deletes old objects"
+     ],
+     "a": 1,
+     "why": "It is a guardrail against accidental public exposure."
+    },
+    {
+     "q": "What extra control does a customer-managed KMS key add?",
+     "options": [
+      "Faster storage",
+      "A key policy and key-use logging separate from object access",
+      "Free storage",
+      "Larger files"
+     ],
+     "a": 1,
+     "why": "Access to data and access to the key are separate permissions."
+    },
+    {
+     "q": "Which presigned URL practice is best?",
+     "options": [
+      "Never expire",
+      "Short expiry scoped to one object",
+      "Share it publicly in a wiki",
+      "Use the root account"
+     ],
+     "a": 1,
+     "why": "A short lifetime and narrow scope limit misuse of a leaked link."
+    },
+    {
+     "q": "Which setting is a warning sign in a bucket policy?",
+     "options": [
+      "Principal set to \"*\" with s3:GetObject on the bucket",
+      "Deny for non-HTTPS requests",
+      "Condition requiring a VPC endpoint",
+      "Access logging enabled"
+     ],
+     "a": 0,
+     "why": "Principal * with read access makes objects public."
+    }
+   ],
+   "recap": [
+    "Bucket exposure comes from ACLs, policies and rushed sharing settings.",
+    "Turn on public access blocks, and encrypt with KMS keys where control matters.",
+    "Presigned URLs should be short-lived and narrow."
+   ]
+  },
+  {
+   "title": "Containers 101",
+   "why": "Containers are how most cloud applications are now packaged, and their isolation is lighter than a virtual machine, so hardening choices matter.",
+   "sections": [
+    {
+     "h": "Images, containers and registries",
+     "p": [
+      "A container image is a read-only, layered package containing an application, its libraries and file system, built from instructions in a Dockerfile. A container is a running instance of an image. Images are stored in registries such as Docker Hub, Amazon ECR or a private registry, and pulled by tag or by digest. The risks are in the supply chain: public images may contain malware, outdated packages or backdoors, and tags like latest can change under you. Use trusted or official base images, pin versions or digests, scan images for known vulnerabilities with tools like Trivy or Grype, sign images, and keep registries private with authenticated pushes."
+     ]
+    },
+    {
+     "h": "Namespaces and cgroups",
+     "p": [
+      "Containers on Linux are ordinary processes isolated by kernel features. Namespaces limit what a process can see: separate views of process IDs, network interfaces, mount points, hostnames, users and inter-process communication. Control groups, cgroups, limit what a process can use, such as CPU, memory and process counts, so one container cannot starve the rest of the host. Other features add protection: seccomp filters restrict system calls, capabilities split root powers into smaller pieces, and AppArmor or SELinux enforce mandatory access policies. Together these form the container sandbox, but every container shares one kernel with the host, so a kernel flaw can enable a container escape."
+     ]
+    },
+    {
+     "h": "Docker versus virtual machines",
+     "p": [
+      "A virtual machine runs a full guest operating system on a hypervisor with virtualized hardware, giving strong isolation, since an attacker must break out through the hypervisor. A container shares the host kernel and starts in seconds with small size, but its isolation boundary is weaker. For that reason highly sensitive or multi-tenant workloads often run containers inside VMs, or use sandboxed runtimes such as gVisor and Kata Containers. Neither model is automatically secure: a VM still needs patching, and a container still needs a minimal, updated image. Choose by trust level: unrelated tenants warrant stronger isolation than the services of one team."
+     ]
+    },
+    {
+     "h": "Basic hardening",
+     "p": [
+      "The most important rule is not to run as root. By default a Dockerfile runs the process as root inside the container, and a root process that escapes has far more power. Add a USER instruction with a non-root account. Avoid the privileged flag and mounting the Docker socket (/var/run/docker.sock), either of which effectively gives control of the host. Use a minimal base such as distroless or Alpine, set the root file system read-only, drop unneeded capabilities and set resource limits. Never bake secrets into images, since every layer is permanent and extractable with docker history; inject them at run time from a secrets store. Rebuild images regularly to pick up patches."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Dockerfile risks and fixes (example)",
+    "text": "FROM python:latest          # unpinned tag\nENV DB_PASSWORD=Fake-Pass-1  # secret in layer\nCOPY . /app\nCMD [\"python\",\"/app/run.py\"]  # runs as root\n# Safer:\nFROM python:3.12-slim@sha256:<digest>\nRUN useradd -r app\nUSER app\n# docker run --read-only --cap-drop ALL image"
+   },
+   "example": "A developer at Example Corp builds an image from python:latest, copies a .env file with a database password, and runs the app as root. The image is pushed to a public registry by mistake. A scanner reports old libraries, and a stranger pulls the image and reads the password with docker history. The fix: a pinned slim base, a non-root USER, secrets injected at run time, a private registry, and an automated scan before each release.",
+   "terms": [
+    {
+     "term": "Image",
+     "def": "A read-only layered template from which containers start."
+    },
+    {
+     "term": "Namespace",
+     "def": "A kernel feature that limits what a process can see."
+    },
+    {
+     "term": "cgroup",
+     "def": "A kernel feature that limits resource use by a group of processes."
+    },
+    {
+     "term": "Registry",
+     "def": "A server that stores and distributes container images."
+    },
+    {
+     "term": "Container escape",
+     "def": "Breaking out of container isolation to reach the host."
+    },
+    {
+     "term": "Privileged container",
+     "def": "A container with nearly all host capabilities, which defeats isolation."
+    }
+   ],
+   "check": [
+    {
+     "q": "What do Linux namespaces provide to a container?",
+     "options": [
+      "Limits on CPU use",
+      "Isolated views of resources such as processes and network",
+      "Disk encryption",
+      "Backups"
+     ],
+     "a": 1,
+     "why": "Namespaces control visibility; cgroups control usage."
+    },
+    {
+     "q": "Why is isolation between containers generally weaker than between VMs?",
+     "options": [
+      "Containers cannot use networks",
+      "Containers share the host kernel",
+      "Containers are always larger",
+      "VMs have no operating system"
+     ],
+     "a": 1,
+     "why": "A shared kernel means a kernel flaw may allow escape."
+    },
+    {
+     "q": "Which Dockerfile change improves security most?",
+     "options": [
+      "Adding USER with a non-root account",
+      "Using the latest tag",
+      "Embedding the password in ENV",
+      "Mounting the Docker socket"
+     ],
+     "a": 0,
+     "why": "Non-root limits the damage of a compromise or escape."
+    },
+    {
+     "q": "Why is a secret in an image layer a problem?",
+     "options": [
+      "Layers are permanent and can be extracted by anyone with the image",
+      "It makes builds faster",
+      "Layers are encrypted by default",
+      "Registries delete layers daily"
+     ],
+     "a": 0,
+     "why": "Deleting it in a later layer does not remove it from history."
+    }
+   ],
+   "recap": [
+    "Images come from registries; scan, pin and sign them.",
+    "Namespaces isolate views, cgroups limit resources, but the kernel is shared.",
+    "Run as non-root, avoid privileged mode and keep secrets out of images."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Fix an over-permissive IAM policy",
+   "sim": "config-editor",
+   "scenario": "A fictional developer at Example Corp was granted a JSON policy to read monthly reports from the bucket example-reports. The policy has Effect Allow with Action \"*\" and Resource \"*\", meaning full control over every service in the account. In the config editor you will rewrite the statement so it grants only the single read action on the single report path, add an MFA condition, and then run the policy validator to confirm no wildcards remain.",
+   "objective": "Replace wildcard Action and Resource with least-privilege entries.",
+   "steps": [
+    {
+     "do": "Open policy.json in the editor.",
+     "see": "Statement shows Action * and Resource *; validator warns of full admin."
+    },
+    {
+     "do": "Select the Action line.",
+     "see": "Cursor placed on \"Action\": \"*\"."
+    },
+    {
+     "do": "Replace it with \"s3:GetObject\".",
+     "see": "Line updated; warning count drops."
+    },
+    {
+     "do": "Replace Resource with arn:aws:s3:::example-reports/2026/*.",
+     "see": "Resource now names one path."
+    },
+    {
+     "do": "Add a Condition requiring aws:MultiFactorAuthPresent equal true.",
+     "see": "Condition block accepted."
+    },
+    {
+     "do": "Click Validate.",
+     "see": "Result: 0 wildcards, 0 errors, policy is least-privilege."
+    },
+    {
+     "do": "Click Simulate with s3:DeleteBucket.",
+     "see": "Simulator returns implicit deny."
+    }
+   ],
+   "answer": "Change Action to s3:GetObject (add s3:ListBucket on the bucket ARN only if listing is required), set Resource to arn:aws:s3:::example-reports/2026/*, and add an MFA condition. The simulator should allow GetObject on that path and deny other actions such as DeleteBucket.",
+   "hint": "Name the exact action and the exact resource path the developer needs."
+  },
+  {
+   "title": "Audit a cloud storage bucket",
+   "sim": "file-explorer",
+   "scenario": "The fictional bucket example-reports at Example Corp is reported as exposed. The file explorer shows its objects with an access column and a settings panel. You must find which objects are publicly readable, spot files that contain credentials and should never be stored there, remove or secure them, and then enable the public access block at the bucket level. Finish by refreshing the view to confirm no object is public.",
+   "objective": "Find public objects and exposed credentials, then apply a public access block.",
+   "steps": [
+    {
+     "do": "Open the bucket in the file explorer.",
+     "see": "Twelve objects listed with an Access column."
+    },
+    {
+     "do": "Sort by Access.",
+     "see": "Three objects show Public Read."
+    },
+    {
+     "do": "Open the file named backup.env.",
+     "see": "It contains a fake access key ID and secret."
+    },
+    {
+     "do": "Delete backup.env and mark the key for rotation.",
+     "see": "File removed; rotation note added."
+    },
+    {
+     "do": "Open db_dump.sql.",
+     "see": "Contains customer rows; it should not be public."
+    },
+    {
+     "do": "Open Settings and enable Block Public Access (all four options).",
+     "see": "Settings saved."
+    },
+    {
+     "do": "Click Refresh.",
+     "see": "All objects show Private; summary reports 0 public."
+    }
+   ],
+   "answer": "Three objects were public, including backup.env with credentials and db_dump.sql with customer data. Remove or move the sensitive files to a private encrypted location, rotate the exposed key, and enable all four Block Public Access options. Check access logs to see whether anyone downloaded the files.",
+   "hint": "Sort by access level first, then open the files that look like backups or configs."
+  },
+  {
+   "title": "Review cloud audit logs",
+   "sim": "log-viewer",
+   "scenario": "A fictional access key belonging to Example Corp has been used to launch unusual servers. The log viewer contains CloudTrail events from the last 24 hours. You will filter by the access key ID, find the first suspicious call, identify which role or user created the key, note the source IP address of the attacker, and write down the actions taken so the key can be disabled and the incident documented properly.",
+   "objective": "Trace access key abuse and identify the creating role and source IP.",
+   "steps": [
+    {
+     "do": "Open the CloudTrail viewer and filter accessKeyId = AKIAEXAMPLE1234.",
+     "see": "Eighteen events remain."
+    },
+    {
+     "do": "Sort by time ascending.",
+     "see": "First event is GetCallerIdentity from 203.0.113.77."
+    },
+    {
+     "do": "Find RunInstances events.",
+     "see": "Six large instances launched in a region never used before."
+    },
+    {
+     "do": "Search for CreateAccessKey with the same key ID in the results of earlier days.",
+     "see": "Event shows it was created by role build-pipeline."
+    },
+    {
+     "do": "Open the creating event details.",
+     "see": "userIdentity is role build-pipeline; source IP 192.0.2.15."
+    },
+    {
+     "do": "Note the attacker IP.",
+     "see": "Abuse came from 203.0.113.77."
+    },
+    {
+     "do": "Click Disable key and Export timeline.",
+     "see": "Key status inactive; report saved."
+    }
+   ],
+   "answer": "The abuse came from 203.0.113.77, beginning with GetCallerIdentity and then RunInstances in an unused region. The key was created by the build-pipeline role from 192.0.2.15. Disable the key, terminate the instances, rotate related secrets and review how the key was leaked.",
+   "hint": "Filter on the key ID, then sort by time to see the first call."
+  },
+  {
+   "title": "Harden a Dockerfile",
+   "sim": "code-editor",
+   "scenario": "A fictional team at Example Corp has a Dockerfile that builds from python:latest, sets DB_PASSWORD in an ENV line, copies the whole directory and starts the app as root. In the code editor you will correct each issue: pin the base image, remove the embedded secret, add a non-root user, and then run the verification checker, which reports on each rule and shows pass or fail so you can see every fix.",
+   "objective": "Remove root, pin the image, drop the secret and verify the fixed file.",
+   "steps": [
+    {
+     "do": "Open Dockerfile in the editor.",
+     "see": "Checker shows 4 failures."
+    },
+    {
+     "do": "Change FROM python:latest to FROM python:3.12-slim.",
+     "see": "Pinning check turns green."
+    },
+    {
+     "do": "Delete the ENV DB_PASSWORD line.",
+     "see": "Secret check turns green."
+    },
+    {
+     "do": "Add RUN useradd -r app before the CMD line.",
+     "see": "User created in the build."
+    },
+    {
+     "do": "Add USER app.",
+     "see": "Root check turns green."
+    },
+    {
+     "do": "Add a comment that the password comes from run-time secrets.",
+     "see": "Note saved."
+    },
+    {
+     "do": "Click Verify.",
+     "see": "All 4 checks pass."
+    }
+   ],
+   "answer": "Use a pinned slim base such as python:3.12-slim (ideally with a digest), remove the ENV secret and supply it at run time from a secrets store, create a non-root user with useradd and switch to it with USER app. Verify that all four checks pass.",
+   "hint": "Which line sets the secret, and which instruction changes the user?"
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "In a SaaS model, which item is still the customer's responsibility?",
+   "options": [
+    "The data centre cooling",
+    "User accounts, MFA and data sharing settings",
+    "The hypervisor",
+    "The application source code of the vendor"
+   ],
+   "a": 1,
+   "why": "Identity and data remain with the customer in all models."
+  },
+  {
+   "q": "Which service model gives the customer the most control of the operating system?",
+   "options": [
+    "SaaS",
+    "PaaS",
+    "IaaS",
+    "None"
+   ],
+   "a": 2,
+   "why": "IaaS customers manage the guest OS and above."
+  },
+  {
+   "q": "A policy has Action \"*\" and Resource \"*\". What is the problem?",
+   "options": [
+    "It is too restrictive",
+    "It grants every action on every resource",
+    "It is invalid JSON",
+    "It disables logging"
+   ],
+   "a": 1,
+   "why": "That is full administrative access."
+  },
+  {
+   "q": "What is the safest way for a virtual machine to call another cloud service?",
+   "options": [
+    "Hard-coded access keys",
+    "An assigned role with short-lived credentials",
+    "The root account",
+    "A shared password in a file"
+   ],
+   "a": 1,
+   "why": "Roles avoid stored long-term secrets."
+  },
+  {
+   "q": "Which security group rule should raise an alert?",
+   "options": [
+    "443 from 0.0.0.0/0 on a public web server",
+    "3389 from 0.0.0.0/0",
+    "22 from a VPN range",
+    "80 from a load balancer"
+   ],
+   "a": 1,
+   "why": "RDP open to the internet is a classic exposure."
+  },
+  {
+   "q": "Why should CloudTrail logs be delivered to a separate protected location?",
+   "options": [
+    "To make them smaller",
+    "So an attacker cannot easily delete or alter them",
+    "To avoid encryption",
+    "To lower costs only"
+   ],
+   "a": 1,
+   "why": "Protected, separate logs preserve evidence."
+  },
+  {
+   "q": "Which control prevents accidental public access across an entire AWS account?",
+   "options": [
+    "S3 Block Public Access at the account level",
+    "Versioning",
+    "Longer bucket names",
+    "Cross-region replication"
+   ],
+   "a": 0,
+   "why": "Account-level Block Public Access overrides risky ACLs and policies."
+  },
+  {
+   "q": "What is the main property of a presigned URL?",
+   "options": [
+    "It never expires",
+    "It grants time-limited access to a specific object",
+    "It encrypts the object",
+    "It bypasses IAM completely"
+   ],
+   "a": 1,
+   "why": "It is limited by time, object and the permissions of its creator."
+  },
+  {
+   "q": "Containers differ from virtual machines mainly because they:",
+   "options": [
+    "Share the host kernel",
+    "Have no file system",
+    "Cannot be networked",
+    "Always run as root"
+   ],
+   "a": 0,
+   "why": "A shared kernel makes isolation lighter than a VM."
+  },
+  {
+   "q": "Which is the best Dockerfile practice?",
+   "options": [
+    "Run as root for convenience",
+    "Use a pinned image, a non-root USER and runtime-injected secrets",
+    "Store passwords in ENV",
+    "Use the latest tag"
+   ],
+   "a": 1,
+   "why": "Pinned, minimal, non-root images with external secrets reduce risk."
+  }
+ ]
+}

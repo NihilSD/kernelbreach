@@ -1,0 +1,910 @@
+{
+ "code": "ENG-05",
+ "intro": "This module covers the practical side of cryptography that engineers touch every day: configuring TLS safely, running a certificate lifecycle without outages, protecting keys with a KMS and HSM, rotating and destroying them, managing secrets, and avoiding the implementation mistakes behind most real breaches. The goal is to use well-vetted tools correctly, because strong algorithms still fail when keys leak, certificates expire or modes are misused.",
+ "lessons": [
+  {
+   "title": "TLS configuration",
+   "why": "A weak TLS configuration exposes traffic to downgrade and interception attacks, and it is one of the first things auditors and scanners check.",
+   "sections": [
+    {
+     "h": "Protocol versions",
+     "p": [
+      "TLS 1.3 (RFC 8446) is the current standard and TLS 1.2 (RFC 5246) is still acceptable when configured carefully. SSL 2.0, SSL 3.0, TLS 1.0 and TLS 1.1 are deprecated and must be disabled because they have known design flaws such as POODLE and BEAST. PCI DSS and most government baselines require TLS 1.2 or higher. TLS 1.3 also shortens the handshake to one round trip and removes legacy features like static RSA key exchange, compression and renegotiation, which removes entire classes of attack."
+     ]
+    },
+    {
+     "h": "Cipher suites and forward secrecy",
+     "p": [
+      "A cipher suite names the key exchange, authentication, bulk cipher and hash. Prefer AEAD ciphers such as AES-GCM and ChaCha20-Poly1305, which provide encryption and integrity together. Use ephemeral key exchange (ECDHE or DHE) so every session gets a fresh key, giving forward secrecy: stealing the server private key later does not decrypt recorded traffic. Remove RC4, 3DES, export suites, NULL and anonymous suites, and CBC suites where possible. TLS 1.3 only allows five AEAD suites, so there is little to misconfigure."
+     ]
+    },
+    {
+     "h": "HSTS and related headers",
+     "p": [
+      "HTTP Strict Transport Security tells browsers to use HTTPS only for a site. The header Strict-Transport-Security: max-age=31536000; includeSubDomains blocks protocol downgrade and SSL stripping after the first visit. The preload directive lets a domain be hard-coded into browser lists, but removal is slow, so test with a short max-age first. Also redirect port 80 to 443, disable TLS compression, and enable OCSP stapling. Never combine HSTS with a certificate you cannot renew, because users get a hard failure with no click-through option."
+     ]
+    },
+    {
+     "h": "Testing the result",
+     "p": [
+      "Configuration is only trusted once measured. testssl.sh, sslscan, nmap with the ssl-enum-ciphers script and SSL Labs all enumerate protocols, suites, certificate details and known vulnerabilities such as Heartbleed or ROBOT. Run a scan in CI or on a schedule against every public endpoint, and compare results to a written baseline such as the Mozilla server-side TLS guidelines. Test internal services too, since load balancers, databases and message brokers often keep old defaults long after the web tier is fixed.",
+      "In practice, roll changes out in stages. Start by logging the protocol and cipher negotiated by real clients for a week, then check which clients would break if you removed a suite. Most organizations find that old protocols are used only by a handful of scanners, monitoring agents or legacy devices, which can be upgraded or isolated behind a gateway. Record the baseline in version control, review it at least yearly, and treat any exception as a tracked risk with an owner and an end date."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Config excerpt (nginx)",
+    "text": "ssl_protocols TLSv1.2 TLSv1.3;\nssl_prefer_server_ciphers off;\nssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-CHACHA20-POLY1305;\nssl_session_tickets off;\nssl_stapling on;\nadd_header Strict-Transport-Security \"max-age=31536000; includeSubDomains\" always;"
+   },
+   "example": "A scan of shop.example.com on 203.0.113.10 shows TLS 1.0 enabled and a 3DES suite. The engineer sets ssl_protocols to TLSv1.2 and TLSv1.3, replaces the cipher list with ECDHE and GCM suites, adds HSTS and reruns testssl.sh. The report now shows no deprecated protocols, forward secrecy for all suites, and a clean grade. A canary on legacy clients is checked first so the change does not surprise an old partner integration.",
+   "terms": [
+    {
+     "term": "AEAD",
+     "def": "Authenticated encryption with associated data, which gives confidentiality and integrity in one operation."
+    },
+    {
+     "term": "Forward secrecy",
+     "def": "Property where compromise of a long-term key does not expose past session keys."
+    },
+    {
+     "term": "HSTS",
+     "def": "A response header that forces browsers to use HTTPS for a domain."
+    },
+    {
+     "term": "ECDHE",
+     "def": "Elliptic-curve Diffie-Hellman with ephemeral keys, used for forward-secret key exchange."
+    },
+    {
+     "term": "Cipher suite",
+     "def": "A named combination of key exchange, authentication, cipher and hash used in a TLS session."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which protocol set is the best baseline today?",
+     "options": [
+      "TLS 1.0 and 1.1",
+      "TLS 1.2 and 1.3",
+      "SSL 3.0 and TLS 1.2",
+      "Only TLS 1.2 with RC4"
+     ],
+     "a": 1,
+     "why": "TLS 1.2 and 1.3 are the supported modern protocols; older ones have known flaws."
+    },
+    {
+     "q": "What does forward secrecy protect against?",
+     "options": [
+      "Decrypting recorded traffic after a server key is stolen",
+      "Weak passwords",
+      "Cross-site scripting",
+      "Expired certificates"
+     ],
+     "a": 0,
+     "why": "Ephemeral keys mean the stolen long-term key cannot derive past session keys."
+    },
+    {
+     "q": "What does HSTS do?",
+     "options": [
+      "Validates OCSP responses",
+      "Blocks CORS requests",
+      "Encrypts cookies at rest",
+      "Makes browsers use HTTPS only for the domain"
+     ],
+     "a": 3,
+     "why": "The header instructs browsers to refuse plain HTTP for the site for max-age seconds."
+    },
+    {
+     "q": "Which tool enumerates a server's protocols and cipher suites?",
+     "options": [
+      "cosign",
+      "testssl.sh",
+      "gitleaks",
+      "Grype"
+     ],
+     "a": 1,
+     "why": "testssl.sh tests protocols, suites and known TLS vulnerabilities."
+    }
+   ],
+   "recap": [
+    "Allow TLS 1.2 and 1.3 only, with AEAD and ECDHE suites.",
+    "Add HSTS after confirming certificates renew reliably.",
+    "Scan continuously with testssl.sh and compare to a baseline."
+   ]
+  },
+  {
+   "title": "PKI and certificate lifecycle",
+   "why": "Expired or mis-issued certificates cause some of the most common and most embarrassing outages, and a trusted-but-wrong certificate enables interception.",
+   "sections": [
+    {
+     "h": "Chains and trust",
+     "p": [
+      "A public key infrastructure binds public keys to identities through signed certificates (X.509). A server sends its leaf certificate and one or more intermediates; the client validates the chain up to a root CA in its trust store, checks signatures, validity dates, name match against the Subject Alternative Name field, key usage and revocation status. A missing intermediate on the server is a classic cause of errors that work in one browser and fail in another. Roots stay offline; intermediates sign leaf certificates daily."
+     ]
+    },
+    {
+     "h": "Issuance and ACME",
+     "p": [
+      "Automatic Certificate Management Environment (RFC 8555) lets a client such as certbot, acme.sh or a cert-manager controller request certificates from a CA like Let's Encrypt without human steps. The client proves control of a domain through HTTP-01, DNS-01 or TLS-ALPN-01 challenges; wildcard names need DNS-01. Public certificate lifetimes are shrinking, with 90 days common and the industry moving toward shorter limits, so manual renewal does not scale. Automation, plus monitoring of the renewal job itself, is the control that prevents expiry."
+     ]
+    },
+    {
+     "h": "Revocation and transparency",
+     "p": [
+      "When a private key is exposed, the certificate should be revoked. Clients check status through CRLs or OCSP; OCSP stapling lets the server attach a signed, fresh response to the handshake, saving a lookup and protecting client privacy. Certificate Transparency (RFC 6962 and 9162) requires CAs to publish issued certificates to public append-only logs. Defenders monitor those logs for unexpected certificates for their domains, and CAA DNS records restrict which CAs may issue for a name."
+     ]
+    },
+    {
+     "h": "Preventing expiry outages",
+     "p": [
+      "Inventory every certificate, including internal CAs, load balancers, VPN gateways and code-signing certs, and record an owner for each. Alert at 30, 14 and 7 days before expiry using an independent probe, not only the renewal tool. Deploy renewals through the same pipeline as other config and reload services automatically. Keep private keys unique per certificate, store them with restrictive permissions or in a KMS or HSM, and rehearse emergency re-issuance so replacement takes minutes, not days.",
+      "Internal PKI deserves the same discipline as public certificates. Private CAs issue certificates for services, devices and mutual TLS, and their roots are trusted by every internal client, so their compromise is severe. Keep the root offline, use short-lived leaf certificates, and automate issuance through ACME-compatible tools or a service mesh. Document who may request which names, and log every issuance. When a CA must be replaced, plan a cross-signed overlap period so that clients are updated before the old certificate expires."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ openssl s_client -connect app.example.com:443 -servername app.example.com </dev/null | openssl x509 -noout -dates -subject -issuer\nnotBefore=Sep  1 00:00:00 2026 GMT\nnotAfter=Nov 30 23:59:59 2026 GMT\nsubject=CN = app.example.com\nissuer=C = US, O = Example CA, CN = Example Issuing CA 1"
+   },
+   "example": "A partner reports that api.example.com fails for older clients while browsers work. The engineer runs openssl s_client and sees the server sends only the leaf, with no intermediate. Modern browsers fetch the intermediate themselves, but strict clients cannot. The fix is to configure the web server with the full chain file (leaf plus intermediate). An alert is added so the monitoring probe validates the complete chain, not only the leaf expiry date.",
+   "terms": [
+    {
+     "term": "X.509",
+     "def": "The standard format for public key certificates."
+    },
+    {
+     "term": "Intermediate CA",
+     "def": "A CA certificate signed by a root that issues leaf certificates."
+    },
+    {
+     "term": "ACME",
+     "def": "A protocol for automated certificate issuance and renewal."
+    },
+    {
+     "term": "OCSP stapling",
+     "def": "Server attaches a signed revocation status response to the TLS handshake."
+    },
+    {
+     "term": "CT log",
+     "def": "A public append-only log of issued certificates used to detect mis-issuance."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why do some clients fail while browsers succeed with the same server?",
+     "options": [
+      "The server omitted an intermediate certificate",
+      "The leaf is too new",
+      "HSTS is enabled",
+      "TLS 1.3 is on"
+     ],
+     "a": 0,
+     "why": "Browsers can fetch missing intermediates; strict clients cannot, so the chain must be complete."
+    },
+    {
+     "q": "Which ACME challenge is required for wildcard certificates?",
+     "options": [
+      "DNS-01",
+      "TLS-ALPN-01",
+      "Email",
+      "HTTP-01"
+     ],
+     "a": 0,
+     "why": "Wildcard issuance requires proving control through a DNS TXT record."
+    },
+    {
+     "q": "What does OCSP stapling provide?",
+     "options": [
+      "Private key escrow",
+      "Automatic renewal",
+      "A fresh signed revocation response sent by the server",
+      "Faster key generation"
+     ],
+     "a": 2,
+     "why": "The server includes a recent CA-signed status so clients need no separate lookup."
+    },
+    {
+     "q": "How can a domain owner watch for unexpected issuance?",
+     "options": [
+      "Turn off OCSP",
+      "Monitor Certificate Transparency logs",
+      "Disable CAA",
+      "Use longer lifetimes"
+     ],
+     "a": 1,
+     "why": "CT logs list every publicly trusted certificate, revealing rogue issuance."
+    }
+   ],
+   "recap": [
+    "Serve the full chain and validate it externally.",
+    "Automate renewal with ACME and monitor the job and expiry dates.",
+    "Use CAA and CT monitoring to detect mis-issuance."
+   ]
+  },
+  {
+   "title": "KMS and envelope encryption",
+   "why": "Encrypting data is easy; protecting and controlling the keys is the hard part, and a KMS makes key use auditable and policy-controlled.",
+   "sections": [
+    {
+     "h": "What a KMS does",
+     "p": [
+      "A key management service, such as AWS KMS, Azure Key Vault or Google Cloud KMS, creates and stores key-encryption keys (called KEKs, CMKs or KMS keys) and performs cryptographic operations on request. The key material never leaves the service in plaintext. Callers authenticate with their cloud identity and every Encrypt, Decrypt and GenerateDataKey call is logged. This replaces keys stored in config files with a central, revocable, auditable control point. Disabling a key immediately blocks decryption of everything protected beneath it."
+     ]
+    },
+    {
+     "h": "Envelope encryption",
+     "p": [
+      "KMS APIs limit payload size, and sending bulk data over the network is slow. Envelope encryption solves this: the application asks the KMS for a data encryption key (DEK), receiving a plaintext copy and a copy wrapped by the master key. It encrypts the data locally with the plaintext DEK using AES-256-GCM, then discards the plaintext key and stores the wrapped DEK beside the ciphertext. To read, the app sends the wrapped DEK to the KMS to unwrap. Each object can have its own DEK, limiting the blast radius."
+     ]
+    },
+    {
+     "h": "Key policies and separation",
+     "p": [
+      "Access to keys should be separate from access to data. A storage administrator who can read the encrypted bucket should not be able to call Decrypt on its key. Write key policies with least privilege, using conditions such as encryption context, which binds ciphertext to metadata like a tenant ID so that a blob cannot be decrypted in the wrong context. Separate the roles that administer keys from the roles that use them, and require a second approval for key deletion, which should have a waiting period."
+     ]
+    },
+    {
+     "h": "Operational concerns",
+     "p": [
+      "Plan regions and availability, since a regional KMS outage can stop decryption. Use multi-region keys or replicated wrapped DEKs when needed. Watch KMS request quotas under heavy load and cache DEKs briefly with limits. Alert on unusual Decrypt volume, calls from unexpected principals and scheduled deletions. Use customer-managed keys where regulation demands control, and cloud-managed keys for lower-risk data. Always back up wrapped DEKs with the data, since they are useless without the master key but required to use it.",
+      "Testing is part of the design. Verify that an application role without kms:Decrypt cannot read a sample object, that disabling the key stops reads, and that restoring it brings them back. Rehearse the case where a region is unavailable. Check that backups include the wrapped DEKs and the key version metadata. Finally, review CloudTrail or the equivalent log to confirm that the encryption context appears on each call, because missing context often signals code that bypasses your standard library."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Log excerpt",
+    "text": "{\"eventName\":\"GenerateDataKey\",\"userIdentity\":{\"arn\":\"arn:aws:iam::111122223333:role/app-writer\"},\n \"requestParameters\":{\"keyId\":\"alias/orders\",\"keySpec\":\"AES_256\",\n  \"encryptionContext\":{\"tenant\":\"t-1001\"}},\"sourceIPAddress\":\"198.51.100.20\"}"
+   },
+   "example": "An orders service stores customer files. On upload it calls GenerateDataKey with encryption context tenant=t-1001, encrypts the file with AES-GCM, stores ciphertext plus wrapped DEK in object storage, and wipes the plaintext key. The storage admins have no kms:Decrypt permission, so a copied bucket is useless to them. During an incident the security team disables the key, and every file becomes unreadable until the key is re-enabled.",
+   "terms": [
+    {
+     "term": "KMS",
+     "def": "A managed service that stores keys and performs cryptographic operations without exposing key material."
+    },
+    {
+     "term": "DEK",
+     "def": "A data encryption key used to encrypt actual data, usually per object."
+    },
+    {
+     "term": "KEK",
+     "def": "A key-encryption key that wraps other keys."
+    },
+    {
+     "term": "Envelope encryption",
+     "def": "Encrypting data with a DEK and protecting the DEK with a KMS key."
+    },
+    {
+     "term": "Encryption context",
+     "def": "Additional authenticated metadata that must match at decrypt time."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is stored next to the ciphertext in envelope encryption?",
+     "options": [
+      "The plaintext DEK",
+      "The wrapped DEK",
+      "The KMS master key",
+      "The IAM password"
+     ],
+     "a": 1,
+     "why": "Only the wrapped DEK is stored; the plaintext copy is discarded after use."
+    },
+    {
+     "q": "Why use envelope encryption?",
+     "options": [
+      "To avoid sending bulk data to the KMS and limit key exposure",
+      "It removes the need for keys",
+      "It makes TLS faster",
+      "KMS cannot encrypt anything"
+     ],
+     "a": 0,
+     "why": "Local encryption with a DEK handles big data while the KMS protects the small key."
+    },
+    {
+     "q": "Which design best separates duties?",
+     "options": [
+      "One shared admin account",
+      "Keys in source control",
+      "Storage admins also hold Decrypt",
+      "Different roles administer data and use keys"
+     ],
+     "a": 3,
+     "why": "Splitting key and data access means one compromised role cannot read plaintext."
+    },
+    {
+     "q": "What does encryption context add?",
+     "options": [
+      "Automatic rotation",
+      "Faster encryption",
+      "Bound metadata required at decryption and logged",
+      "A larger key"
+     ],
+     "a": 2,
+     "why": "The context is authenticated and must match, tying ciphertext to its intended use."
+    }
+   ],
+   "recap": [
+    "Use envelope encryption with per-object DEKs.",
+    "Separate key administration, key use and data access.",
+    "Log and alert on KMS activity and key deletion."
+   ]
+  },
+  {
+   "title": "HSMs and key rotation",
+   "why": "High-value keys need hardened storage and a lifecycle plan, so that compromise, expiry or staff changes never lead to lost or exposed keys.",
+   "sections": [
+    {
+     "h": "HSMs and FIPS 140-3",
+     "p": [
+      "A hardware security module is a tamper-resistant device that generates, stores and uses keys without exporting them. Validation comes from FIPS 140-3 (which replaced 140-2, using ISO/IEC 19790 requirements). Level 1 is basic software or hardware correctness; Level 2 adds tamper evidence and role-based authentication; Level 3 adds tamper resistance, identity-based authentication and zeroization on attack; Level 4 adds protection against environmental attacks. Many cloud KMS services use HSMs underneath, while dedicated options such as AWS CloudHSM give single-tenant control."
+     ]
+    },
+    {
+     "h": "Choosing HSM or software",
+     "p": [
+      "Software key stores are cheaper and easy to scale, but keys exist in server memory and can be copied by an attacker with host access. HSMs trade cost and complexity for strong key protection, audit evidence and compliance fit, for example for certificate authority roots, payment keys and code-signing. Use PKCS#11, KMIP or cloud APIs to integrate. Remember an HSM protects the key, not the application: if an attacker can call the HSM as the application, they can still misuse the key, so access control and logging remain essential."
+     ]
+    },
+    {
+     "h": "Rotation",
+     "p": [
+      "Rotation limits how much data one key protects and shortens the exposure window after a leak. Define a crypto period by risk and algorithm, such as annual automatic rotation for KMS keys. With envelope encryption, rotating the master key does not require re-encrypting data if old key versions remain available for decryption; new data uses the new version. Rotate immediately after suspected compromise, staff departure with key access, or algorithm weakness. Rotation of data keys may require re-encryption, so plan the migration."
+     ]
+    },
+    {
+     "h": "Escrow, backup and destruction",
+     "p": [
+      "Document the full key lifecycle: generation, distribution, use, storage, backup, rotation, archive and destruction (see NIST SP 800-57). Use split knowledge and dual control for root keys, for example M-of-N smart cards held by different people, and keep offline backups in separate sites. Escrow supports recovery but creates a target, so protect it as strongly as the key. Destruction should be verified and logged: zeroize HSM objects, delete KMS keys after a waiting period, and record who approved. Destroying a key crypto-shreds all data under it.",
+      "Rotation fails most often because nobody can find where a key is used. Keep an inventory that maps each key to the applications, data stores and certificates that depend on it, along with an owner and next rotation date. Test rotation in a staging environment first, measuring how many systems cache old keys. Automate the common cases, and keep a documented manual path for the rare ones, such as keys embedded in partner integrations or in hardware devices."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Policy excerpt",
+    "text": "Key: payments-root\nStorage: FIPS 140-3 Level 3 HSM\nCrypto period: 12 months (auto-rotate)\nBackup: 3-of-5 quorum, 2 sites\nDeletion: dual approval + 30 day wait\nAudit: all use events to SIEM"
+   },
+   "example": "A company's code-signing key is moved from a build server file to an HSM requiring two operators for activation. After a build engineer leaves, the team rotates the signing certificate, revokes the old one and updates verification policies. The old key's destruction ceremony is witnessed, logged and approved by the security lead. Later, auditors accept the HSM validation certificate and the logs as evidence for the control.",
+   "terms": [
+    {
+     "term": "HSM",
+     "def": "A tamper-resistant device that performs cryptographic operations and protects keys from export."
+    },
+    {
+     "term": "FIPS 140-3",
+     "def": "A US and Canadian standard defining security levels 1 to 4 for cryptographic modules."
+    },
+    {
+     "term": "Crypto period",
+     "def": "The time span a key is authorized for use."
+    },
+    {
+     "term": "Split knowledge",
+     "def": "A control where no single person knows or holds the whole key or secret."
+    },
+    {
+     "term": "Zeroization",
+     "def": "Securely erasing key material from a module."
+    }
+   ],
+   "check": [
+    {
+     "q": "What distinguishes FIPS 140-3 Level 3 from Level 2?",
+     "options": [
+      "Tamper resistance and zeroization on attack",
+      "No physical security",
+      "Software-only operation",
+      "Only documentation"
+     ],
+     "a": 0,
+     "why": "Level 3 adds tamper resistance and identity-based authentication, with active zeroization."
+    },
+    {
+     "q": "With envelope encryption, what happens when the master key rotates?",
+     "options": [
+      "New data uses the new version and old versions still decrypt old data",
+      "Data becomes unreadable",
+      "DEKs are shown in plaintext",
+      "All data must be re-encrypted immediately"
+     ],
+     "a": 0,
+     "why": "Key versions are retained so older wrapped DEKs still unwrap."
+    },
+    {
+     "q": "What does an HSM not prevent?",
+     "options": [
+      "Physical tampering",
+      "Unauthorized duplication",
+      "Key export in plaintext",
+      "Misuse of the key by a compromised authorized application"
+     ],
+     "a": 3,
+     "why": "If an attacker can invoke the application's permissions, they can still use the key."
+    },
+    {
+     "q": "Which is a good control for a root key?",
+     "options": [
+      "Sent by email",
+      "One administrator knows it",
+      "M-of-N quorum with dual control",
+      "Stored in a wiki"
+     ],
+     "a": 2,
+     "why": "Quorum and dual control remove single points of trust."
+    }
+   ],
+   "recap": [
+    "HSMs protect key material; FIPS 140-3 levels describe the strength of that protection.",
+    "Rotate on schedule and on events such as compromise or departures.",
+    "Document backup, escrow and verified destruction."
+   ]
+  },
+  {
+   "title": "Secrets management",
+   "why": "Passwords, API tokens and database credentials leak easily when kept in code or config, so they need a managed, audited home.",
+   "sections": [
+    {
+     "h": "What counts as a secret",
+     "p": [
+      "Secrets are credentials that grant access: database passwords, API keys, OAuth client secrets, SSH keys, signing keys and tokens. Common failures include secrets in source code, container images, environment dumps, wikis and chat messages. The principle is to keep secrets out of artifacts and fetch them at runtime from a dedicated store, using the workload's own identity to authenticate. Tools include HashiCorp Vault, AWS Secrets Manager, Azure Key Vault and Google Secret Manager. Encrypted files in git, like SOPS, are acceptable only with strict key control."
+     ]
+    },
+    {
+     "h": "Dynamic secrets and leases",
+     "p": [
+      "Static secrets live for months and are shared widely. Vault's dynamic secrets engines instead create a unique database user or cloud credential on demand. Each secret has a lease with a TTL, can be renewed up to a maximum, and is automatically revoked at expiry or when revoked manually. If a credential leaks, it is short-lived and traceable to the requesting identity. Where dynamic secrets are not possible, rotate static secrets automatically, for example with managed rotation functions for database passwords."
+     ]
+    },
+    {
+     "h": "Authentication to the store",
+     "p": [
+      "The hardest problem is the first secret. Avoid a bootstrap password in config; prefer platform identity. Kubernetes service accounts, cloud instance roles and OIDC tokens let a workload prove who it is, and Vault AppRole with response wrapping handles other cases. Policies grant each identity access only to its paths. Humans use SSO with MFA and short sessions. Unseal keys for Vault should be split using Shamir's secret sharing or delegated to a cloud KMS auto-unseal."
+     ]
+    },
+    {
+     "h": "Audit and operations",
+     "p": [
+      "Enable audit devices so every read, write and login is logged with the identity, path and time, and send logs to a separate system the secrets admin cannot edit. Alert on mass reads, access from new networks and use of root tokens. Plan for high availability and backups, and test restore. Prevent exposure in logs by masking, and never pass secrets in command-line arguments, which appear in process lists. Keep a runbook to revoke and rotate quickly after exposure.",
+      "Adoption is a people problem as much as a technical one. Give developers a simple library or sidecar that fetches secrets so that the secure path is the easiest path. Scan repositories and images for leaked secrets to find what remains outside the store, and migrate in priority order, starting with production database and cloud credentials. Measure progress through the number of static secrets older than ninety days and the mean time to rotate after an exposure drill."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ vault read database/creds/orders-ro\nKey                Value\nlease_id           database/creds/orders-ro/Xk3pQ9aExample\nlease_duration     1h\nusername           v-orders-ro-8fj2\npassword           <redacted>"
+   },
+   "example": "A web service previously read DB_PASSWORD from a .env file committed to a private repo. The team switches to Vault: the pod authenticates with its Kubernetes service account, requests database/creds/orders-ro, and receives a one-hour credential. A leaked log containing the password is harmless two hours later. The audit log shows exactly which pod requested it, and the old shared password is rotated and removed from git history.",
+   "terms": [
+    {
+     "term": "Dynamic secret",
+     "def": "A credential generated on demand for one client with a limited life."
+    },
+    {
+     "term": "Lease",
+     "def": "A time-limited grant on a secret that can be renewed or revoked."
+    },
+    {
+     "term": "AppRole",
+     "def": "A Vault auth method for machines using a role ID and secret ID."
+    },
+    {
+     "term": "Auto-unseal",
+     "def": "Using a cloud KMS or HSM to unseal Vault without manual key entry."
+    },
+    {
+     "term": "Audit device",
+     "def": "A Vault backend that records every request and response metadata."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the main benefit of dynamic secrets?",
+     "options": [
+      "They never expire",
+      "Short-lived unique credentials limit leak impact",
+      "They are stored in code",
+      "They remove need for authentication"
+     ],
+     "a": 1,
+     "why": "Each credential is unique, expires, and traces to the requester."
+    },
+    {
+     "q": "How should a workload authenticate to a secrets manager?",
+     "options": [
+      "With its platform identity such as a service account or role",
+      "With a shared admin token",
+      "Anonymously",
+      "With a password in a config file"
+     ],
+     "a": 0,
+     "why": "Platform identity avoids a bootstrap secret."
+    },
+    {
+     "q": "Why avoid secrets in command-line arguments?",
+     "options": [
+      "They slow the CLI",
+      "They cannot be encrypted",
+      "They are visible in process listings",
+      "They are too long"
+     ],
+     "a": 2,
+     "why": "Other users and logs can see process arguments."
+    },
+    {
+     "q": "What must audit logs be protected from?",
+     "options": [
+      "Rotation",
+      "Being read by SIEM",
+      "Modification by the secrets administrators",
+      "Compression"
+     ],
+     "a": 2,
+     "why": "Independent log storage prevents tampering by those who control secrets."
+    }
+   ],
+   "recap": [
+    "Fetch secrets at runtime using workload identity.",
+    "Prefer dynamic, leased credentials; rotate static ones.",
+    "Audit every access and have a revoke-and-rotate runbook."
+   ]
+  },
+  {
+   "title": "Common implementation mistakes",
+   "why": "Most real cryptographic failures come from misuse of sound algorithms, not from broken math, so spotting the patterns is a core engineering skill.",
+   "sections": [
+    {
+     "h": "Modes, nonces and IVs",
+     "p": [
+      "ECB mode encrypts identical blocks to identical ciphertext, leaking patterns, as in the well-known penguin image. Use an authenticated mode such as AES-GCM or ChaCha20-Poly1305. These modes need a unique nonce for each key: reusing a nonce with GCM can reveal the XOR of plaintexts and let attackers forge messages. For CBC, a static or predictable IV also leaks data. Generate nonces randomly with a secure source (12 bytes for GCM) or use a counter, store them with the ciphertext, and consider misuse-resistant constructions like AES-GCM-SIV."
+     ]
+    },
+    {
+     "h": "Passwords and hashing",
+     "p": [
+      "Fast hashes such as MD5, SHA-1 and plain SHA-256 are wrong for passwords because attackers can try billions of guesses per second on GPUs. Use a slow, salted, memory-hard function: Argon2id, scrypt or bcrypt, or PBKDF2 with a high iteration count where FIPS rules require it. A unique random salt defeats rainbow tables. A server-side pepper held in a KMS adds protection. Use constant-time comparison for secrets and MACs. MD5 and SHA-1 are also broken for signatures and collision resistance, so prefer SHA-256 or SHA-3."
+     ]
+    },
+    {
+     "h": "Randomness and keys",
+     "p": [
+      "Predictable random numbers produce predictable keys and tokens. Use the operating system CSPRNG: secrets module or os.urandom in Python, crypto.randomBytes in Node.js, SecureRandom in Java, never Math.random or rand(). Hardcoded keys in source or images are discovered through repositories and decompilation, and cannot be rotated without redeploying. Load keys from a KMS or secrets manager. Do not derive keys from low-entropy strings with a single hash, and do not invent your own protocol or cipher."
+     ]
+    },
+    {
+     "h": "Review and prevention",
+     "p": [
+      "Search code for the patterns: AES/ECB, DES, RC4, MD5, SHA1, hardcoded byte arrays, fixed IV variables and non-crypto random calls. Static analysis rules in Semgrep and CodeQL detect many of these. Prefer high-level libraries such as libsodium, Tink or cryptography's Fernet that choose safe defaults and manage nonces for you. Add unit tests for tamper detection, check TLS certificate validation is never disabled (verify=False), and require a cryptography review for new designs, using the OWASP Cryptographic Storage Cheat Sheet as a guide.",
+      "Prevention works best when built into the pipeline. Add a lint rule that blocks banned algorithms, a secret scanner that catches embedded keys, and a code owner requirement on files that import cryptographic libraries. Keep a short internal guide listing approved libraries and parameters, such as AES-256-GCM, Argon2id parameters and the minimum RSA or ECC key sizes. When developers have a vetted recipe to copy, they stop inventing their own, and reviews become faster and more consistent."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Code review finding",
+    "text": "cipher = AES.new(KEY, AES.MODE_ECB)          # mistake: ECB\nKEY = b'0123456789abcdef'                   # mistake: hardcoded key\ntoken = str(random.randint(0,10**6))        # mistake: non-crypto RNG\npw_hash = hashlib.md5(pw.encode()).hexdigest()  # mistake: fast hash"
+   },
+   "example": "A reviewer finds the four lines above in a session module. The fix replaces ECB with AES-GCM using a fresh 12-byte nonce stored with the ciphertext, loads the key from a secrets manager, uses secrets.token_urlsafe(32) for tokens, and stores passwords with Argon2id and a per-user salt. A unit test then confirms that a modified ciphertext raises an authentication error.",
+   "terms": [
+    {
+     "term": "ECB",
+     "def": "A block cipher mode where identical plaintext blocks give identical ciphertext blocks."
+    },
+    {
+     "term": "Nonce",
+     "def": "A number used once per key that must never repeat in modes like GCM."
+    },
+    {
+     "term": "Argon2id",
+     "def": "A memory-hard password hashing function recommended for new systems."
+    },
+    {
+     "term": "CSPRNG",
+     "def": "A cryptographically secure pseudorandom number generator."
+    },
+    {
+     "term": "Salt",
+     "def": "A unique random value added to each password before hashing."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why is ECB mode unsafe?",
+     "options": [
+      "It is too slow",
+      "Identical blocks produce identical ciphertext revealing patterns",
+      "It needs a long key",
+      "It does not use a key"
+     ],
+     "a": 1,
+     "why": "ECB leaks structure because it has no chaining or nonce."
+    },
+    {
+     "q": "What is the danger of reusing a GCM nonce under one key?",
+     "options": [
+      "Plaintext relationships leak and forgery becomes possible",
+      "Nothing",
+      "Key expiry",
+      "Slower decryption"
+     ],
+     "a": 0,
+     "why": "Nonce reuse breaks both confidentiality and authentication."
+    },
+    {
+     "q": "Which is best for storing passwords?",
+     "options": [
+      "Argon2id with unique salt",
+      "Base64",
+      "MD5 with salt",
+      "SHA-256 once"
+     ],
+     "a": 0,
+     "why": "Argon2id is deliberately slow and memory-hard."
+    },
+    {
+     "q": "Which source should generate session tokens?",
+     "options": [
+      "The user ID",
+      "Math.random",
+      "The system time",
+      "The OS CSPRNG"
+     ],
+     "a": 3,
+     "why": "Only a CSPRNG gives unpredictable values."
+    }
+   ],
+   "recap": [
+    "Use authenticated modes with unique nonces.",
+    "Hash passwords with Argon2id, bcrypt or scrypt, never fast hashes.",
+    "Use CSPRNGs and managed keys, never hardcoded ones."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Fix a TLS config",
+   "sim": "config-editor",
+   "scenario": "You maintain the nginx front end for portal.example.com on 203.0.113.25. A scan flagged TLS 1.0, a 3DES suite and a missing HSTS header. Edit the server block so it meets the company baseline without breaking modern clients. The change must not break the payment partner that still connects with TLS 1.2 and ECDHE ciphers. A security review is scheduled for this afternoon, and the reviewer will rerun the scanner against the staging host before approving the change for production.",
+   "objective": "Produce an nginx TLS block allowing only secure protocols and ciphers with HSTS enabled.",
+   "steps": [
+    {
+     "do": "Open /etc/nginx/conf.d/portal.conf and inspect the ssl_protocols line.",
+     "see": "ssl_protocols TLSv1 TLSv1.1 TLSv1.2;"
+    },
+    {
+     "do": "Change ssl_protocols to TLSv1.2 TLSv1.3.",
+     "see": "Line updated. Validator: legacy protocols removed."
+    },
+    {
+     "do": "Replace ssl_ciphers with ECDHE AES-GCM and CHACHA20 suites.",
+     "see": "Validator: no CBC, 3DES or RC4 suites remain. Forward secrecy: OK."
+    },
+    {
+     "do": "Add ssl_stapling on; and ssl_session_tickets off;",
+     "see": "Validator: stapling enabled; tickets disabled."
+    },
+    {
+     "do": "Add add_header Strict-Transport-Security \"max-age=31536000; includeSubDomains\" always;",
+     "see": "Validator: HSTS present, max-age >= 31536000."
+    },
+    {
+     "do": "Click Test config then Run scan.",
+     "see": "nginx: configuration test is successful. Scan grade: A. Findings: 0 critical."
+    }
+   ],
+   "answer": "The final block sets ssl_protocols TLSv1.2 TLSv1.3, an ECDHE plus AEAD cipher list, stapling on, session tickets off, and an HSTS header with a one-year max-age. The scan shows no deprecated protocols, no weak ciphers and forward secrecy everywhere.",
+   "hint": "Remove protocols first, then ciphers, and do not forget the HSTS header uses the always keyword."
+  },
+  {
+   "title": "Triage an expired cert",
+   "sim": "terminal",
+   "scenario": "Users of intranet.example.com (198.51.100.40) report certificate errors starting at midnight. The leaf certificate was renewed last week, so the cause is unclear. Use openssl s_client to examine the chain and decide what to renew. The on-call engineer has shell access to a bastion host and the public certificate files, but not to the private CA. The helpdesk is escalating, and management wants a clear root cause and a plan to prevent a repeat of this outage before the end of the day.",
+   "objective": "Identify which certificate in the chain expired and plan its renewal.",
+   "steps": [
+    {
+     "do": "Run: openssl s_client -connect 198.51.100.40:443 -showcerts </dev/null",
+     "see": "Certificate chain: 0 s:CN=intranet.example.com; 1 s:CN=Example Issuing CA 2. Verify return code: 10 (certificate has expired)"
+    },
+    {
+     "do": "Run: openssl s_client ... | openssl x509 -noout -dates for certificate 0.",
+     "see": "notBefore=Sep 28 2026  notAfter=Dec 27 2026"
+    },
+    {
+     "do": "Extract certificate 1 and run openssl x509 -noout -dates -subject.",
+     "see": "subject=CN=Example Issuing CA 2  notAfter=Oct  5 2026 00:00:00 GMT (EXPIRED)"
+    },
+    {
+     "do": "Run: openssl verify -CAfile root.pem -untrusted inter.pem leaf.pem",
+     "see": "error 10 at 1 depth lookup: certificate has expired"
+    },
+    {
+     "do": "Check the internal CA inventory for who owns Issuing CA 2.",
+     "see": "Owner: pki-team@example.com. Renewal job: disabled since migration."
+    },
+    {
+     "do": "Draft the renewal plan: renew intermediate, redeploy full chain, re-enable alerting.",
+     "see": "Plan saved. Alert threshold set to 30/14/7 days."
+    }
+   ],
+   "answer": "The expired certificate is the intermediate Example Issuing CA 2, not the leaf. The plan: have the PKI team renew the intermediate, deploy the new chain to the server, verify with s_client returning code 0, and restore expiry monitoring covering every certificate in the chain.",
+   "hint": "Read the verify return code and then look at each certificate in the chain, not just the first."
+  },
+  {
+   "title": "Envelope encryption flow",
+   "sim": "diagram-builder",
+   "scenario": "A document service must encrypt uploaded files using a KMS key named alias/docs. Arrange the building blocks of the flow so plaintext keys never persist and decryption can be audited. Auditors will review the design, so each step must show where the plaintext key exists, where the wrapped key is stored, and which call produces a KMS audit event. The service runs in a single region with a customer-managed key and no manual key handling at all.",
+   "objective": "Order the steps of envelope encryption correctly.",
+   "steps": [
+    {
+     "do": "Drag 'Request data key' from the app to the KMS.",
+     "see": "Connector created: App -> KMS GenerateDataKey(alias/docs)."
+    },
+    {
+     "do": "Place 'Receive plaintext DEK and wrapped DEK' next.",
+     "see": "Node added. KMS returns two copies of the key."
+    },
+    {
+     "do": "Add 'Encrypt file locally with AES-256-GCM using plaintext DEK'.",
+     "see": "Node added. Ciphertext + nonce + tag produced."
+    },
+    {
+     "do": "Add 'Discard plaintext DEK from memory'.",
+     "see": "Node added. Warning cleared: plaintext key not persisted."
+    },
+    {
+     "do": "Add 'Store ciphertext and wrapped DEK together in object storage'.",
+     "see": "Node added. Object metadata: wrapped_dek, nonce."
+    },
+    {
+     "do": "Add the read path: 'Send wrapped DEK to KMS Decrypt' then 'Decrypt file'. Click Validate.",
+     "see": "Validation passed: 6/6 steps in a correct order. KMS audit event on each decrypt."
+    }
+   ],
+   "answer": "Correct order: request data key; receive plaintext and wrapped DEK; encrypt locally; discard plaintext DEK; store ciphertext with wrapped DEK. To read, send the wrapped DEK to KMS to unwrap, then decrypt locally. KMS logs every unwrap.",
+   "hint": "The plaintext key is used once and then thrown away; only the wrapped copy is stored."
+  },
+  {
+   "title": "Review crypto code",
+   "sim": "code-editor",
+   "scenario": "A teammate submitted a Python function that encrypts customer notes. The code uses MD5 to derive a key, AES in ECB mode, and a fixed IV. Review it and replace the unsafe parts. The module is used by a customer notes feature that stores personal data, so the pull request is blocking the release. The team lead expects a clear explanation of each flaw, a corrected implementation, and a test showing that tampering with stored data is detected after the change.",
+   "objective": "Replace weak hashing, ECB and static IV with safe alternatives.",
+   "steps": [
+    {
+     "do": "Open notes_crypto.py and read the encrypt function.",
+     "see": "key = hashlib.md5(PASSWORD).digest(); AES.new(key, AES.MODE_ECB); IV = b'0000000000000000'"
+    },
+    {
+     "do": "Flag line 3 (MD5 key derivation) and replace with scrypt or load a random 32-byte key from the secrets manager.",
+     "see": "Linter: weak-hash resolved."
+    },
+    {
+     "do": "Flag the ECB mode and change to AES.MODE_GCM.",
+     "see": "Linter: insecure-mode resolved."
+    },
+    {
+     "do": "Remove the static IV and generate nonce = os.urandom(12) per message.",
+     "see": "Linter: static-iv resolved. Nonce reuse test: pass."
+    },
+    {
+     "do": "Return nonce + ciphertext + tag, and decrypt with verification.",
+     "see": "Tamper test: modified ciphertext raises InvalidTag."
+    },
+    {
+     "do": "Click Run checks.",
+     "see": "4/4 checks passed. Static scan: 0 high findings."
+    }
+   ],
+   "answer": "The corrected code gets a random 32-byte key from the secrets manager (or a scrypt derived key), uses AES-GCM, generates a fresh 12-byte nonce for every message stored with the ciphertext, and verifies the tag on decrypt. MD5, ECB and the static IV are gone.",
+   "hint": "Three separate flaws: key derivation, cipher mode, and the IV or nonce."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which TLS setting provides forward secrecy?",
+   "options": [
+    "Static RSA key exchange",
+    "ECDHE key exchange",
+    "TLS compression",
+    "RC4"
+   ],
+   "a": 1,
+   "why": "Ephemeral Diffie-Hellman creates per-session keys."
+  },
+  {
+   "q": "What does a missing intermediate certificate usually cause?",
+   "options": [
+    "Failures on strict clients while some browsers work",
+    "HSTS errors",
+    "Weak ciphers",
+    "Slow handshakes"
+   ],
+   "a": 0,
+   "why": "Clients must build a chain to a trusted root."
+  },
+  {
+   "q": "Which ACME challenge supports wildcards?",
+   "options": [
+    "TLS-ALPN-01",
+    "FTP-01",
+    "HTTP-01",
+    "DNS-01"
+   ],
+   "a": 3,
+   "why": "Wildcards need a DNS TXT proof."
+  },
+  {
+   "q": "What is the DEK in envelope encryption?",
+   "options": [
+    "A TLS session ticket",
+    "The key that encrypts the data",
+    "The root CA",
+    "A password hash"
+   ],
+   "a": 1,
+   "why": "A data encryption key does the bulk encryption."
+  },
+  {
+   "q": "Why separate key admins from data admins?",
+   "options": [
+    "It speeds up backups",
+    "One compromised role cannot both access ciphertext and decrypt it",
+    "KMS requires it for pricing",
+    "To avoid logging"
+   ],
+   "a": 1,
+   "why": "Separation of duties limits damage."
+  },
+  {
+   "q": "A HSM validated at FIPS 140-3 Level 3 adds which feature over Level 2?",
+   "options": [
+    "Software-only keys",
+    "No authentication",
+    "Longer certificates",
+    "Tamper resistance and zeroization"
+   ],
+   "a": 3,
+   "why": "Level 3 resists tampering physically."
+  },
+  {
+   "q": "What is the best response to a leaked static API key?",
+   "options": [
+    "Rename the variable",
+    "Hash it",
+    "Wait for expiry",
+    "Revoke it, rotate it and review audit logs"
+   ],
+   "a": 3,
+   "why": "Revoke and rotate immediately and check for misuse."
+  },
+  {
+   "q": "Which function is appropriate for password storage?",
+   "options": [
+    "CRC32",
+    "SHA-1",
+    "MD5",
+    "Argon2id"
+   ],
+   "a": 3,
+   "why": "Slow memory-hard hashes resist cracking."
+  },
+  {
+   "q": "What happens if a GCM nonce is reused with the same key?",
+   "options": [
+    "Nothing",
+    "Confidentiality and integrity are broken",
+    "Only speed drops",
+    "The key rotates"
+   ],
+   "a": 1,
+   "why": "Nonce reuse exposes plaintext relationships and forgery."
+  },
+  {
+   "q": "Which tool tests a server's TLS protocols and ciphers?",
+   "options": [
+    "Grype",
+    "Semgrep",
+    "cosign",
+    "testssl.sh"
+   ],
+   "a": 3,
+   "why": "testssl.sh enumerates protocol and cipher support."
+  }
+ ]
+}

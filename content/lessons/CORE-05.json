@@ -1,0 +1,920 @@
+{
+ "code": "CORE-05",
+ "intro": "This module explains how systems decide who you are and what you may do. You will compare passwords, multi-factor methods and biometrics, follow single sign-on through Kerberos, SAML, OAuth 2.0 and OpenID Connect, and design access rules with RBAC and ABAC. You will finish with session cookies and JSON Web Tokens. Most breaches involve stolen or abused credentials, so getting authentication and authorization right is one of the highest-value defensive skills you can build.",
+ "lessons": [
+  {
+   "title": "Passwords and password managers",
+   "why": "Passwords remain the most common authentication factor, and bad password policy causes both weak accounts and frustrated users. Modern guidance replaces folklore rules with evidence-based ones.",
+   "sections": [
+    {
+     "h": "What NIST SP 800-63B recommends",
+     "p": [
+      "NIST Special Publication 800-63B sets the reference guidance for digital identity. It favors length over complexity: a minimum of 8 characters for user-chosen passwords, with at least 15 recommended in newer revisions where passwords are the only factor, and support for up to 64 characters or more. It tells verifiers not to impose composition rules such as one symbol and one digit, and not to force periodic rotation unless there is evidence of compromise. Forced rotation pushes people toward predictable changes like Summer2025! becoming Autumn2025!. Verifiers should allow paste so password managers work, and should accept all printable characters including spaces."
+     ]
+    },
+    {
+     "h": "Blocklists, breach checks and storage",
+     "p": [
+      "Instead of composition rules, verifiers should compare new passwords against a blocklist of commonly used, expected or previously breached values. Services such as the Have I Been Pwned Pwned Passwords API let a site check a password using a k-anonymity model: only the first five characters of the SHA-1 hash are sent, and the service returns all matching suffixes, so the full password is never disclosed. On the server side, passwords must never be stored in plain text or with a fast hash. Use a slow, salted, memory-hard function such as Argon2id, scrypt or bcrypt, so that a stolen database is expensive to crack offline."
+     ]
+    },
+    {
+     "h": "Password managers and passkeys",
+     "p": [
+      "A password manager generates and stores a unique random password for every site, which defeats credential stuffing, where attackers replay leaked passwords from one site against another. Managers also help against phishing because they autofill only on the exact registered domain. The vault is protected by one strong master passphrase, ideally combined with MFA. Passkeys go further: they replace the password with a public-key credential bound to the site, so there is no shared secret to steal. Until passkeys are universal, the practical advice is long unique passphrases, a manager, and MFA on every account that supports it."
+     ]
+    },
+    {
+     "h": "Common mistakes to avoid",
+     "p": [
+      "Teams often undermine good policy in small ways. They cap password length at 12 characters, strip spaces, or disable paste in the name of security, which only hurts managers and passphrases. They email temporary passwords in clear text, reuse one default initial password for every new hire, or allow unlimited login attempts. Add throttling or lockout with care, since hard lockouts let attackers deny service to real users; progressive delays, rate limits per account and per source, and alerting on bursts work better. Also protect the reset flow with the same rigor as login, because attackers will use it when the front door is strong."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Pseudo-output",
+    "text": "sha1(password)  = 5BAA6 1E4C9B93F3F0682250B6CF8331B7EE68FD8\nclient sends    : 5BAA6   (prefix only)\nserver returns  : all suffixes starting 5BAA6 with counts\nclient compares : suffix found -> password is breached"
+   },
+   "example": "A small company asks staff to change passwords every 60 days with at least one symbol. Helpdesk tickets rise and users write passwords on sticky notes. The security lead moves to a 14 character minimum, a breached-password check at signup, no scheduled rotation, and a company-wide password manager. Rotation now happens only after a suspected compromise. Weak passwords like Password1! are rejected by the blocklist even though they meet the old complexity rule, while a long memorable passphrase is accepted.",
+   "terms": [
+    {
+     "term": "Credential stuffing",
+     "def": "Automated login attempts using username and password pairs leaked from other breaches."
+    },
+    {
+     "term": "Salt",
+     "def": "A unique random value added to each password before hashing so identical passwords produce different hashes."
+    },
+    {
+     "term": "Argon2id",
+     "def": "A memory-hard password hashing function recommended for storing passwords."
+    },
+    {
+     "term": "Blocklist",
+     "def": "A list of common or breached passwords that a system refuses to accept."
+    },
+    {
+     "term": "Passkey",
+     "def": "A phishing-resistant public-key credential that replaces a password."
+    }
+   ],
+   "check": [
+    {
+     "q": "According to NIST SP 800-63B, which policy is discouraged?",
+     "options": [
+      "Allowing long passphrases",
+      "Checking against breached passwords",
+      "Forcing password changes every 60 days with no sign of compromise",
+      "Allowing paste into password fields"
+     ],
+     "a": 2,
+     "why": "NIST advises against arbitrary periodic rotation and composition rules."
+    },
+    {
+     "q": "Why does the Pwned Passwords API send only five hash characters?",
+     "options": [
+      "To speed up hashing",
+      "To keep the full password and hash undisclosed (k-anonymity)",
+      "Because SHA-1 is only five characters long",
+      "To encrypt the password in transit"
+     ],
+     "a": 1,
+     "why": "Only a prefix leaves the client, so the service cannot learn the full password."
+    },
+    {
+     "q": "Which storage method is best for password verifiers?",
+     "options": [
+      "Unsalted MD5",
+      "Reversible AES encryption with one key",
+      "Salted Argon2id",
+      "Base64 encoding"
+     ],
+     "a": 2,
+     "why": "A slow, salted, memory-hard function makes offline cracking expensive."
+    },
+    {
+     "q": "How does a password manager reduce phishing risk?",
+     "options": [
+      "It encrypts email",
+      "It autofills only on the matching registered domain",
+      "It blocks all links",
+      "It rotates passwords hourly"
+     ],
+     "a": 1,
+     "why": "A lookalike domain does not match the stored entry, so no autofill occurs."
+    }
+   ],
+   "recap": [
+    "Favor length and unique passphrases over complexity rules.",
+    "Block breached and common passwords; avoid forced rotation.",
+    "Store with salted Argon2id, scrypt or bcrypt; use managers and passkeys."
+   ]
+  },
+  {
+   "title": "MFA and biometrics",
+   "why": "A stolen password alone should not open an account. Multi-factor authentication adds independent proof, but methods differ greatly in how well they resist phishing.",
+   "sections": [
+    {
+     "h": "Factor categories",
+     "p": [
+      "Authentication factors fall into three classic categories: something you know (password, PIN), something you have (phone, hardware key, smart card) and something you are (fingerprint, face). True MFA combines at least two different categories; two passwords are still one factor. Common second factors include SMS codes, time-based one-time passwords (TOTP, RFC 6238, the six digit codes from authenticator apps that change every 30 seconds), push approvals, and FIDO2 security keys. They are not equal. SMS and TOTP codes can be typed into a fake login page, so an attacker running a real-time phishing proxy can relay them. These methods improve security but are not phishing resistant."
+     ]
+    },
+    {
+     "h": "FIDO2, WebAuthn and biometrics",
+     "p": [
+      "FIDO2 combines the W3C WebAuthn browser API with the CTAP protocol for authenticators. During registration the authenticator creates a key pair per site; the private key never leaves the device, and the server stores the public key. At login the server sends a challenge, the authenticator signs it, and the browser includes the origin in the signed data. A look-alike domain therefore produces a signature that the real site rejects, which makes FIDO2 phishing resistant. Biometrics usually unlock the local key rather than being sent to the server. They are convenient but cannot be changed if compromised, so they should be paired with a device-bound factor."
+     ]
+    },
+    {
+     "h": "Fatigue, SIM swap and choosing methods",
+     "p": [
+      "Attackers adapt. MFA fatigue (push bombing) floods a victim with approval prompts until one is accepted out of annoyance or confusion; number matching and context display on the push screen reduce this. SIM swapping persuades a mobile carrier to move a victim's number to an attacker's SIM, capturing SMS codes, so SMS is the weakest common factor. Choose by risk: hardware keys or passkeys for administrators and high-value accounts, authenticator apps for general staff, and SMS only as a fallback. Always protect account recovery paths, because attackers will target the weakest route into the account."
+     ]
+    },
+    {
+     "h": "Choosing methods by risk and recovery",
+     "p": [
+      "A practical rollout starts with the accounts that cause the most damage when lost: administrators, email, finance and cloud consoles. Enroll them first in the strongest available factor, issue two keys per person so that a lost key is not an emergency, and document a recovery process that verifies identity without falling back to SMS or security questions. Measure adoption, failed prompts and helpdesk resets. Where phishing-resistant methods are not possible, prefer number matching push or TOTP over SMS, and monitor for impossible travel, new device registrations and changes to MFA settings, which are classic attacker follow-up actions after a successful phish."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Authenticator log excerpt",
+    "text": "10:02:11 push sent  user=ana.test result=denied\n10:02:19 push sent  user=ana.test result=denied\n10:02:31 push sent  user=ana.test result=denied\n10:02:44 push sent  user=ana.test result=approved src=198.51.100.23\nalert: 4 prompts in 33 s, approval from new IP"
+   },
+   "example": "An administrator named ana.test gets repeated push prompts at 10 pm after her password appears in a leaked list. She taps approve to stop the noise, and an attacker at 198.51.100.23 logs in. The security team responds by enabling number matching, limiting prompts per hour, alerting on bursts of denied pushes, and moving all admins to FIDO2 keys, which cannot be approved by accident because the key must verify the real site origin.",
+   "terms": [
+    {
+     "term": "TOTP",
+     "def": "A time-based one-time password algorithm that derives a short code from a shared secret and the current time."
+    },
+    {
+     "term": "WebAuthn",
+     "def": "The W3C web API that lets sites register and use public-key credentials."
+    },
+    {
+     "term": "MFA fatigue",
+     "def": "Spamming a user with approval requests until they approve one."
+    },
+    {
+     "term": "SIM swap",
+     "def": "Fraudulent transfer of a phone number to an attacker-controlled SIM."
+    },
+    {
+     "term": "Phishing resistant",
+     "def": "An authentication method bound to the real site origin so relayed responses fail."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which pair counts as true multi-factor authentication?",
+     "options": [
+      "Password and security question",
+      "Password and fingerprint on a device",
+      "Two different passwords",
+      "PIN and password"
+     ],
+     "a": 1,
+     "why": "Knowledge plus inherence are two different categories."
+    },
+    {
+     "q": "Why is FIDO2 phishing resistant?",
+     "options": [
+      "It uses long codes",
+      "The signature is bound to the site origin",
+      "It needs SMS",
+      "It encrypts the password"
+     ],
+     "a": 1,
+     "why": "A fake domain produces a signature the genuine server rejects."
+    },
+    {
+     "q": "Which attack is mitigated by number matching on push prompts?",
+     "options": [
+      "SIM swap",
+      "MFA fatigue",
+      "ARP spoofing",
+      "SQL injection"
+     ],
+     "a": 1,
+     "why": "Matching a displayed number stops blind approvals."
+    },
+    {
+     "q": "Which second factor is generally weakest?",
+     "options": [
+      "SMS code",
+      "FIDO2 key",
+      "Smart card",
+      "Passkey"
+     ],
+     "a": 0,
+     "why": "SMS can be intercepted through SIM swapping or phished."
+    }
+   ],
+   "recap": [
+    "Combine different factor categories; two passwords are not MFA.",
+    "FIDO2 and passkeys resist phishing; SMS and TOTP do not.",
+    "Defend against push bombing, SIM swap and weak recovery paths."
+   ]
+  },
+  {
+   "title": "Single sign-on and Kerberos basics",
+   "why": "Single sign-on lets users authenticate once and reach many applications, reducing password sprawl and giving administrators one place to enforce policy.",
+   "sections": [
+    {
+     "h": "Why SSO and identity providers",
+     "p": [
+      "With single sign-on (SSO), applications trust a central identity provider (IdP) to authenticate users instead of storing their own passwords. The applications are called service providers or relying parties. Benefits include fewer passwords, one place to require MFA, faster offboarding because disabling one account cuts access everywhere, and consistent logging. The risk is concentration: the IdP becomes a high-value target, and a compromised session or token there can open many applications. For that reason the IdP needs the strongest controls, such as phishing-resistant MFA, conditional access, monitoring and a tested recovery plan."
+     ]
+    },
+    {
+     "h": "The Kerberos ticket flow",
+     "p": [
+      "Kerberos, the default for Windows Active Directory domains, uses tickets instead of sending passwords across the network. The Key Distribution Center (KDC) has two parts, the Authentication Service and the Ticket-Granting Service. Step one: the client proves its identity to the AS and receives a Ticket-Granting Ticket (TGT), encrypted with a key held by the KDC. Step two: when the user wants a service, the client presents the TGT to the TGS and receives a service ticket for that specific service. Step three: the client sends the service ticket to the service, which validates it and grants access. Tickets have limited lifetimes, and clocks must be synchronized, typically within five minutes."
+     ]
+    },
+    {
+     "h": "Kerberos weaknesses and defenses",
+     "p": [
+      "Because tickets are credentials, attackers target them. Kerberoasting requests service tickets for accounts with a service principal name and cracks the encrypted portion offline, so service accounts need long random passwords or managed service accounts. Pass-the-ticket reuses stolen tickets, and a forged Golden Ticket becomes possible if the krbtgt account key is stolen, so that account must be protected and its password rotated after any domain compromise. Detection relies on logs: unusual ticket request volumes, tickets with weak encryption types, and logons from impossible locations. Restricting privileged logons to hardened hosts limits where tickets can be stolen."
+     ]
+    },
+    {
+     "h": "Where SSO fits in the bigger picture",
+     "p": [
+      "SSO is only as strong as the controls around it. Pair it with conditional access that evaluates device health, location and risk before issuing sessions, and with short session lifetimes for sensitive applications. Provision and deprovision accounts automatically through a standard such as SCIM so that leavers lose access everywhere at once. Keep a break-glass local administrator account, protected by a long random password stored offline and monitored for any use, so an IdP outage does not lock out the team. Finally, log authentication events centrally so that abnormal token use can be traced to a user, device and application."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Concept trace",
+    "text": "1 Client -> KDC (AS):  request TGT for user ana.test\n2 KDC -> Client:        TGT + session key\n3 Client -> KDC (TGS): TGT + request for HTTP/app.example.com\n4 KDC -> Client:        service ticket\n5 Client -> app.example.com: service ticket -> access granted"
+   },
+   "example": "A user logs into a Windows workstation in the morning and receives a TGT. When she opens the intranet file server, her machine silently uses the TGT to get a service ticket for the file service, so she never types another password. If an auditor sees thousands of service ticket requests for many service accounts from one workstation in a minute, that pattern suggests Kerberoasting, and the defender checks account passwords and source host.",
+   "terms": [
+    {
+     "term": "Identity provider",
+     "def": "A trusted system that authenticates users and vouches for them to applications."
+    },
+    {
+     "term": "KDC",
+     "def": "The Kerberos Key Distribution Center that issues tickets."
+    },
+    {
+     "term": "TGT",
+     "def": "A ticket proving the user already authenticated, used to request service tickets."
+    },
+    {
+     "term": "Service ticket",
+     "def": "A Kerberos ticket granting access to one specific service."
+    },
+    {
+     "term": "Kerberoasting",
+     "def": "Offline cracking of service account passwords from requested service tickets."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does the Ticket-Granting Service issue?",
+     "options": [
+      "A TGT",
+      "A service ticket for a specific service",
+      "A password hash",
+      "A TLS certificate"
+     ],
+     "a": 1,
+     "why": "The TGS exchanges a valid TGT for service tickets."
+    },
+    {
+     "q": "What is a key risk of SSO?",
+     "options": [
+      "More passwords",
+      "The IdP becomes a concentrated target",
+      "Slower offboarding",
+      "No logging"
+     ],
+     "a": 1,
+     "why": "Compromising the IdP can expose many applications."
+    },
+    {
+     "q": "Which mitigates Kerberoasting?",
+     "options": [
+      "Short service account passwords",
+      "Long random service account passwords",
+      "Disabling NTP",
+      "Opening port 88 to the internet"
+     ],
+     "a": 1,
+     "why": "Long random secrets make offline cracking impractical."
+    },
+    {
+     "q": "Why must clocks be synchronized for Kerberos?",
+     "options": [
+      "Tickets contain timestamps checked against a small allowed skew",
+      "TLS requires it",
+      "DNS needs it",
+      "Passwords expire hourly"
+     ],
+     "a": 0,
+     "why": "Large clock skew causes ticket validation to fail."
+    }
+   ],
+   "recap": [
+    "SSO centralizes authentication at an identity provider.",
+    "Kerberos flow: AS gives a TGT, TGS gives service tickets, service validates.",
+    "Protect krbtgt and service accounts; monitor ticket anomalies."
+   ]
+  },
+  {
+   "title": "SAML, OAuth 2.0 and OpenID Connect",
+   "why": "Web and cloud SSO relies on three standards that are often confused. Knowing which proves identity and which grants access prevents serious design mistakes.",
+   "sections": [
+    {
+     "h": "SAML assertions",
+     "p": [
+      "Security Assertion Markup Language (SAML 2.0) is an XML-based standard mostly used for enterprise web SSO. A user visits a service provider (SP), which redirects the browser to the IdP with an authentication request. After login, the IdP returns a digitally signed XML assertion stating who the user is and attributes such as group membership, delivered via the browser to the SP's assertion consumer service. The SP verifies the signature, the audience, the validity window and the destination before creating a session. Attacks target weak validation, such as signature wrapping, so SPs should use well-maintained libraries and strictly verify what was signed."
+     ]
+    },
+    {
+     "h": "OAuth 2.0 and OpenID Connect",
+     "p": [
+      "OAuth 2.0 is an authorization framework: it lets an application obtain limited access to resources on a user's behalf, using an access token with defined scopes, without sharing the user's password. It is not an authentication protocol. OpenID Connect (OIDC) adds an identity layer on top of OAuth 2.0 and issues an ID token, a signed JWT with claims like sub, iss, aud and exp, that tells the client who the user is. Simple rule: SAML assertion and OIDC ID token prove identity; an OAuth access token grants access to an API."
+     ]
+    },
+    {
+     "h": "Authorization code flow with PKCE",
+     "p": [
+      "The recommended flow for most apps is the authorization code flow. The client sends the browser to the authorization server with response_type=code, client_id, redirect_uri, scope and a random state value. After the user authenticates and consents, the server redirects back with a short-lived code and the same state. The client checks state to defeat CSRF, then exchanges the code at the token endpoint for tokens. Proof Key for Code Exchange (PKCE) adds a code_challenge at the start and a code_verifier at exchange, so a stolen code is useless to an attacker. PKCE is now advised for all clients, and redirect URIs must match exactly."
+     ]
+    },
+    {
+     "h": "Practical pitfalls in federation",
+     "p": [
+      "Most real incidents come from configuration rather than protocol flaws. Common errors include wildcard redirect URIs, long-lived access tokens, accepting tokens from any issuer, storing tokens in browser local storage where scripts can read them, and treating an OAuth access token as proof of login. Use the implicit flow only for legacy cases, prefer short access tokens with rotating refresh tokens, and request the narrowest scopes needed. Clients should discover keys through the IdP's published metadata and verify the issuer exactly. Regularly review the third-party applications that users have granted consent to, because malicious consent grants can persist even after a password reset."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Authorization request (fictional)",
+    "text": "GET /authorize?response_type=code\n  &client_id=app123\n  &redirect_uri=https://app.example.com/cb\n  &scope=openid%20profile\n  &state=k3Jf9x2\n  &code_challenge=E9Melhoa2Ow...&code_challenge_method=S256\nHost: idp.example.com"
+   },
+   "example": "A project management tool lets users sign in with the company IdP. It uses OIDC, so after the code exchange it receives an ID token proving the user is ana.test and an access token for the calendar API. The developers originally accepted any redirect_uri under example.com, which would let an attacker capture codes on a controlled subdomain. They fix it with exact-match redirect URIs, state validation and PKCE.",
+   "terms": [
+    {
+     "term": "Assertion",
+     "def": "A signed statement from an IdP about a user, used in SAML."
+    },
+    {
+     "term": "Access token",
+     "def": "A credential presented to an API that grants specific scopes."
+    },
+    {
+     "term": "ID token",
+     "def": "An OIDC JWT that tells the client who authenticated."
+    },
+    {
+     "term": "PKCE",
+     "def": "An extension binding the code exchange to the client that started the flow."
+    },
+    {
+     "term": "State parameter",
+     "def": "A random value that ties a response to the original request to prevent CSRF."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which token proves who the user is in OIDC?",
+     "options": [
+      "Refresh token",
+      "ID token",
+      "Access token",
+      "CSRF token"
+     ],
+     "a": 1,
+     "why": "The ID token carries identity claims."
+    },
+    {
+     "q": "OAuth 2.0 is primarily designed for what?",
+     "options": [
+      "Authorization",
+      "Password storage",
+      "Encryption at rest",
+      "Network routing"
+     ],
+     "a": 0,
+     "why": "OAuth delegates limited access to resources."
+    },
+    {
+     "q": "What does PKCE protect against?",
+     "options": [
+      "Use of a stolen authorization code",
+      "SQL injection",
+      "DNS spoofing",
+      "Weak passwords"
+     ],
+     "a": 0,
+     "why": "Without the code_verifier a stolen code cannot be redeemed."
+    },
+    {
+     "q": "What must a SAML service provider verify?",
+     "options": [
+      "Only the user name",
+      "Signature, audience and validity window",
+      "The user's IP",
+      "The browser version"
+     ],
+     "a": 1,
+     "why": "Strict checks of what was signed and for whom prevent forged assertions."
+    }
+   ],
+   "recap": [
+    "SAML and OIDC authenticate; OAuth access tokens authorize.",
+    "Use authorization code flow with PKCE, state and exact redirect URIs.",
+    "Validate signatures, audience, issuer and expiry on every token."
+   ]
+  },
+  {
+   "title": "RBAC, ABAC and access models",
+   "why": "Authentication says who you are; access control says what you may do. Choosing the right model keeps permissions understandable and limits damage when an account is abused.",
+   "sections": [
+    {
+     "h": "The four classic models",
+     "p": [
+      "Discretionary access control (DAC) lets the owner of a resource decide who may access it, as with file permissions on Linux; it is flexible but easy to misuse. Mandatory access control (MAC) enforces labels set by policy, such as Confidential or Secret clearances, and users cannot override them; SELinux and military systems use it. Role-based access control (RBAC) assigns permissions to roles like Helpdesk or Auditor, and users receive roles. Attribute-based access control (ABAC) evaluates attributes of the user, resource, action and environment, such as department, data classification and time, against policy rules."
+     ]
+    },
+    {
+     "h": "RBAC versus ABAC in practice",
+     "p": [
+      "RBAC is simple to understand and audit, which is why most organizations start there. Its weakness is role explosion: as exceptions multiply, you create dozens of near-identical roles. ABAC handles nuance without new roles, for example allow read if user.department equals resource.department and device is managed and the time is within working hours. The cost is policy complexity and harder auditing. Many environments combine them: roles provide the coarse baseline and attribute conditions refine it. Standards such as XACML describe attribute policies, and cloud IAM systems often expose conditions on roles."
+     ]
+    },
+    {
+     "h": "Least privilege and access reviews",
+     "p": [
+      "The principle of least privilege gives each identity only the access needed for its tasks, for as long as needed. Related ideas are need to know and separation of duties, where no single person can complete a sensitive process alone, such as both creating and approving a payment. Controls include role design, just-in-time elevation, and removing standing admin rights. Access drifts as people move teams, so organizations perform periodic access reviews (recertification), where managers confirm each user's access, and run joiner, mover, leaver processes that grant, adjust and revoke access on time. Unreviewed permissions accumulate and become the paths attackers exploit."
+     ]
+    },
+    {
+     "h": "Designing roles that last",
+     "p": [
+      "Start from job functions, not people. Interview each team, list the tasks they perform, and map tasks to the smallest set of permissions. Name roles after functions, keep a small catalogue, and give each role an owner who approves membership. For sensitive actions, prefer time-limited elevation, often called just-in-time or privileged access management, over permanent admin rights, and require approval and logging for each elevation. Test roles by attempting an action that should be denied, and keep the matrix in version control so changes are reviewed like code. Review break-glass and service accounts too, because they are frequently forgotten in recertification campaigns."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Role matrix (fictional)",
+    "text": "role        invoices  payments  user-admin\nclerk       create    -         -\napprover    read      approve   -\nauditor     read      read      read\nhelpdesk    -         -         reset-pw\nrule: clerk and approver may not be held by one user"
+   },
+   "example": "A finance team gives one employee, sam.test, both the clerk and approver roles because the department is small. During a quarterly access review the auditor flags the separation of duties conflict, since sam.test could create and approve a fake invoice alone. The fix is to remove the approver role from sam.test, assign a second manager as approver, and add an automated check that rejects any user who holds both roles.",
+   "terms": [
+    {
+     "term": "RBAC",
+     "def": "Access control where permissions are assigned to roles and users are given roles."
+    },
+    {
+     "term": "ABAC",
+     "def": "Access control that evaluates user, resource and environment attributes against policy."
+    },
+    {
+     "term": "Least privilege",
+     "def": "Giving only the minimum access needed for a task."
+    },
+    {
+     "term": "Separation of duties",
+     "def": "Splitting a sensitive process so no one person can complete it alone."
+    },
+    {
+     "term": "Access review",
+     "def": "A periodic check that each user's access is still justified."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which model lets resource owners set permissions?",
+     "options": [
+      "MAC",
+      "DAC",
+      "RBAC",
+      "ABAC"
+     ],
+     "a": 1,
+     "why": "DAC is owner-controlled access."
+    },
+    {
+     "q": "What problem commonly affects RBAC at scale?",
+     "options": [
+      "Role explosion",
+      "No logging",
+      "Weak encryption",
+      "Slow hashing"
+     ],
+     "a": 0,
+     "why": "Exceptions lead to many near-duplicate roles."
+    },
+    {
+     "q": "Which rule is an example of ABAC?",
+     "options": [
+      "Admins can do everything",
+      "Allow if user department equals document department and device is managed",
+      "Deny all",
+      "Everyone reads public files"
+     ],
+     "a": 1,
+     "why": "It evaluates attributes of user, resource and context."
+    },
+    {
+     "q": "What is the purpose of periodic access reviews?",
+     "options": [
+      "Speed up logins",
+      "Remove accumulated, no-longer-needed permissions",
+      "Change passwords",
+      "Install patches"
+     ],
+     "a": 1,
+     "why": "Reviews catch privilege creep after role changes."
+    }
+   ],
+   "recap": [
+    "DAC is owner-set, MAC is policy-enforced, RBAC uses roles, ABAC uses attributes.",
+    "Apply least privilege and separation of duties.",
+    "Review access regularly and automate joiner, mover, leaver."
+   ]
+  },
+  {
+   "title": "Session management and JWTs",
+   "why": "After login the application relies on a session identifier or token. If it can be stolen, guessed or replayed, the strongest login is bypassed.",
+   "sections": [
+    {
+     "h": "Session IDs and cookies",
+     "p": [
+      "HTTP is stateless, so after authentication the server issues a session ID, usually in a cookie, and looks it up on every request. The ID must be long, random and generated by a cryptographically secure source (at least 128 bits of entropy), never derived from user data. Regenerate the ID on login and privilege change to prevent session fixation, where an attacker plants a known ID before the victim logs in. Set cookie flags: Secure so it travels only over HTTPS, HttpOnly so JavaScript cannot read it, and SameSite=Lax or Strict to limit cross-site sending. Provide server-side logout that truly invalidates the session."
+     ]
+    },
+    {
+     "h": "Timeouts and monitoring",
+     "p": [
+      "Sessions need limits. An idle timeout, often 15 to 30 minutes for sensitive applications, ends sessions that are left open, and an absolute timeout caps total lifetime even with activity. Re-authenticate before high-risk actions such as changing a password or sending a large payment. Bind sessions to context carefully, for example by detecting sudden changes in user agent or by tracking device. Log session creation, termination and anomalies such as one session used from two distant addresses. On password change or detection of compromise, revoke all active sessions for the account so a stolen cookie stops working."
+     ]
+    },
+    {
+     "h": "JWT structure and validation",
+     "p": [
+      "A JSON Web Token has three base64url parts separated by dots: header, payload and signature. The header names the algorithm (alg), the payload holds claims such as iss (issuer), sub (subject), aud (audience), exp (expiry) and iat, and the signature protects integrity. The payload is encoded, not encrypted, so anyone can read it; never place secrets in it. Receivers must verify the signature with the expected key and a fixed list of allowed algorithms, reject alg none, check exp, nbf, iss and aud, and never trust the token header to choose the key type. Keep access tokens short-lived, and treat refresh tokens as highly sensitive."
+     ]
+    },
+    {
+     "h": "Revocation and logout in practice",
+     "p": [
+      "Stateless JWTs are hard to revoke before they expire, which is why short lifetimes matter. Options include keeping a server-side denylist of token identifiers (the jti claim), rotating signing keys, and using opaque tokens with introspection when immediate revocation is required. Store refresh tokens securely, rotate them on each use, and treat reuse of an old refresh token as a sign of theft that should revoke the whole family. In browsers, prefer HttpOnly cookies over local storage for tokens, protect against CSRF with SameSite, and make logout clear the cookie on the client and destroy the session on the server."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Decoded JWT (fictional)",
+    "text": "header : {\"alg\":\"HS256\",\"typ\":\"JWT\"}\npayload: {\"iss\":\"https://idp.example.com\",\"sub\":\"u-1042\",\n          \"aud\":\"api.example.com\",\"exp\":1767225600,\"role\":\"user\"}\nsignature: HMAC-SHA256(header.payload, secret)  -> must verify"
+   },
+   "example": "An API accepts any JWT whose signature validates but never checks aud. A token issued for a different internal service, api2.example.com, is replayed against the main API and accepted. The developer adds audience and issuer validation, pins the algorithm to RS256, and shortens expiry to 10 minutes. Another fix is to stop reading the role from the token alone for sensitive decisions and to confirm it against server-side data.",
+   "terms": [
+    {
+     "term": "Session fixation",
+     "def": "An attack that forces a victim to use a session ID the attacker already knows."
+    },
+    {
+     "term": "HttpOnly",
+     "def": "A cookie flag that blocks JavaScript access to the cookie."
+    },
+    {
+     "term": "exp claim",
+     "def": "A JWT field giving the time after which the token must be rejected."
+    },
+    {
+     "term": "aud claim",
+     "def": "A JWT field naming the intended recipient of the token."
+    },
+    {
+     "term": "alg none",
+     "def": "An insecure JWT setting meaning no signature, which verifiers must reject."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why regenerate a session ID after login?",
+     "options": [
+      "To make it shorter",
+      "To prevent session fixation",
+      "To enable SSO",
+      "To reduce cookies"
+     ],
+     "a": 1,
+     "why": "A pre-login ID known to an attacker becomes useless."
+    },
+    {
+     "q": "Is the JWT payload encrypted by default?",
+     "options": [
+      "Yes, always",
+      "No, it is only base64url encoded",
+      "Only with HS256",
+      "Only the exp claim"
+     ],
+     "a": 1,
+     "why": "Anyone can decode it; the signature only protects integrity."
+    },
+    {
+     "q": "Which cookie flag stops JavaScript from reading a session cookie?",
+     "options": [
+      "Secure",
+      "SameSite",
+      "HttpOnly",
+      "Path"
+     ],
+     "a": 2,
+     "why": "HttpOnly hides it from scripts, limiting XSS theft."
+    },
+    {
+     "q": "Which check prevents a token meant for one API working on another?",
+     "options": [
+      "exp validation",
+      "aud validation",
+      "Base64 decoding",
+      "Longer payload"
+     ],
+     "a": 1,
+     "why": "The audience claim names the intended recipient."
+    }
+   ],
+   "recap": [
+    "Use long random session IDs, regenerate on login, set Secure, HttpOnly, SameSite.",
+    "Apply idle and absolute timeouts; revoke on password change.",
+    "Validate JWT signature, algorithm, exp, iss and aud; keep tokens short-lived."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Choose MFA for scenarios",
+   "sim": "scenario",
+   "scenario": "You advise a fictional company, Example Corp, on second factors for six user groups: domain administrators, remote sales staff with personal phones, warehouse workers on shared kiosks, executives who travel, contractors with no corporate device, and a customer portal with older users. Options are SMS, TOTP app, push with number matching, FIDO2 key and passkey. Each group has different devices, budgets and threat levels, and several users cannot carry extra hardware. You must also decide how recovery works for each group, so that a lost token does not become a weak back door.",
+   "objective": "Pick one factor per group and justify it by phishing resistance and usability.",
+   "steps": [
+    {
+     "do": "Open the scenario and read the admin group profile.",
+     "see": "Group: domain admins. Risk: very high. Constraint: managed laptops with USB ports."
+    },
+    {
+     "do": "Select FIDO2 security key for domain administrators.",
+     "see": "Accepted. Note: phishing resistant, origin bound. Backup key required."
+    },
+    {
+     "do": "Select TOTP app for remote sales staff on personal phones.",
+     "see": "Accepted. Note: no carrier dependency, but code can be phished. Medium risk acceptable."
+    },
+    {
+     "do": "Choose a factor for warehouse kiosks shared by many workers.",
+     "see": "Prompt: personal phones not allowed. Select NFC badge with PIN or FIDO2 key. SMS rejected."
+    },
+    {
+     "do": "Select passkey on managed laptop plus FIDO2 key for travelling executives.",
+     "see": "Accepted. Note: targeted attackers expected; phishing resistance required."
+    },
+    {
+     "do": "Select push with number matching for contractors and SMS only as a fallback for the customer portal.",
+     "see": "Accepted with warning: SMS is vulnerable to SIM swap; offer TOTP or passkey enrolment."
+    },
+    {
+     "do": "Submit the plan.",
+     "see": "Score: 6 of 6 justified. Highest risk groups have phishing resistant factors."
+    }
+   ],
+   "answer": "Administrators and executives use FIDO2 keys or passkeys for phishing resistance; sales use TOTP; kiosks use badge plus PIN or shared-device keys; contractors use push with number matching; the customer portal offers passkeys and TOTP with SMS only as a last fallback.",
+   "hint": "Match the strongest factor to the highest risk, then relax for usability where the risk is lower."
+  },
+  {
+   "title": "Decode a JWT and find flaws",
+   "sim": "web-proxy",
+   "scenario": "A fictional API at api.example.com uses bearer JWTs. You have a captured request in the sandbox proxy for user guest01. The team suspects the token validation is weak. You may only replay traffic inside the sandbox environment. The proxy history shows the token being sent on every call. Treat it as an inspection exercise: decode, reason about what the server checks, and note what an attacker could change if verification is weak. Findings will be summarized for the developers.",
+   "objective": "Decode the token, identify the validation flaws and show their effect.",
+   "steps": [
+    {
+     "do": "Open the captured request and copy the Authorization header.",
+     "see": "Authorization: Bearer eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJndWVzdDAxIiwicm9sZSI6InVzZXIifQ."
+    },
+    {
+     "do": "Split the token on dots and base64url-decode the header.",
+     "see": "{\"alg\":\"none\",\"typ\":\"JWT\"}"
+    },
+    {
+     "do": "Decode the payload.",
+     "see": "{\"sub\":\"guest01\",\"role\":\"user\"}  (no exp, no aud, no iss)"
+    },
+    {
+     "do": "Note that the signature part is empty.",
+     "see": "Signature: (empty). Server accepted it: 200 OK for GET /v1/profile."
+    },
+    {
+     "do": "In the sandbox replay, change role to admin and resend.",
+     "see": "200 OK for GET /v1/admin/users. Server trusts unsigned claims."
+    },
+    {
+     "do": "Open the findings panel and tick the flaws.",
+     "see": "Flaws: alg none accepted; no exp; no aud check; role trusted from token."
+    },
+    {
+     "do": "Select the fix: pin RS256, require exp, aud, iss, verify signature.",
+     "see": "Fix applied in sandbox. Replay now returns 401 invalid signature."
+    }
+   ],
+   "answer": "The API accepts alg none tokens, so claims can be forged without any key. The token has no exp claim, so it never expires, and no aud or iss is checked. The fix is to verify signatures with a pinned algorithm and key and validate exp, aud and iss.",
+   "hint": "Look at the header alg value and whether the signature segment is empty."
+  },
+  {
+   "title": "Trace an OAuth authorization code flow",
+   "sim": "diagram-builder",
+   "scenario": "Fictional app Notes at app.example.com wants to read calendar data from idp.example.com on behalf of user ana.test. The diagram canvas has steps shuffled and two empty protection markers labeled state and PKCE. The identity provider is idp.example.com, and the diagram tool will flag any ordering mistake or missing protection. Remember that some messages pass through the browser while others travel directly between servers, which affects what an attacker can see or steal.",
+   "objective": "Arrange the flow in order and place state and PKCE where they protect it.",
+   "steps": [
+    {
+     "do": "Drag 'User clicks Sign in' to position 1.",
+     "see": "Placed. Actor: browser."
+    },
+    {
+     "do": "Place 'Redirect to /authorize with client_id, redirect_uri, scope, state, code_challenge'.",
+     "see": "Placed at 2. Arrow: app -> browser -> IdP."
+    },
+    {
+     "do": "Place 'User logs in and consents at the IdP'.",
+     "see": "Placed at 3."
+    },
+    {
+     "do": "Place 'IdP redirects to redirect_uri with code and state'.",
+     "see": "Placed at 4. Arrow: IdP -> browser -> app."
+    },
+    {
+     "do": "Place 'App exchanges code plus code_verifier at /token'.",
+     "see": "Placed at 5. Back-channel arrow app -> IdP."
+    },
+    {
+     "do": "Drop the state marker on step 4 and the PKCE marker on steps 2 and 5.",
+     "see": "state: checked at step 4 to stop CSRF. PKCE: challenge at 2, verifier at 5."
+    },
+    {
+     "do": "Place 'IdP returns access token and ID token'.",
+     "see": "Placed at 6. Diagram validates: order correct."
+    }
+   ],
+   "answer": "Order: sign-in click, authorize redirect with state and code_challenge, login and consent, redirect back with code and state, token exchange with code_verifier, tokens returned. State is verified on return; PKCE spans the challenge and verifier steps.",
+   "hint": "The code travels through the browser; the tokens travel on a direct back channel."
+  },
+  {
+   "title": "Build RBAC roles",
+   "sim": "config-editor",
+   "scenario": "A fictional YAML role matrix at /etc/acl/roles.yaml gives the helpdesk role full admin rights, and user lee.test holds both payment-creator and payment-approver. The auditor requires least privilege and no separation of duties conflicts. The matrix covers finance, helpdesk and auditing roles for about forty staff. Your edits will be checked by a validator that looks for wildcard permissions, conflicting role pairs and roles that grant more than their documented purpose requires, and then reports what remains.",
+   "objective": "Edit the matrix so each role has only needed permissions and the conflict is removed.",
+   "steps": [
+    {
+     "do": "Open roles.yaml and review the helpdesk role.",
+     "see": "helpdesk: permissions: ['*']   <- flagged: wildcard"
+    },
+    {
+     "do": "Replace the wildcard with users:reset_password and tickets:*.",
+     "see": "helpdesk: [users:reset_password, tickets:*]. Lint: ok."
+    },
+    {
+     "do": "Review the finance roles.",
+     "see": "payment-creator: [payments:create]; payment-approver: [payments:approve]"
+    },
+    {
+     "do": "Open user assignments for lee.test.",
+     "see": "lee.test: [payment-creator, payment-approver]  <- SoD conflict"
+    },
+    {
+     "do": "Remove payment-approver from lee.test and assign it to pat.test.",
+     "see": "lee.test: [payment-creator]; pat.test: [payment-approver]"
+    },
+    {
+     "do": "Add a rule forbidding the pair.",
+     "see": "conflicts: [[payment-creator, payment-approver]]"
+    },
+    {
+     "do": "Run the validator.",
+     "see": "Result: 0 wildcards, 0 conflicts, 1 note: schedule quarterly review."
+    }
+   ],
+   "answer": "The final matrix has no wildcard permissions, helpdesk limited to password resets and ticket handling, and lee.test holds only payment-creator while pat.test approves. A conflict rule prevents the same user from holding both roles, satisfying least privilege and separation of duties.",
+   "hint": "Search the file for '*' and for users who hold two roles that complete one process."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which NIST SP 800-63B practice is recommended?",
+   "options": [
+    "Mandatory 90 day rotation",
+    "Checking new passwords against breached lists",
+    "Requiring symbols",
+    "Blocking paste"
+   ],
+   "a": 1,
+   "why": "Breach and blocklist checks are recommended; rotation and composition rules are not."
+  },
+  {
+   "q": "Which factor is generally most phishing resistant?",
+   "options": [
+    "SMS code",
+    "TOTP code",
+    "FIDO2 security key",
+    "Security question"
+   ],
+   "a": 2,
+   "why": "FIDO2 binds signatures to the site origin."
+  },
+  {
+   "q": "What is an MFA fatigue attack?",
+   "options": [
+    "Cracking a TOTP seed",
+    "Spamming approval prompts until a user accepts",
+    "Stealing a SIM",
+    "Replaying a cookie"
+   ],
+   "a": 1,
+   "why": "Attackers rely on the user approving a prompt to stop the noise."
+  },
+  {
+   "q": "In Kerberos, what does a TGT let the client do?",
+   "options": [
+    "Skip authentication forever",
+    "Request service tickets",
+    "Decrypt TLS",
+    "Reset passwords"
+   ],
+   "a": 1,
+   "why": "The TGT is presented to the TGS to obtain service tickets."
+  },
+  {
+   "q": "Which token tells an OIDC client who the user is?",
+   "options": [
+    "Access token",
+    "ID token",
+    "Refresh token",
+    "CSRF token"
+   ],
+   "a": 1,
+   "why": "The ID token carries identity claims."
+  },
+  {
+   "q": "What is the job of the OAuth state parameter?",
+   "options": [
+    "Encrypt the code",
+    "Tie the response to the request to prevent CSRF",
+    "Hold the user password",
+    "Select the scope"
+   ],
+   "a": 1,
+   "why": "The client verifies the returned state matches what it sent."
+  },
+  {
+   "q": "Which model evaluates user, resource and environment attributes?",
+   "options": [
+    "DAC",
+    "MAC",
+    "RBAC",
+    "ABAC"
+   ],
+   "a": 3,
+   "why": "ABAC policy rules use attributes."
+  },
+  {
+   "q": "Which action best addresses separation of duties?",
+   "options": [
+    "Give one user both create and approve roles",
+    "Split the roles across two users",
+    "Share admin passwords",
+    "Disable logging"
+   ],
+   "a": 1,
+   "why": "No single person should complete a sensitive process alone."
+  },
+  {
+   "q": "Which cookie flag restricts a session cookie to HTTPS?",
+   "options": [
+    "HttpOnly",
+    "SameSite",
+    "Secure",
+    "Domain"
+   ],
+   "a": 2,
+   "why": "Secure prevents transmission over plain HTTP."
+  },
+  {
+   "q": "Which JWT validation failure allows a token from another service to be accepted?",
+   "options": [
+    "Missing aud check",
+    "Short exp",
+    "Using RS256",
+    "Using base64url"
+   ],
+   "a": 0,
+   "why": "Without audience validation any validly signed token works."
+  }
+ ]
+}

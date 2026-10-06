@@ -1,0 +1,1066 @@
+{
+ "code": "ENG-04",
+ "intro": "This module teaches how to design the controls that protect a network. You will compare firewall types and write ordered allow-list rules, build segmented zones, and apply microsegmentation to stop lateral movement. You will then choose among VPN, ZTNA, WAF and network access control for specific needs, and defend DNS and absorb DDoS attacks. By the end you can read a network diagram, judge where each control belongs, and explain the trade-offs to colleagues and auditors.",
+ "lessons": [
+  {
+   "title": "Firewall types and rule design",
+   "why": "A firewall is only as good as its rules, and most real-world firewall failures are rule design failures, not product failures.",
+   "sections": [
+    {
+     "h": "Stateless packet filters",
+     "p": [
+      "A stateless packet filter judges every packet on its own, using only header fields: source and destination address, protocol, and port, as in a classic router access control list. It keeps no memory of earlier packets. That makes it very fast and simple, but it cannot tell whether a packet belongs to a conversation your user started. To allow replies to outbound web browsing, a stateless filter must permit inbound traffic from any source port 443 to high ports, which also lets an attacker craft packets that look like replies. Stateless ACLs still have a place on routers, switch ports and cloud subnet lists, where speed matters and the policy is coarse."
+     ]
+    },
+    {
+     "h": "Stateful inspection and NGFW",
+     "p": [
+      "A stateful firewall tracks connections in a state table. When an inside host at 192.0.2.10 opens a TCP connection to 203.0.113.5 port 443, the firewall records the address pair, ports, and TCP state. Return packets that match an entry are allowed automatically, and unsolicited inbound packets are dropped. A next-generation firewall (NGFW) adds application identification, user identity from directory integration, intrusion prevention signatures, URL categories and optional TLS decryption. Rules can then say 'finance group may use the banking application' instead of 'any host may use port 443'. The cost is more CPU, more licensing, and a decryption policy that needs privacy and legal review."
+     ]
+    },
+    {
+     "h": "Rule order and default deny",
+     "p": [
+      "Most firewalls evaluate rules top to bottom and apply the first match, so order is part of the policy. Specific rules go above general ones, and an explicit deny for known-bad traffic can sit near the top. The last rule is a default deny that drops and logs everything not previously allowed. This allow-list model is safer than a deny-list, because you enumerate what is needed instead of guessing what is dangerous. Beware shadowed rules, where an earlier broad rule makes a later one unreachable, and any rule whose source and destination are both 'any'. Such rules are usually emergency fixes that nobody removed."
+     ]
+    },
+    {
+     "h": "Designing and maintaining a rule set",
+     "p": [
+      "Start from data flows, not from ports. For a three-tier application, the load balancer accepts TCP 443 from the internet, the web tier reaches the application tier on one defined port, and only the application tier reaches the database on TCP 5432. Name objects after their role, add a comment with a ticket number and an owner to each rule, and set an expiry for temporary ones. Log denies and sampled allows to a central collector. Review rules at least quarterly, using hit counters to find unused rules, and test changes in a staging firewall or with a change window and rollback plan."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Ordered allow-list (generic syntax)",
+    "text": "1 allow tcp any -> 198.51.100.10:443   # public LB\n2 allow tcp 198.51.100.10 -> 10.1.2.0/24:8443  # web to app\n3 allow tcp 10.1.2.0/24 -> 10.1.3.5:5432  # app to db\n4 allow udp 10.1.0.0/16 -> 192.0.2.53:53  # DNS\n99 deny  any any -> any any  log  # default deny"
+   },
+   "example": "A retail company's cloud-adjacent datacenter has a rule 'allow any any' added during a late-night outage and never removed. Months later a scan shows the database reachable from the guest Wi-Fi. A review replaces it with five role-based rules: the load balancer on TCP 443, web to app on 8443, app to database on 5432, DNS to the internal resolver, and a logged default deny. Hit counters show two older rules never matched and are deleted. The rule count shrinks while the exposed surface shrinks with it.",
+   "terms": [
+    {
+     "term": "Stateless filter",
+     "def": "Firewall that checks each packet alone using header fields, with no connection memory."
+    },
+    {
+     "term": "Stateful inspection",
+     "def": "Tracking connection state so return traffic is allowed automatically."
+    },
+    {
+     "term": "NGFW",
+     "def": "Firewall adding application, user and threat awareness to stateful filtering."
+    },
+    {
+     "term": "Default deny",
+     "def": "Final rule that drops and logs anything not explicitly allowed."
+    },
+    {
+     "term": "Shadowed rule",
+     "def": "A rule that can never match because an earlier rule already catches its traffic."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why is a stateless filter weaker for return traffic?",
+     "options": [
+      "It cannot read IP addresses",
+      "It cannot tell replies from crafted packets so must allow broad inbound ranges",
+      "It encrypts all packets",
+      "It only works on UDP"
+     ],
+     "a": 1,
+     "why": "Without a state table, replies are allowed by broad port patterns that attackers can imitate."
+    },
+    {
+     "q": "In first-match processing, where should specific rules go?",
+     "options": [
+      "Below general rules",
+      "Above general rules",
+      "Anywhere, order never matters",
+      "Only after the default deny"
+     ],
+     "a": 1,
+     "why": "A broad rule above would match first and make the specific rule unreachable."
+    },
+    {
+     "q": "What does an NGFW add over a stateful firewall?",
+     "options": [
+      "Layer 1 repeaters",
+      "Application and user awareness plus integrated threat prevention",
+      "Faster physical ports only",
+      "Removal of the need for rules"
+     ],
+     "a": 1,
+     "why": "NGFWs identify applications and users and often include IPS and URL filtering."
+    },
+    {
+     "q": "Which design is best for a database server?",
+     "options": [
+      "Allow any to port 5432",
+      "Allow only the application tier to port 5432, deny the rest with logging",
+      "Allow the whole internal network on all ports",
+      "Disable logging for speed"
+     ],
+     "a": 1,
+     "why": "Least-open ports and a named source implement allow-list design."
+    }
+   ],
+   "recap": [
+    "Stateful firewalls track connections; stateless filters judge single packets.",
+    "Rules are evaluated in order, ending in a logged default deny.",
+    "Design from data flows, document each rule, and review with hit counters."
+   ]
+  },
+  {
+   "title": "Network segmentation and zones",
+   "why": "Flat networks let one compromised laptop reach everything; zones turn a breach into a contained incident.",
+   "sections": [
+    {
+     "h": "Why segment",
+     "p": [
+      "Segmentation divides a network into zones with different trust levels and controls the traffic between them. Without it, a single phished workstation can scan the whole environment, reach file servers and move laterally to the domain controller. With it, the attacker meets a firewall at every boundary, and each crossing is logged and limited. Segmentation also reduces compliance scope: PCI DSS, for example, lets you shrink the cardholder data environment if it is isolated from the rest of the network. Smaller zones also cut broadcast noise and make troubleshooting easier, so the security benefit comes with an operational one."
+     ]
+    },
+    {
+     "h": "Typical zones",
+     "p": [
+      "A common design has an untrusted internet zone, a DMZ (demilitarized zone) holding public-facing servers such as web proxies and mail gateways, an internal user zone, a server or data zone, and a separate management zone for administrative interfaces, jump hosts and backup systems. Guest Wi-Fi gets its own isolated zone with internet-only access. Operational technology (OT), such as factory controllers, belongs in its own zone behind an industrial DMZ, following the Purdue model idea that business IT and control systems should exchange only brokered data. Each zone has a clear purpose and an owner."
+     ]
+    },
+    {
+     "h": "VLANs and ACLs between zones",
+     "p": [
+      "On switches, a VLAN (IEEE 802.1Q) creates a separate Layer 2 broadcast domain, and a trunk port carries several VLANs tagged with a 12-bit ID. VLANs alone do not enforce policy, because a Layer 3 switch will route between them freely. Traffic between zones must pass a firewall or a router ACL. Avoid VLAN hopping risks by disabling DTP negotiation, setting unused ports to an unused access VLAN and shutting them down, and changing the native VLAN away from VLAN 1. Keep management interfaces off user VLANs and reachable only from the management zone."
+     ]
+    },
+    {
+     "h": "Designing the flows",
+     "p": [
+      "Draw the allowed flows as a matrix: rows are source zones, columns are destinations, and each cell lists the permitted ports or 'none'. Most cells should be empty. Users reach the DMZ proxy on 443, the DMZ reaches only specific internal application ports, and nothing in the DMZ may initiate to user networks. The management zone may reach everything on SSH or HTTPS, but only from hardened jump hosts with MFA. Plan egress too: servers rarely need the open internet. Document the matrix, turn it into firewall rules, and test it by attempting forbidden connections."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Zone flow matrix (excerpt)",
+    "text": "src\\dst    DMZ        USERS   DATA        MGMT\nINTERNET   443        none    none        none\nUSERS      443        -       443,445     none\nDMZ        -          none    8443 (app)  none\nMGMT       22,443     22      22,443      -"
+   },
+   "example": "A manufacturer's office laptops and its packaging-line controllers share one 10.0.0.0/16 network. After a malware outbreak in the office halts the line, engineers create four zones: office, servers, DMZ and an OT zone. A firewall between office and OT permits only a historian server in an industrial DMZ to pull data on one defined port. The next infection stays in the office zone and the packaging line keeps running, because no path existed from laptops to the controllers.",
+   "terms": [
+    {
+     "term": "DMZ",
+     "def": "Zone for public-facing services that limits what an attacker can reach if they are compromised."
+    },
+    {
+     "term": "VLAN",
+     "def": "Logical Layer 2 broadcast domain defined by an 802.1Q tag."
+    },
+    {
+     "term": "Trunk port",
+     "def": "Switch port carrying multiple VLANs using tags."
+    },
+    {
+     "term": "OT zone",
+     "def": "Network segment holding industrial control systems, isolated from business IT."
+    },
+    {
+     "term": "Flow matrix",
+     "def": "Table of which source zones may reach which destination zones and on which ports."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does a DMZ primarily do?",
+     "options": [
+      "Speeds up the internet link",
+      "Hosts public services in a buffer zone so a breach there does not reach internal systems",
+      "Stores backups",
+      "Replaces the firewall"
+     ],
+     "a": 1,
+     "why": "The DMZ isolates exposed servers from the inside network."
+    },
+    {
+     "q": "Why are VLANs alone not enough for policy?",
+     "options": [
+      "VLANs encrypt traffic",
+      "Routing between VLANs is allowed by default unless a firewall or ACL blocks it",
+      "VLANs only work on Wi-Fi",
+      "They cap bandwidth"
+     ],
+     "a": 1,
+     "why": "A Layer 3 device routes between VLANs, so policy needs ACLs or a firewall."
+    },
+    {
+     "q": "Which hardening step reduces VLAN hopping risk?",
+     "options": [
+      "Leaving DTP on auto",
+      "Disabling DTP and moving the native VLAN off VLAN 1",
+      "Using VLAN 1 for management",
+      "Enabling all unused ports"
+     ],
+     "a": 1,
+     "why": "Turning off trunk negotiation and changing the native VLAN blocks common hopping tricks."
+    },
+    {
+     "q": "Who should reach the management zone's admin interfaces?",
+     "options": [
+      "Any user VLAN",
+      "Only hardened jump hosts with MFA",
+      "The internet",
+      "Guest Wi-Fi"
+     ],
+     "a": 1,
+     "why": "Administrative access is restricted to controlled, authenticated paths."
+    }
+   ],
+   "recap": [
+    "Zones group assets by trust and purpose; firewalls control crossings.",
+    "VLANs separate broadcast domains but need ACLs or firewalls for policy.",
+    "A flow matrix turns design into testable rules."
+   ]
+  },
+  {
+   "title": "Microsegmentation",
+   "why": "Perimeter zones do not stop movement inside a zone, so modern designs apply policy at the workload itself.",
+   "sections": [
+    {
+     "h": "Limiting east-west movement",
+     "p": [
+      "North-south traffic crosses the data center boundary, while east-west traffic moves between servers inside it. Attackers who gain a foothold depend on east-west paths to reach valuable systems, using SMB, RDP, SSH or database ports. Traditional zone firewalls rarely see this traffic because it stays within a VLAN or subnet. Microsegmentation places enforcement at the individual host or workload, so that even two servers in the same subnet cannot talk unless a policy says so. The goal is to make each workload its own small zone with only the connections its function requires."
+     ]
+    },
+    {
+     "h": "Where enforcement lives",
+     "p": [
+      "Policy can be enforced in several places. Host firewalls such as nftables, iptables or Windows Defender Firewall, managed centrally, work on any platform. Hypervisor-based tools filter at the virtual switch, independent of the guest operating system. Cloud security groups and Kubernetes NetworkPolicy objects enforce at the virtual NIC or pod. Agent-based products program host firewalls from a central controller. Each option trades coverage, visibility and operational effort. Agentless network approaches are easier to deploy but see less context, while host agents see process and user detail."
+     ]
+    },
+    {
+     "h": "Tags, labels and identity",
+     "p": [
+      "Static IP-based rules break in dynamic environments where containers and VMs change address constantly. Microsegmentation therefore writes policy against labels: role=web, app=billing, env=prod. A rule might read 'workloads labelled role=web may connect to role=app on TCP 8443'. Newer designs add cryptographic workload identity, such as SPIFFE identities with mutual TLS in a service mesh, so that the policy follows verified identity rather than an address that could be spoofed. Good labelling depends on an accurate inventory, so tag hygiene becomes a security task."
+     ]
+    },
+    {
+     "h": "Rolling it out safely",
+     "p": [
+      "Never start with enforcement. First observe in a monitor-only mode, build a map of real flows over several weeks, and group them into applications. Write allow policies for the observed legitimate flows and then enforce on low-risk applications before critical ones. Begin by blocking the highest-risk lateral protocols, such as SMB and RDP between workstations, and by isolating crown-jewel systems like domain controllers. Keep a break-glass procedure, alert on denied flows because they may reveal scanning, and re-run the flow mapping after each application release to keep policy current."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Kubernetes NetworkPolicy (example)",
+    "text": "kind: NetworkPolicy\nspec:\n  podSelector: {matchLabels: {role: db}}\n  policyTypes: [Ingress]\n  ingress:\n  - from:\n    - podSelector: {matchLabels: {role: app}}\n    ports: [{protocol: TCP, port: 5432}]"
+   },
+   "example": "An attacker compromises a reporting server at 10.20.4.15 and tries to reach file servers on TCP 445 in the same subnet. Because the flow was never in the observed map, the host-based policy drops the connections and logs 40 denied attempts in two minutes. The security team sees the spike in their dashboard and isolates the server. Without microsegmentation, the same scan would have succeeded because the packets never crossed a firewall.",
+   "terms": [
+    {
+     "term": "East-west traffic",
+     "def": "Traffic between internal workloads, as opposed to traffic entering or leaving the network."
+    },
+    {
+     "term": "Microsegmentation",
+     "def": "Per-workload policy that restricts which systems may communicate."
+    },
+    {
+     "term": "Label-based policy",
+     "def": "Rules written against tags such as role or environment instead of IP addresses."
+    },
+    {
+     "term": "Service mesh",
+     "def": "Infrastructure layer providing workload identity and mutual TLS between services."
+    },
+    {
+     "term": "Monitor-only mode",
+     "def": "Observing and logging flows without blocking, used before enforcement."
+    }
+   ],
+   "check": [
+    {
+     "q": "What problem does microsegmentation address?",
+     "options": [
+      "Slow internet links",
+      "Lateral movement inside a zone",
+      "Weak Wi-Fi passwords",
+      "Missing backups"
+     ],
+     "a": 1,
+     "why": "It restricts east-west connections that perimeter firewalls never see."
+    },
+    {
+     "q": "Why write policy using labels instead of IP addresses?",
+     "options": [
+      "Labels are encrypted",
+      "Workloads change addresses often and labels follow the workload",
+      "IPs are illegal to use",
+      "Labels need no inventory"
+     ],
+     "a": 1,
+     "why": "Dynamic infrastructure makes IP rules brittle; labels track role."
+    },
+    {
+     "q": "What is the safest first rollout step?",
+     "options": [
+      "Enforce deny everywhere",
+      "Observe real flows in monitor-only mode",
+      "Delete the perimeter firewall",
+      "Disable logging"
+     ],
+     "a": 1,
+     "why": "Observation avoids breaking legitimate application flows."
+    },
+    {
+     "q": "Which tool enforces pod-level policy in Kubernetes?",
+     "options": [
+      "NetworkPolicy",
+      "DHCP snooping",
+      "Spanning tree",
+      "NAT64"
+     ],
+     "a": 0,
+     "why": "NetworkPolicy objects define allowed pod traffic, given a CNI that supports them."
+    }
+   ],
+   "recap": [
+    "Microsegmentation makes each workload its own zone.",
+    "Use labels or identity rather than IPs for dynamic environments.",
+    "Observe, then enforce gradually, starting with lateral protocols and crown jewels."
+   ]
+  },
+  {
+   "title": "VPN and ZTNA",
+   "why": "Remote access is a main entry point for attackers, so choosing between a network-level tunnel and per-application access is a core design decision.",
+   "sections": [
+    {
+     "h": "IPsec, WireGuard and SSL VPN",
+     "p": [
+      "IPsec uses IKEv2 on UDP 500 and 4500 to negotiate keys and ESP (protocol 50) to protect packets. It is a mature standard, widely supported on routers and ideal for site-to-site tunnels. WireGuard is a small modern protocol on a configurable UDP port, using Curve25519, ChaCha20-Poly1305 and static public keys; its short codebase eases auditing, and it connects quickly. SSL or TLS VPNs, such as OpenVPN or vendor portals, run over TCP or UDP 443 and traverse restrictive networks easily. Whatever the protocol, use modern ciphers, certificate or key-based authentication, MFA for users, and prompt patching, since VPN gateways are heavily targeted."
+     ]
+    },
+    {
+     "h": "Full tunnel, split tunnel and the VPN weakness",
+     "p": [
+      "With a full tunnel, all client traffic goes through the corporate network, allowing inspection but adding load and latency. Split tunneling sends only corporate destinations through the VPN, which saves bandwidth but lets the client bridge the internet and the internal network at once. The deeper weakness of a traditional VPN is that it grants network-level access: once connected, a user or an attacker with stolen credentials often sees a whole subnet. A compromised contractor laptop becomes a doorway. Restrict VPN pools with firewall rules, and give each user group only the destinations it needs."
+     ]
+    },
+    {
+     "h": "Zero trust network access",
+     "p": [
+      "ZTNA applies the zero trust principle: never trust based on network location, and verify every request. A ZTNA broker authenticates the user with SSO and MFA, checks device posture such as disk encryption and patch level, and then grants access to one specific application, not to a network. Applications are not exposed to the internet or to client scanning, because connectors make outbound-only connections to the broker. Policy can use identity, group, device health, location and risk score, and can be re-evaluated continuously. Access is logged per application, which improves visibility over a flat VPN."
+     ]
+    },
+    {
+     "h": "Choosing between them",
+     "p": [
+      "Use IPsec or WireGuard for site-to-site links and for administrators who need broad network access to specific management segments, protected by MFA and jump hosts. Use ZTNA for employees and contractors who need a handful of web or SSH applications, particularly on unmanaged devices where you want to avoid network-level reach. Many organizations run both during migration: ZTNA for new access, VPN for legacy protocols that need full network connectivity. Evaluate failure modes too: a single broker is a dependency, so plan high availability, and keep a tested emergency path for administrators."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "WireGuard client (documentation values)",
+    "text": "[Interface]\nAddress = 10.8.0.2/32\nPrivateKey = <client-private-key>\n[Peer]\nPublicKey = <server-public-key>\nEndpoint = vpn.example.com:51820\nAllowedIPs = 10.20.0.0/24   # split tunnel"
+   },
+   "example": "A consulting firm gives 30 contractors VPN access to the whole 10.20.0.0/16 network. One contractor's personal laptop is infected and the attacker uses the open tunnel to scan file servers. The firm moves contractors to ZTNA: each person can reach only the ticketing web app and one Git server, and only from devices that pass a posture check. The next stolen credential yields access to two applications instead of a whole subnet, and the broker logs every request.",
+   "terms": [
+    {
+     "term": "IKEv2",
+     "def": "Protocol that negotiates keys and security associations for IPsec."
+    },
+    {
+     "term": "ESP",
+     "def": "IPsec payload protocol (IP protocol 50) that encrypts and authenticates packets."
+    },
+    {
+     "term": "Split tunnel",
+     "def": "VPN setup that sends only some traffic through the tunnel."
+    },
+    {
+     "term": "ZTNA",
+     "def": "Access model granting per-application access after verifying identity and device."
+    },
+    {
+     "term": "Device posture",
+     "def": "Health signals such as encryption, patch level and EDR status used in access decisions."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which VPN type is most common for site-to-site tunnels?",
+     "options": [
+      "IPsec",
+      "Telnet",
+      "SMTP",
+      "FTP"
+     ],
+     "a": 0,
+     "why": "IPsec is the standard for gateway-to-gateway tunnels."
+    },
+    {
+     "q": "What is the main weakness of a traditional VPN?",
+     "options": [
+      "It cannot encrypt",
+      "It grants broad network-level access once connected",
+      "It needs no authentication",
+      "It only supports IPv6"
+     ],
+     "a": 1,
+     "why": "Stolen credentials can expose a whole subnet."
+    },
+    {
+     "q": "What does ZTNA grant access to?",
+     "options": [
+      "The entire LAN",
+      "Specific applications after identity and device checks",
+      "Only DNS",
+      "The router's console"
+     ],
+     "a": 1,
+     "why": "ZTNA is application-level, not network-level."
+    },
+    {
+     "q": "Which is a risk of split tunneling?",
+     "options": [
+      "The client may bridge the internet and the internal network",
+      "All traffic is inspected",
+      "The VPN stops working",
+      "Keys are shared"
+     ],
+     "a": 0,
+     "why": "A compromised internet-side process can reach the internal network through the client."
+    }
+   ],
+   "recap": [
+    "VPNs give network access; ZTNA gives per-application access.",
+    "Use MFA, modern ciphers and rapid patching on any gateway.",
+    "Choose by need: site links and admins use VPN, general users and contractors use ZTNA."
+   ]
+  },
+  {
+   "title": "WAF and reverse proxies",
+   "why": "A web application firewall shields web apps from common attacks and buys time for fixes, but only if it is tuned.",
+   "sections": [
+    {
+     "h": "What a WAF does",
+     "p": [
+      "A web application firewall inspects HTTP and HTTPS at Layer 7. It looks for patterns of attacks such as SQL injection, cross-site scripting, path traversal, command injection and protocol abuse, and can block, challenge, or log them. It also enforces limits on request size, methods and rate. A WAF does not fix vulnerable code; it reduces exposure while developers patch, which is called virtual patching. Network firewalls pass TCP 443 without understanding what is inside the request, and that is exactly the gap a WAF fills."
+     ]
+    },
+    {
+     "h": "Reverse proxy placement",
+     "p": [
+      "A WAF usually runs as a reverse proxy: clients connect to it, it terminates TLS, inspects the decrypted request, and forwards clean traffic to the origin servers over a new connection. This hides the origin addresses, centralizes certificates, and allows caching and load balancing. Deployment options include a cloud service in front of the site, a virtual appliance, or a module such as ModSecurity on NGINX or Apache. The origin must accept traffic only from the WAF's address ranges, otherwise attackers bypass it by connecting directly. Pass the real client address in X-Forwarded-For and have the application log it."
+     ]
+    },
+    {
+     "h": "OWASP Core Rule Set and modes",
+     "p": [
+      "The OWASP Core Rule Set (CRS) is a free, maintained set of generic detection rules for ModSecurity-compatible engines. It uses anomaly scoring: each matching rule adds points, and the request is blocked when the total reaches a threshold, such as 5 for inbound traffic. Paranoia levels 1 to 4 trade coverage for false positives; level 1 suits most sites. Deploy in detection-only mode first, collecting logs for one to two weeks of real traffic, and only then switch to blocking. Skipping this phase usually blocks legitimate customers on day one."
+     ]
+    },
+    {
+     "h": "Tuning false positives",
+     "p": [
+      "A false positive occurs when legitimate traffic trips a rule, for example a rich-text editor posting HTML that resembles script injection. Read the audit log to find the rule ID, the matched variable, and the URL. Prefer narrow exclusions: disable rule 941100 only for the argument 'body' on the path /editor/save, not globally. Record the reason, owner and date for each exclusion. Review blocks regularly, watch for real attacks hidden among noise, and retest after application releases. Combine the WAF with rate limiting, bot controls and secure coding, since a WAF can be evaded by determined attackers."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "ModSecurity audit entry (shortened)",
+    "text": "[client 203.0.113.50] ModSecurity: Access denied with code 403\n[id \"942100\"] [msg \"SQL Injection Attack Detected via libinjection\"]\n[data \"Matched Data: s&1 found within ARGS:q: 1' or '1'='1\"]\n[uri \"/search\"] [hostname \"shop.example.com\"]\n[anomaly_score 5]"
+   },
+   "example": "A shop turns on blocking mode directly after installing a WAF. Within hours, support tickets arrive: customers cannot save product reviews. The log shows rule 941100 firing on ARGS:review because customers use angle brackets. The team switches back to detection mode, adds a narrow exclusion for that single parameter on /reviews/post, and keeps every other rule active. Meanwhile the same logs show a genuine SQL injection probe from 203.0.113.50, correctly blocked. Tuning removed noise without removing protection.",
+   "terms": [
+    {
+     "term": "WAF",
+     "def": "Layer 7 filter that inspects HTTP requests for web attacks."
+    },
+    {
+     "term": "Virtual patching",
+     "def": "Using WAF rules to block an exploit until the code can be fixed."
+    },
+    {
+     "term": "OWASP CRS",
+     "def": "Community rule set for ModSecurity-compatible WAFs using anomaly scoring."
+    },
+    {
+     "term": "Anomaly score",
+     "def": "Cumulative points from matching rules that trigger blocking at a threshold."
+    },
+    {
+     "term": "False positive",
+     "def": "Legitimate traffic wrongly flagged as an attack."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why start a WAF in detection-only mode?",
+     "options": [
+      "It is faster",
+      "To learn real traffic and find false positives before blocking customers",
+      "Blocking is not supported",
+      "It disables TLS"
+     ],
+     "a": 1,
+     "why": "Observation prevents legitimate users from being blocked."
+    },
+    {
+     "q": "What stops attackers from bypassing a cloud WAF?",
+     "options": [
+      "Hiding the website name",
+      "Restricting the origin to accept only WAF address ranges",
+      "Disabling logging",
+      "Using HTTP only"
+     ],
+     "a": 1,
+     "why": "If the origin is open, direct connections skip the WAF."
+    },
+    {
+     "q": "What is the best way to handle a false positive?",
+     "options": [
+      "Turn off the WAF",
+      "Create a narrow exclusion for the rule, parameter and path",
+      "Delete CRS",
+      "Allow all traffic from the user"
+     ],
+     "a": 1,
+     "why": "Targeted exclusions keep protection elsewhere."
+    },
+    {
+     "q": "A WAF primarily operates at which layer?",
+     "options": [
+      "Layer 2",
+      "Layer 4 only",
+      "Layer 7",
+      "Layer 1"
+     ],
+     "a": 2,
+     "why": "It inspects application-layer HTTP content."
+    }
+   ],
+   "recap": [
+    "A WAF filters web attacks at Layer 7 and enables virtual patching.",
+    "Deploy as a reverse proxy, lock the origin, run detection first, then block.",
+    "Tune with narrow, documented exclusions and keep fixing the code."
+   ]
+  },
+  {
+   "title": "DNS security and DDoS defense",
+   "why": "DNS is both a critical dependency and a favorite abuse channel, and availability attacks target both it and everything else.",
+   "sections": [
+    {
+     "h": "DNS integrity: DNSSEC, DoT and DoH",
+     "p": [
+      "Classic DNS on UDP and TCP port 53 is unauthenticated and unencrypted, so an attacker can forge responses, a problem known as cache poisoning. DNSSEC adds digital signatures: zones sign records with RRSIG, publish keys in DNSKEY, and a validating resolver checks the chain of trust up to the root. It proves authenticity but does not provide privacy. DNS over TLS (DoT, TCP 853) and DNS over HTTPS (DoH, TCP 443) encrypt the client-to-resolver hop. Enterprises should run validating internal resolvers, and decide deliberately whether to allow or block DoH to outside resolvers, which can bypass filtering."
+     ]
+    },
+    {
+     "h": "Controlling DNS abuse",
+     "p": [
+      "Attackers use DNS for command and control, data exfiltration, and tunneling, encoding data in long subdomain labels such as a1b2c3.tunnel.example.net. Defenses start with forcing all clients to use approved resolvers and blocking outbound port 53 and known DoH endpoints from elsewhere. A response policy zone (RPZ) lets a resolver return NXDOMAIN or a sinkhole address for malicious domains from threat feeds. Monitor for high query rates, unusual TXT record volume, very long names and high-entropy labels. Disable open recursion, split internal and external DNS, and restrict zone transfers (AXFR) to named secondary servers."
+     ]
+    },
+    {
+     "h": "DDoS types and absorbing volume",
+     "p": [
+      "Distributed denial of service attacks exhaust resources and fall into three groups. Volumetric attacks, such as DNS or NTP amplification, saturate bandwidth, using spoofed source addresses so that a small query yields a large reply. Protocol attacks, such as SYN floods, exhaust connection tables. Application attacks, such as HTTP floods, consume server work with seemingly valid requests. Volume cannot be defeated by a single site's link, so the main defenses are scale: anycast, which announces the same IP from many locations so traffic spreads, and scrubbing centers, which divert traffic through filters and return only clean packets. Content delivery networks absorb and cache."
+     ]
+    },
+    {
+     "h": "Local controls and readiness",
+     "p": [
+      "Several local measures help. SYN cookies let a server answer SYN packets without allocating state until the final ACK arrives, defeating SYN floods. Rate limiting and response rate limiting (RRL) on DNS servers cap abuse. Ingress filtering following BCP 38 drops spoofed source addresses at network edges. Applications need timeouts, caching and autoscaling limits. Prepare a runbook: contact details for the upstream provider or scrubbing service, thresholds for activating mitigation, a baseline of normal traffic, and a communication plan. Test it with a controlled exercise, since the first real attack is a poor time to learn the process."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Signs in a DNS capture (documentation values)",
+    "text": "Q TXT  4f3a9c1b8e7d2a6f.t.example.net   len=64\nQ TXT  91c0b7aa55e1d3f2.t.example.net   len=64\n... 600 queries/min from 192.0.2.77, all unique labels\nvs. normal host: 15 queries/min, repeated names"
+   },
+   "example": "A university DNS server begins answering thousands of queries per second from spoofed sources, sending large replies at a victim. Logs show a flood of ANY queries for the same domain from addresses all over the internet. The team disables open recursion, enables response rate limiting, and restricts recursive service to campus ranges. Traffic to the server falls within minutes. Separately, a monitoring rule flags host 192.0.2.77 for hundreds of unique long TXT queries per minute, which turns out to be a tunneling tool.",
+   "terms": [
+    {
+     "term": "DNSSEC",
+     "def": "Signatures that let resolvers verify DNS data is authentic and unmodified."
+    },
+    {
+     "term": "RPZ",
+     "def": "Resolver policy that blocks or redirects queries to malicious domains."
+    },
+    {
+     "term": "Amplification",
+     "def": "Reflected attack where a small spoofed query triggers a much larger response."
+    },
+    {
+     "term": "Anycast",
+     "def": "Announcing one IP address from many locations so load and attacks are distributed."
+    },
+    {
+     "term": "SYN cookies",
+     "def": "Technique that avoids storing state for half-open TCP connections."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does DNSSEC provide?",
+     "options": [
+      "Encryption of queries",
+      "Authenticity and integrity of DNS data",
+      "Faster lookups",
+      "Hiding the resolver"
+     ],
+     "a": 1,
+     "why": "It signs records but does not encrypt them."
+    },
+    {
+     "q": "Which is a sign of DNS tunneling?",
+     "options": [
+      "Few queries to popular sites",
+      "Many long, unique, high-entropy subdomain queries from one host",
+      "Standard A records",
+      "Short TTLs on a CDN"
+     ],
+     "a": 1,
+     "why": "Data is encoded into labels, producing unusual lengths and uniqueness."
+    },
+    {
+     "q": "How do SYN cookies defend against a SYN flood?",
+     "options": [
+      "By encrypting SYN packets",
+      "By avoiding state allocation until the final ACK validates the client",
+      "By blocking all TCP",
+      "By raising TTL"
+     ],
+     "a": 1,
+     "why": "The server keeps no half-open connection entries."
+    },
+    {
+     "q": "What is a main benefit of anycast for DDoS?",
+     "options": [
+      "It hides the IP address",
+      "It spreads attack traffic across many locations",
+      "It stops spoofing automatically",
+      "It removes the need for DNS"
+     ],
+     "a": 1,
+     "why": "Traffic is absorbed by the nearest of many sites."
+    }
+   ],
+   "recap": [
+    "DNSSEC proves authenticity; DoT and DoH add privacy for the client hop.",
+    "Control resolvers, use RPZ, and monitor for tunneling patterns.",
+    "DDoS needs scale (anycast, scrubbing) plus local controls like SYN cookies and rate limits."
+   ]
+  },
+  {
+   "title": "Network access control",
+   "why": "Network access control decides which devices and users are allowed onto the wired and wireless network at all, before any firewall sees them.",
+   "sections": [
+    {
+     "h": "The 802.1X model",
+     "p": [
+      "IEEE 802.1X is port-based access control with three roles. The supplicant is the client device, the authenticator is the switch port or wireless access point, and the authentication server is typically RADIUS. Until authentication succeeds, the port passes only EAPOL frames, which carry the Extensible Authentication Protocol. The authenticator relays the exchange to the RADIUS server, using UDP 1812 for authentication and 1813 for accounting, and the server answers Access-Accept or Access-Reject. The shared secret between the authenticator and the server must be long and unique per device. RadSec wraps RADIUS in TLS for untrusted paths."
+     ]
+    },
+    {
+     "h": "EAP methods and authorization",
+     "p": [
+      "The EAP method defines the credentials. EAP-TLS uses client and server certificates and is the strongest, because it needs no passwords to steal. PEAP with MSCHAPv2 and EAP-TTLS tunnel a password exchange inside TLS, easier to deploy but exposed if clients do not validate the server certificate. After authentication the RADIUS server returns attributes that set authorization, such as the VLAN ID (Tunnel-Private-Group-ID), a downloadable ACL, or a security group tag. Thus the same switch port can place a finance user on one VLAN and a printer on another, based on identity."
+     ]
+    },
+    {
+     "h": "Posture and quarantine",
+     "p": [
+      "Network access control (NAC) products add posture assessment: they check that a device has an up-to-date operating system, active endpoint protection, disk encryption and no prohibited software. Devices that fail are moved to a quarantine or remediation VLAN with access only to patch servers and a portal. Unknown devices land in a restricted guest VLAN. Posture can be checked by an agent, by a managed-device certificate, or by integration with an MDM or EDR. Define the policy clearly, with exceptions approved and expired, or help desks will be swamped on day one."
+     ]
+    },
+    {
+     "h": "Handling devices that cannot do 802.1X",
+     "p": [
+      "Printers, cameras and IoT gear often lack 802.1X supplicants. For these, MAC Authentication Bypass (MAB) sends the device's MAC address to RADIUS as the identity. MAC addresses are easily spoofed, so combine MAB with profiling, which uses DHCP fingerprints, OUI vendor data and traffic behavior to classify devices, and place them in restricted VLANs with tight ACLs. Monitor for a device whose profile changes, such as a printer that begins acting like a laptop. Roll out in monitor mode first, then low-impact mode, then closed mode, and keep fail-open rules for critical ports during RADIUS outages."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Switch port 802.1X (generic syntax)",
+    "text": "interface Gi1/0/12\n authentication port-control auto\n dot1x pae authenticator\n mab\n authentication event fail action authorize vlan 999   # quarantine\n radius server RAD1 address 192.0.2.40 auth-port 1812 acct-port 1813"
+   },
+   "example": "A visitor plugs a laptop into an open meeting-room jack. The switch port, set to 802.1X with MAB fallback, sees no supplicant and no known MAC, so RADIUS returns an Access-Accept into guest VLAN 999 with internet access only. Later an employee laptop with an expired antivirus signature authenticates using EAP-TLS but fails the posture check and is moved to a remediation VLAN that reaches only the update server. After patching, the device is re-evaluated and returned to the corporate VLAN automatically.",
+   "terms": [
+    {
+     "term": "Supplicant",
+     "def": "Client software or device that requests network access under 802.1X."
+    },
+    {
+     "term": "Authenticator",
+     "def": "Switch or access point that enforces the port state and relays EAP."
+    },
+    {
+     "term": "RADIUS",
+     "def": "AAA protocol on UDP 1812/1813 used to authenticate and authorize network access."
+    },
+    {
+     "term": "EAP-TLS",
+     "def": "Certificate-based EAP method providing mutual authentication."
+    },
+    {
+     "term": "MAB",
+     "def": "MAC Authentication Bypass: using a device's MAC as its identity when 802.1X is unavailable."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which device in 802.1X enforces the port state?",
+     "options": [
+      "Supplicant",
+      "Authenticator",
+      "DNS server",
+      "Load balancer"
+     ],
+     "a": 1,
+     "why": "The switch or access point acts as the authenticator."
+    },
+    {
+     "q": "Which EAP method is generally strongest?",
+     "options": [
+      "EAP-TLS",
+      "PEAP with weak passwords",
+      "Plain PAP",
+      "Open authentication"
+     ],
+     "a": 0,
+     "why": "EAP-TLS uses certificates for mutual authentication."
+    },
+    {
+     "q": "What happens to a device that fails a posture check?",
+     "options": [
+      "Full access",
+      "It is moved to a quarantine VLAN with remediation access",
+      "The switch reboots",
+      "DNS is disabled"
+     ],
+     "a": 1,
+     "why": "Quarantine limits it to patch and portal resources."
+    },
+    {
+     "q": "Why is MAB weaker than 802.1X?",
+     "options": [
+      "MAC addresses are easy to spoof",
+      "It uses certificates",
+      "It encrypts traffic",
+      "It needs RADIUS secrets"
+     ],
+     "a": 0,
+     "why": "A MAC is not a secret, so profiling and tight ACLs should accompany MAB."
+    }
+   ],
+   "recap": [
+    "802.1X uses supplicant, authenticator and RADIUS server to gate ports.",
+    "EAP-TLS is strongest; RADIUS returns VLAN or ACL authorization.",
+    "Posture checks and quarantine VLANs handle unhealthy and unmanaged devices; use MAB with profiling."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Write firewall rules",
+   "sim": "config-editor",
+   "scenario": "You are the network engineer for a fictional store, example.com. A three-tier application is moving to a new subnet set. The load balancer is 198.51.100.10, the web tier is 10.1.1.0/24, the app tier is 10.1.2.0/24 and the database is 10.1.3.5. The existing firewall has a single 'allow any any' rule. You must replace it with an ordered, least-open rule set ending in a logged default deny.",
+   "objective": "Build ordered rules with default deny and least-open ports for a three-tier application.",
+   "steps": [
+    {
+     "do": "Open the config editor and view the current rule list.",
+     "see": "One rule appears: allow any any, with logging disabled."
+    },
+    {
+     "do": "Delete the 'allow any any' rule.",
+     "see": "The rule list is empty and the implicit policy shows as permit."
+    },
+    {
+     "do": "Add rule 1: allow TCP from any to 198.51.100.10 port 443.",
+     "see": "Rule 1 appears with a comment field."
+    },
+    {
+     "do": "Add rule 2: allow TCP from 198.51.100.10 to 10.1.1.0/24 port 8080, rule 3: web to app 10.1.2.0/24 port 8443.",
+     "see": "Rules 2 and 3 are listed in order below rule 1."
+    },
+    {
+     "do": "Add rule 4: allow TCP from 10.1.2.0/24 to 10.1.3.5 port 5432.",
+     "see": "The editor notes the database is reachable only from the app tier."
+    },
+    {
+     "do": "Add rule 5: allow UDP and TCP from 10.1.0.0/16 to resolver 192.0.2.53 port 53.",
+     "see": "DNS is permitted to one resolver."
+    },
+    {
+     "do": "Add a final rule: deny any any, logging enabled, and run the validator.",
+     "see": "Validator reports no shadowed rules and a default deny present. Score 100 percent."
+    }
+   ],
+   "answer": "Five allow rules: internet to load balancer 443, load balancer to web 8080, web to app 8443, app to database 5432, internal DNS to one resolver, then a logged deny any any as the last rule. No rule uses 'any' for both source and destination.",
+   "hint": "Trace one request from the internet to the database and allow only each hop."
+  },
+  {
+   "title": "Segment the network",
+   "sim": "diagram-builder",
+   "scenario": "A fictional manufacturer, Example Works, has one flat network holding office laptops, ERP servers, a public website, factory controllers and guest Wi-Fi. After a malware scare, you are asked to redraw it with zones and firewalls and to mark which flows are allowed between zones. The goal is that a laptop infection cannot reach the controllers, and that every allowed path is deliberate and documented.",
+   "objective": "Place zones and firewalls on a diagram and mark the allowed flows between them.",
+   "steps": [
+    {
+     "do": "Open the diagram builder with the unzoned asset list.",
+     "see": "Assets appear in a single grey box."
+    },
+    {
+     "do": "Create zones: Internet, DMZ, Office, Servers, OT, Management, Guest.",
+     "see": "Seven labelled zones appear on the canvas."
+    },
+    {
+     "do": "Drag each asset into its zone: website to DMZ, ERP to Servers, controllers to OT.",
+     "see": "Assets snap into zones and take zone colors."
+    },
+    {
+     "do": "Place a firewall between each pair of zones that must communicate.",
+     "see": "Firewall icons connect the zones; unconnected pairs show no path."
+    },
+    {
+     "do": "Draw allowed flows: Office to DMZ 443, DMZ to Servers 8443, Management to all on 22 and 443.",
+     "see": "Arrows are added with port labels."
+    },
+    {
+     "do": "Add an industrial DMZ with a historian and allow it to pull from OT on one port; draw no Office to OT arrow.",
+     "see": "The checker marks the Office to OT path as blocked."
+    },
+    {
+     "do": "Set Guest to internet-only and run the checker.",
+     "see": "Checker reports all required flows present and no forbidden paths. Score 100 percent."
+    }
+   ],
+   "answer": "Seven zones with firewalls at every boundary. Allowed flows: Office to DMZ 443, DMZ to Servers on the app port, Management to all zones via jump host, Servers to industrial DMZ historian, historian to OT on one port. No direct Office to OT or Guest to internal flows.",
+   "hint": "Ask which zone pairs genuinely need to talk and leave every other pair without an arrow."
+  },
+  {
+   "title": "Tune a WAF",
+   "sim": "log-viewer",
+   "scenario": "The WAF for shop.example.com was just switched from detection to blocking, and support is receiving complaints. The log viewer holds one hour of WAF events with rule IDs, matched data, client addresses and URLs. Some entries are real attacks from outside addresses; others are normal customer actions tripping generic rules. You need to decide which are which and write narrow exclusions for the false positives.",
+   "objective": "Separate real attacks from false positives in WAF logs and write targeted exclusions.",
+   "steps": [
+    {
+     "do": "Open the log viewer and sort events by rule ID.",
+     "see": "Rules 942100, 941100 and 920350 dominate the list."
+    },
+    {
+     "do": "Filter rule 942100 and read the matched data.",
+     "see": "Entries show payloads like 1' or '1'='1 from 203.0.113.50 hitting /search. These are real attacks."
+    },
+    {
+     "do": "Filter rule 941100 and read the matched data.",
+     "see": "Matches are angle brackets in ARGS:review on /reviews/post from many customers."
+    },
+    {
+     "do": "Mark 203.0.113.50 events as true positives and keep the rule active.",
+     "see": "The viewer tags the group as attack and leaves the rule enabled."
+    },
+    {
+     "do": "Mark the review events as false positives and open the exclusion editor.",
+     "see": "A form asks for rule ID, target and path."
+    },
+    {
+     "do": "Create an exclusion for rule 941100, target ARGS:review, path /reviews/post, with a reason.",
+     "see": "The exclusion is saved with a note and date."
+    },
+    {
+     "do": "Replay the hour of traffic against the new config.",
+     "see": "Review posts pass, SQL injection probes remain blocked. Score 100 percent."
+    }
+   ],
+   "answer": "Rule 942100 hits from 203.0.113.50 are real SQL injection probes and stay blocked. Rule 941100 on ARGS:review at /reviews/post is a false positive. Add an exclusion limited to that rule, argument and path, with a documented reason, not a global disable.",
+   "hint": "Look at the matched data: a payload that tries to change query logic is an attack; ordinary text is not."
+  },
+  {
+   "title": "Spot DNS abuse",
+   "sim": "packet-viewer",
+   "scenario": "A capture from the resolver at 192.0.2.53 is loaded into the packet viewer. It contains normal lookups, one host making an unusual pattern of queries to a domain called t.example.net, and a suspicious response that arrives with a different transaction ID and source than the real server. You must find the tunneling host, identify the spoofed response, and recommend controls.",
+   "objective": "Find DNS tunneling and a spoofed response in a capture and propose DNS controls.",
+   "steps": [
+    {
+     "do": "Open the capture and apply the filter dns.",
+     "see": "About 3,000 DNS packets are listed."
+    },
+    {
+     "do": "Sort by source and count queries per host.",
+     "see": "Host 192.0.2.77 sent 600 queries per minute; others sent about 15."
+    },
+    {
+     "do": "Inspect the queries from 192.0.2.77.",
+     "see": "All are TXT queries with unique 64-character labels under t.example.net."
+    },
+    {
+     "do": "Flag this host as DNS tunneling and note the high entropy of the labels.",
+     "see": "The viewer records the finding."
+    },
+    {
+     "do": "Filter for responses to a query of www.example.com and compare transaction IDs.",
+     "see": "Two responses appear: one from 192.0.2.53 and one from 203.0.113.99 with a mismatched ID, arriving first."
+    },
+    {
+     "do": "Mark the 203.0.113.99 response as spoofed.",
+     "see": "The viewer shows the cache entry would be poisoned."
+    },
+    {
+     "do": "Select controls: force approved resolvers, block outbound 53, enable DNSSEC validation, add RPZ and rate limits.",
+     "see": "Checker accepts the control set. Score 100 percent."
+    }
+   ],
+   "answer": "Host 192.0.2.77 is tunneling through long unique TXT queries to t.example.net. The response from 203.0.113.99 with a wrong transaction ID is a spoof. Controls: approved resolvers only, block outbound port 53, DNSSEC validation, RPZ sinkhole, rate limits and query monitoring.",
+   "hint": "Compare queries per host first, then compare transaction IDs and sources on responses."
+  },
+  {
+   "title": "Pick the right access control",
+   "sim": "scenario",
+   "scenario": "Example Corp has five remote-access needs from different groups. For each, you must decide whether site-to-site IPsec or WireGuard VPN, ZTNA, or NAC with 802.1X is the best fit, and give a reason for each choice. The scenario simulator presents the requirements one at a time and scores your choice and the justification you select from a list. Think about where each decision is enforced.",
+   "objective": "Given five remote-access requirements, choose between VPN, ZTNA and NAC with reasons.",
+   "steps": [
+    {
+     "do": "Read requirement 1: link the branch office to headquarters all day.",
+     "see": "Options: VPN, ZTNA, NAC."
+    },
+    {
+     "do": "Choose a site-to-site IPsec VPN.",
+     "see": "Correct. A permanent gateway-to-gateway tunnel is a VPN use case."
+    },
+    {
+     "do": "Read requirement 2: contractors on personal laptops need only the ticketing app.",
+     "see": "The simulator lists device and scope details."
+    },
+    {
+     "do": "Choose ZTNA with a posture check.",
+     "see": "Correct. Per-application access limits the reach of unmanaged devices."
+    },
+    {
+     "do": "Requirement 3: unknown devices plugged into office wall jacks. Choose NAC with 802.1X and a guest VLAN.",
+     "see": "Correct. The control acts at the port."
+    },
+    {
+     "do": "Requirement 4: admins need SSH to servers in a management segment. Choose VPN with MFA and a jump host.",
+     "see": "Correct. Broad but tightly scoped network access."
+    },
+    {
+     "do": "Requirement 5: staff need one web HR app from anywhere. Choose ZTNA.",
+     "see": "Correct. Score 5 of 5."
+    }
+   ],
+   "answer": "Branch link: IPsec site-to-site VPN. Contractors: ZTNA with posture check. Wall jacks: NAC with 802.1X. Admin SSH: VPN with MFA and jump host. HR web app: ZTNA. Match the control to where the decision is made: gateway, application, or port.",
+   "hint": "Ask whether the need is network-wide, per application, or at the physical port."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "A firewall rule set processes rules top to bottom with first match. Which placement is correct?",
+   "options": [
+    "General allow above specific deny",
+    "Specific rules above general ones with a default deny last",
+    "Default deny first",
+    "Random order"
+   ],
+   "a": 1,
+   "why": "First-match logic requires specific rules before broad ones and a final deny."
+  },
+  {
+   "q": "Which firewall tracks connection state?",
+   "options": [
+    "Stateless ACL",
+    "Stateful firewall",
+    "Hub",
+    "Patch panel"
+   ],
+   "a": 1,
+   "why": "Stateful firewalls keep a state table so replies are allowed automatically."
+  },
+  {
+   "q": "A DMZ is used to:",
+   "options": [
+    "Store backups",
+    "Host public-facing services separate from internal systems",
+    "Replace VLANs",
+    "Encrypt disks"
+   ],
+   "a": 1,
+   "why": "It limits what a compromised public server can reach."
+  },
+  {
+   "q": "Which control restricts lateral movement between servers in the same subnet?",
+   "options": [
+    "Microsegmentation",
+    "Larger subnet",
+    "Wi-Fi",
+    "DNS caching"
+   ],
+   "a": 0,
+   "why": "Host or workload-level policy blocks east-west connections."
+  },
+  {
+   "q": "Which is the strongest reason to choose ZTNA over a traditional VPN for contractors?",
+   "options": [
+    "Per-application access limits exposure from stolen credentials",
+    "It uses no encryption",
+    "It needs no identity",
+    "It opens the whole LAN"
+   ],
+   "a": 0,
+   "why": "ZTNA does not give network-level reach."
+  },
+  {
+   "q": "Why run a WAF in detection mode first?",
+   "options": [
+    "To find false positives before blocking real users",
+    "To avoid TLS",
+    "To make attacks succeed",
+    "Blocking is unavailable"
+   ],
+   "a": 0,
+   "why": "Learning traffic prevents outages."
+  },
+  {
+   "q": "Which DNS feature validates that records were not forged?",
+   "options": [
+    "DNSSEC",
+    "DHCP",
+    "ARP",
+    "NAT"
+   ],
+   "a": 0,
+   "why": "DNSSEC signatures prove authenticity."
+  },
+  {
+   "q": "What best describes anycast for DDoS defense?",
+   "options": [
+    "One IP announced from many locations to spread traffic",
+    "Hiding behind NAT",
+    "A type of VPN",
+    "Filtering by MAC"
+   ],
+   "a": 0,
+   "why": "Anycast distributes load and attack traffic."
+  },
+  {
+   "q": "In 802.1X, which element relays EAP to RADIUS?",
+   "options": [
+    "Authenticator",
+    "Supplicant",
+    "Client browser",
+    "DNS"
+   ],
+   "a": 0,
+   "why": "The switch or access point is the authenticator."
+  },
+  {
+   "q": "A device fails a posture check. What should NAC do?",
+   "options": [
+    "Grant full access",
+    "Place it in a quarantine VLAN with remediation access",
+    "Disable the switch",
+    "Ignore it"
+   ],
+   "a": 1,
+   "why": "Quarantine limits the device to fixing its health state."
+  }
+ ]
+}

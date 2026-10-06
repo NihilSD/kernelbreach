@@ -1,0 +1,1067 @@
+{
+ "code": "ENG-14",
+ "intro": "This module teaches you to turn repetitive security work into reliable code. You will write Bash and Python that parse logs and call REST APIs, enrich indicators and score alerts, design SOAR playbooks with approval gates, add guardrails such as dry-run and rollback to automated containment, and write tests that prove hardening stays in place. Automation multiplies a small team's reach, but badly built automation can also cause outages, so safety and verification are treated as first-class skills throughout.",
+ "lessons": [
+  {
+   "title": "Bash for security tasks",
+   "why": "Bash is on nearly every server, so it is the fastest way to triage a host or reshape log data without installing anything.",
+   "sections": [
+    {
+     "h": "Pipelines and the core tools",
+     "p": [
+      "The Unix philosophy is small tools chained with pipes. grep selects lines, awk splits fields and does arithmetic, sort and uniq -c count, cut and tr reshape text, and find walks directories by name, owner, permission or modification time. A classic triage pipeline is: grep 'Failed password' /var/log/auth.log | awk '{print $(NF-3)}' | sort | uniq -c | sort -rn | head. Each stage reads standard input and writes standard output, so you can build and test a pipeline one stage at a time.",
+      "For structured data use jq, which parses JSON properly instead of guessing with regular expressions. jq -r '.alerts[] | select(.severity==\"high\") | .host' prints the host of every high severity alert, and -r removes the JSON quotes. Prefer jq to grep for JSON because field order, whitespace and nesting can change between tool versions and silently break a text match."
+     ]
+    },
+    {
+     "h": "Quoting and safe expansion",
+     "p": [
+      "Most Bash security bugs are quoting bugs. An unquoted variable is split on whitespace and expanded as a glob, so a file named 'a b' becomes two arguments, and a name beginning with a dash may be read as an option. Always write \"$var\", use \"${arr[@]}\" for arrays, and put -- before filenames when a command supports it. Never pass untrusted text to eval or build a command string from log content, because an attacker who controls a username or User-Agent can control your script.",
+      "Use [[ ]] for tests, $(...) instead of backticks, and read files with while IFS= read -r line; do ... done < file so backslashes and leading spaces survive. When you must handle odd filenames, find -print0 together with xargs -0 or read -d '' keeps newlines in names from splitting records."
+     ]
+    },
+    {
+     "h": "Strict mode and loops",
+     "p": [
+      "By default Bash keeps running after an error, which is dangerous in automation. Start scripts with set -euo pipefail: -e exits on a failing command, -u treats unset variables as errors, and pipefail makes a pipeline fail if any stage fails, not only the last. Add a trap on ERR or EXIT to clean temporary files, create them with mktemp, and set umask 077 so scratch data is private.",
+      "Loops let you act on many hosts or files, for example for ip in $(cat blocklist.txt) is fragile, while while read -r ip is safe. Validate every input against an expected pattern before using it, log what the script did with a timestamp, and test with shellcheck, which catches many quoting and portability mistakes before they reach production."
+     ]
+    },
+    {
+     "h": "Where Bash stops",
+     "p": [
+      "Bash is excellent for glue and quick triage, but it is weak at nested data, error handling and testing. When a script grows past about a hundred lines, needs real data structures, or must call several APIs, move it to Python. Keep the shell version only as a thin wrapper that validates arguments and calls the tool."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ grep 'Failed password' auth.log | awk '{print $(NF-3)}' | sort | uniq -c | sort -rn | head -3\n    212 198.51.100.23\n     41 203.0.113.9\n      6 192.0.2.77"
+   },
+   "example": "An analyst needs the top sources of failed SSH logins from auth.log. The pipeline above extracts the source address field, counts duplicates and sorts descending. The script wrapping it begins with set -euo pipefail, quotes the log path in \"$1\", and exits with an error if the file does not exist. The top address, 198.51.100.23, with 212 failures, becomes a candidate for a firewall rule after the analyst confirms it is not a legitimate scanner.",
+   "terms": [
+    {
+     "term": "pipefail",
+     "def": "A Bash option that makes a pipeline return failure if any command in it fails."
+    },
+    {
+     "term": "jq",
+     "def": "A command line JSON processor used to filter and reshape structured output."
+    },
+    {
+     "term": "Quoting",
+     "def": "Wrapping expansions in double quotes so values are not word-split or globbed."
+    },
+    {
+     "term": "Globbing",
+     "def": "Shell expansion of wildcard patterns such as *.log into file names."
+    },
+    {
+     "term": "shellcheck",
+     "def": "A static analysis tool that reports common shell scripting errors."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does set -o pipefail change?",
+     "options": [
+      "A pipeline fails if any stage fails",
+      "Errors are hidden",
+      "Variables become read-only",
+      "Pipes run in parallel"
+     ],
+     "a": 0,
+     "why": "Without it only the last command's status is returned."
+    },
+    {
+     "q": "Why quote \"$file\"?",
+     "options": [
+      "It makes it uppercase",
+      "It stops word splitting and globbing on odd names",
+      "It encrypts the value",
+      "It speeds up the script"
+     ],
+     "a": 1,
+     "why": "Unquoted values are split on whitespace and expanded as globs."
+    },
+    {
+     "q": "Best tool to filter fields in JSON?",
+     "options": [
+      "jq",
+      "wc",
+      "tr",
+      "grep"
+     ],
+     "a": 0,
+     "why": "jq parses the structure instead of matching text."
+    },
+    {
+     "q": "What does set -u do?",
+     "options": [
+      "Unsets all variables",
+      "Treats unset variables as errors",
+      "Uses UTF-8",
+      "Updates the shell"
+     ],
+     "a": 1,
+     "why": "It catches typos in variable names that would expand to empty strings."
+    }
+   ],
+   "recap": [
+    "Chain small tools with pipes and build pipelines stage by stage.",
+    "Quote every expansion and never eval untrusted text.",
+    "Use set -euo pipefail, mktemp, traps and shellcheck."
+   ]
+  },
+  {
+   "title": "Python for security engineering",
+   "why": "Python handles messy data, APIs and larger tools better than shell, and it is the common language of security automation.",
+   "sections": [
+    {
+     "h": "Reading files and parsing logs",
+     "p": [
+      "Open files with a context manager, with open(path, encoding='utf-8', errors='replace') as f, and iterate line by line so a multi gigabyte log never has to fit in memory. Use collections.Counter to count events and defaultdict to group them. For structured formats prefer the json, csv and ipaddress modules over string slicing; ipaddress.ip_address() both validates and normalizes an address, and lets you test membership in a network with ip in ip_network('192.0.2.0/24').",
+      "Pathlib gives portable path handling, and datetime with timezone aware objects avoids the classic bug of comparing local and UTC timestamps. Parse timestamps once, convert to UTC, and keep them as datetime objects until output."
+     ]
+    },
+    {
+     "h": "Regular expressions that stay safe",
+     "p": [
+      "The re module extracts fields from semi structured logs. Compile patterns once with re.compile, use named groups such as (?P<ip>\\d{1,3}(?:\\.\\d{1,3}){3}), and always handle the case where match() returns None. Anchor patterns and avoid nested quantifiers like (a+)+, which can cause catastrophic backtracking and let a crafted log line freeze your parser, a denial of service known as ReDoS.",
+      "A regex proves shape, not meaning: 999.999.999.999 matches the pattern above but is not an address. Validate extracted values afterward with ipaddress or a proper parser, and treat all log content as untrusted input."
+     ]
+    },
+    {
+     "h": "Building real tools",
+     "p": [
+      "Turn scripts into tools with argparse, which gives help text, typed arguments and clear errors, and use the logging module rather than print so verbosity can be controlled. Isolate dependencies with python3 -m venv .venv and pin versions in requirements.txt, ideally with hashes, so a tool behaves the same on every analyst machine and a poisoned package update is easier to notice.",
+      "Never use subprocess with shell=True on untrusted input, never use pickle or yaml.load on data you did not create, and keep secrets in environment variables or a secrets manager, not in source code. Write small functions that take data and return data so they can be unit tested with pytest."
+     ]
+    },
+    {
+     "h": "Habits that prevent mistakes",
+     "p": [
+      "Handle bad input as the normal case. Logs contain truncated lines, odd encodings and attacker supplied text, so wrap parsing in try and except, count the lines you could not parse, and report that number so silent data loss is visible. Keep configuration such as thresholds in arguments or a file, write one pytest case per parsing rule, and review dependencies before adding them, since every package is code you now trust."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Python",
+    "text": "import re, argparse\nfrom collections import Counter\nrx = re.compile(r'Failed password .* from (?P<ip>\\S+)')\nc = Counter()\nfor line in open(args.log, errors='replace'):\n    m = rx.search(line)\n    if m:\n        c[m.group('ip')] += 1\nprint(c.most_common(5))"
+   },
+   "example": "You receive a 2 GB authentication log and must list brute force sources. Reading line by line with a compiled regex and a Counter keeps memory flat. After counting, you validate each captured string with ipaddress.ip_address and skip failures, then print only sources above a threshold of 20. Arguments for log path and threshold come from argparse, so a colleague can reuse the tool without editing code, and a pytest case with three sample lines confirms the counts.",
+   "terms": [
+    {
+     "term": "Counter",
+     "def": "A dictionary subclass in collections that counts hashable items."
+    },
+    {
+     "term": "argparse",
+     "def": "The standard library module for command line option parsing."
+    },
+    {
+     "term": "venv",
+     "def": "A virtual environment that isolates a project's Python packages."
+    },
+    {
+     "term": "ReDoS",
+     "def": "A denial of service caused by a regex with catastrophic backtracking."
+    },
+    {
+     "term": "ipaddress",
+     "def": "A standard module that validates and manipulates IP addresses and networks."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why iterate a file line by line?",
+     "options": [
+      "It keeps memory use low on large logs",
+      "It sorts the data",
+      "It is encrypted",
+      "It disables errors"
+     ],
+     "a": 0,
+     "why": "Streaming avoids loading the whole file."
+    },
+    {
+     "q": "What is a risk of subprocess with shell=True?",
+     "options": [
+      "Slower output",
+      "Command injection from untrusted input",
+      "Python 2 only",
+      "No stdout"
+     ],
+     "a": 1,
+     "why": "The shell interprets metacharacters in the input."
+    },
+    {
+     "q": "Why use a virtual environment?",
+     "options": [
+      "To speed up CPU",
+      "To isolate and pin dependencies",
+      "To avoid logging",
+      "To hide code"
+     ],
+     "a": 1,
+     "why": "It keeps packages consistent and separate."
+    },
+    {
+     "q": "A regex match of 999.999.999.999 shows what?",
+     "options": [
+      "Python bug",
+      "Pattern is wrong",
+      "Regex checks shape not validity",
+      "The IP is real"
+     ],
+     "a": 2,
+     "why": "Validate with ipaddress after extracting."
+    }
+   ],
+   "recap": [
+    "Stream files, count with Counter, parse times as UTC.",
+    "Use anchored regex, then validate extracted values.",
+    "Package tools with argparse, logging, venv and tests."
+   ]
+  },
+  {
+   "title": "Working with REST APIs",
+   "why": "Almost every security product exposes a REST API, and correct handling of auth, paging and limits separates a toy script from a dependable one.",
+   "sections": [
+    {
+     "h": "Requests, authentication and errors",
+     "p": [
+      "REST APIs use HTTP methods on resources: GET reads, POST creates, PUT or PATCH updates, DELETE removes, and responses are usually JSON. In Python the requests library makes this concise: requests.get(url, headers=..., params=..., timeout=10). Always set a timeout, because the default is none and a hung connection will stall your automation forever. Check r.status_code or call r.raise_for_status() and handle 401 (bad credentials), 403 (not permitted), 404, 429 (rate limited) and 5xx (server trouble) differently.",
+      "Common auth schemes are API keys in a header, bearer tokens as Authorization: Bearer <token>, and OAuth 2.0 client credentials that exchange an ID and secret for a short lived token. Read secrets from environment variables, never print them, and never commit them. Use a requests.Session to reuse connections and share headers."
+     ]
+    },
+    {
+     "h": "Pagination and rate limits",
+     "p": [
+      "APIs return large result sets in pages. Offset or page-number paging is simple but can skip or duplicate items if data changes mid scan; cursor paging, where each response includes a next token or a Link header, is more reliable. The loop is: request, process items, read the next cursor, and stop only when it is absent. A script that stops after the first response silently misses data, which in security means missed alerts.",
+      "Rate limits protect servers. A 429 response often includes a Retry-After header, and many APIs report remaining quota in headers such as X-RateLimit-Remaining. Honor them instead of hammering the service, since persistent violations can get your key blocked."
+     ]
+    },
+    {
+     "h": "Retries and idempotency",
+     "p": [
+      "Retry only transient failures: timeouts, connection resets, 429 and 502, 503 or 504. Use exponential backoff with jitter, for example waiting about 1, 2, 4 and 8 seconds plus a random fraction, and cap the number of attempts. Do not retry 400, 401 or 404, because repeating a bad request cannot fix it.",
+      "Be careful retrying POST requests that create or change things. GET, PUT and DELETE are idempotent by definition, so repeating them is safe, while a repeated POST can open duplicate tickets or isolate a host twice. Where supported, send an idempotency key, and log every request ID so failures can be traced."
+     ]
+    },
+    {
+     "h": "Reading API documentation",
+     "p": [
+      "Before coding, read the vendor documentation for four facts: the authentication method, the paging style, the rate limit and the error format. Test calls with curl first, redact tokens from any saved output, and use a read only key while developing. Store a sample response in your repository so tests can run offline with a mocked session instead of calling the live service on every run."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Python",
+    "text": "url = 'https://api.example.com/v1/alerts'\nparams = {'limit': 100}\nwhile url:\n    r = s.get(url, params=params, timeout=10)\n    if r.status_code == 429:\n        time.sleep(int(r.headers.get('Retry-After', 5))); continue\n    r.raise_for_status()\n    body = r.json(); handle(body['items'])\n    url, params = body.get('next'), None"
+   },
+   "example": "A script pulls alerts from a fictional API at api.example.com but only ever shows 100 results, and it crashes during busy periods. The fix is to follow the next link until it is empty, so every page is read, and to sleep for the Retry-After value on a 429 instead of failing. Adding a 10 second timeout and capping retries at five prevents a hang, and the API token comes from an environment variable named EXAMPLE_TOKEN.",
+   "terms": [
+    {
+     "term": "Pagination",
+     "def": "Splitting a large result set into pages fetched with offsets, page numbers or cursors."
+    },
+    {
+     "term": "429",
+     "def": "The HTTP status code meaning too many requests, often with a Retry-After header."
+    },
+    {
+     "term": "Exponential backoff",
+     "def": "Increasing the wait between retries, usually with random jitter."
+    },
+    {
+     "term": "Idempotent",
+     "def": "An operation that has the same effect when repeated."
+    },
+    {
+     "term": "Bearer token",
+     "def": "A credential sent in the Authorization header to prove access."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which status means rate limited?",
+     "options": [
+      "500",
+      "401",
+      "429",
+      "403"
+     ],
+     "a": 2,
+     "why": "429 is Too Many Requests."
+    },
+    {
+     "q": "Why set a timeout in requests?",
+     "options": [
+      "It is required by HTTP",
+      "It adds headers",
+      "Default is none and calls can hang forever",
+      "It encrypts traffic"
+     ],
+     "a": 2,
+     "why": "Without a timeout a stalled server blocks the script."
+    },
+    {
+     "q": "Which is safe to retry blindly?",
+     "options": [
+      "POST isolate host",
+      "GET a resource",
+      "POST create ticket",
+      "POST send email"
+     ],
+     "a": 1,
+     "why": "GET is idempotent."
+    },
+    {
+     "q": "A loop that reads only page one most likely...",
+     "options": [
+      "Misses data",
+      "Is secure",
+      "Is faster and correct",
+      "Retries forever"
+     ],
+     "a": 0,
+     "why": "It ignores the next cursor so later items are missed."
+    }
+   ],
+   "recap": [
+    "Set timeouts, check status codes, keep secrets out of code.",
+    "Follow cursors until exhausted and honor Retry-After.",
+    "Retry transient errors with backoff; beware repeating POST."
+   ]
+  },
+  {
+   "title": "Automating enrichment and triage",
+   "why": "Analysts waste hours looking up the same facts by hand; enrichment and scoring give them context in seconds so they can focus on judgment.",
+   "sections": [
+    {
+     "h": "What enrichment adds",
+     "p": [
+      "Enrichment attaches context to an indicator of compromise (IOC) such as an IP, domain, URL or file hash. Typical sources are threat intelligence services (reputation and malware family), passive DNS, WHOIS registration age, GeoIP and ASN data, and internal data like asset owner, user role and earlier alerts for the same host. A domain registered two days ago and seen in no other network is more suspicious than one that is ten years old and popular.",
+      "Hashes are the cleanest lookups because they identify a file exactly. IPs and domains change hands quickly, so always record the time of the lookup and the source, and treat any single verdict as one signal. Never submit private or customer data, such as an unreleased document, to a public service, because uploads may become visible to others."
+     ]
+    },
+    {
+     "h": "Scoring and prioritizing alerts",
+     "p": [
+      "A simple scoring model adds weighted points: base severity from the detection rule, plus reputation hits, plus asset criticality, plus whether the user is an administrator, minus points for known benign tags such as a scanner on an approved list. Keep weights in a config file so they can be tuned, and show the contributing factors beside the number so an analyst can see why the score is 82.",
+      "Decide thresholds in advance: above 80 page the on-call analyst, 40 to 80 queue for review, below 40 auto-close with a note. Measure the result by sampling closed alerts for missed true positives, and compare false positive rates before and after, otherwise automation may quietly hide real incidents."
+     ]
+    },
+    {
+     "h": "Building it reliably",
+     "p": [
+      "Enrichment depends on external services, so design for failure. Cache results with a time to live to cut cost and stay inside rate limits, run lookups concurrently with limits, and when a service is down mark the field unknown rather than guessing clean. Normalize every provider's response into one schema, such as {indicator, type, source, verdict, confidence, fetched_at}.",
+      "Write the output back where analysts work, usually as ticket fields or case comments, and keep an audit trail of what was queried. Defang IOCs in notes, for example hxxp://bad[.]example[.]com, so nobody clicks a live link by accident."
+     ]
+    },
+    {
+     "h": "Keeping humans in the loop",
+     "p": [
+      "Automated scoring should assist judgment, not replace it. Let analysts override a score with a reason, record those overrides, and review them monthly to improve weights. Periodically sample auto-closed alerts and replay known attack simulations to confirm the pipeline still raises them. Document every data source and its limits, so a reader knows that a clean verdict means only that no service had seen the indicator."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Python",
+    "text": "score = rule_severity            # 0-40\nscore += 25 if intel['malicious'] >= 5 else 0\nscore += 15 if asset['tier'] == 1 else 0\nscore += 10 if user['is_admin'] else 0\nscore -= 30 if ip in APPROVED_SCANNERS else 0\naction = 'page' if score >= 80 else 'queue' if score >= 40 else 'close'"
+   },
+   "example": "An alert fires for outbound traffic from a finance server to 203.0.113.50. The script queries a reputation API and finds 7 vendors flag the address, fetches the asset record showing a tier 1 system, and sees the user is not an admin. The score is 35 for the rule, plus 25 and 15, totalling 75, so it is queued as high priority with the three factors listed in the ticket. An analyst confirms in minutes instead of researching from scratch.",
+   "terms": [
+    {
+     "term": "IOC",
+     "def": "An observable such as a hash, IP or domain that indicates possible compromise."
+    },
+    {
+     "term": "Enrichment",
+     "def": "Adding context from other sources to an alert or indicator."
+    },
+    {
+     "term": "Passive DNS",
+     "def": "A historical record of which names resolved to which addresses."
+    },
+    {
+     "term": "Defanging",
+     "def": "Altering a URL or IP so it cannot be clicked or resolved accidentally."
+    },
+    {
+     "term": "TTL cache",
+     "def": "Stored results that expire after a set time to limit repeat lookups."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why are file hashes reliable IOCs?",
+     "options": [
+      "They never change owners",
+      "They are secret",
+      "They identify a specific file exactly",
+      "They are short"
+     ],
+     "a": 2,
+     "why": "A cryptographic hash is unique to file content."
+    },
+    {
+     "q": "If an intel API is down, the script should...",
+     "options": [
+      "Delete the alert",
+      "Mark unknown and continue",
+      "Mark clean",
+      "Retry forever"
+     ],
+     "a": 1,
+     "why": "Failure must not be treated as a clean verdict."
+    },
+    {
+     "q": "Why show score factors?",
+     "options": [
+      "Required by HTTP",
+      "Looks nicer",
+      "Analysts can see why and tune it",
+      "To save storage"
+     ],
+     "a": 2,
+     "why": "Transparency enables trust and tuning."
+    },
+    {
+     "q": "Why defang IOCs in notes?",
+     "options": [
+      "To encrypt them",
+      "To prevent accidental clicks",
+      "To block email",
+      "To shorten text"
+     ],
+     "a": 1,
+     "why": "Defanged links are not live."
+    }
+   ],
+   "recap": [
+    "Enrich with reputation, age, asset and user context.",
+    "Score with transparent weights and pre-set thresholds.",
+    "Cache, normalize, fail safe and audit every lookup."
+   ]
+  },
+  {
+   "title": "SOAR playbooks",
+   "why": "SOAR platforms codify response procedures so routine incidents get fast, consistent handling and humans spend time on decisions.",
+   "sections": [
+    {
+     "h": "Anatomy of a playbook",
+     "p": [
+      "SOAR stands for security orchestration, automation and response. A playbook is a workflow with a trigger, a series of actions, decision points and an end state. Triggers can be a SIEM alert, a reported phishing email, a webhook or a schedule. Actions call integrations: query an EDR, look up a hash, search mailboxes, open a ticket or post to chat. Decisions branch on data, for example if the sender domain is younger than 30 days or the URL is rated malicious.",
+      "Good playbooks are small and single purpose, such as 'phishing triage' or 'compromised account'. Reuse sub playbooks for common steps like enrichment, and version them in source control so changes are reviewed like code."
+     ]
+    },
+    {
+     "h": "Branching, approvals and ordering",
+     "p": [
+      "Order steps from cheap and reversible to costly and disruptive. First gather evidence and enrich, then decide, then contain. Branch on confidence: high confidence with low impact can be automated, while anything touching executives, servers or production data should pause for human approval. An approval step presents the evidence, the proposed action and its blast radius, then waits for a named approver with a timeout that escalates rather than proceeds.",
+      "Include parallel branches where safe, for example enriching URLs and attachments at the same time, and always define what happens on failure of each step. A playbook that silently stops half way is worse than no playbook."
+     ]
+    },
+    {
+     "h": "Choosing what to automate",
+     "p": [
+      "Start with high volume, low risk, well understood tasks: phishing triage, duplicate alert closure, IOC enrichment and ticket creation. Document the manual procedure first, because you cannot automate a process nobody has defined. Measure time saved and error rate, and review which cases analysts override.",
+      "Safe response actions include quarantining an email, disabling a single user session, blocking a hash or URL at the proxy, and isolating a non-critical endpoint. Riskier ones, such as disabling accounts organization wide or blocking entire address ranges, need approval. Record every action, input and decision in the case so the incident can be reconstructed."
+     ]
+    },
+    {
+     "h": "Testing and maintaining playbooks",
+     "p": [
+      "Test playbooks with recorded sample alerts in a sandbox before connecting them to production tools. Give each step a timeout and an error branch, track execution metrics such as success rate and median run time, and review failed runs weekly. Integrations change when vendors update APIs, so assign an owner to each playbook and re-test after upgrades. Retire playbooks nobody uses, because stale automation is an unreviewed risk."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Playbook outline",
+    "text": "Trigger: user-reported phish (mailbox phish@example.com)\n1 Extract URLs, attachments, headers\n2 Enrich in parallel: URL rep, hash rep, domain age\n3 Decision: any malicious? -> yes: step 4, no: step 7\n4 Search mail for same message; list recipients\n5 Approval: analyst confirms purge\n6 Quarantine copies, block URL at proxy\n7 Reply to reporter, close or escalate case"
+   },
+   "example": "A user forwards a suspicious email. The playbook extracts a link and attachment hash, finds the link rated malicious and the domain eleven days old, then searches mailboxes and finds 14 more recipients. An analyst receives an approval prompt listing the 14 recipients, approves, and the playbook quarantines the messages, blocks the URL and updates the ticket. The reporter receives a thank-you note. Total handling time drops from about 40 minutes to 5, and every step is logged.",
+   "terms": [
+    {
+     "term": "SOAR",
+     "def": "Tooling that orchestrates security products and automates response workflows."
+    },
+    {
+     "term": "Playbook",
+     "def": "A defined workflow of triggers, actions and decisions for a type of incident."
+    },
+    {
+     "term": "Approval gate",
+     "def": "A step that pauses automation until a human approves."
+    },
+    {
+     "term": "Blast radius",
+     "def": "The scope of systems or users affected by an action."
+    },
+    {
+     "term": "Integration",
+     "def": "A connector that lets a playbook call another product's API."
+    }
+   ],
+   "check": [
+    {
+     "q": "What starts a playbook?",
+     "options": [
+      "A backup",
+      "Only a human",
+      "A trigger such as an alert or webhook",
+      "A firewall rule only"
+     ],
+     "a": 2,
+     "why": "Triggers include alerts, emails, webhooks and schedules."
+    },
+    {
+     "q": "Which step should come first?",
+     "options": [
+      "Isolate the server",
+      "Disable all users",
+      "Gather and enrich evidence",
+      "Delete mailboxes"
+     ],
+     "a": 2,
+     "why": "Cheap, reversible steps go before disruptive ones."
+    },
+    {
+     "q": "When is an approval gate best?",
+     "options": [
+      "For logging",
+      "For high impact actions on critical assets",
+      "For duplicate closure",
+      "Never"
+     ],
+     "a": 1,
+     "why": "Impactful actions need human judgment."
+    },
+    {
+     "q": "Why version playbooks in Git?",
+     "options": [
+      "Faster execution",
+      "Reviewable, reversible changes",
+      "Encryption",
+      "Licensing"
+     ],
+     "a": 1,
+     "why": "Treat playbooks as code."
+    }
+   ],
+   "recap": [
+    "Playbooks combine triggers, actions, decisions and end states.",
+    "Order cheap and reversible first; gate risky steps.",
+    "Automate well defined, high volume tasks first and log everything."
+   ]
+  },
+  {
+   "title": "Automated response safely",
+   "why": "Automation acts at machine speed, so a single flawed rule can lock out an entire company; guardrails keep speed from becoming damage.",
+   "sections": [
+    {
+     "h": "Guardrails and scope limits",
+     "p": [
+      "The first guardrail is an allowlist of assets and accounts that automation must never touch, such as domain controllers, break-glass accounts, executives' accounts and critical production servers. Next come rate limits: if a playbook is about to isolate more than five hosts in ten minutes, it should stop and page a human, because that pattern usually means a bad detection, not five simultaneous compromises. Add confidence thresholds, so low scoring alerts never trigger containment.",
+      "Use least privilege for the automation account. It may need permission to isolate an endpoint but not to delete one, and its credentials should be scoped, rotated and monitored like any privileged identity."
+     ]
+    },
+    {
+     "h": "Dry run, logging and approvals",
+     "p": [
+      "A dry-run or 'what if' mode performs every step except the final change and prints what it would have done. Run new playbooks in dry-run against live alerts for a week and compare with analyst decisions before enabling enforcement. Make dry-run the default and require an explicit flag such as --apply to act.",
+      "Log the who, what, when, why and result of every action: the triggering alert, the evidence, the target, the API request ID and the outcome. Send logs to a separate system the automation cannot alter. Require human approval for destructive or wide actions, and make the approval record part of the case."
+     ]
+    },
+    {
+     "h": "Rollback and fail-safe design",
+     "p": [
+      "Every containment action needs a defined undo. Before blocking an address, record the previous rule state; before disabling an account, record its group memberships and sessions. Prefer reversible actions such as quarantine, temporary block with an expiry, or network isolation that leaves management access intact, over deletion. Expiring blocks after 24 hours prevents stale rules from accumulating.",
+      "Design for failure. If an API call errors halfway, the playbook should detect partial state and either complete or roll back, and it should notify a human. Include a kill switch, a single flag that disables all automated enforcement instantly, and test it. Finally, review automation actions regularly and track false containment events as a metric."
+     ]
+    },
+    {
+     "h": "Governance of automation",
+     "p": [
+      "Treat response automation as a change controlled system. Every new action needs a documented owner, a risk rating, a tested rollback and sign-off from the teams whose assets it may touch, such as IT operations. Run periodic game days where you trigger the playbook on a test asset and confirm that logging, approval, expiry and the kill switch all work as designed."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Script excerpt",
+    "text": "if host in PROTECTED:            raise Skip('protected asset')\nif recent_isolations() >= 5:     raise Halt('rate limit, page oncall')\nlog.info('plan isolate %s alert=%s', host, alert_id)\nif not args.apply:               return 'dry-run: no change'\nsave_state(host); edr.isolate(host, expires='24h')\nlog.info('isolated %s id=%s', host, req_id)"
+   },
+   "example": "A new rule flags beaconing and the playbook is set to isolate hosts automatically. In dry-run for a week it proposes isolating 38 hosts, but analysts judge only 3 legitimate, revealing that a backup agent causes the pattern. The team tunes the rule, adds the backup server to the allowlist, requires approval for tier 1 assets, and adds the five-per-ten-minute limiter. Only then do they enable enforcement, with automatic 24 hour expiry and a documented rollback command.",
+   "terms": [
+    {
+     "term": "Allowlist",
+     "def": "A list of assets or accounts exempt from automated action."
+    },
+    {
+     "term": "Dry run",
+     "def": "Executing logic without making the final change, to preview effects."
+    },
+    {
+     "term": "Kill switch",
+     "def": "A control that instantly disables automated enforcement."
+    },
+    {
+     "term": "Rollback",
+     "def": "Restoring the state that existed before an action."
+    },
+    {
+     "term": "Rate limiter",
+     "def": "A cap on how many actions may occur in a time window."
+    }
+   ],
+   "check": [
+    {
+     "q": "Best default for a new response script?",
+     "options": [
+      "Dry-run unless --apply is given",
+      "Run as root",
+      "No logs",
+      "Apply immediately"
+     ],
+     "a": 0,
+     "why": "Safe by default, explicit to enforce."
+    },
+    {
+     "q": "Why a rate limit on isolations?",
+     "options": [
+      "Mass actions often signal a bad rule",
+      "Avoid licenses",
+      "Hide actions",
+      "Save bandwidth"
+     ],
+     "a": 0,
+     "why": "Many simultaneous hits suggest a false positive pattern."
+    },
+    {
+     "q": "What makes an action reversible?",
+     "options": [
+      "Using no logs",
+      "Running faster",
+      "Deleting data",
+      "Saving prior state and using expiry"
+     ],
+     "a": 3,
+     "why": "Recorded state and expiry allow undo."
+    },
+    {
+     "q": "Why least privilege for automation accounts?",
+     "options": [
+      "Limits damage if abused or buggy",
+      "Cheaper",
+      "Faster API",
+      "Required by Python"
+     ],
+     "a": 0,
+     "why": "Smaller permission means smaller blast radius."
+    }
+   ],
+   "recap": [
+    "Protect critical assets with allowlists and limits.",
+    "Default to dry-run and log every action immutably.",
+    "Make actions reversible with expiry, rollback and a kill switch."
+   ]
+  },
+  {
+   "title": "Infrastructure and security tests",
+   "why": "Hardening decays as systems change; automated tests turn security requirements into checks that fail loudly when something regresses.",
+   "sections": [
+    {
+     "h": "Why test security controls",
+     "p": [
+      "A hardening standard written in a document is a wish; a test is evidence. Infrastructure tests assert desired state, for example that SSH root login is disabled, a port is closed, a file has mode 0600 or a package is absent. Running them in a CI pipeline and on a schedule detects configuration drift, the slow divergence between what you intended and what exists, as well as regressions introduced by a new image or a well meaning change.",
+      "Good tests describe the requirement in plain terms and check the effective setting, not just the file. For SSH, the effective value is shown by sshd -T, which accounts for defaults and included files, whereas grepping sshd_config may miss an override."
+     ]
+    },
+    {
+     "h": "Tools: testinfra, InSpec and pytest",
+     "p": [
+      "Testinfra is a pytest plugin with fixtures for hosts: host.file('/etc/ssh/sshd_config'), host.service('sshd'), host.socket('tcp://0.0.0.0:23').is_listening. InSpec, from Chef, uses a readable Ruby DSL with controls such as describe sshd_config do its('PermitRootLogin') { should eq 'no' } end, and ships profiles that implement CIS and DISA STIG benchmarks. Plain pytest also works well for cloud checks by calling APIs, for example asserting no storage bucket policy allows public reads.",
+      "Pick the tool your team can maintain. Whichever you use, keep tests in version control, tag them with the standard they implement, such as CIS 5.2.10, and run them against a representative test host before production."
+     ]
+    },
+    {
+     "h": "Writing tests that stay useful",
+     "p": [
+      "Write a test to fail first on a known bad configuration so you know it can detect the problem, then fix and watch it pass. Keep each test focused on one control, give failures a clear message naming the host and setting, and avoid tests that always pass because they inspect the wrong thing. Treat exceptions explicitly: a documented, time limited waiver is better than deleting the test.",
+      "Integrate results into the pipeline so a failing control blocks promotion of a base image, and export results as evidence for audits. Add negative tests too, such as confirming that an unauthorized role cannot read a secret, because a control that blocks nothing is not a control. Review failure trends over time to find recurring drift sources."
+     ]
+    },
+    {
+     "h": "Shifting tests left",
+     "p": [
+      "Run the same checks earlier in the lifecycle. Scan infrastructure as code with policy tools before deployment, test container images in the build pipeline, and run the host checks against every golden image. Failing early is cheap: a rejected pull request costs minutes, while discovering an open management port in production costs an incident. Track the pass rate per control so the team can see whether hardening is improving."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Python test (testinfra)",
+    "text": "def test_ssh_root_login_disabled(host):\n    out = host.check_output('sshd -T')\n    assert 'permitrootlogin no' in out.lower()\n\ndef test_telnet_not_listening(host):\n    assert not host.socket('tcp://0.0.0.0:23').is_listening"
+   },
+   "example": "A team bakes server images with a CIS aligned SSH config. A later change to a configuration management role accidentally sets PermitRootLogin yes on one environment. The nightly test run executes sshd -T on each host, the assertion for 'permitrootlogin no' fails on three servers, and the pipeline sends an alert naming them. Engineers fix the role, rebuild the image and rerun, and the passing report is stored as audit evidence.",
+   "terms": [
+    {
+     "term": "Configuration drift",
+     "def": "Gradual deviation of a system from its intended configuration."
+    },
+    {
+     "term": "Testinfra",
+     "def": "A pytest based framework for testing server state."
+    },
+    {
+     "term": "InSpec",
+     "def": "A compliance and testing framework with a readable DSL and benchmark profiles."
+    },
+    {
+     "term": "CIS Benchmark",
+     "def": "A consensus hardening guide with numbered configuration recommendations."
+    },
+    {
+     "term": "Regression",
+     "def": "A previously fixed problem that reappears after a change."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does sshd -T show?",
+     "options": [
+      "Effective SSH daemon settings",
+      "Users",
+      "Only the file text",
+      "Open ports"
+     ],
+     "a": 0,
+     "why": "It prints the active, merged configuration."
+    },
+    {
+     "q": "Why run tests on a schedule?",
+     "options": [
+      "Avoid logging",
+      "Detect drift over time",
+      "Rotate keys",
+      "Make hosts faster"
+     ],
+     "a": 1,
+     "why": "Settings change after deployment."
+    },
+    {
+     "q": "A good first step when writing a test is to...",
+     "options": [
+      "Confirm it fails on a bad config",
+      "Disable it",
+      "Make it always pass",
+      "Skip failing"
+     ],
+     "a": 0,
+     "why": "A test that cannot fail proves nothing."
+    },
+    {
+     "q": "Which is an InSpec feature?",
+     "options": [
+      "Packet capture",
+      "Disk encryption",
+      "DNS hosting",
+      "Readable DSL controls and benchmark profiles"
+     ],
+     "a": 3,
+     "why": "InSpec profiles map to CIS and STIG."
+    }
+   ],
+   "recap": [
+    "Turn hardening rules into automated assertions.",
+    "Check effective state with tools like sshd -T.",
+    "Run in CI and on a schedule; keep results as evidence."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Parse auth logs",
+   "sim": "code-editor",
+   "scenario": "A fictional host, srv01.example.com, wrote an auth.log with thousands of SSH events. Several lines show failed logins from addresses in 198.51.100.0/24 and 203.0.113.0/24. You must write a Python script that counts failed logins per source address and flags any above a threshold of 10.",
+   "objective": "Count failures per IP and print those above the threshold.",
+   "steps": [
+    {
+     "do": "Open auth.log in the editor and view the first lines",
+     "see": "Lines like 'Jan 12 03:14:07 srv01 sshd[411]: Failed password for invalid user admin from 198.51.100.23 port 51022 ssh2'"
+    },
+    {
+     "do": "Add a compiled regex with a named group for the source address",
+     "see": "rx = re.compile(r'Failed password .* from (?P<ip>\\S+)') accepted"
+    },
+    {
+     "do": "Loop over lines, count with Counter",
+     "see": "Counter updated; 3 lines skipped as non-matching"
+    },
+    {
+     "do": "Validate each captured IP with ipaddress.ip_address",
+     "see": "0 invalid addresses; counter has 4 sources"
+    },
+    {
+     "do": "Filter counts greater than 10 and print them sorted",
+     "see": "198.51.100.23 212\n203.0.113.9 41"
+    },
+    {
+     "do": "Run the tests",
+     "see": "2 passed: counts correct, 192.0.2.77 (6 failures) not flagged"
+    }
+   ],
+   "answer": "The script flags 198.51.100.23 (212 failures) and 203.0.113.9 (41 failures). 192.0.2.77 with 6 failures stays below the threshold. The solution streams the file, uses a Counter and validates addresses before reporting.",
+   "hint": "Use Counter.most_common or a dictionary comprehension that keeps counts greater than the threshold."
+  },
+  {
+   "title": "jq pipeline",
+   "sim": "terminal",
+   "scenario": "You have alerts.json, output from a fictional detection tool, holding an array of alerts with fields id, severity, host, rule and tags. Management wants the hosts that have high severity alerts, without duplicates, and a count per rule.",
+   "objective": "Use jq to extract hosts with high severity alerts and count alerts per rule.",
+   "steps": [
+    {
+     "do": "Run: jq length alerts.json",
+     "see": "42"
+    },
+    {
+     "do": "Run: jq -r '.[] | select(.severity==\"high\") | .host' alerts.json",
+     "see": "web01.example.com\ndb02.example.com\nweb01.example.com\nvpn03.example.com"
+    },
+    {
+     "do": "Add sort -u to remove duplicates",
+     "see": "db02.example.com\nvpn03.example.com\nweb01.example.com"
+    },
+    {
+     "do": "Run: jq -r '.[].rule' alerts.json | sort | uniq -c | sort -rn",
+     "see": "17 Suspicious PowerShell\n9 SSH Brute Force\n6 New Admin Account"
+    },
+    {
+     "do": "Try jq '.[] | select(.tags | index(\"vip\"))' alerts.json",
+     "see": "2 alerts shown, both for host vpn03.example.com"
+    },
+    {
+     "do": "Save results to high_hosts.txt",
+     "see": "high_hosts.txt written with 3 lines"
+    }
+   ],
+   "answer": "Three unique hosts have high severity alerts: db02.example.com, vpn03.example.com and web01.example.com. Rule counts are 17, 9 and 6, with Suspicious PowerShell the most frequent. select filters, -r removes quotes, and sort -u removes duplicates.",
+   "hint": "Use select(.severity==\"high\") then pipe the raw output into sort -u."
+  },
+  {
+   "title": "Paginate an API",
+   "sim": "code-editor",
+   "scenario": "A script fetches alerts from the fictional https://api.example.com/v1/alerts. It returns only the first 100 items though 340 exist, and it crashes when the server answers HTTP 429. Fix both faults.",
+   "objective": "Make the script follow pagination and honor Retry-After on 429.",
+   "steps": [
+    {
+     "do": "Run the script as given",
+     "see": "Fetched 100 alerts. Done."
+    },
+    {
+     "do": "Inspect the JSON response",
+     "see": "{'items': [...100], 'next': 'https://api.example.com/v1/alerts?cursor=abc123'}"
+    },
+    {
+     "do": "Wrap the request in a while loop that follows body['next']",
+     "see": "Fetched 200 alerts; then HTTPError 429 Too Many Requests"
+    },
+    {
+     "do": "Add a branch: if status is 429, sleep Retry-After seconds and continue",
+     "see": "Sleeping 3s... resumed"
+    },
+    {
+     "do": "Add timeout=10 and cap retries at 5",
+     "see": "Config accepted; retry counter shown"
+    },
+    {
+     "do": "Run again",
+     "see": "Fetched 340 alerts in 4 pages, 1 retry. Done."
+    }
+   ],
+   "answer": "The fixed script loops until next is empty, retrieving all 340 alerts across 4 pages, sleeps for the Retry-After value on 429, uses a timeout and limits retries to avoid an endless loop.",
+   "hint": "The loop condition should depend on the next cursor, not on a fixed number of requests."
+  },
+  {
+   "title": "Build a playbook",
+   "sim": "diagram-builder",
+   "scenario": "A user reports a suspicious email to phish@example.com. You must assemble a SOAR playbook from available blocks: Trigger, Extract artifacts, Enrich, Decision, Approval, Quarantine and block, Notify and close.",
+   "objective": "Order the blocks into a safe phishing response playbook.",
+   "steps": [
+    {
+     "do": "Drag Trigger: reported email to the canvas",
+     "see": "Node 1 placed; output: email object"
+    },
+    {
+     "do": "Connect Extract artifacts",
+     "see": "Outputs: 2 URLs, 1 attachment hash"
+    },
+    {
+     "do": "Connect Enrich after extraction",
+     "see": "URL rating: malicious; hash: unknown; domain age: 11 days"
+    },
+    {
+     "do": "Add a Decision on verdict",
+     "see": "Branches: malicious or unknown vs. clean"
+    },
+    {
+     "do": "On the malicious branch add Approval before Quarantine and block",
+     "see": "Approval prompt shows 14 recipients"
+    },
+    {
+     "do": "Add Notify and close at the end of both branches",
+     "see": "Validation passed: all paths end, containment gated by approval"
+    }
+   ],
+   "answer": "Correct order: Trigger, Extract artifacts, Enrich, Decision, then on the malicious branch Approval followed by Quarantine and block, and finally Notify and close on every path. Containment comes after enrichment and approval.",
+   "hint": "Gather evidence first, and put the disruptive action behind a human gate."
+  },
+  {
+   "title": "Test a hardening rule",
+   "sim": "code-editor",
+   "scenario": "Servers must have SSH root login disabled. A test host in the lab has an sshd configuration you cannot see. Write a pytest or testinfra check that fails when root login is enabled and passes when it is disabled.",
+   "objective": "Write a test that fails when PermitRootLogin is enabled.",
+   "steps": [
+    {
+     "do": "Open test_ssh.py",
+     "see": "Empty file with import pytest"
+    },
+    {
+     "do": "Write a test using host.check_output('sshd -T')",
+     "see": "Function def test_root_login(host) created"
+    },
+    {
+     "do": "Assert 'permitrootlogin no' appears in the lowercased output",
+     "see": "Assertion added"
+    },
+    {
+     "do": "Run against the vulnerable host",
+     "see": "FAILED: assert 'permitrootlogin no' in '... permitrootlogin yes ...'"
+    },
+    {
+     "do": "Fix the configuration and reload sshd on the test host",
+     "see": "sshd reloaded; sshd -T shows permitrootlogin no"
+    },
+    {
+     "do": "Run the test again",
+     "see": "1 passed"
+    }
+   ],
+   "answer": "The test runs sshd -T and asserts permitrootlogin no. It fails on the host configured with yes and passes after remediation, proving the check can detect the regression.",
+   "hint": "Check the effective setting from sshd -T, not just the config file text."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which Bash option makes a pipeline fail if any stage fails?",
+   "options": [
+    "set -f",
+    "set -x",
+    "set -e",
+    "set -o pipefail"
+   ],
+   "a": 3,
+   "why": "pipefail returns the first nonzero status."
+  },
+  {
+   "q": "Why prefer jq to grep for JSON?",
+   "options": [
+    "It is encrypted",
+    "It parses structure reliably",
+    "It is shorter",
+    "It sorts"
+   ],
+   "a": 1,
+   "why": "Regex on JSON breaks with format changes."
+  },
+  {
+   "q": "What is the safest way to pass a user supplied filename to a command in Bash?",
+   "options": [
+    "Via backticks",
+    "Via eval",
+    "Quoted, after --",
+    "Unquoted"
+   ],
+   "a": 2,
+   "why": "Quoting and -- avoid splitting and option injection."
+  },
+  {
+   "q": "What can a nested quantifier in a regex cause?",
+   "options": [
+    "Faster matching",
+    "Syntax highlighting",
+    "Memory encryption",
+    "ReDoS"
+   ],
+   "a": 3,
+   "why": "Catastrophic backtracking can freeze a parser."
+  },
+  {
+   "q": "An API returns 429 with Retry-After: 7. You should...",
+   "options": [
+    "Change the key",
+    "Wait 7 seconds then retry",
+    "Give up",
+    "Retry immediately"
+   ],
+   "a": 1,
+   "why": "Honor the server's rate limit instruction."
+  },
+  {
+   "q": "Which request type is risky to retry blindly?",
+   "options": [
+    "HEAD",
+    "GET",
+    "POST that isolates a host",
+    "GET with params"
+   ],
+   "a": 2,
+   "why": "Non-idempotent actions can repeat their effect."
+  },
+  {
+   "q": "If an enrichment source is unreachable, the field should be...",
+   "options": [
+    "Unknown",
+    "Clean",
+    "Deleted",
+    "Malicious"
+   ],
+   "a": 0,
+   "why": "Never convert failure into a verdict."
+  },
+  {
+   "q": "Best place for an approval gate in a phishing playbook?",
+   "options": [
+    "After closing",
+    "Before reading headers",
+    "Before purging mail from many mailboxes",
+    "Before logging"
+   ],
+   "a": 2,
+   "why": "Wide, disruptive actions need human approval."
+  },
+  {
+   "q": "Which feature lets you undo containment automatically after a period?",
+   "options": [
+    "Faster API",
+    "Alert tags",
+    "Expiry on the block",
+    "Shorter logs"
+   ],
+   "a": 2,
+   "why": "Temporary blocks that expire reduce stale rules."
+  },
+  {
+   "q": "What does a test using sshd -T verify?",
+   "options": [
+    "Password strength",
+    "Effective SSH settings",
+    "Network latency",
+    "File timestamps"
+   ],
+   "a": 1,
+   "why": "It reports the active merged configuration."
+  }
+ ]
+}

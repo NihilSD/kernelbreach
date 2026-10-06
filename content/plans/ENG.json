@@ -1,0 +1,1093 @@
+{
+ "key": "ENG",
+ "capstone": {
+  "title": "Secure a Company: Design Review and Hardening",
+  "desc": "Multi-step simulated engagement: threat model the architecture, fix IAM, network, cloud and pipeline findings, set up detection, then present a prioritized roadmap."
+ },
+ "cert_note": "Overlaps CISSP domains 3, 4, 5, 8; AWS Security Specialty; CKS topics. Study guide only, not an official prep.",
+ "modules": [
+  {
+   "code": "ENG-01",
+   "can_do": [
+    "Decompose a system into a data flow diagram with trust boundaries",
+    "Apply STRIDE and attack trees to rank threats and pick mitigations",
+    "Design layered controls using zero trust and defense in depth"
+   ],
+   "lessons": [
+    {
+     "title": "Threat modeling process and DFDs",
+     "goal": "Explain the four-question threat modeling process and draw a DFD with its core element types."
+    },
+    {
+     "title": "Trust boundaries and attack surface",
+     "goal": "Identify trust boundaries and entry points in a DFD and explain why data crossing them needs validation."
+    },
+    {
+     "title": "STRIDE per element",
+     "goal": "Map each STRIDE category to the security property it violates and to typical mitigations per DFD element type."
+    },
+    {
+     "title": "PASTA and attack trees",
+     "goal": "Describe the seven PASTA stages and build an attack tree with AND/OR nodes and leaf-level cost or likelihood."
+    },
+    {
+     "title": "Secure design patterns and principles",
+     "goal": "Apply least privilege, fail-safe defaults, complete mediation and separation of duties to a design."
+    },
+    {
+     "title": "Zero trust and defense in depth",
+     "goal": "Explain NIST SP 800-207 zero trust tenets and place layered controls across network, host, app and data."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Draw the DFD",
+     "sim": "diagram-builder",
+     "task": "Place processes, stores and entities for a web app, connect flows and mark the trust boundaries."
+    },
+    {
+     "title": "STRIDE a login flow",
+     "sim": "scenario",
+     "task": "For each element of a login DFD, choose the applicable STRIDE threats and a matching mitigation."
+    },
+    {
+     "title": "Build an attack tree",
+     "sim": "diagram-builder",
+     "task": "Arrange AND/OR nodes to reach the goal 'steal customer data' and mark the cheapest path."
+    },
+    {
+     "title": "Layer the defenses",
+     "sim": "config-editor",
+     "task": "Assign controls to network, host, app and data layers so no single failure exposes the asset."
+    }
+   ],
+   "checkpoint": {
+    "focus": "STRIDE mapping, trust boundaries, attack trees, secure design principles, zero trust tenets"
+   }
+  },
+  {
+   "code": "ENG-02",
+   "can_do": [
+    "Apply CIS Benchmark controls to Linux and Windows systems",
+    "Build a patch and configuration management workflow with baselines",
+    "Detect configuration drift against a hardened baseline"
+   ],
+   "lessons": [
+    {
+     "title": "Hardening principles and CIS Benchmarks",
+     "goal": "Explain attack surface reduction, CIS Level 1 versus Level 2 profiles and how benchmarks are scored."
+    },
+    {
+     "title": "Linux hardening",
+     "goal": "Harden SSH (PermitRootLogin, key auth), sysctl, file permissions, auditd, and remove unneeded services."
+    },
+    {
+     "title": "Windows hardening",
+     "goal": "Apply Group Policy, local security policy, Defender, BitLocker and disabling SMBv1/LLMNR/NTLM where possible."
+    },
+    {
+     "title": "Patch management lifecycle",
+     "goal": "Describe inventory, test, staged rollout, rollback and emergency patching with WSUS, apt/yum and Intune."
+    },
+    {
+     "title": "Configuration management tools",
+     "goal": "Use Ansible, Puppet or DSC to enforce idempotent desired-state configuration at scale."
+    },
+    {
+     "title": "Baselines, drift and compliance scanning",
+     "goal": "Create gold images, scan with OpenSCAP or Lynis, and handle drift and documented exceptions."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Harden sshd_config",
+     "sim": "config-editor",
+     "task": "Edit an sshd_config to disable root login and password auth, set ciphers, and restrict users."
+    },
+    {
+     "title": "Audit a Linux host",
+     "sim": "terminal",
+     "task": "Run Lynis-style checks, read the findings and fix the failing permission and service items."
+    },
+    {
+     "title": "Windows GPO review",
+     "sim": "config-editor",
+     "task": "Toggle policy settings to meet a baseline: SMBv1 off, NTLM restricted, audit policy set."
+    },
+    {
+     "title": "Patch rollout plan",
+     "sim": "scenario",
+     "task": "Order systems into rings, choose test and rollback steps, and handle an emergency out-of-band patch."
+    }
+   ],
+   "checkpoint": {
+    "focus": "CIS benchmark profiles, SSH and Windows policy settings, patch lifecycle, config management, drift"
+   }
+  },
+  {
+   "code": "ENG-03",
+   "can_do": [
+    "Configure SSO using SAML and OIDC and read their tokens",
+    "Design MFA, PAM and service account controls",
+    "Store and rotate secrets without hardcoding them"
+   ],
+   "lessons": [
+    {
+     "title": "Directory services and AD architecture",
+     "goal": "Explain LDAP, Kerberos, Active Directory domains, OUs, groups and tiered administration."
+    },
+    {
+     "title": "AuthN, AuthZ and access models",
+     "goal": "Distinguish RBAC, ABAC and ReBAC, and apply least privilege and joiner-mover-leaver processes."
+    },
+    {
+     "title": "SAML federation",
+     "goal": "Trace a SAML SP-initiated flow and check assertions, signatures, audience and NotOnOrAfter."
+    },
+    {
+     "title": "OAuth 2.0 and OIDC",
+     "goal": "Use authorization code with PKCE and validate ID token claims (iss, aud, exp, nonce) and scopes."
+    },
+    {
+     "title": "MFA rollout",
+     "goal": "Compare TOTP, push and FIDO2/WebAuthn, plan phased enrollment, recovery, and mitigate MFA fatigue."
+    },
+    {
+     "title": "Privileged access management",
+     "goal": "Implement vaulting, just-in-time elevation, session recording and break-glass accounts."
+    },
+    {
+     "title": "Service accounts and secrets",
+     "goal": "Replace static credentials with managed identities, short-lived tokens and Vault-style rotation."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Decode a SAML assertion",
+     "sim": "web-proxy",
+     "task": "Inspect an intercepted SAML response and spot the missing signature check and wrong audience."
+    },
+    {
+     "title": "Inspect an OIDC token",
+     "sim": "code-editor",
+     "task": "Decode a JWT, verify claims and fix a validation bug that accepts alg none."
+    },
+    {
+     "title": "MFA rollout plan",
+     "sim": "scenario",
+     "task": "Choose factors per user group, set enrollment order and a safe recovery process."
+    },
+    {
+     "title": "Audit AD groups",
+     "sim": "file-explorer",
+     "task": "Browse group memberships, find stale admins and nested privilege paths, and flag them."
+    },
+    {
+     "title": "Remove hardcoded secrets",
+     "sim": "code-editor",
+     "task": "Replace credentials in a script with environment-injected secrets and a Vault lookup."
+    }
+   ],
+   "checkpoint": {
+    "focus": "SAML versus OIDC flows, token validation, MFA types, PAM, service account and secret handling"
+   }
+  },
+  {
+   "code": "ENG-04",
+   "can_do": [
+    "Design firewall rules and segmented network zones",
+    "Choose VPN, ZTNA, WAF and NAC controls for a given need",
+    "Defend DNS and absorb DDoS attacks"
+   ],
+   "lessons": [
+    {
+     "title": "Firewall types and rule design",
+     "goal": "Compare stateless, stateful and NGFW, and write ordered allow-list rules with default deny."
+    },
+    {
+     "title": "Network segmentation and zones",
+     "goal": "Design DMZ, internal, management and OT zones with VLANs and ACLs between them."
+    },
+    {
+     "title": "Microsegmentation",
+     "goal": "Apply host- and workload-level policy to limit east-west movement using tags and identity."
+    },
+    {
+     "title": "VPN and ZTNA",
+     "goal": "Compare IPsec, WireGuard and SSL VPN with identity-aware ZTNA and decide when each fits."
+    },
+    {
+     "title": "WAF and reverse proxies",
+     "goal": "Deploy a WAF in detection then blocking mode with OWASP CRS and tune false positives."
+    },
+    {
+     "title": "DNS security and DDoS defense",
+     "goal": "Use DNSSEC, DoT/DoH, RPZ, rate limiting, anycast, scrubbing and SYN cookies."
+    },
+    {
+     "title": "Network access control",
+     "goal": "Implement 802.1X, RADIUS, posture checks and quarantine VLANs for unmanaged devices."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Write firewall rules",
+     "sim": "config-editor",
+     "task": "Build an ordered rule set for a three-tier app with default deny and least-open ports."
+    },
+    {
+     "title": "Segment the network",
+     "sim": "diagram-builder",
+     "task": "Place zones and firewalls on a diagram and mark allowed flows between them."
+    },
+    {
+     "title": "Tune a WAF",
+     "sim": "log-viewer",
+     "task": "Read WAF blocks, separate real attacks from false positives, and write exclusions."
+    },
+    {
+     "title": "Spot DNS abuse",
+     "sim": "packet-viewer",
+     "task": "Find DNS tunneling and a spoofed response in a capture and propose DNS controls."
+    },
+    {
+     "title": "Pick the right access control",
+     "sim": "scenario",
+     "task": "Given five remote-access requirements, choose between VPN, ZTNA and NAC with reasons."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Rule ordering, segmentation design, VPN versus ZTNA, WAF tuning, DNS and DDoS controls, 802.1X"
+   }
+  },
+  {
+   "code": "ENG-05",
+   "can_do": [
+    "Configure TLS securely and manage certificate lifecycles",
+    "Design key management with KMS, HSM and rotation",
+    "Identify and fix common cryptographic implementation mistakes"
+   ],
+   "lessons": [
+    {
+     "title": "TLS configuration",
+     "goal": "Choose TLS 1.2/1.3, AEAD cipher suites, forward secrecy, HSTS and test with testssl.sh."
+    },
+    {
+     "title": "PKI and certificate lifecycle",
+     "goal": "Explain chains, CAs, ACME, OCSP stapling, CT logs and automated renewal to avoid expiry outages."
+    },
+    {
+     "title": "KMS and envelope encryption",
+     "goal": "Use a KMS with data keys, key policies, and separation of key and data access."
+    },
+    {
+     "title": "HSMs and key rotation",
+     "goal": "Compare HSM, FIPS 140-3 levels and rotation, escrow and destruction procedures."
+    },
+    {
+     "title": "Secrets management",
+     "goal": "Operate Vault or cloud secrets managers with dynamic secrets, leases and audit logging."
+    },
+    {
+     "title": "Common implementation mistakes",
+     "goal": "Spot ECB mode, nonce reuse, weak password hashing, hardcoded keys and unsafe randomness, and fix them."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Fix a TLS config",
+     "sim": "config-editor",
+     "task": "Edit an nginx TLS block to disable old protocols and weak ciphers and enable HSTS."
+    },
+    {
+     "title": "Triage an expired cert",
+     "sim": "terminal",
+     "task": "Use openssl s_client to find the expired intermediate and plan the renewal."
+    },
+    {
+     "title": "Envelope encryption flow",
+     "sim": "diagram-builder",
+     "task": "Order the steps of data key generation, encryption, wrapping and storage."
+    },
+    {
+     "title": "Review crypto code",
+     "sim": "code-editor",
+     "task": "Find and replace MD5, ECB and a static IV in a code sample with safe alternatives."
+    }
+   ],
+   "checkpoint": {
+    "focus": "TLS settings, certificate lifecycle and ACME, KMS and envelope encryption, rotation, crypto misuse"
+   }
+  },
+  {
+   "code": "ENG-06",
+   "can_do": [
+    "Write code that avoids OWASP Top 10 flaws",
+    "Run and triage SAST, DAST and SCA results",
+    "Operate a secure SDLC with reviews and security champions"
+   ],
+   "lessons": [
+    {
+     "title": "Secure SDLC and requirements",
+     "goal": "Integrate security activities in each SDLC phase using OWASP SAMM and BSIMM concepts."
+    },
+    {
+     "title": "Input validation and output encoding",
+     "goal": "Apply allow-list validation, parameterized queries and context-aware output encoding."
+    },
+    {
+     "title": "Authentication and session handling",
+     "goal": "Implement secure password storage (Argon2/bcrypt), session cookies flags and CSRF defenses."
+    },
+    {
+     "title": "Access control and API security",
+     "goal": "Enforce server-side authorization and prevent IDOR, mass assignment and broken function-level access."
+    },
+    {
+     "title": "Secure code review",
+     "goal": "Review code with a checklist for injection, authz, crypto and error handling issues."
+    },
+    {
+     "title": "SAST and DAST",
+     "goal": "Compare Semgrep/CodeQL with ZAP-style scanning and tune rules to reduce false positives."
+    },
+    {
+     "title": "SCA and dependency risk",
+     "goal": "Read SBOM and CVE data for dependencies, handle transitive risk and pin versions."
+    },
+    {
+     "title": "Security champions program",
+     "goal": "Set up a champion network, training, threat model reviews and vulnerability SLAs."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Fix SQL injection",
+     "sim": "code-editor",
+     "task": "Convert string-built queries to parameterized statements and verify the exploit fails."
+    },
+    {
+     "title": "Fix XSS output",
+     "sim": "code-editor",
+     "task": "Apply the right encoder per context and add a CSP header to a vulnerable template."
+    },
+    {
+     "title": "Review a pull request",
+     "sim": "code-editor",
+     "task": "Annotate a diff for missing authz checks and unsafe deserialization."
+    },
+    {
+     "title": "Triage SAST findings",
+     "sim": "scenario",
+     "task": "Classify a findings list into true positive, false positive and risk accepted with reasons."
+    },
+    {
+     "title": "Exploit an IDOR in sandbox",
+     "sim": "web-proxy",
+     "task": "Modify an object ID in a request, confirm unauthorized access, then specify the fix."
+    },
+    {
+     "title": "Dependency audit",
+     "sim": "terminal",
+     "task": "Run an SCA scan on a lockfile and choose upgrade paths for vulnerable packages."
+    }
+   ],
+   "checkpoint": {
+    "focus": "OWASP Top 10 fixes, secure review, SAST/DAST/SCA triage, session and authz handling, SDLC"
+   }
+  },
+  {
+   "code": "ENG-07",
+   "can_do": [
+    "Find and fix weaknesses in CI/CD pipelines",
+    "Generate SBOMs and sign artifacts",
+    "Enforce security rules with policy as code"
+   ],
+   "lessons": [
+    {
+     "title": "CI/CD threat model",
+     "goal": "Map pipeline attack points: source, build, runners, dependencies, registries and deploy credentials."
+    },
+    {
+     "title": "Pipeline hardening",
+     "goal": "Secure runners, restrict tokens, pin actions by SHA and use OIDC federation instead of long-lived keys."
+    },
+    {
+     "title": "Secrets in repos",
+     "goal": "Detect leaked secrets with gitleaks/trufflehog, use pre-commit hooks and revoke and rotate exposed keys."
+    },
+    {
+     "title": "Artifact signing and provenance",
+     "goal": "Sign images and builds with Sigstore cosign and verify signatures before deployment."
+    },
+    {
+     "title": "SBOM and vulnerability data",
+     "goal": "Produce SPDX or CycloneDX SBOMs with Syft and scan with Grype, and use VEX statements."
+    },
+    {
+     "title": "Supply chain security and SLSA",
+     "goal": "Explain SLSA levels, dependency confusion and typosquatting, and mitigations such as lockfiles."
+    },
+    {
+     "title": "Policy as code gates",
+     "goal": "Write OPA/Rego or Conftest rules that block risky builds and deployments."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Harden a workflow file",
+     "sim": "config-editor",
+     "task": "Fix a CI YAML: pin actions, limit token permissions and remove a plaintext secret."
+    },
+    {
+     "title": "Scan repo for secrets",
+     "sim": "terminal",
+     "task": "Run a secret scanner over history, identify true leaks and plan rotation."
+    },
+    {
+     "title": "Verify a signature",
+     "sim": "terminal",
+     "task": "Check an image signature and refuse deployment when verification fails."
+    },
+    {
+     "title": "Read an SBOM",
+     "sim": "file-explorer",
+     "task": "Locate a vulnerable transitive package in an SBOM and trace which service uses it."
+    },
+    {
+     "title": "Write a Rego rule",
+     "sim": "code-editor",
+     "task": "Write a policy denying images from unapproved registries and test it on sample input."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Pipeline attack paths, secret scanning, signing and provenance, SBOM, SLSA, policy as code"
+   }
+  },
+  {
+   "code": "ENG-08",
+   "can_do": [
+    "Design secure IAM and network controls in AWS, Azure and GCP",
+    "Configure encryption, logging and CSPM in the cloud",
+    "Plan a multi-account landing zone"
+   ],
+   "lessons": [
+    {
+     "title": "Shared responsibility and cloud threat model",
+     "goal": "Explain the shared responsibility model per IaaS, PaaS and SaaS and common cloud attack paths."
+    },
+    {
+     "title": "Cloud IAM fundamentals",
+     "goal": "Read IAM policies, roles, trust relationships and SCP/Org policy boundaries across clouds."
+    },
+    {
+     "title": "IAM least privilege in practice",
+     "goal": "Reduce permissions using Access Analyzer, conditions, permission boundaries and short-lived credentials."
+    },
+    {
+     "title": "Cloud network controls",
+     "goal": "Design VPC/VNet segmentation, security groups, private endpoints and egress control."
+    },
+    {
+     "title": "Data protection and encryption",
+     "goal": "Apply KMS-based encryption at rest, bucket and storage policies and block public exposure."
+    },
+    {
+     "title": "Logging and detection",
+     "goal": "Enable CloudTrail, Azure Activity Log and GCP Audit Logs and centralize them for detection."
+    },
+    {
+     "title": "CSPM and misconfiguration",
+     "goal": "Use CSPM to find public buckets, open security groups and unencrypted volumes and prioritize."
+    },
+    {
+     "title": "Landing zones and multi-account design",
+     "goal": "Structure organizations, OUs, guardrails, and baseline accounts with Control Tower-style patterns."
+    },
+    {
+     "title": "Cloud pattern comparison",
+     "goal": "Map equivalent services across AWS, Azure and GCP and pick patterns for common workloads."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Fix an IAM policy",
+     "sim": "config-editor",
+     "task": "Replace a wildcard policy with scoped actions, resources and conditions."
+    },
+    {
+     "title": "Trace a privilege escalation",
+     "sim": "scenario",
+     "task": "Follow an IAM path from low-privilege role to admin and break the chain."
+    },
+    {
+     "title": "Lock down a bucket",
+     "sim": "config-editor",
+     "task": "Enable block public access, encryption and logging on a storage bucket policy."
+    },
+    {
+     "title": "Hunt in CloudTrail",
+     "sim": "log-viewer",
+     "task": "Find the console login without MFA and the key creation that followed."
+    },
+    {
+     "title": "Triage CSPM findings",
+     "sim": "siem",
+     "task": "Sort misconfiguration alerts by exposure and data sensitivity and fix the top three."
+    },
+    {
+     "title": "Design a landing zone",
+     "sim": "diagram-builder",
+     "task": "Lay out OUs, accounts and guardrail policies for prod, dev and security tooling."
+    }
+   ],
+   "checkpoint": {
+    "focus": "IAM policy reading, privilege escalation, cloud network and data controls, logging, CSPM"
+   }
+  },
+  {
+   "code": "ENG-09",
+   "can_do": [
+    "Scan and harden container images",
+    "Configure Kubernetes RBAC, network and pod security",
+    "Detect runtime threats and protect secrets in clusters"
+   ],
+   "lessons": [
+    {
+     "title": "Container security fundamentals",
+     "goal": "Explain namespaces, cgroups, capabilities and why containers share a kernel with the host."
+    },
+    {
+     "title": "Image security and scanning",
+     "goal": "Build minimal non-root images, scan with Trivy, and enforce trusted registries and digests."
+    },
+    {
+     "title": "Kubernetes architecture and attack surface",
+     "goal": "Identify API server, etcd, kubelet and service account exposure risks."
+    },
+    {
+     "title": "RBAC in Kubernetes",
+     "goal": "Write Roles and RoleBindings with least privilege and audit with kubectl auth can-i."
+    },
+    {
+     "title": "Pod security and admission control",
+     "goal": "Apply Pod Security Standards, securityContext and admission policies (Kyverno, Gatekeeper)."
+    },
+    {
+     "title": "Network policies",
+     "goal": "Create default-deny NetworkPolicies and allow only required pod-to-pod traffic."
+    },
+    {
+     "title": "Runtime security and secrets",
+     "goal": "Use Falco rules, seccomp and AppArmor, and handle secrets with encryption at rest and external stores."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Scan an image",
+     "sim": "terminal",
+     "task": "Run a Trivy-style scan, read CVE output and rebuild the image with a patched base."
+    },
+    {
+     "title": "Harden a Dockerfile",
+     "sim": "code-editor",
+     "task": "Switch to non-root user, minimal base, remove secrets and add a healthcheck."
+    },
+    {
+     "title": "Fix over-broad RBAC",
+     "sim": "config-editor",
+     "task": "Replace a cluster-admin binding with a namespaced least-privilege Role."
+    },
+    {
+     "title": "Write a NetworkPolicy",
+     "sim": "config-editor",
+     "task": "Create default-deny and allow only the frontend to reach the API on its port."
+    },
+    {
+     "title": "Investigate a Falco alert",
+     "sim": "log-viewer",
+     "task": "Read a runtime alert for a shell in a container and decide on containment."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Image hardening, RBAC, pod security standards, network policy, Falco and secrets"
+   }
+  },
+  {
+   "code": "ENG-10",
+   "can_do": [
+    "Scan Terraform and CloudFormation for misconfigurations",
+    "Detect and remediate infrastructure drift",
+    "Enforce guardrails with policy as code"
+   ],
+   "lessons": [
+    {
+     "title": "IaC security risks",
+     "goal": "Explain IaC misconfigurations, secrets in state files and the benefits of shift-left scanning."
+    },
+    {
+     "title": "Scanning IaC templates",
+     "goal": "Use Checkov, tfsec or cfn-nag to find and fix insecure resources and tune suppressions."
+    },
+    {
+     "title": "Drift detection and state security",
+     "goal": "Detect drift with plan or AWS Config, protect remote state with encryption and locking."
+    },
+    {
+     "title": "Guardrails and policy as code",
+     "goal": "Apply OPA, Sentinel and SCPs to enforce standards before and after deployment."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Fix a Terraform file",
+     "sim": "code-editor",
+     "task": "Correct an S3 bucket and security group to pass scanner checks."
+    },
+    {
+     "title": "Triage drift",
+     "sim": "terminal",
+     "task": "Read a terraform plan showing manual changes and decide to revert or codify."
+    },
+    {
+     "title": "Write a guardrail",
+     "sim": "config-editor",
+     "task": "Author a policy that blocks public ingress on port 22 and test it."
+    }
+   ],
+   "checkpoint": {
+    "focus": "IaC scanner findings, state security, drift handling, policy as code guardrails"
+   }
+  },
+  {
+   "code": "ENG-11",
+   "can_do": [
+    "Design a log pipeline with the right sources and retention",
+    "Engineer SIEM detections and tune alerts",
+    "Define metrics for monitoring coverage"
+   ],
+   "lessons": [
+    {
+     "title": "Log sources and pipeline design",
+     "goal": "Select sources (auth, endpoint, network, cloud) and design collection with agents, syslog and normalization."
+    },
+    {
+     "title": "SIEM engineering and parsing",
+     "goal": "Build parsers, field mappings (ECS/CIM), time sync and enrichment for reliable search."
+    },
+    {
+     "title": "Detection and alert design",
+     "goal": "Write detection rules mapped to MITRE ATT&CK with thresholds, severity and runbooks."
+    },
+    {
+     "title": "Retention, integrity and compliance",
+     "goal": "Set hot/warm/cold retention, protect log integrity and meet regulatory minimums."
+    },
+    {
+     "title": "Metrics and detection coverage",
+     "goal": "Track log source health, MTTD, false positive rate and ATT&CK coverage."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Fix a parser",
+     "sim": "log-viewer",
+     "task": "Correct field extraction so source IP and user appear in the normalized event."
+    },
+    {
+     "title": "Write a detection",
+     "sim": "siem",
+     "task": "Build a query for repeated failed logins followed by success and set a threshold."
+    },
+    {
+     "title": "Tune a noisy alert",
+     "sim": "siem",
+     "task": "Reduce false positives with allow-lists and context while keeping true positives."
+    },
+    {
+     "title": "Plan retention",
+     "sim": "scenario",
+     "task": "Assign retention periods to log types to meet a compliance and cost target."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Log source choice, parsing, detection rule design, retention, detection metrics"
+   }
+  },
+  {
+   "code": "ENG-12",
+   "can_do": [
+    "Build an asset inventory that drives scanning",
+    "Prioritize vulnerabilities with CVSS, EPSS and KEV",
+    "Run SLA and exception processes"
+   ],
+   "lessons": [
+    {
+     "title": "Asset inventory and attack surface",
+     "goal": "Combine CMDB, cloud APIs and discovery scans to keep an accurate inventory with owners."
+    },
+    {
+     "title": "Scanning cadence and coverage",
+     "goal": "Plan authenticated versus unauthenticated scans, agents and scan windows without breaking services."
+    },
+    {
+     "title": "Risk-based prioritization",
+     "goal": "Prioritize using CVSS, EPSS, CISA KEV, exposure and asset criticality instead of score alone."
+    },
+    {
+     "title": "Remediation SLAs and reporting",
+     "goal": "Define SLAs by severity, track aging and report to owners with tickets and dashboards."
+    },
+    {
+     "title": "Exceptions and compensating controls",
+     "goal": "Run risk-accepted exceptions with expiry, approvals and compensating controls."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Reconcile inventory",
+     "sim": "file-explorer",
+     "task": "Compare scanner results to the CMDB and find unmanaged and unowned assets."
+    },
+    {
+     "title": "Prioritize the backlog",
+     "sim": "scenario",
+     "task": "Rank 10 CVEs using EPSS, KEV status and asset exposure and justify the order."
+    },
+    {
+     "title": "Read a scan report",
+     "sim": "log-viewer",
+     "task": "Separate false positives from real findings in an authenticated scan output."
+    },
+    {
+     "title": "Handle an exception",
+     "sim": "chat-sim",
+     "task": "Negotiate with an app owner and document a time-boxed exception with a compensating control."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Inventory, scan cadence, CVSS/EPSS/KEV prioritization, SLAs, exception handling"
+   }
+  },
+  {
+   "code": "ENG-13",
+   "can_do": [
+    "Roll out EDR and MDM in phases",
+    "Deploy SPF, DKIM and DMARC without breaking mail",
+    "Harden browsers and email gateways"
+   ],
+   "lessons": [
+    {
+     "title": "EDR selection and rollout",
+     "goal": "Plan EDR pilots, sensor coverage, exclusions, tamper protection and response actions."
+    },
+    {
+     "title": "MDM and device compliance",
+     "goal": "Enforce encryption, passcode, OS version and conditional access with MDM for managed devices."
+    },
+    {
+     "title": "Email gateway and phishing defense",
+     "goal": "Configure filtering, attachment sandboxing, link rewriting and user report workflows."
+    },
+    {
+     "title": "SPF, DKIM and DMARC rollout",
+     "goal": "Move DMARC from p=none to quarantine to reject using aggregate reports."
+    },
+    {
+     "title": "Browser security",
+     "goal": "Apply browser policies, extension control, safe browsing and isolation for risky content."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Triage EDR coverage",
+     "sim": "siem",
+     "task": "Find hosts missing the sensor or in reduced functionality mode and plan fixes."
+    },
+    {
+     "title": "Fix DMARC records",
+     "sim": "config-editor",
+     "task": "Edit SPF, DKIM and DMARC DNS records based on aggregate report failures."
+    },
+    {
+     "title": "Analyze a phish",
+     "sim": "log-viewer",
+     "task": "Read headers to find spoofing and the failing authentication results."
+    },
+    {
+     "title": "Set MDM policy",
+     "sim": "config-editor",
+     "task": "Configure compliance rules and conditional access for a BYOD group."
+    }
+   ],
+   "checkpoint": {
+    "focus": "EDR rollout, MDM compliance, DMARC stages, email filtering, browser hardening"
+   }
+  },
+  {
+   "code": "ENG-14",
+   "can_do": [
+    "Write Python and Bash that call security APIs",
+    "Build SOAR playbooks that automate triage and response",
+    "Write infrastructure tests for security controls"
+   ],
+   "lessons": [
+    {
+     "title": "Bash for security tasks",
+     "goal": "Use grep, awk, jq, find and loops safely with quoting and set -euo pipefail."
+    },
+    {
+     "title": "Python for security engineering",
+     "goal": "Parse logs, handle files and use regex, argparse and virtual environments for tooling."
+    },
+    {
+     "title": "Working with REST APIs",
+     "goal": "Call APIs with requests, handle auth, pagination, rate limits, retries and error codes."
+    },
+    {
+     "title": "Automating enrichment and triage",
+     "goal": "Enrich IOCs from threat intel APIs and score alerts automatically."
+    },
+    {
+     "title": "SOAR playbooks",
+     "goal": "Design playbooks with triggers, branching, approval steps and safe response actions."
+    },
+    {
+     "title": "Automated response safely",
+     "goal": "Add guardrails, dry-run modes, logging and rollback to automated containment."
+    },
+    {
+     "title": "Infrastructure and security tests",
+     "goal": "Write testinfra, InSpec or pytest checks that verify hardening and detect regressions."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Parse auth logs",
+     "sim": "code-editor",
+     "task": "Write Python that counts failed logins per IP and flags those above a threshold."
+    },
+    {
+     "title": "jq pipeline",
+     "sim": "terminal",
+     "task": "Extract and filter fields from JSON alert output with jq."
+    },
+    {
+     "title": "Paginate an API",
+     "sim": "code-editor",
+     "task": "Fix a script that stops at page one and mishandles a 429 response."
+    },
+    {
+     "title": "Build a playbook",
+     "sim": "diagram-builder",
+     "task": "Order triggers, enrichment, decision and containment steps for a phishing alert."
+    },
+    {
+     "title": "Test a hardening rule",
+     "sim": "code-editor",
+     "task": "Write a test that fails when SSH root login is enabled."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Bash and Python security scripting, API handling, SOAR playbook design, safe automation, infra tests"
+   }
+  },
+  {
+   "code": "ENG-15",
+   "can_do": [
+    "Write and exercise an incident response plan",
+    "Design backup and DR to meet RTO and RPO",
+    "Run purple team exercises to validate controls"
+   ],
+   "lessons": [
+    {
+     "title": "IR plan and roles",
+     "goal": "Build an IR plan around NIST SP 800-61 phases with roles, escalation, communications and playbooks."
+    },
+    {
+     "title": "Tabletop exercises",
+     "goal": "Design injects, run a tabletop and capture gaps as tracked action items."
+    },
+    {
+     "title": "Backups and disaster recovery",
+     "goal": "Apply 3-2-1-1-0, immutable and offline backups, restore testing and defined RTO/RPO."
+    },
+    {
+     "title": "Business continuity and ransomware resilience",
+     "goal": "Run a BIA, set dependencies and recovery order and plan for ransomware scenarios."
+    },
+    {
+     "title": "Purple team exercises",
+     "goal": "Emulate ATT&CK techniques with Atomic Red Team and tune detections from the results."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Tabletop a ransomware case",
+     "sim": "scenario",
+     "task": "Respond to timed injects and decide on containment, communication and recovery."
+    },
+    {
+     "title": "Pick backup strategy",
+     "sim": "config-editor",
+     "task": "Set retention, immutability and test schedules to meet a stated RPO and RTO."
+    },
+    {
+     "title": "Recovery order",
+     "sim": "diagram-builder",
+     "task": "Sequence system restoration by dependency after a BIA."
+    },
+    {
+     "title": "Purple team detection gap",
+     "sim": "siem",
+     "task": "Run a simulated technique, find it undetected and write the missing rule."
+    }
+   ],
+   "checkpoint": {
+    "focus": "IR plan elements, tabletop value, 3-2-1-1-0 backups, RTO/RPO, BIA, purple team"
+   }
+  },
+  {
+   "code": "ENG-16",
+   "can_do": [
+    "Perform a risk assessment and map controls to frameworks",
+    "Explain ISO 27001, SOC 2, PCI DSS and NIST SP 800-53 requirements",
+    "Collect audit evidence efficiently"
+   ],
+   "lessons": [
+    {
+     "title": "Risk assessment methods",
+     "goal": "Compute risk from likelihood and impact, compare qualitative and quantitative (ALE) and set treatment options."
+    },
+    {
+     "title": "Policies, standards and control mapping",
+     "goal": "Distinguish policy, standard and procedure and map one control to multiple frameworks."
+    },
+    {
+     "title": "ISO/IEC 27001",
+     "goal": "Explain the ISMS, Annex A controls, the Statement of Applicability and certification audits."
+    },
+    {
+     "title": "SOC 2",
+     "goal": "Describe the Trust Services Criteria, Type I versus Type II and common control tests."
+    },
+    {
+     "title": "PCI DSS",
+     "goal": "Explain cardholder data scope, segmentation, key requirements and compensating controls."
+    },
+    {
+     "title": "NIST SP 800-53 and CSF",
+     "goal": "Use control families, baselines and the CSF functions to structure a program."
+    },
+    {
+     "title": "Audits and evidence collection",
+     "goal": "Prepare for audits with automated evidence, sampling and handling of findings."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Score a risk register",
+     "sim": "scenario",
+     "task": "Rate likelihood and impact for six risks and choose treat, transfer, accept or avoid."
+    },
+    {
+     "title": "Map controls",
+     "sim": "diagram-builder",
+     "task": "Link a single control to ISO, SOC 2 and PCI requirements to cut duplicate work."
+    },
+    {
+     "title": "Define PCI scope",
+     "sim": "diagram-builder",
+     "task": "Mark systems in, connected to and out of scope for the cardholder data environment."
+    },
+    {
+     "title": "Gather evidence",
+     "sim": "file-explorer",
+     "task": "Pick the right evidence artifacts for five SOC 2 control requests."
+    },
+    {
+     "title": "Respond to an audit finding",
+     "sim": "chat-sim",
+     "task": "Discuss a finding with the auditor and agree a remediation plan and date."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Risk calculation, framework requirements and differences, control mapping, audit evidence"
+   }
+  },
+  {
+   "code": "ENG-17",
+   "can_do": [
+    "Select KPIs that show security outcomes",
+    "Build a roadmap and budget tied to risk",
+    "Communicate security status to leadership"
+   ],
+   "lessons": [
+    {
+     "title": "Security KPIs and KRIs",
+     "goal": "Choose outcome metrics such as MTTD, MTTR, patch SLA compliance and avoid vanity metrics."
+    },
+    {
+     "title": "Roadmaps and budgets",
+     "goal": "Prioritize initiatives by risk reduction and cost and justify budget with maturity models."
+    },
+    {
+     "title": "Reporting to leadership",
+     "goal": "Present risk in business terms, using concise dashboards and clear asks."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Pick the right KPIs",
+     "sim": "scenario",
+     "task": "Choose metrics for a board report and discard ones that do not show risk change."
+    },
+    {
+     "title": "Brief the executive",
+     "sim": "chat-sim",
+     "task": "Answer leadership questions on a breach risk and request budget with a clear impact statement."
+    }
+   ],
+   "checkpoint": {
+    "focus": "KPI versus vanity metrics, prioritization and budgeting, business-focused communication"
+   }
+  },
+  {
+   "code": "ENG-18",
+   "can_do": [
+    "Review an architecture for security gaps",
+    "Prioritize findings into a hardening plan",
+    "Present a risk-based roadmap"
+   ],
+   "lessons": [
+    {
+     "title": "Design review of the company",
+     "goal": "Threat model the fictional company's architecture and list gaps across identity, network, cloud and data."
+    },
+    {
+     "title": "Hardening plan and prioritization",
+     "goal": "Turn findings into a prioritized plan with owners, effort and quick wins."
+    },
+    {
+     "title": "Roadmap and presentation",
+     "goal": "Present the plan with metrics, residual risk and a 12-month roadmap."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Review the architecture",
+     "sim": "diagram-builder",
+     "task": "Mark weaknesses on a company architecture diagram and tag each by risk."
+    },
+    {
+     "title": "Build the plan",
+     "sim": "scenario",
+     "task": "Choose and sequence remediation work under a fixed budget and justify trade-offs."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Applying design review, prioritization and communication skills across the full path"
+   }
+  }
+ ]
+}

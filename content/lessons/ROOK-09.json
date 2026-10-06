@@ -1,0 +1,908 @@
+{
+ "code": "ROOK-09",
+ "intro": "Most of the world's workstations and many servers run Windows, so every defender must be at home in it. This module covers the file system and NTFS permissions, local users, groups and UAC, the registry and services, the inspection tools in Task Manager, cmd and PowerShell, an introduction to Active Directory and Kerberos, and the built-in protections of Defender and the Windows firewall. You will also learn the places attackers hide persistence.",
+ "lessons": [
+  {
+   "title": "Windows File System and NTFS",
+   "why": "Knowing where Windows keeps programs, user data and system files tells you what is normal and what is out of place.",
+   "sections": [
+    {
+     "h": "Key folders",
+     "p": [
+      "Windows is usually installed on the C: drive. C:\\Windows holds the operating system, and C:\\Windows\\System32 contains core executables and libraries such as cmd.exe and the DLLs that most programs load. C:\\Users contains one profile folder per user, with Desktop, Documents, Downloads and the hidden AppData. C:\\Program Files holds 64-bit applications and C:\\Program Files (x86) holds 32-bit ones. C:\\ProgramData holds shared application data. Paths use backslashes and are not case sensitive. Programs in System32 or Program Files are writable only by administrators, whereas user-writable places such as Downloads and AppData\\Local\\Temp are where unwanted programs often run from."
+     ]
+    },
+    {
+     "h": "NTFS and permissions",
+     "p": [
+      "NTFS is the standard Windows file system. It supports journaling, large volumes, compression, encryption (EFS) and fine-grained access control lists (ACLs). Each file or folder has a discretionary ACL made of access control entries (ACEs) that give a user or group rights such as Read, Write, Modify or Full control. Permissions are inherited from parent folders unless inheritance is broken. Explicit Deny entries override Allow. When a user is in several groups, rights add up, and the effective result is the combination. View and change them with the Security tab, or icacls from the command line."
+     ]
+    },
+    {
+     "h": "Share versus NTFS permissions",
+     "p": [
+      "When a folder is shared over the network, two layers apply: share permissions and NTFS permissions. The most restrictive combined result wins. A common practice is to set the share to broad access for authenticated users and manage real control with NTFS ACLs, so there is one place to audit. Administrative shares such as C$ and ADMIN$ exist by default and are used by management tools, but also by attackers moving laterally with stolen credentials. Auditing who has access to sensitive folders, and removing Everyone and overly broad groups, is a core hardening task."
+     ]
+    },
+    {
+     "h": "Alternate data streams",
+     "p": [
+      "NTFS files can have extra named streams besides the main content, written file.txt:streamname. The feature was created for compatibility and metadata, such as the Zone.Identifier stream that records a file came from the internet and drives the Mark of the Web warning. But a stream is not shown by a normal dir listing and does not change the visible file size, so attackers have hidden data or scripts in them. dir /r lists streams, and PowerShell Get-Item -Stream * does too. Copying to FAT file systems or some archives drops streams, which is also a reason they matter in forensics."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Command output",
+    "text": "C:\\> dir /r C:\\Users\\alice\\Downloads\n 12/01/2024  09:10    1,024 report.txt\n                          24 report.txt:hidden.txt:$DATA\n C:\\> icacls C:\\Data\\Finance\nC:\\Data\\Finance BUILTIN\\Administrators:(OI)(CI)(F)\n                 CORP\\Finance:(OI)(CI)(M)\n                 Everyone:(OI)(CI)(R)"
+   },
+   "example": "An auditor runs icacls on a fictional finance share and sees Everyone with read access inherited from its parent. That means every user on the network can read payroll files. She removes the Everyone entry, grants read to the Finance group, and checks that inheritance flows correctly. She also runs dir /r on the folder to confirm no alternate streams hide additional content next to the files.",
+   "terms": [
+    {
+     "term": "NTFS",
+     "def": "The default Windows file system with ACLs, journaling and encryption support."
+    },
+    {
+     "term": "ACL",
+     "def": "A list of entries that grant or deny rights to users and groups on an object."
+    },
+    {
+     "term": "System32",
+     "def": "Folder holding core Windows executables and libraries."
+    },
+    {
+     "term": "Alternate data stream",
+     "def": "A named hidden data stream attached to an NTFS file."
+    },
+    {
+     "term": "icacls",
+     "def": "Command line tool to view and edit NTFS ACLs."
+    }
+   ],
+   "check": [
+    {
+     "q": "Where do 64-bit apps normally install?",
+     "options": [
+      "C:\\Windows",
+      "C:\\Program Files",
+      "C:\\Users",
+      "C:\\Temp"
+     ],
+     "a": 1,
+     "why": "64-bit applications go in Program Files."
+    },
+    {
+     "q": "Which wins when permissions conflict?",
+     "options": [
+      "Allow",
+      "Deny",
+      "Whichever is newer",
+      "Inherited"
+     ],
+     "a": 1,
+     "why": "Explicit Deny overrides Allow."
+    },
+    {
+     "q": "Which command lists alternate data streams?",
+     "options": [
+      "dir /r",
+      "dir /a",
+      "ls -a",
+      "type"
+     ],
+     "a": 0,
+     "why": "dir /r displays streams."
+    },
+    {
+     "q": "When share and NTFS permissions both apply, the result is:",
+     "options": [
+      "The most permissive",
+      "The most restrictive",
+      "The share only",
+      "The NTFS only"
+     ],
+     "a": 1,
+     "why": "The tighter combination is effective."
+    }
+   ],
+   "recap": [
+    "Know the key folders; user-writable paths are suspicious for executables.",
+    "NTFS ACLs, inheritance and Deny rules control access.",
+    "Alternate data streams can hide content from normal listings."
+   ]
+  },
+  {
+   "title": "Users, Groups and UAC",
+   "why": "Privilege on Windows is built from accounts, groups and tokens, and UAC is a key barrier against silent elevation.",
+   "sections": [
+    {
+     "h": "Local users and groups",
+     "p": [
+      "A Windows computer has local accounts managed with lusrmgr.msc, net user or PowerShell. Built-in accounts include Administrator (often disabled), Guest and system accounts such as SYSTEM, which is more powerful than any administrator on the local machine. Groups bundle rights: Administrators have full control, Users have normal rights and Remote Desktop Users may log on over RDP. View membership with net localgroup administrators. Best practice is to use a standard account for daily work, keep admin rights separate, and give each person a named account to preserve accountability."
+     ]
+    },
+    {
+     "h": "SIDs",
+     "p": [
+      "Windows tracks identities by Security Identifier, not by name. A SID looks like S-1-5-21-1111111111-2222222222-3333333333-1001: the prefix identifies the authority, the long numeric part identifies the computer or domain, and the final relative ID (RID) identifies the account. Well-known RIDs include 500 for the built-in Administrator and 501 for Guest. Renaming an account does not change its SID. ACLs store SIDs, which is why a deleted and recreated account with the same name does not inherit old rights. whoami /user shows your SID and whoami /groups shows group SIDs."
+     ]
+    },
+    {
+     "h": "User Account Control",
+     "p": [
+      "Even if you are an administrator, UAC runs your programs with a filtered standard token until you approve elevation. When something needs admin rights, Windows shows a prompt on the secure desktop, which other programs cannot draw over or click. An administrator sees a consent prompt, whereas a standard user must enter admin credentials. This stops malware that you run by accident from silently changing the system. The prompt shows the publisher; unsigned programs show as unknown. Settings range from always notify to never notify, and lowering the slider weakens an important defense."
+     ]
+    },
+    {
+     "h": "Security habits",
+     "p": [
+      "Treat each UAC prompt as a question: did I just start something that should need admin rights? If a prompt appears unexpectedly, choose No. Do not stay logged in as an administrator, and limit who is in the Administrators group. Disable or rename unneeded built-in accounts, use strong unique passwords and enable Windows Hello or MFA where possible. Audit logon events in the Security log, such as 4624 for successful logon, 4625 for failed logon and 4672 for special privileges assigned. Local administrator password reuse across machines is a common lateral movement path, mitigated by tools like LAPS."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Command output",
+    "text": "C:\\> whoami /user\nUser Name   SID\n=========== =============================================\ncorp\\alice  S-1-5-21-1111111111-2222222222-3333333333-1105\nC:\\> net localgroup administrators\nAdministrator\nalice\nsvc-backup"
+   },
+   "example": "On a fictional laptop an analyst runs net localgroup administrators and sees three members, including svc-backup, a service account nobody remembers creating. She checks its creation time, its last logon, and the Security log for event 4720 (account created). Meanwhile she reminds the user to stay logged in as a standard account, so that a UAC prompt, not silent execution, stands between a malicious download and system changes.",
+   "terms": [
+    {
+     "term": "SID",
+     "def": "A unique identifier for a user, group or computer account."
+    },
+    {
+     "term": "RID",
+     "def": "The final part of a SID; 500 is the built-in Administrator."
+    },
+    {
+     "term": "UAC",
+     "def": "Feature that runs admin users with a filtered token until elevation is approved."
+    },
+    {
+     "term": "SYSTEM",
+     "def": "The most privileged local account, used by the operating system."
+    },
+    {
+     "term": "Event 4625",
+     "def": "Security log event for a failed logon."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does UAC do?",
+     "options": [
+      "Encrypts disks",
+      "Requires approval before elevated actions",
+      "Blocks the internet",
+      "Updates Windows"
+     ],
+     "a": 1,
+     "why": "UAC prompts for elevation consent."
+    },
+    {
+     "q": "RID 500 identifies:",
+     "options": [
+      "Guest",
+      "The built-in Administrator",
+      "SYSTEM",
+      "Any new user"
+     ],
+     "a": 1,
+     "why": "500 is the built-in Administrator."
+    },
+    {
+     "q": "Which event ID records a failed logon?",
+     "options": [
+      "4624",
+      "4625",
+      "4672",
+      "4720"
+     ],
+     "a": 1,
+     "why": "4625 is failed logon."
+    },
+    {
+     "q": "Why use a standard account daily?",
+     "options": [
+      "Better graphics",
+      "Limits damage from malware or mistakes",
+      "Faster boot",
+      "Required by NTFS"
+     ],
+     "a": 1,
+     "why": "Less privilege means less impact."
+    }
+   ],
+   "recap": [
+    "Accounts, groups and SIDs determine access.",
+    "UAC filters admin tokens and prompts on a secure desktop.",
+    "Keep admin membership small and audit logon events."
+   ]
+  },
+  {
+   "title": "The Registry and Services",
+   "why": "The registry holds configuration and autostart locations, and services run programs without a logged-in user, so both are prime places for persistence.",
+   "sections": [
+    {
+     "h": "Registry structure",
+     "p": [
+      "The registry is a hierarchical database of settings. It is organized into hives: HKEY_LOCAL_MACHINE (HKLM) holds machine-wide settings, HKEY_CURRENT_USER (HKCU) holds settings for the logged-in user, HKEY_CLASSES_ROOT holds file associations, HKEY_USERS holds all loaded profiles and HKEY_CURRENT_CONFIG holds the current hardware profile. Inside are keys, similar to folders, and values with names, types such as REG_SZ and REG_DWORD, and data. Browse with regedit or query with reg query. Changing the registry can break the system, so export a key before editing."
+     ]
+    },
+    {
+     "h": "Run keys and persistence",
+     "p": [
+      "Persistence means a program survives a reboot or logoff. The best-known registry locations are the Run and RunOnce keys: HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run for all users and HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run for one user. Every value there is a command launched at logon. The HKCU key needs no admin rights, so it is a common choice for malware. Other persistence places include the Startup folder, scheduled tasks, services, WMI subscriptions and Winlogon keys. Reviewing these locations, for instance with the Sysinternals Autoruns tool, is a standard threat-hunting step."
+     ]
+    },
+    {
+     "h": "Services",
+     "p": [
+      "A service is a background program managed by the Service Control Manager. It can start at boot without any user logged in and often runs as SYSTEM, LocalService or NetworkService. Open services.msc to view the name, status, startup type (Automatic, Manual, Disabled) and the account used. From the command line use sc query and sc qc name. Service definitions are stored under HKLM\\SYSTEM\\CurrentControlSet\\Services. Because services run with high privilege, attackers install new services or modify existing ones, so a service with an unexpected name or executable path in a user folder should be investigated."
+     ]
+    },
+    {
+     "h": "What to check",
+     "p": [
+      "Compare against a known-good baseline. Look for Run values pointing to Temp, AppData or Downloads, long random names, commands that launch PowerShell with encoded parameters, and unsigned binaries. For services, check the binary path for unquoted paths with spaces, services running from user-writable folders, and non-Microsoft services you cannot explain. Disable first and investigate, rather than deleting evidence. Record the key's last write time, available in regedit export or tools, because it helps date the change. Protect the registry with least privilege and monitor key changes with Sysmon event ID 13 or auditing."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Command output",
+    "text": "C:\\> reg query HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\n    OneDrive    REG_SZ    \"C:\\Program Files\\Microsoft OneDrive\\OneDrive.exe\" /background\n    Updater     REG_SZ    C:\\Users\\alice\\AppData\\Local\\Temp\\svchost32.exe\nC:\\> sc query type= service state= all | findstr /i \"SERVICE_NAME\""
+   },
+   "example": "Looking at a fictional laptop, the analyst queries the HKCU Run key and finds a value named Updater launching svchost32.exe from the user's Temp folder. The genuine svchost.exe lives in System32 and has no such name. The mismatch in name and location marks it as suspicious persistence. She exports the key for evidence, removes the value after isolating the machine, and checks Temp for the file and its hash.",
+   "terms": [
+    {
+     "term": "Hive",
+     "def": "A top-level section of the registry such as HKLM or HKCU."
+    },
+    {
+     "term": "Run key",
+     "def": "Registry key whose values start programs at logon."
+    },
+    {
+     "term": "Persistence",
+     "def": "A technique that keeps malicious code running after reboot or logoff."
+    },
+    {
+     "term": "Service",
+     "def": "A background program managed by the Service Control Manager."
+    },
+    {
+     "term": "Autoruns",
+     "def": "Sysinternals tool that lists autostart locations."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which key runs programs for the current user at logon?",
+     "options": [
+      "HKCU\\...\\Run",
+      "HKLM\\SAM",
+      "HKCR",
+      "HKU\\.Default only"
+     ],
+     "a": 0,
+     "why": "HKCU Run applies to the current user."
+    },
+    {
+     "q": "Which tool opens the Services console?",
+     "options": [
+      "services.msc",
+      "regedit",
+      "msinfo",
+      "gpedit"
+     ],
+     "a": 0,
+     "why": "services.msc is the console."
+    },
+    {
+     "q": "Why is HKCU Run attractive to malware?",
+     "options": [
+      "No admin rights required",
+      "It is encrypted",
+      "It is invisible",
+      "It is faster"
+     ],
+     "a": 0,
+     "why": "Users can write their own HKCU keys."
+    },
+    {
+     "q": "Suspicious Run value?",
+     "options": [
+      "OneDrive in Program Files",
+      "svchost32.exe in AppData\\Temp",
+      "Defender in ProgramData",
+      "Edge updater signed by Microsoft"
+     ],
+     "a": 1,
+     "why": "Wrong name, wrong location."
+    }
+   ],
+   "recap": [
+    "The registry has hives; HKLM is machine-wide, HKCU per user.",
+    "Run keys, services, tasks and Startup are persistence spots.",
+    "Compare to a baseline and check paths and signatures."
+   ]
+  },
+  {
+   "title": "Task Manager, cmd and PowerShell",
+   "why": "Command-line and built-in tools let you inspect a Windows host quickly and remotely, and they leave much of the same evidence attackers fear.",
+   "sections": [
+    {
+     "h": "Task Manager",
+     "p": [
+      "Task Manager opens with Ctrl+Shift+Esc. The Processes tab shows applications and background processes with CPU, memory, disk and network use. The Details tab shows PIDs and the user for each process, and the Services tab links services to PIDs. Right-click a process and choose Open file location to see where the executable lives. Startup apps shows what launches at logon. Resource Monitor and Process Explorer from Sysinternals add more detail, such as parent-child relationships and signature verification. Unexpected high CPU or a process with a system-like name in a strange folder deserves a closer look."
+     ]
+    },
+    {
+     "h": "cmd essentials",
+     "p": [
+      "The classic command prompt remains useful. tasklist lists processes, and taskkill /PID 1234 /F ends one. ipconfig /all shows addresses, DNS servers and MAC addresses, and ipconfig /flushdns clears the DNS cache. netstat -ano lists connections and listening ports with owning PIDs, which you then match to tasklist. ping and tracert test reachability, nslookup tests DNS, and systeminfo shows the OS version and installed patches. dir, type and findstr resemble ls, cat and grep. Run as administrator when a command needs elevation, as the prompt title will say so."
+     ]
+    },
+    {
+     "h": "PowerShell basics",
+     "p": [
+      "PowerShell is an object-based shell. Commands, called cmdlets, follow Verb-Noun naming. Get-Process lists processes, Get-Service lists services, Get-LocalUser lists local accounts, Get-NetTCPConnection shows connections and Get-ChildItem lists files. Output is objects, so you can filter with Where-Object and choose columns with Select-Object. For example, Get-Service | Where-Object Status -eq 'Stopped' lists stopped services. Get-Help cmdlet explains usage, and Get-Command finds cmdlets. Pipes pass objects, not text, so no parsing of columns is needed."
+     ]
+    },
+    {
+     "h": "Defensive use and logging",
+     "p": [
+      "Admins and defenders use PowerShell for inventory, hunting and remote management, and attackers abuse it for the same reason, because it is built in. Execution policy is a safety setting that is not a security boundary. Enable PowerShell script block logging (event 4104) and transcription so that commands, even obfuscated ones, are recorded, and consider Constrained Language Mode and application control for sensitive systems. A useful habit is to inspect before acting: Get-Process, Get-NetTCPConnection and Get-ScheduledTask give a quick picture of a host, and Export-Csv saves the results for the case file."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "PowerShell output",
+    "text": "PS C:\\> Get-Service | Where-Object Status -eq 'Stopped' | Select-Object -First 2\nStatus   Name      DisplayName\nStopped  Fax       Fax\nStopped  WSearch   Windows Search\nPS C:\\> Get-LocalUser\nName            Enabled\nAdministrator   False\nalice           True\nsupport2        True"
+   },
+   "example": "On a fictional workstation, the analyst runs Get-LocalUser and sees an enabled account called support2 that is not in the asset records. She checks Get-LocalGroupMember Administrators and confirms that it is an administrator, then reviews logon events. In the same session, netstat -ano shows an outbound connection to 198.51.100.77 owned by PID 3320, which tasklist maps to a process in AppData. Both findings go into the case notes.",
+   "terms": [
+    {
+     "term": "cmdlet",
+     "def": "A PowerShell command named in Verb-Noun form, such as Get-Process."
+    },
+    {
+     "term": "netstat -ano",
+     "def": "Lists connections and listening ports with process IDs."
+    },
+    {
+     "term": "tasklist",
+     "def": "cmd tool that lists running processes."
+    },
+    {
+     "term": "Pipeline objects",
+     "def": "PowerShell passes structured objects between cmdlets rather than text."
+    },
+    {
+     "term": "Script block logging",
+     "def": "PowerShell logging (event 4104) that records executed code."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which cmdlet lists services?",
+     "options": [
+      "Get-Process",
+      "Get-Service",
+      "Get-LocalUser",
+      "Get-Item"
+     ],
+     "a": 1,
+     "why": "Get-Service lists services."
+    },
+    {
+     "q": "Which command shows connections with PIDs?",
+     "options": [
+      "ipconfig /all",
+      "netstat -ano",
+      "ping",
+      "dir"
+     ],
+     "a": 1,
+     "why": "netstat -ano includes PIDs."
+    },
+    {
+     "q": "What does Where-Object do?",
+     "options": [
+      "Filters objects",
+      "Starts a service",
+      "Deletes files",
+      "Prints help"
+     ],
+     "a": 0,
+     "why": "It filters pipeline objects."
+    },
+    {
+     "q": "Which log event records PowerShell script blocks?",
+     "options": [
+      "4104",
+      "4625",
+      "1102",
+      "7045"
+     ],
+     "a": 0,
+     "why": "4104 is script block logging."
+    }
+   ],
+   "recap": [
+    "Task Manager, tasklist and Get-Process show running programs.",
+    "netstat -ano plus tasklist maps connections to processes.",
+    "PowerShell outputs objects; enable its logging."
+   ]
+  },
+  {
+   "title": "Active Directory Introduction",
+   "why": "Most organizations manage Windows computers and users through Active Directory, which makes it central to both administration and attacks.",
+   "sections": [
+    {
+     "h": "Domains and controllers",
+     "p": [
+      "Active Directory (AD) is Microsoft's directory service. A domain is a boundary for administration, such as corp.example.com, and its identities live in a database held by domain controllers (DCs), which replicate with each other. Computers join the domain so users sign in with one account anywhere. Multiple domains can form a tree and a forest, the outer security boundary. The directory is queried with LDAP on port 389 (636 for LDAPS), and DNS is essential, since clients locate DCs through DNS records. Because a DC holds every credential, it is the highest-value server on the network."
+     ]
+    },
+    {
+     "h": "OUs, users and groups",
+     "p": [
+      "Objects such as users, computers and groups are organized in Organizational Units (OUs), which work like folders and are the units to which you delegate administration and attach policy. Security groups give permissions, and the standard guidance is AGDLP or a similar scheme: place users in groups, then grant rights to groups rather than individuals. Privileged groups such as Domain Admins and Enterprise Admins must be tiny and monitored. Tools include Active Directory Users and Computers (dsa.msc) and PowerShell Get-ADUser from the RSAT module."
+     ]
+    },
+    {
+     "h": "Group Policy",
+     "p": [
+      "Group Policy Objects (GPOs) are collections of settings applied to users or computers in the OUs, sites or domain they link to. They configure password rules, firewall settings, software restrictions, drive mappings and security options, and are refreshed at intervals and at logon. gpupdate /force reloads them and gpresult /r shows which are applied. Policies process in order local, site, domain, OU, with later ones overriding earlier ones. Because a single GPO can reach thousands of machines, who may edit them must be strictly controlled."
+     ]
+    },
+    {
+     "h": "Kerberos at a high level",
+     "p": [
+      "Kerberos is the default domain authentication protocol, on port 88. When you log on, you prove your identity to the Key Distribution Center on the DC and receive a Ticket Granting Ticket (TGT). When you want to use a file server, you present the TGT and receive a service ticket for that service, which you present to the server. Passwords are not sent across the network after the initial step, and tickets expire, typically after about ten hours. Clock skew over five minutes breaks it, so time sync matters. Weaknesses such as weak service account passwords are why defenders monitor ticket requests."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Command output",
+    "text": "C:\\> gpresult /r\nCOMPUTER SETTINGS\n  Applied Group Policy Objects\n    Default Domain Policy\n    Workstation Hardening\nPS C:\\> Get-ADUser -Identity jdoe -Properties MemberOf | Select-Object Name,MemberOf"
+   },
+   "example": "A fictional company wants all laptops in the Sales OU to enforce a 14-character minimum password and lock after five minutes of inactivity. The administrator creates a GPO named Sales Security Baseline, links it to the Sales OU, not the whole domain, and runs gpupdate /force on a test laptop. gpresult /r confirms it applies. Linking at the OU level kept the change from affecting servers and other departments.",
+   "terms": [
+    {
+     "term": "Domain controller",
+     "def": "A server that holds the AD database and authenticates users."
+    },
+    {
+     "term": "OU",
+     "def": "Organizational Unit, a container for delegating control and linking policy."
+    },
+    {
+     "term": "GPO",
+     "def": "Group Policy Object, a bundle of settings applied to users or computers."
+    },
+    {
+     "term": "TGT",
+     "def": "Kerberos Ticket Granting Ticket, issued after authentication."
+    },
+    {
+     "term": "LDAP",
+     "def": "The protocol used to query and modify directory data."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is a domain controller?",
+     "options": [
+      "A router",
+      "A server holding AD and authenticating users",
+      "A firewall",
+      "A printer"
+     ],
+     "a": 1,
+     "why": "DCs host the directory."
+    },
+    {
+     "q": "Where are GPOs linked to take effect?",
+     "options": [
+      "To OUs, sites or the domain",
+      "Only to files",
+      "Only to firewalls",
+      "To DNS records"
+     ],
+     "a": 0,
+     "why": "GPOs link to containers."
+    },
+    {
+     "q": "Kerberos default port?",
+     "options": [
+      "88",
+      "443",
+      "3389",
+      "25"
+     ],
+     "a": 0,
+     "why": "Kerberos uses 88."
+    },
+    {
+     "q": "What does the TGT allow?",
+     "options": [
+      "Requesting service tickets",
+      "Editing GPOs",
+      "Joining the forest",
+      "Disabling DNS"
+     ],
+     "a": 0,
+     "why": "A TGT is used to obtain service tickets."
+    }
+   ],
+   "recap": [
+    "A domain is run by domain controllers holding the directory.",
+    "OUs organize objects; GPOs apply settings to them.",
+    "Kerberos uses tickets; protect DCs and privileged groups."
+   ]
+  },
+  {
+   "title": "Windows Defender and Firewall",
+   "why": "Built-in antimalware and a host firewall are the first protective layers on every Windows machine, and configuring them correctly blocks a lot of attacks.",
+   "sections": [
+    {
+     "h": "Microsoft Defender Antivirus",
+     "p": [
+      "Microsoft Defender Antivirus is built into Windows. Real-time protection scans files as they are opened, downloaded or run. Cloud-delivered protection checks unknown files against Microsoft's service, and tamper protection blocks changes to Defender settings by malware or scripts. Run scans from the Windows Security app, or from PowerShell with Start-MpScan -ScanType QuickScan, and check state with Get-MpComputerStatus. Signatures update automatically through Windows Update. A full scan reads every file and takes longer than a quick scan. Turning protection off to run a tool is a habit to avoid, because malware may use that window."
+     ]
+    },
+    {
+     "h": "Detections and exclusions",
+     "p": [
+      "When Defender detects a threat it quarantines it, and the history lists the name, path and action. Treat each detection as an incident indicator: ask how the file arrived and whether other machines have it. Exclusions tell Defender to skip a path, file type or process, and are sometimes needed for compatibility but are a security trade-off, because attackers drop payloads into excluded folders. Review them regularly with Get-MpPreference. Enterprise tools, such as Defender for Endpoint, add behavior monitoring and central reporting. Antivirus alone is not enough, which is why layers such as patching, firewalling and least privilege matter."
+     ]
+    },
+    {
+     "h": "Windows Defender Firewall",
+     "p": [
+      "The firewall is a stateful host firewall that filters inbound and outbound traffic. By default it blocks unsolicited inbound connections and allows outbound traffic. Rules specify direction, action (allow or block), protocol, local and remote ports, program and remote addresses. Examples: an inbound allow for TCP 3389 enables Remote Desktop, and an inbound block for TCP 445 stops file sharing. Manage with wf.msc, Windows Security, or PowerShell commands such as Get-NetFirewallRule and New-NetFirewallRule. Because it is stateful, replies to allowed outbound connections are accepted automatically."
+     ]
+    },
+    {
+     "h": "Profiles and rule design",
+     "p": [
+      "Three profiles apply depending on the network: Domain when connected to the corporate domain, Private for trusted home or work networks and Public for untrusted networks like cafe Wi-Fi, which should be the most restrictive. Rules can be scoped to a profile. For services you must expose, restrict them: allow RDP only from a management subnet such as 192.0.2.0/24 rather than from any address, and prefer a VPN or gateway. Disable or delete broad rules like allow all inbound, and remove rules for software that is uninstalled. Test changes and monitor the firewall log, which records dropped connections when logging is enabled."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "PowerShell output",
+    "text": "PS C:\\> Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled,AntivirusSignatureLastUpdated\nRealTimeProtectionEnabled AntivirusSignatureLastUpdated\n------------------------- -----------------------------\nTrue                      3/3/2025 8:01:12 AM\nPS C:\\> New-NetFirewallRule -DisplayName 'RDP from mgmt' -Direction Inbound -Protocol TCP -LocalPort 3389 -RemoteAddress 192.0.2.0/24 -Action Allow"
+   },
+   "example": "A server must allow Remote Desktop for administrators on 192.0.2.0/24 only. Currently an old rule allows TCP 3389 from any address, exposing it to the internet. The administrator creates a new inbound allow rule restricted to 192.0.2.0/24, disables the old broad rule, and confirms from an outside test address that port 3389 no longer answers. The service stays reachable for its intended users while the exposure disappears.",
+   "terms": [
+    {
+     "term": "Real-time protection",
+     "def": "Defender feature that scans files and processes as they are accessed."
+    },
+    {
+     "term": "Tamper protection",
+     "def": "Setting that prevents unauthorized changes to Defender configuration."
+    },
+    {
+     "term": "Stateful firewall",
+     "def": "A firewall that tracks connections and automatically allows replies."
+    },
+    {
+     "term": "Firewall profile",
+     "def": "Domain, Private or Public set of rules chosen by network type."
+    },
+    {
+     "term": "Exclusion",
+     "def": "A path or process that Defender is told not to scan."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which firewall profile is for untrusted networks?",
+     "options": [
+      "Domain",
+      "Private",
+      "Public",
+      "Admin"
+     ],
+     "a": 2,
+     "why": "Public is the most restrictive."
+    },
+    {
+     "q": "What does tamper protection prevent?",
+     "options": [
+      "Unauthorized changes to Defender settings",
+      "Windows updates",
+      "Logins",
+      "Pings"
+     ],
+     "a": 0,
+     "why": "It blocks disabling Defender."
+    },
+    {
+     "q": "Best way to expose RDP?",
+     "options": [
+      "Allow from any address",
+      "Allow only from a management subnet or VPN",
+      "Disable the firewall",
+      "Use port 80"
+     ],
+     "a": 1,
+     "why": "Scope the rule to trusted sources."
+    },
+    {
+     "q": "Default firewall behavior for unsolicited inbound traffic?",
+     "options": [
+      "Allow",
+      "Block",
+      "Log only",
+      "Redirect"
+     ],
+     "a": 1,
+     "why": "Inbound is blocked by default."
+    }
+   ],
+   "recap": [
+    "Keep real-time protection and tamper protection on and review exclusions.",
+    "The firewall blocks inbound by default; scope allow rules tightly.",
+    "Use profiles; Public should be the strictest."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Find the Autorun Entry",
+   "sim": "config-editor",
+   "scenario": "A fictional laptop WS-014 shows odd behavior at logon. You are given a registry browser with the Run keys. Review each value, judge by name, path and signature, and flag the entry that launches an unknown executable.",
+   "objective": "Browse registry Run keys and flag the entry that launches an unknown executable at login.",
+   "steps": [
+    {
+     "do": "Open HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+     "see": "SecurityHealth  REG_EXPAND_SZ  %windir%\\system32\\SecurityHealthSystray.exe\nRealtekAudio  REG_SZ  C:\\Program Files\\Realtek\\Audio\\HDA\\RtkNGUI64.exe"
+    },
+    {
+     "do": "Mark both as expected",
+     "see": "Both paths are in protected folders and signed."
+    },
+    {
+     "do": "Open HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+     "see": "OneDrive  REG_SZ  \"C:\\Program Files\\Microsoft OneDrive\\OneDrive.exe\" /background\nUpdater  REG_SZ  C:\\Users\\alice\\AppData\\Local\\Temp\\svchost32.exe"
+    },
+    {
+     "do": "Inspect the Updater value",
+     "see": "Signature: not signed. File created 1 day ago."
+    },
+    {
+     "do": "Flag Updater",
+     "see": "Flag recorded: suspicious persistence."
+    },
+    {
+     "do": "Choose the response: disable value and isolate",
+     "see": "Checker: correct, evidence exported first."
+    }
+   ],
+   "answer": "The entry Updater in HKCU Run launches C:\\Users\\alice\\AppData\\Local\\Temp\\svchost32.exe, an unsigned program in a user-writable folder with a name imitating svchost.exe. It is likely malware persistence and should be exported as evidence, then disabled.",
+   "hint": "Check path and signature, not just the name."
+  },
+  {
+   "title": "PowerShell Inspection",
+   "sim": "terminal",
+   "scenario": "On a fictional workstation WS-021 you have a PowerShell prompt. Your task is a quick inventory: running processes, services that are stopped and local accounts, looking for anything that does not belong.",
+   "objective": "Run Get-Process, Get-Service and Get-LocalUser to list stopped services and unexpected local accounts.",
+   "steps": [
+    {
+     "do": "Type Get-Process | Sort-Object CPU -Descending | Select-Object -First 3",
+     "see": "Name  Id  CPU\nchrome 4120 311.2\nsvchost 1012 80.1\nExplorer 5088 55.0"
+    },
+    {
+     "do": "Type Get-Service | Where-Object Status -eq 'Stopped' | Select-Object -First 3",
+     "see": "Stopped Fax\nStopped WSearch\nStopped RemoteRegistry"
+    },
+    {
+     "do": "Type Get-LocalUser",
+     "see": "Name  Enabled\nAdministrator False\nGuest False\nalice True\nsupport2 True"
+    },
+    {
+     "do": "Type Get-LocalGroupMember Administrators",
+     "see": "WS-021\\Administrator\nWS-021\\alice\nWS-021\\support2"
+    },
+    {
+     "do": "Type Get-LocalUser support2 | Select-Object Name,LastLogon,PasswordLastSet",
+     "see": "support2  3/2/2025 11:48 PM  3/2/2025 11:40 PM"
+    }
+   ],
+   "answer": "The account support2 is an unexpected local administrator, enabled and created hours ago. Stopped services such as Fax and RemoteRegistry are normal. support2 should be investigated, disabled and removed from Administrators.",
+   "hint": "Compare the account list to what your asset records say."
+  },
+  {
+   "title": "Firewall Rule Fix",
+   "sim": "config-editor",
+   "scenario": "A fictional server SRV-APP has a firewall with a broad rule that allows inbound RDP (TCP 3389) from any address. Administrators work only from 192.0.2.0/24. Fix it by adding a scoped rule and disabling the risky one.",
+   "objective": "Create an inbound rule that allows only RDP from one subnet and disable a risky open rule.",
+   "steps": [
+    {
+     "do": "Open Inbound Rules",
+     "see": "Remote Desktop - Any (TCP 3389) Allow, Remote Address: Any, Enabled"
+    },
+    {
+     "do": "Select the risky rule and choose Disable",
+     "see": "Rule disabled."
+    },
+    {
+     "do": "Create new rule: Port, TCP, 3389",
+     "see": "Wizard step: action."
+    },
+    {
+     "do": "Action: Allow the connection",
+     "see": "Wizard step: profile."
+    },
+    {
+     "do": "Scope Remote IP: 192.0.2.0/24",
+     "see": "Scope saved."
+    },
+    {
+     "do": "Profiles: Domain only; Name: RDP from mgmt",
+     "see": "Rule created and enabled."
+    },
+    {
+     "do": "Run external test from 203.0.113.50",
+     "see": "Connection to 3389 timed out (blocked)."
+    }
+   ],
+   "answer": "A new inbound TCP 3389 allow rule scoped to remote address 192.0.2.0/24 exists, and the any-address RDP rule is disabled. External addresses can no longer connect, while the management subnet can.",
+   "hint": "Scope the remote address, do not just open the port."
+  },
+  {
+   "title": "Active Directory Tree",
+   "sim": "diagram-builder",
+   "scenario": "Build the logical structure for a fictional domain corp.example.com with a Sales OU and an IT OU. Create users and a group, then link a password-and-lockout GPO to the Sales OU only.",
+   "objective": "Build a domain with OUs, users and groups and attach a group policy to the correct OU.",
+   "steps": [
+    {
+     "do": "Add domain node corp.example.com",
+     "see": "Domain placed."
+    },
+    {
+     "do": "Add OU Sales and OU IT under the domain",
+     "see": "Two OUs created."
+    },
+    {
+     "do": "Add users jdoe, asmith to Sales; tadmin to IT",
+     "see": "Users placed in OUs."
+    },
+    {
+     "do": "Add group SalesStaff in Sales; add jdoe and asmith",
+     "see": "Group membership recorded."
+    },
+    {
+     "do": "Create GPO 'Sales Security Baseline'",
+     "see": "GPO created, not linked."
+    },
+    {
+     "do": "Drag the GPO onto the Sales OU",
+     "see": "Linked: applies to jdoe, asmith and Sales computers."
+    },
+    {
+     "do": "Run check",
+     "see": "Pass: IT OU is unaffected; GPO linked at OU level."
+    }
+   ],
+   "answer": "The GPO Sales Security Baseline is linked to the Sales OU, which contains jdoe, asmith and the SalesStaff group. IT users are unaffected because the policy is linked at the OU level, not the domain.",
+   "hint": "Link policy at the narrowest container that needs it."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Where do 64-bit applications install by default?",
+   "options": [
+    "C:\\Windows",
+    "C:\\Program Files",
+    "C:\\Users",
+    "C:\\Temp"
+   ],
+   "a": 1,
+   "why": "Program Files holds 64-bit apps."
+  },
+  {
+   "q": "What does UAC do when an admin starts an elevated task?",
+   "options": [
+    "Prompts for consent",
+    "Disables antivirus",
+    "Deletes files",
+    "Reboots"
+   ],
+   "a": 0,
+   "why": "It asks for approval."
+  },
+  {
+   "q": "Which registry path runs a program at each logon for one user?",
+   "options": [
+    "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+    "HKLM\\SAM",
+    "HKCR\\.txt",
+    "HKLM\\HARDWARE"
+   ],
+   "a": 0,
+   "why": "HKCU Run is per user."
+  },
+  {
+   "q": "What does dir /r reveal?",
+   "options": [
+    "Alternate data streams",
+    "Hidden services",
+    "Registry keys",
+    "Open ports"
+   ],
+   "a": 0,
+   "why": "/r lists NTFS streams."
+  },
+  {
+   "q": "Which cmdlet lists local accounts?",
+   "options": [
+    "Get-LocalUser",
+    "Get-Process",
+    "Get-Service",
+    "Get-Item"
+   ],
+   "a": 0,
+   "why": "Get-LocalUser."
+  },
+  {
+   "q": "Which tool shows connections with PIDs?",
+   "options": [
+    "netstat -ano",
+    "ipconfig",
+    "dir",
+    "type"
+   ],
+   "a": 0,
+   "why": "netstat -ano includes PIDs."
+  },
+  {
+   "q": "An OU is used to:",
+   "options": [
+    "Encrypt files",
+    "Organize objects and delegate or apply policy",
+    "Route packets",
+    "Store passwords"
+   ],
+   "a": 1,
+   "why": "OUs group objects."
+  },
+  {
+   "q": "Kerberos gives you a TGT after:",
+   "options": [
+    "You authenticate to the KDC",
+    "You reboot",
+    "You open a file",
+    "You change DNS"
+   ],
+   "a": 0,
+   "why": "The TGT is issued after login."
+  },
+  {
+   "q": "Which Windows firewall profile should be strictest?",
+   "options": [
+    "Public",
+    "Domain",
+    "Private",
+    "None"
+   ],
+   "a": 0,
+   "why": "Public networks are untrusted."
+  },
+  {
+   "q": "Safest way to expose RDP?",
+   "options": [
+    "Any address",
+    "Restrict to a management subnet or VPN",
+    "Disable Defender",
+    "Use guest account"
+   ],
+   "a": 1,
+   "why": "Limit the source addresses."
+  }
+ ]
+}

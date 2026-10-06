@@ -1,0 +1,881 @@
+{
+ "key": "CORE",
+ "capstone": {
+  "title": "Breach of a Small Company",
+  "desc": "Simulated engagement: scope the test, recon and exploit a web app, then switch to SOC and triage the logs, contain it, and report with CVSS and a NIST CSF mapping."
+ },
+ "cert_note": "Guide only: covers CompTIA Security+ concept areas and builds a base for eJPT and BTL1, but it is not an official prep course.",
+ "modules": [
+  {
+   "code": "CORE-01",
+   "can_do": [
+    "Classify controls and scenarios by CIA triad property",
+    "Map an attack to kill chain stages and ATT&CK tactics",
+    "Compare NIST CSF, ISO 27001 and CIS Controls by purpose"
+   ],
+   "lessons": [
+    {
+     "title": "CIA triad and its failure modes",
+     "goal": "Explain confidentiality, integrity and availability and give an attack and a control for each."
+    },
+    {
+     "title": "AAA and non-repudiation",
+     "goal": "Distinguish authentication, authorization, accounting and show how signatures and logs give non-repudiation."
+    },
+    {
+     "title": "Defense in depth and least privilege",
+     "goal": "Layer preventive, detective and corrective controls and apply least privilege and separation of duties."
+    },
+    {
+     "title": "Zero trust fundamentals",
+     "goal": "Describe never trust, always verify, microsegmentation and policy decision points per NIST SP 800-207."
+    },
+    {
+     "title": "Kill chain and MITRE ATT&CK",
+     "goal": "Map intrusion activity to the seven Lockheed Martin kill chain stages and ATT&CK tactics and techniques."
+    },
+    {
+     "title": "NIST CSF, ISO 27001 and CIS Controls",
+     "goal": "Compare the CSF functions, ISO 27001 ISMS and Annex A, and CIS Controls IG1-IG3 safeguards."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Tag scenarios by CIA property",
+     "sim": "scenario",
+     "task": "Read 8 incident snippets and tag which CIA property each one violated, then choose the matching control."
+    },
+    {
+     "title": "Map an intrusion to ATT&CK",
+     "sim": "diagram-builder",
+     "task": "Place observed events onto kill chain stages and attach ATT&CK technique IDs such as T1566 and T1059."
+    },
+    {
+     "title": "Match controls to NIST CSF functions",
+     "sim": "scenario",
+     "task": "Sort 12 controls into Identify, Protect, Detect, Respond, Recover and flag the gaps in a sample program."
+    },
+    {
+     "title": "Review an access log for AAA gaps",
+     "sim": "log-viewer",
+     "task": "Find unauthenticated requests, over-privileged accounts and missing accounting entries in a sample audit log."
+    }
+   ],
+   "checkpoint": {
+    "focus": "CIA classification, AAA terms, kill chain and ATT&CK mapping, CSF functions vs ISO 27001 vs CIS"
+   }
+  },
+  {
+   "code": "CORE-02",
+   "can_do": [
+    "Differentiate threat actors by motive, capability and TTPs",
+    "Identify malware families from behavior and indicators",
+    "Explain how real incidents unfolded and which control would have stopped them"
+   ],
+   "lessons": [
+    {
+     "title": "Threat actors and motives",
+     "goal": "Compare nation-state, criminal, hacktivist, insider and script-kiddie actors by resources and motivation."
+    },
+    {
+     "title": "Attack surface and common attack types",
+     "goal": "Describe brute force, credential stuffing, password spraying, supply chain and zero-day attack types."
+    },
+    {
+     "title": "Viruses, worms and trojans",
+     "goal": "Explain how viruses, worms and trojans propagate and how each is detected."
+    },
+    {
+     "title": "Ransomware and extortion",
+     "goal": "Describe the ransomware chain from initial access to encryption, double extortion and RaaS."
+    },
+    {
+     "title": "Spyware, RATs, botnets and C2",
+     "goal": "Explain keyloggers, RATs, botnet C2 channels and beaconing indicators."
+    },
+    {
+     "title": "Incident case studies",
+     "goal": "Analyze WannaCry, NotPetya, SolarWinds, Colonial Pipeline and Equifax for root cause and missed controls."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Classify malware samples",
+     "sim": "scenario",
+     "task": "Review 6 behavior reports (file changes, network calls, persistence) and label the malware family."
+    },
+    {
+     "title": "Spot C2 beaconing in packets",
+     "sim": "packet-viewer",
+     "task": "Find periodic HTTP or DNS callbacks in a capture and identify the infected host and C2 domain."
+    },
+    {
+     "title": "Read a ransomware process tree",
+     "sim": "log-viewer",
+     "task": "Trace Sysmon events from a phishing attachment to shadow copy deletion and encryption."
+    },
+    {
+     "title": "Build the case study timeline",
+     "sim": "diagram-builder",
+     "task": "Order the SolarWinds or Equifax events on a timeline and mark where a control would break the chain."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Actor motives, malware family traits, attack types, root causes in case studies"
+   }
+  },
+  {
+   "code": "CORE-03",
+   "can_do": [
+    "Recognize phishing, smishing and vishing indicators",
+    "Analyze a suspicious email header and URL",
+    "Choose technical and human controls against social engineering"
+   ],
+   "lessons": [
+    {
+     "title": "Social engineering principles",
+     "goal": "Explain authority, urgency, scarcity and trust as levers and the pretexting attack cycle."
+    },
+    {
+     "title": "Phishing, spear phishing and whaling",
+     "goal": "Identify mass, targeted and executive phishing and the credential harvesting and payload variants."
+    },
+    {
+     "title": "Smishing, vishing and QR phishing",
+     "goal": "Recognize SMS, voice and QR lure patterns, caller ID spoofing and MFA fatigue prompts."
+    },
+    {
+     "title": "Business email compromise",
+     "goal": "Describe BEC variants such as invoice fraud and CEO fraud and the verification steps that stop them."
+    },
+    {
+     "title": "Spotting fakes and defending",
+     "goal": "Inspect headers (SPF, DKIM, DMARC), lookalike domains, link hover and apply reporting and awareness controls."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Triage a phishing inbox",
+     "sim": "scenario",
+     "task": "Sort 10 emails into legitimate, phishing and BEC and name the strongest indicator in each."
+    },
+    {
+     "title": "Read email headers",
+     "sim": "log-viewer",
+     "task": "Check Received chain, Return-Path and SPF, DKIM, DMARC results to prove a sender is spoofed."
+    },
+    {
+     "title": "Dissect a malicious URL",
+     "sim": "web-proxy",
+     "task": "Decode a shortened and obfuscated link, spot the lookalike domain and the redirect chain in a sandbox."
+    },
+    {
+     "title": "Handle a vishing call",
+     "sim": "chat-sim",
+     "task": "Respond to a caller requesting a password reset and choose verification steps that deny the attacker."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Phishing variants, header analysis, SPF/DKIM/DMARC, BEC verification controls"
+   }
+  },
+  {
+   "code": "CORE-04",
+   "can_do": [
+    "Choose between encoding, encryption and hashing",
+    "Explain how keys, certificates and TLS protect a connection",
+    "Store passwords safely with salted slow hashes"
+   ],
+   "lessons": [
+    {
+     "title": "Encoding vs encryption vs hashing",
+     "goal": "Distinguish Base64 encoding, reversible encryption and one-way hashing with a use case for each."
+    },
+    {
+     "title": "Symmetric encryption",
+     "goal": "Explain AES, block modes (ECB, CBC, GCM), IVs and why key distribution is the hard part."
+    },
+    {
+     "title": "Asymmetric encryption and key exchange",
+     "goal": "Describe RSA, ECC and Diffie-Hellman and how public and private keys solve key exchange."
+    },
+    {
+     "title": "Hashing, HMAC and salting",
+     "goal": "Compare MD5, SHA-1, SHA-256, explain collisions, HMAC and why salts defeat rainbow tables."
+    },
+    {
+     "title": "Digital signatures",
+     "goal": "Explain how signing with a private key gives integrity, authenticity and non-repudiation."
+    },
+    {
+     "title": "Certificates and PKI",
+     "goal": "Describe X.509 fields, CA chains, root stores, CSR, revocation (CRL, OCSP) and expiry."
+    },
+    {
+     "title": "The TLS 1.2 and 1.3 handshake",
+     "goal": "Walk through ClientHello, key exchange, certificate validation, forward secrecy and cipher suites."
+    },
+    {
+     "title": "Password storage and cracking",
+     "goal": "Compare bcrypt, scrypt, Argon2 and PBKDF2, and explain dictionary, brute force and pepper."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Decode, decrypt and hash",
+     "sim": "terminal",
+     "task": "Use base64, openssl enc and sha256sum on sample data and state which operation is reversible."
+    },
+    {
+     "title": "Spot weak crypto choices",
+     "sim": "config-editor",
+     "task": "Fix a TLS config by removing SSLv3, RC4 and CBC suites and enabling TLS 1.3 with strong ciphers."
+    },
+    {
+     "title": "Verify a signed file",
+     "sim": "terminal",
+     "task": "Check a SHA-256 checksum and an openssl signature and detect a tampered download."
+    },
+    {
+     "title": "Inspect a certificate chain",
+     "sim": "file-explorer",
+     "task": "Open sample X.509 certs, find issuer, SAN and expiry, and spot the broken chain or hostname mismatch."
+    },
+    {
+     "title": "Read a TLS handshake",
+     "sim": "packet-viewer",
+     "task": "Identify ClientHello, ServerHello, selected cipher and certificate frames in a capture."
+    },
+    {
+     "title": "Crack weak password hashes",
+     "sim": "terminal",
+     "task": "Run a wordlist against unsalted MD5 hashes in a sandbox, then show bcrypt resisting the same attack."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Encoding vs encryption vs hashing, symmetric vs asymmetric, PKI, TLS handshake, password storage"
+   }
+  },
+  {
+   "code": "CORE-05",
+   "can_do": [
+    "Compare authentication factors and MFA methods",
+    "Trace SAML and OAuth/OIDC flows and their tokens",
+    "Design RBAC and ABAC rules and secure sessions"
+   ],
+   "lessons": [
+    {
+     "title": "Passwords and password managers",
+     "goal": "Apply NIST SP 800-63B guidance on length, breach checks and the role of managers and passkeys."
+    },
+    {
+     "title": "MFA and biometrics",
+     "goal": "Compare TOTP, push, FIDO2/WebAuthn and biometrics, and explain MFA fatigue and SIM swap risks."
+    },
+    {
+     "title": "Single sign-on and Kerberos basics",
+     "goal": "Explain SSO, identity providers and the Kerberos ticket-granting flow at concept level."
+    },
+    {
+     "title": "SAML, OAuth 2.0 and OpenID Connect",
+     "goal": "Distinguish SAML assertions, OAuth access tokens and OIDC ID tokens and the authorization code flow."
+    },
+    {
+     "title": "RBAC, ABAC and access models",
+     "goal": "Compare DAC, MAC, RBAC and ABAC and apply least privilege and periodic access reviews."
+    },
+    {
+     "title": "Session management and JWTs",
+     "goal": "Secure session IDs, cookies, timeouts and JWT signature, expiry and audience validation."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Choose MFA for scenarios",
+     "sim": "scenario",
+     "task": "Select the right factor for 6 user groups and justify against phishing resistance and usability."
+    },
+    {
+     "title": "Decode a JWT and find flaws",
+     "sim": "web-proxy",
+     "task": "Inspect a captured JWT, spot alg none or a missing exp claim and replay it in the sandbox."
+    },
+    {
+     "title": "Trace an OAuth authorization code flow",
+     "sim": "diagram-builder",
+     "task": "Arrange redirects, code and token exchange steps and mark where state and PKCE protect the flow."
+    },
+    {
+     "title": "Build RBAC roles",
+     "sim": "config-editor",
+     "task": "Edit a role matrix to enforce least privilege and remove a separation of duties conflict."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Factors and MFA, SAML vs OAuth vs OIDC, RBAC vs ABAC, session and token security"
+   }
+  },
+  {
+   "code": "CORE-06",
+   "can_do": [
+    "Configure firewall rules and segment a network",
+    "Distinguish IDS, IPS, proxy and VPN roles",
+    "Recognize and mitigate MITM, ARP spoofing and DoS"
+   ],
+   "lessons": [
+    {
+     "title": "Firewalls and ACLs",
+     "goal": "Write stateless and stateful rules, apply default deny and explain NGFW and WAF differences."
+    },
+    {
+     "title": "IDS, IPS and network monitoring",
+     "goal": "Compare signature and anomaly detection, Snort and Suricata rules and NIDS vs HIDS placement."
+    },
+    {
+     "title": "Proxies, VPNs and tunneling",
+     "goal": "Explain forward and reverse proxies, IPsec and WireGuard VPNs, split tunneling and TLS inspection."
+    },
+    {
+     "title": "Segmentation, VLANs and the DMZ",
+     "goal": "Design zones, VLANs and a DMZ so that a compromised host cannot reach internal systems."
+    },
+    {
+     "title": "Wi-Fi security",
+     "goal": "Compare WEP, WPA2, WPA3, PSK and 802.1X, and describe evil twin and deauthentication attacks."
+    },
+    {
+     "title": "MITM, ARP spoofing and DNS attacks",
+     "goal": "Explain ARP cache poisoning, DNS spoofing, SSL stripping and defenses such as DAI and HSTS."
+    },
+    {
+     "title": "DoS, DDoS and secure protocols",
+     "goal": "Explain SYN floods and amplification, their mitigations, and swap Telnet, FTP, HTTP for SSH, SFTP, HTTPS."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Write firewall rules",
+     "sim": "config-editor",
+     "task": "Build an iptables or ACL ruleset that allows web traffic, blocks lateral movement and logs drops."
+    },
+    {
+     "title": "Design a DMZ network",
+     "sim": "diagram-builder",
+     "task": "Place web, DB and admin hosts in zones and draw the allowed flows between them."
+    },
+    {
+     "title": "Detect ARP spoofing",
+     "sim": "packet-viewer",
+     "task": "Find duplicate MAC to IP mappings and gratuitous ARP replies in a capture and name the attacker."
+    },
+    {
+     "title": "Tune a Suricata alert",
+     "sim": "log-viewer",
+     "task": "Review IDS alerts, separate false positives and write a rule to catch a port scan."
+    },
+    {
+     "title": "Triage a SYN flood",
+     "sim": "siem",
+     "task": "Identify the flood from connection logs, find top sources and select the right mitigation."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Firewall rule logic, IDS vs IPS, segmentation, Wi-Fi standards, MITM and DoS defenses, secure protocols"
+   }
+  },
+  {
+   "code": "CORE-07",
+   "can_do": [
+    "Identify OWASP Top 10 flaws in requests and code",
+    "Exploit and fix SQL injection, XSS, IDOR and CSRF in a sandbox",
+    "Apply secure headers, cookie flags and input handling"
+   ],
+   "lessons": [
+    {
+     "title": "HTTP basics and the OWASP Top 10",
+     "goal": "Review request, response, methods and status codes and name the categories of the OWASP Top 10."
+    },
+    {
+     "title": "Injection: SQLi and command injection",
+     "goal": "Explain how unsanitized input alters queries and fix with parameterized statements and validation."
+    },
+    {
+     "title": "Cross-site scripting",
+     "goal": "Distinguish reflected, stored and DOM XSS and apply output encoding and Content Security Policy."
+    },
+    {
+     "title": "Broken authentication and session flaws",
+     "goal": "Identify weak login, session fixation and credential stuffing weaknesses and their fixes."
+    },
+    {
+     "title": "Broken access control and IDOR",
+     "goal": "Detect IDOR and missing function-level checks and enforce server-side authorization."
+    },
+    {
+     "title": "CSRF and SSRF",
+     "goal": "Explain forged state-changing requests and server-side request forgery, with tokens and SameSite as defenses."
+    },
+    {
+     "title": "Misconfiguration and vulnerable components",
+     "goal": "Find default credentials, verbose errors, directory listing and outdated libraries (SCA, SBOM)."
+    },
+    {
+     "title": "Secure headers, cookies and testing",
+     "goal": "Set HSTS, CSP, X-Content-Type-Options and Secure, HttpOnly, SameSite cookie flags and use Burp or ZAP."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Intercept and modify a request",
+     "sim": "web-proxy",
+     "task": "Capture a login request in a proxy, change a parameter and observe the server response."
+    },
+    {
+     "title": "Exploit SQL injection safely",
+     "sim": "web-proxy",
+     "task": "Use a quote and UNION payload against a sandbox app to extract a user table, then note the cause."
+    },
+    {
+     "title": "Fix an injectable query",
+     "sim": "code-editor",
+     "task": "Replace string concatenation with a parameterized query and verify the payload no longer works."
+    },
+    {
+     "title": "Find stored XSS",
+     "sim": "web-proxy",
+     "task": "Submit a payload to a sandbox comment box, confirm execution and apply output encoding."
+    },
+    {
+     "title": "Enumerate IDOR",
+     "sim": "web-proxy",
+     "task": "Change an order ID in a sandbox API call to read another user's data, then add an ownership check."
+    },
+    {
+     "title": "Harden headers and cookies",
+     "sim": "config-editor",
+     "task": "Add CSP, HSTS and cookie flags to a server config and re-scan for missing headers."
+    }
+   ],
+   "checkpoint": {
+    "focus": "OWASP categories, SQLi and XSS mechanics and fixes, IDOR, CSRF, headers and cookie flags"
+   }
+  },
+  {
+   "code": "CORE-08",
+   "can_do": [
+    "Apply a hardening baseline to a system",
+    "Explain how AV, EDR and allowlisting detect and block threats",
+    "Design a backup and encryption plan"
+   ],
+   "lessons": [
+    {
+     "title": "System hardening basics",
+     "goal": "Apply CIS Benchmarks: remove unused services, enforce least privilege, secure defaults and baseline configs."
+    },
+    {
+     "title": "Patch management",
+     "goal": "Describe the patch cycle, test rings, emergency patches and risks of unsupported software."
+    },
+    {
+     "title": "Antivirus, EDR and application allowlisting",
+     "goal": "Compare signature, heuristic and behavior detection, EDR telemetry and AppLocker-style allowlists."
+    },
+    {
+     "title": "Disk encryption and mobile device security",
+     "goal": "Explain BitLocker, FileVault, LUKS, TPM, MDM, jailbreaking and mobile app permissions."
+    },
+    {
+     "title": "Backups and recovery",
+     "goal": "Apply the 3-2-1 rule, immutable and offline backups, RPO, RTO and restore testing against ransomware."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Harden a Linux server",
+     "sim": "terminal",
+     "task": "Run commands to disable unused services, fix file permissions and set SSH to key-only login."
+    },
+    {
+     "title": "Audit a Windows baseline",
+     "sim": "config-editor",
+     "task": "Compare a policy export to a CIS baseline and correct failing settings such as SMBv1 and password length."
+    },
+    {
+     "title": "Triage an EDR detection",
+     "sim": "siem",
+     "task": "Review an EDR alert, inspect the process tree and decide to isolate the host or close as benign."
+    },
+    {
+     "title": "Plan backups for ransomware",
+     "sim": "scenario",
+     "task": "Choose backup types, locations and test schedule that meet given RPO and RTO after a ransomware event."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Hardening steps, patching, AV vs EDR, allowlisting, disk encryption, 3-2-1 backups"
+   }
+  },
+  {
+   "code": "CORE-09",
+   "can_do": [
+    "Distinguish vulnerability, exploit and risk",
+    "Read CVE, CWE and CVSS data and prioritize findings",
+    "Run a scan-to-remediation cycle and know bug bounty basics"
+   ],
+   "lessons": [
+    {
+     "title": "Vulnerability, threat, exploit and risk",
+     "goal": "Define each term and relate them with risk = likelihood x impact."
+    },
+    {
+     "title": "CVE, CWE, NVD and exploit databases",
+     "goal": "Look up CVE IDs, CWE weakness classes, NVD records and Exploit-DB or CISA KEV entries."
+    },
+    {
+     "title": "CVSS scoring",
+     "goal": "Read a CVSS v3.1 vector (AV, AC, PR, UI, S, C, I, A) and compute the severity band."
+    },
+    {
+     "title": "Scanning and the patching process",
+     "goal": "Explain authenticated vs unauthenticated scans with Nessus or OpenVAS, false positives and remediation SLAs."
+    },
+    {
+     "title": "Prioritization and bug bounty overview",
+     "goal": "Prioritize with CVSS, KEV, EPSS and asset value, and describe disclosure and bug bounty programs."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Score a CVSS vector",
+     "sim": "scenario",
+     "task": "Set base metrics for 4 vulnerabilities and compare the resulting scores and severity."
+    },
+    {
+     "title": "Triage scanner output",
+     "sim": "file-explorer",
+     "task": "Review a scan report, remove false positives and group findings by host and fix."
+    },
+    {
+     "title": "Search CVE records",
+     "sim": "terminal",
+     "task": "Use searchsploit and a CVE lookup on a sandbox service banner to find known vulnerabilities."
+    },
+    {
+     "title": "Rank the remediation queue",
+     "sim": "scenario",
+     "task": "Order 8 findings using CVSS, KEV status and asset criticality and assign SLAs."
+    }
+   ],
+   "checkpoint": {
+    "focus": "CVE vs CWE vs CVSS, vector reading, scanner types, prioritization logic, patch process"
+   }
+  },
+  {
+   "code": "CORE-10",
+   "can_do": [
+    "Search and correlate logs in a SIEM",
+    "Triage alerts and escalate correctly",
+    "Follow incident response phases and preserve evidence"
+   ],
+   "lessons": [
+    {
+     "title": "Logging and monitoring fundamentals",
+     "goal": "Identify key log sources (Windows Event IDs, syslog, auth, proxy, DNS) and time sync and retention needs."
+    },
+    {
+     "title": "SIEM basics",
+     "goal": "Explain log ingestion, normalization, correlation rules and search queries in Splunk or Elastic."
+    },
+    {
+     "title": "SOC roles and alert triage",
+     "goal": "Describe Tier 1-3 roles and triage steps: validate, scope, enrich and classify true or false positives."
+    },
+    {
+     "title": "Threat intelligence intro",
+     "goal": "Use IOCs, TTPs, STIX/TAXII, MISP and the Pyramid of Pain to enrich alerts."
+    },
+    {
+     "title": "Incident response lifecycle",
+     "goal": "Apply NIST SP 800-61 phases: preparation, detection, containment, eradication, recovery, lessons learned."
+    },
+    {
+     "title": "Digital forensics fundamentals",
+     "goal": "Explain order of volatility, disk and memory images, hashing evidence and chain of custody."
+    },
+    {
+     "title": "Detection use cases and playbooks",
+     "goal": "Write a brute force detection rule and a runbook with escalation and communication steps."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Hunt failed logins in a SIEM",
+     "sim": "siem",
+     "task": "Query auth logs for Event ID 4625 spikes and identify the source IP and targeted accounts."
+    },
+    {
+     "title": "Triage a phishing alert",
+     "sim": "siem",
+     "task": "Enrich a sender, URL and attachment hash with threat intel and decide the verdict."
+    },
+    {
+     "title": "Analyze a Linux auth.log",
+     "sim": "log-viewer",
+     "task": "Find the SSH brute force, successful login and subsequent sudo activity."
+    },
+    {
+     "title": "Contain a compromised host",
+     "sim": "scenario",
+     "task": "Choose containment, eradication and recovery actions in order for a simulated infection."
+    },
+    {
+     "title": "Preserve evidence",
+     "sim": "file-explorer",
+     "task": "Hash disk image files, record chain of custody and sort evidence by order of volatility."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Log sources, SIEM queries, triage decisions, IOC use, IR phases, evidence handling"
+   }
+  },
+  {
+   "code": "CORE-11",
+   "can_do": [
+    "Describe pentest phases and rules of engagement",
+    "Perform recon, scanning and enumeration in a sandbox",
+    "Report findings with evidence and remediation"
+   ],
+   "lessons": [
+    {
+     "title": "Ethical hacking, scope and rules of engagement",
+     "goal": "Explain authorization, scope, SOW, legal limits (CFAA) and pentest types (black, grey, white box)."
+    },
+    {
+     "title": "Pentest methodology",
+     "goal": "Walk through PTES phases: planning, recon, scanning, exploitation, post-exploitation, reporting."
+    },
+    {
+     "title": "Reconnaissance and OSINT",
+     "goal": "Use whois, DNS, Google dorks, Shodan and theHarvester for passive and active recon."
+    },
+    {
+     "title": "Scanning and enumeration",
+     "goal": "Use Nmap scan types, service and version detection, NSE and SMB or web enumeration."
+    },
+    {
+     "title": "Exploitation overview",
+     "goal": "Explain exploit selection, Metasploit modules, payload types and web exploitation in lab scope."
+    },
+    {
+     "title": "Post-exploitation",
+     "goal": "Describe privilege escalation, credential access, lateral movement and persistence, and cleanup."
+    },
+    {
+     "title": "Reporting and remediation advice",
+     "goal": "Write an executive summary, findings with CVSS, reproduction steps and prioritized fixes."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Check scope before testing",
+     "sim": "scenario",
+     "task": "Read a rules-of-engagement document and decide which of 8 actions are in or out of scope."
+    },
+    {
+     "title": "Passive recon on a target",
+     "sim": "web-proxy",
+     "task": "Gather subdomains, emails and tech stack from sandbox OSINT sources without touching the target."
+    },
+    {
+     "title": "Scan with Nmap",
+     "sim": "terminal",
+     "task": "Run host discovery, a service scan and NSE scripts, then interpret open ports and versions."
+    },
+    {
+     "title": "Exploit a vulnerable service",
+     "sim": "terminal",
+     "task": "Pick a matching Metasploit module in the sandbox, set options and obtain a shell."
+    },
+    {
+     "title": "Escalate privileges",
+     "sim": "terminal",
+     "task": "Enumerate SUID files and sudo rights on a sandbox host and gain root."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Scope and legality, PTES phases, Nmap output, exploit concepts, post-exploitation, report content"
+   }
+  },
+  {
+   "code": "CORE-12",
+   "can_do": [
+    "Identify PII and classify data by sensitivity",
+    "Summarize GDPR and CCPA rights and obligations",
+    "Apply DLP, retention and compliance framework basics"
+   ],
+   "lessons": [
+    {
+     "title": "PII, data classification and handling",
+     "goal": "Classify data as public, internal, confidential or restricted and identify PII, PHI and cardholder data."
+    },
+    {
+     "title": "GDPR and CCPA basics",
+     "goal": "Explain lawful basis, data subject rights, DPO, breach notification in 72 hours and CCPA opt-out rights."
+    },
+    {
+     "title": "DLP, retention and disposal",
+     "goal": "Describe DLP detection and blocking, retention schedules, anonymization, pseudonymization and secure disposal."
+    },
+    {
+     "title": "Compliance frameworks overview",
+     "goal": "Compare PCI DSS, HIPAA, SOX, SOC 2 and ISO 27001, and explain audits, evidence and risk registers."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Classify a data set",
+     "sim": "file-explorer",
+     "task": "Label sample files and database fields by sensitivity and pick the required handling for each."
+    },
+    {
+     "title": "Handle a data subject request",
+     "sim": "scenario",
+     "task": "Decide the steps and deadlines for an access or deletion request under GDPR."
+    },
+    {
+     "title": "Tune a DLP policy",
+     "sim": "config-editor",
+     "task": "Write rules that block SSN and card numbers in outbound email while limiting false positives."
+    }
+   ],
+   "checkpoint": {
+    "focus": "PII types, classification levels, GDPR rights and deadlines, DLP, framework purposes"
+   }
+  },
+  {
+   "code": "CORE-13",
+   "can_do": [
+    "Apply the shared responsibility model by service type",
+    "Find IAM and storage misconfigurations",
+    "Describe container isolation and basic hardening"
+   ],
+   "lessons": [
+    {
+     "title": "Cloud service and deployment models",
+     "goal": "Compare IaaS, PaaS, SaaS and public, private, hybrid cloud, and shared responsibility per model."
+    },
+    {
+     "title": "Cloud IAM",
+     "goal": "Write least-privilege policies, understand roles vs users, MFA on root, and key and access key hygiene."
+    },
+    {
+     "title": "Common cloud misconfigurations",
+     "goal": "Identify open security groups, public snapshots, exposed secrets and missing logging (CloudTrail)."
+    },
+    {
+     "title": "Storage exposure and data protection",
+     "goal": "Check S3 and blob ACLs, public access blocks, encryption at rest, KMS and presigned URLs."
+    },
+    {
+     "title": "Containers 101",
+     "goal": "Explain images, namespaces, cgroups, Docker vs VMs, registry risks, running as root and secrets in images."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Fix an over-permissive IAM policy",
+     "sim": "config-editor",
+     "task": "Replace wildcard Action and Resource entries in a JSON policy with least-privilege permissions."
+    },
+    {
+     "title": "Audit a cloud storage bucket",
+     "sim": "file-explorer",
+     "task": "Find publicly readable objects and exposed credentials and apply a public access block."
+    },
+    {
+     "title": "Review cloud audit logs",
+     "sim": "log-viewer",
+     "task": "Trace an access key abuse using CloudTrail events and identify the creating role and source IP."
+    },
+    {
+     "title": "Harden a Dockerfile",
+     "sim": "code-editor",
+     "task": "Remove root user, pin the base image, drop embedded secrets and verify the fixed file."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Shared responsibility, IAM least privilege, storage exposure, misconfigs, container basics"
+   }
+  },
+  {
+   "code": "CORE-14",
+   "can_do": [
+    "Match certifications to career goals",
+    "Plan a portfolio that shows practical skills",
+    "Choose a specialization and a practice routine"
+   ],
+   "lessons": [
+    {
+     "title": "Certification map",
+     "goal": "Compare Security+, Network+, CySA+, eJPT, BTL1, CEH, SSCP and CISSP by level, focus and prerequisites."
+    },
+    {
+     "title": "Portfolio, labs and CTFs",
+     "goal": "Build a portfolio with write-ups, a home lab and CTF practice on platforms like picoCTF and HackTheBox."
+    },
+    {
+     "title": "Choosing a specialization",
+     "goal": "Compare SOC, pentest, GRC, cloud, DFIR, AppSec and engineering roles by daily work and skills."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Build a certification roadmap",
+     "sim": "scenario",
+     "task": "Pick a role goal and order 4 certifications with prerequisites and reasons."
+    },
+    {
+     "title": "Match skills to a role",
+     "sim": "chat-sim",
+     "task": "Answer a career advisor's questions and get matched to a specialization with next steps."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Certification levels and focus, portfolio contents, role comparison"
+   }
+  },
+  {
+   "code": "CORE-15",
+   "can_do": [
+    "Recall core concepts across all Security Core modules",
+    "Solve mixed scenario questions under time",
+    "Identify weak areas to revisit"
+   ],
+   "lessons": [
+    {
+     "title": "Mixed review across modules",
+     "goal": "Retrieve and connect principles, cryptography, web, network and defense concepts through mixed questions."
+    },
+    {
+     "title": "Final exam strategy and review",
+     "goal": "Apply scenario-question technique, eliminate distractors and review missed topics before the final exam."
+    }
+   ],
+   "labs": [
+    {
+     "title": "Mixed incident scenario",
+     "sim": "scenario",
+     "task": "Work a multi-domain case from phishing to data exposure and choose the right control at each step."
+    },
+    {
+     "title": "Weak-area log review",
+     "sim": "siem",
+     "task": "Answer review tasks on alerts and logs from earlier modules and track which domains you missed."
+    }
+   ],
+   "checkpoint": {
+    "focus": "Mixed questions from all 14 modules with emphasis on scenario judgment"
+   }
+  }
+ ]
+}

@@ -1,0 +1,1066 @@
+{
+ "code": "CORE-06",
+ "intro": "This module covers the controls that protect networks and the attacks they face. You will write firewall rules, compare IDS and IPS, understand proxies and VPNs, design segmented zones and a DMZ, secure Wi-Fi, and recognize man-in-the-middle, ARP spoofing, DNS and denial-of-service attacks. You will also replace insecure legacy protocols with secure ones. Because nearly every attack crosses a network, these skills let you prevent, detect and contain threats.",
+ "lessons": [
+  {
+   "title": "Firewalls and ACLs",
+   "why": "A firewall is the first enforcement point between networks. Writing rules correctly, with a default deny stance, decides what an attacker can reach.",
+   "sections": [
+    {
+     "h": "Stateless and stateful filtering",
+     "p": [
+      "A packet filter or access control list (ACL) examines each packet on its own, comparing source and destination address, protocol and ports to a rule list. It is fast but has no memory, so return traffic needs its own explicit rule. A stateful firewall tracks connections in a state table (NEW, ESTABLISHED, RELATED), so a reply to an allowed outbound request is permitted automatically while unsolicited inbound packets are dropped. Most modern firewalls, including Linux netfilter with iptables or nftables, are stateful. State tracking also lets you reject packets that do not belong to any known connection, such as stray ACK packets used in scanning."
+     ]
+    },
+    {
+     "h": "Rule order and default deny",
+     "p": [
+      "Rules are evaluated top to bottom, and the first match wins, so specific rules go before general ones. The best practice is default deny: the final policy drops everything not explicitly allowed. Allow rules should be as narrow as possible, naming exact sources, destinations and ports rather than any. Egress filtering matters too, because outbound control limits data theft and command-and-control traffic. Log drops selectively with rate limits so logs are useful and not flooded. Every rule should have an owner and a reason, and unused rules should be removed during periodic reviews, since rule sets that grow unchecked hide dangerous exceptions."
+     ]
+    },
+    {
+     "h": "NGFW and WAF",
+     "p": [
+      "A next-generation firewall (NGFW) adds application awareness, user identity, intrusion prevention, URL filtering and often TLS inspection, so it can allow a web application but block a file-sharing feature inside it. A web application firewall (WAF) is different: it sits in front of web servers and inspects HTTP and HTTPS requests for attacks such as SQL injection and cross-site scripting, working at layer 7 against the OWASP Top 10. A network firewall decides whether a host may talk to a port; a WAF decides whether a particular web request looks malicious. They complement each other and neither replaces secure code."
+     ]
+    },
+    {
+     "h": "Placement and management",
+     "p": [
+      "Place firewalls at trust boundaries: internet edge, between internal zones, in front of data centers and on each host as a host-based firewall. Host firewalls such as Windows Defender Firewall or ufw stop lateral movement when the perimeter has been bypassed. Manage changes through a ticketed process, back up configurations, and test in staging. Use deny logging to detect scans and misconfigurations, and check results with a port scan from the permitted side. Remember that firewalls do not inspect encrypted content unless they are configured to, so they should be one layer in a defense in depth design, not the only layer."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "iptables ruleset (fictional hosts)",
+    "text": "iptables -P INPUT DROP\niptables -A INPUT -i lo -j ACCEPT\niptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT\niptables -A INPUT -p tcp -s 192.0.2.0/24 --dport 22 -j ACCEPT\niptables -A INPUT -p tcp --dport 443 -j ACCEPT\niptables -A INPUT -j LOG --log-prefix \"DROP: \" --log-level 4"
+   },
+   "example": "A web server at 203.0.113.10 needs HTTPS for the public and SSH only from the admin subnet 192.0.2.0/24. The administrator sets the INPUT policy to DROP, allows established connections, permits TCP 443 from anywhere and TCP 22 only from the admin subnet, then logs the rest. A scan from the internet finds only port 443. If a rule allowing any source on port 22 were placed above the narrow rule, it would match first and expose SSH to everyone.",
+   "terms": [
+    {
+     "term": "ACL",
+     "def": "An ordered list of permit or deny rules applied to traffic."
+    },
+    {
+     "term": "Stateful inspection",
+     "def": "Tracking connection state so replies to permitted requests are allowed automatically."
+    },
+    {
+     "term": "Default deny",
+     "def": "A policy that blocks everything not explicitly permitted."
+    },
+    {
+     "term": "NGFW",
+     "def": "A firewall with application awareness, user identity and integrated intrusion prevention."
+    },
+    {
+     "term": "WAF",
+     "def": "A firewall that inspects HTTP requests to block web attacks."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why does rule order matter?",
+     "options": [
+      "Rules are evaluated top to bottom and the first match wins",
+      "Rules run in parallel",
+      "Only the last rule counts",
+      "Order only affects logging"
+     ],
+     "a": 0,
+     "why": "A broad early rule can override a narrower later rule."
+    },
+    {
+     "q": "What does a stateful firewall allow automatically?",
+     "options": [
+      "All inbound traffic",
+      "Replies to connections it saw being initiated",
+      "Only UDP",
+      "Any port 443 traffic"
+     ],
+     "a": 1,
+     "why": "The state table links replies to permitted outbound requests."
+    },
+    {
+     "q": "Which device best blocks SQL injection against a web site?",
+     "options": [
+      "Layer 2 switch",
+      "WAF",
+      "Stateless ACL on a router",
+      "Passive tap"
+     ],
+     "a": 1,
+     "why": "A WAF inspects HTTP content for attack patterns."
+    },
+    {
+     "q": "What is the safest final policy for an inbound firewall?",
+     "options": [
+      "Allow all",
+      "Default deny",
+      "Log only",
+      "Reject only ICMP"
+     ],
+     "a": 1,
+     "why": "Everything not explicitly needed should be blocked."
+    }
+   ],
+   "recap": [
+    "Stateful firewalls track connections; ACLs judge packets alone.",
+    "Order rules carefully and end with default deny.",
+    "NGFWs add app awareness; WAFs protect web requests."
+   ]
+  },
+  {
+   "title": "IDS, IPS and network monitoring",
+   "why": "Firewalls block known paths, but attackers use permitted ones. Detection systems watch traffic for signs of attack and let defenders respond.",
+   "sections": [
+    {
+     "h": "Detection versus prevention",
+     "p": [
+      "An intrusion detection system (IDS) observes a copy of traffic, from a SPAN port or network tap, and raises alerts. Because it is passive, it cannot break traffic if it fails. An intrusion prevention system (IPS) sits inline, so packets pass through it, and it can drop or reset malicious flows in real time. The trade-off is risk: an inline sensor that misfires blocks legitimate users or becomes a single point of failure. Many teams start a new IPS rule in alert-only mode, tune it against real traffic, then switch it to block once false positives are understood."
+     ]
+    },
+    {
+     "h": "Signature and anomaly detection",
+     "p": [
+      "Signature-based detection matches traffic against patterns of known attacks, such as a byte sequence or a request to a vulnerable URL. It is accurate for known threats and cheap to explain, but it misses novel attacks and can be evaded by small changes. Anomaly-based detection builds a baseline of normal behavior and flags deviations, such as a workstation suddenly sending gigabytes to a new address. It can find unknown activity but produces more false positives and needs tuning. Mature programs combine both and enrich alerts with threat intelligence and asset context so analysts see which alerts matter."
+     ]
+    },
+    {
+     "h": "Snort and Suricata rules",
+     "p": [
+      "Snort and Suricata are open source engines that share a rule language. A rule has a header and options: action, protocol, source address and port, direction, destination address and port, then options in parentheses such as msg, content, flow, threshold, sid and rev. For example, a rule can alert when more than 20 SYN packets from one source reach different ports of a host within 10 seconds, indicating a port scan. Suricata is multi-threaded and also produces rich JSON logs (eve.json), including protocol metadata, which feed a SIEM. Always keep rules updated, and test changes against captured traffic before deployment."
+     ]
+    },
+    {
+     "h": "NIDS, HIDS and placement",
+     "p": [
+      "A network IDS (NIDS) sees traffic on a segment and is placed at the internet edge, in front of the DMZ and on key internal links, but it cannot read encrypted payloads unless traffic is decrypted. A host-based IDS (HIDS) runs on an endpoint and sees what the network cannot: file integrity changes, process activity, local logs and decrypted data. Tools such as OSSEC, Wazuh and auditd fall into this group. The best coverage uses both. Plan capacity so the sensor does not drop packets, document what each sensor covers, and send alerts to a central system where they are triaged and correlated."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Suricata rule and alert (fictional)",
+    "text": "alert tcp any any -> $HOME_NET any (msg:\"Possible port scan\"; flags:S;\n  threshold:type both, track by_src, count 20, seconds 10; sid:1000001; rev:2;)\n\n10/05-09:14:02 [**] [1:1000001:2] Possible port scan [**]\n  198.51.100.77:41022 -> 192.0.2.15:445"
+   },
+   "example": "An analyst sees hundreds of alerts for 'ET SCAN' from 192.0.2.40, an internal vulnerability scanner that the security team runs every Tuesday night. She adds that address to a suppression list for scan rules only, leaving other rules active. The same alert from 198.51.100.77, an unknown external host, stays active and is escalated. Tuning removes noise without blinding the sensor.",
+   "terms": [
+    {
+     "term": "IDS",
+     "def": "A passive system that detects suspicious activity and alerts."
+    },
+    {
+     "term": "IPS",
+     "def": "An inline system that detects and blocks suspicious traffic."
+    },
+    {
+     "term": "Signature",
+     "def": "A pattern that identifies a known attack."
+    },
+    {
+     "term": "False positive",
+     "def": "An alert on activity that is actually benign."
+    },
+    {
+     "term": "SPAN port",
+     "def": "A switch port that mirrors traffic to a monitoring device."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the main difference between IDS and IPS?",
+     "options": [
+      "IPS is inline and can block",
+      "IDS blocks traffic",
+      "IPS only works on hosts",
+      "IDS requires TLS"
+     ],
+     "a": 0,
+     "why": "An IPS sits in the traffic path and can drop packets."
+    },
+    {
+     "q": "A weakness of signature-based detection is that it:",
+     "options": [
+      "Produces no alerts",
+      "Misses unknown attacks",
+      "Cannot be tuned",
+      "Requires machine learning"
+     ],
+     "a": 1,
+     "why": "It only recognizes patterns it already knows."
+    },
+    {
+     "q": "Which tool sees file integrity changes on one server?",
+     "options": [
+      "NIDS",
+      "HIDS",
+      "Passive tap",
+      "Router ACL"
+     ],
+     "a": 1,
+     "why": "A host-based system monitors local files and processes."
+    },
+    {
+     "q": "Why start a new IPS rule in alert-only mode?",
+     "options": [
+      "To save disk",
+      "To tune false positives before blocking",
+      "To skip logging",
+      "Because blocking is illegal"
+     ],
+     "a": 1,
+     "why": "Blocking legitimate traffic causes outages."
+    }
+   ],
+   "recap": [
+    "IDS observes; IPS sits inline and can block.",
+    "Combine signature and anomaly detection and tune alerts.",
+    "Use NIDS and HIDS together; send alerts to a central system."
+   ]
+  },
+  {
+   "title": "Proxies, VPNs and tunneling",
+   "why": "Proxies and VPNs control and protect traffic that crosses untrusted networks, but they also create places where traffic can be inspected or abused.",
+   "sections": [
+    {
+     "h": "Forward and reverse proxies",
+     "p": [
+      "A forward proxy sits between internal clients and the internet. Users request a site through it, and it can filter categories, enforce authentication, cache content and log activity. A reverse proxy sits in front of servers: clients talk to it, and it forwards requests to back-end systems. Reverse proxies provide TLS termination, load balancing, caching and hiding of internal addresses, and WAFs often run as reverse proxies. In a security design, forward proxies control outbound behavior and reverse proxies protect inbound services. Both must be hardened, patched and monitored, since a compromised proxy sees a great deal of traffic."
+     ]
+    },
+    {
+     "h": "IPsec and WireGuard",
+     "p": [
+      "A virtual private network (VPN) creates an encrypted tunnel across an untrusted network. IPsec secures traffic at the IP layer using Internet Key Exchange (IKE, UDP 500 and 4500 for NAT traversal) to authenticate peers and negotiate keys, and ESP (protocol 50) to encrypt and authenticate packets. It is common for site-to-site tunnels. WireGuard is a newer, much smaller protocol over UDP that uses modern fixed cryptography (Curve25519, ChaCha20-Poly1305) and public keys for peers, making it simple to audit and fast. TLS-based VPNs, such as OpenVPN, run over a single port and pass through restrictive firewalls easily."
+     ]
+    },
+    {
+     "h": "Split tunneling and trade-offs",
+     "p": [
+      "With full tunneling all client traffic goes through the VPN, so the organization can inspect and filter it. With split tunneling only traffic for corporate networks uses the tunnel, and the rest goes directly to the internet. Split tunneling saves bandwidth, but a compromised home device can then bridge the internet and the corporate network, and corporate security tools do not see the direct traffic. Choose by risk: full tunnel for highly regulated environments, split for lower risk with strong endpoint protection. Modern zero trust access tools reduce reliance on broad VPN access by granting per-application access after checking user and device."
+     ]
+    },
+    {
+     "h": "TLS inspection and tunneling risks",
+     "p": [
+      "Most web traffic is encrypted, so security devices cannot see inside it. TLS inspection, also called SSL interception, places a proxy that terminates the user's TLS session, inspects the content and opens a new session to the destination, using an internal certificate authority trusted by managed devices. It exposes malware and data leaks but raises privacy and legal concerns, adds a high-value key to protect, and can break certificate pinning. Exempt categories such as banking and health. Attackers also use tunneling, such as DNS tunneling or HTTPS to a rented server, to hide data inside permitted protocols, so monitor for unusual DNS volume and long encoded subdomains."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "WireGuard peer config (fictional)",
+    "text": "[Interface]\nPrivateKey = <hidden>\nAddress = 10.8.0.2/32\n\n[Peer]\nPublicKey = <server public key>\nEndpoint = 203.0.113.5:51820\nAllowedIPs = 10.20.0.0/16\nPersistentKeepalive = 25"
+   },
+   "example": "A consultant works from a cafe. The company config sets AllowedIPs to 10.20.0.0/16 only, a split tunnel, so internal systems travel through WireGuard to 203.0.113.5 while web browsing goes direct. After a risk review, the company changes AllowedIPs to 0.0.0.0/0 for staff handling regulated data, forcing all traffic through company filtering. The consultant notices slower video calls, which the team accepts as a trade-off for visibility.",
+   "terms": [
+    {
+     "term": "Forward proxy",
+     "def": "A server that makes requests on behalf of internal clients."
+    },
+    {
+     "term": "Reverse proxy",
+     "def": "A server that receives client requests on behalf of back-end servers."
+    },
+    {
+     "term": "IPsec",
+     "def": "A suite securing IP traffic using IKE for keys and ESP for encryption."
+    },
+    {
+     "term": "Split tunneling",
+     "def": "Sending only some traffic through the VPN and the rest directly to the internet."
+    },
+    {
+     "term": "TLS inspection",
+     "def": "Decrypting and re-encrypting HTTPS at a proxy to inspect its content."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which proxy type provides TLS termination and load balancing for servers?",
+     "options": [
+      "Forward proxy",
+      "Reverse proxy",
+      "Open proxy",
+      "Transparent client"
+     ],
+     "a": 1,
+     "why": "Reverse proxies front servers."
+    },
+    {
+     "q": "Which protocol uses UDP 500 and 4500 for key exchange?",
+     "options": [
+      "WireGuard",
+      "IKE",
+      "SSH",
+      "RDP"
+     ],
+     "a": 1,
+     "why": "IKE negotiates IPsec keys; 4500 is used for NAT traversal."
+    },
+    {
+     "q": "What is a main risk of split tunneling?",
+     "options": [
+      "Slower DNS",
+      "A compromised device can bridge internet and internal network",
+      "No encryption",
+      "Higher latency only"
+     ],
+     "a": 1,
+     "why": "Direct internet traffic bypasses corporate controls."
+    },
+    {
+     "q": "What does TLS inspection require on client devices?",
+     "options": [
+      "A trusted internal CA certificate",
+      "A disabled firewall",
+      "HTTP only",
+      "SMBv1"
+     ],
+     "a": 0,
+     "why": "Clients must trust the proxy's issuing CA."
+    }
+   ],
+   "recap": [
+    "Forward proxies control outbound traffic; reverse proxies protect servers.",
+    "IPsec and WireGuard create encrypted tunnels with different trade-offs.",
+    "Weigh split tunneling and TLS inspection against risk and privacy."
+   ]
+  },
+  {
+   "title": "Segmentation, VLANs and the DMZ",
+   "why": "Flat networks let an attacker move freely after one compromise. Segmentation limits the blast radius and is the backbone of defense in depth.",
+   "sections": [
+    {
+     "h": "Zones and why they matter",
+     "p": [
+      "Network segmentation divides a network into zones with different trust levels, such as internet, DMZ, user LAN, server zone, management and guest. Traffic between zones passes through a firewall that enforces policy, so a compromised laptop cannot reach the database directly. Segmentation also reduces scope for compliance such as PCI DSS, because only the segment holding card data needs the strictest controls. A well designed zone model follows data flows: define which systems must talk, allow only those flows, and deny the rest. Lateral movement, the technique attackers use to expand access, is much harder across enforced boundaries."
+     ]
+    },
+    {
+     "h": "VLANs and their limits",
+     "p": [
+      "A virtual LAN (VLAN, IEEE 802.1Q) splits one physical switch into separate Layer 2 broadcast domains identified by a tag. Traffic between VLANs must go through a router or Layer 3 switch, where ACLs or a firewall can filter it. Trunk ports carry multiple VLANs. VLAN hopping attacks, through switch spoofing or double tagging, are prevented by disabling dynamic trunking, setting access ports explicitly, changing the native VLAN from VLAN 1, and pruning unused VLANs. A VLAN is a logical separation, not a security control by itself; it only helps when inter-VLAN traffic is actually filtered."
+     ]
+    },
+    {
+     "h": "The DMZ design",
+     "p": [
+      "A demilitarized zone (DMZ) is a buffer network for services that must be reachable from the internet, such as web servers, mail gateways and reverse proxies. In a screened subnet design, an external firewall allows only needed inbound traffic to the DMZ, and an internal firewall tightly limits what DMZ hosts can reach inside, for instance only the database port from the web server to a specific database host. DMZ hosts must never initiate arbitrary connections to internal networks. If a DMZ web server is compromised, the attacker is still separated from user and server networks by a second control point."
+     ]
+    },
+    {
+     "h": "Management plane and microsegmentation",
+     "p": [
+      "Administration should travel on a dedicated management network, reachable only from a hardened jump host with MFA. Do not let administrators use internet-facing systems for management. Microsegmentation applies the same idea at the workload level, using host firewalls or software-defined networking so that each server communicates only with named peers, even inside the same VLAN. Validate designs by testing: attempt connections that should be blocked and review firewall logs. Document the allowed flows in a matrix, since the matrix becomes the checklist for audits and for investigating suspicious traffic."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Allowed flow matrix (fictional)",
+    "text": "src zone    dst zone    port       action\ninternet    DMZ         443/tcp    allow\nDMZ web     DB zone     5432/tcp   allow (10.2.0.20 -> 10.3.0.5)\nuser LAN    DMZ         443/tcp    allow\nDMZ         user LAN    any        deny\nmgmt jump   all         22,3389    allow (MFA)"
+   },
+   "example": "A retailer runs its web store on one flat network. A phishing victim's workstation is infected and reaches the order database on TCP 5432. The redesign puts the web tier in a DMZ, the database in a server zone, and allows only 10.2.0.20 to reach 10.3.0.5 on 5432. Workstations lose all direct database access. A later test shows the compromised workstation cannot even ping the database, and denied attempts appear in firewall logs.",
+   "terms": [
+    {
+     "term": "Segmentation",
+     "def": "Dividing a network into zones with controlled traffic between them."
+    },
+    {
+     "term": "VLAN",
+     "def": "A logical Layer 2 network separation using 802.1Q tags."
+    },
+    {
+     "term": "DMZ",
+     "def": "A buffer zone hosting internet-facing services."
+    },
+    {
+     "term": "Lateral movement",
+     "def": "An attacker's movement from one system to others after initial compromise."
+    },
+    {
+     "term": "Microsegmentation",
+     "def": "Fine-grained workload-level traffic control."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the main benefit of segmentation?",
+     "options": [
+      "Faster Wi-Fi",
+      "Limits lateral movement and blast radius",
+      "Removes need for patching",
+      "Encrypts all traffic"
+     ],
+     "a": 1,
+     "why": "Compromise of one zone does not grant access to all."
+    },
+    {
+     "q": "Which prevents VLAN hopping through switch spoofing?",
+     "options": [
+      "Enable dynamic trunking",
+      "Set access ports explicitly and disable DTP",
+      "Use VLAN 1 as native",
+      "Allow all VLANs on trunks"
+     ],
+     "a": 1,
+     "why": "Fixed port modes stop negotiation of trunks."
+    },
+    {
+     "q": "What should a DMZ web server be allowed to reach internally?",
+     "options": [
+      "Everything",
+      "Only specific needed hosts and ports",
+      "Nothing and the internet",
+      "User workstations"
+     ],
+     "a": 1,
+     "why": "Narrow flows limit damage if the server is compromised."
+    },
+    {
+     "q": "Why use a jump host for administration?",
+     "options": [
+      "It speeds up SSH",
+      "It provides a single hardened, MFA-protected entry to the management network",
+      "It replaces firewalls",
+      "It encrypts email"
+     ],
+     "a": 1,
+     "why": "It concentrates and monitors privileged access."
+    }
+   ],
+   "recap": [
+    "Zone by trust and data flow; enforce policy between zones.",
+    "VLANs separate traffic only when inter-VLAN routing is filtered.",
+    "DMZ and management networks contain breaches and protect admin access."
+   ]
+  },
+  {
+   "title": "Wi-Fi security",
+   "why": "Wireless traffic travels through the air, so anyone in range can capture it. Strong protocols and authentication decide whether that matters.",
+   "sections": [
+    {
+     "h": "WEP, WPA2 and WPA3",
+     "p": [
+      "Wired Equivalent Privacy (WEP) used RC4 with a short initialization vector and is broken; keys can be recovered in minutes, so it must never be used. WPA2 uses AES-CCMP and is secure when configured with a strong passphrase, but WPA2-Personal allows offline guessing if an attacker captures the four-way handshake. WPA3 replaces the pre-shared key exchange with Simultaneous Authentication of Equals (SAE), which resists offline dictionary attacks, adds forward secrecy and mandates Protected Management Frames. WPA3-Enterprise offers 192-bit security. Prefer WPA3, allow WPA2 only where needed, and disable WPS, whose PIN method is weak."
+     ]
+    },
+    {
+     "h": "PSK versus 802.1X",
+     "p": [
+      "A pre-shared key (PSK) network uses one passphrase for everyone. When an employee leaves, the key must change for all, and any user who knows it can attempt to attack others in some configurations. Enterprise Wi-Fi uses IEEE 802.1X with a RADIUS server and an EAP method such as EAP-TLS, which uses client certificates, or PEAP with user credentials. Each user or device gets unique keys, access can be revoked individually, and VLANs can be assigned by identity. Clients must validate the RADIUS server certificate; otherwise an attacker can present a fake server and collect credentials."
+     ]
+    },
+    {
+     "h": "Evil twin and deauthentication",
+     "p": [
+      "An evil twin is a rogue access point that copies a legitimate SSID so that users connect to it and have their traffic observed or credentials captured through a fake portal. A deauthentication attack abuses unauthenticated 802.11 management frames to force clients off a network, which can drive them to the evil twin or simply cause disruption. 802.11w Protected Management Frames, required in WPA3, makes forged deauth frames ineffective. Indicators include the same SSID from an unexpected BSSID, sudden bursts of deauth frames, and users receiving certificate warnings. Never click through certificate warnings on wireless networks."
+     ]
+    },
+    {
+     "h": "Defensive practices",
+     "p": [
+      "Use WPA3 or WPA2-Enterprise for staff, with a separate guest SSID on an isolated VLAN with client isolation and internet-only access. Use long random PSKs for IoT devices that cannot do 802.1X, placed on their own segment. Run wireless intrusion detection to find rogue access points, and turn off unused radios. Position access points and tune power to limit coverage outside the building, though this is not a substitute for encryption. Update access point firmware, restrict management interfaces to the management network, and ask users on public Wi-Fi to use a VPN and rely on HTTPS."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Wireless monitor log (fictional)",
+    "text": "SSID=ExampleCorp  BSSID=00:53:00:AA:01:10  ch=36  WPA3  [known]\nSSID=ExampleCorp  BSSID=00:53:00:EE:77:02  ch=6   OPEN  [UNKNOWN]\nDEAUTH flood: src=00:53:00:EE:77:02 -> broadcast  rate=240/s\nalert: possible evil twin + deauthentication"
+   },
+   "example": "The wireless monitor shows SSID ExampleCorp from an unknown BSSID on an open network while real clients are being deauthenticated. This is a classic evil twin. The team locates the device, informs staff not to connect, confirms 802.11w is enabled on the real access points, and checks that clients validate the RADIUS certificate. They also add the rogue BSSID to the blocklist and review whether any users entered credentials on a fake portal.",
+   "terms": [
+    {
+     "term": "WPA3 SAE",
+     "def": "A handshake that resists offline password guessing and provides forward secrecy."
+    },
+    {
+     "term": "802.1X",
+     "def": "A port-based authentication standard used with RADIUS for enterprise Wi-Fi."
+    },
+    {
+     "term": "Evil twin",
+     "def": "A rogue access point impersonating a legitimate SSID."
+    },
+    {
+     "term": "Deauthentication attack",
+     "def": "Forged management frames that disconnect clients."
+    },
+    {
+     "term": "PMF (802.11w)",
+     "def": "Protection that authenticates management frames."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which Wi-Fi standard is considered broken?",
+     "options": [
+      "WPA3",
+      "WPA2-AES",
+      "WEP",
+      "802.1X"
+     ],
+     "a": 2,
+     "why": "WEP keys can be recovered quickly."
+    },
+    {
+     "q": "What advantage does 802.1X give over a shared PSK?",
+     "options": [
+      "Per-user credentials and individual revocation",
+      "No encryption needed",
+      "Open access",
+      "Longer range"
+     ],
+     "a": 0,
+     "why": "Each user or device authenticates separately."
+    },
+    {
+     "q": "What does 802.11w (PMF) mitigate?",
+     "options": [
+      "Forged deauthentication",
+      "SQL injection",
+      "ARP poisoning",
+      "Port scans"
+     ],
+     "a": 0,
+     "why": "Management frames become authenticated."
+    },
+    {
+     "q": "What is an evil twin?",
+     "options": [
+      "A duplicate switch",
+      "A rogue AP copying a legitimate SSID",
+      "A VPN protocol",
+      "A WPA3 mode"
+     ],
+     "a": 1,
+     "why": "Users may connect to the attacker's AP."
+    }
+   ],
+   "recap": [
+    "Use WPA3 or WPA2-Enterprise; never WEP; disable WPS.",
+    "802.1X gives per-user keys and revocation.",
+    "Detect rogue APs and enforce PMF against evil twin and deauth."
+   ]
+  },
+  {
+   "title": "MITM, ARP spoofing and DNS attacks",
+   "why": "Man-in-the-middle attacks let an attacker read or alter traffic without either side knowing. Recognizing the techniques points to the right defenses.",
+   "sections": [
+    {
+     "h": "ARP cache poisoning",
+     "p": [
+      "The Address Resolution Protocol maps IPv4 addresses to MAC addresses on a local network. It has no authentication, and hosts accept unsolicited (gratuitous) replies. In ARP spoofing, an attacker sends forged replies telling a victim that the gateway 192.0.2.1 is at the attacker's MAC, and tells the gateway the victim is also at that MAC. Traffic then flows through the attacker, who can read, alter or drop it. Signs include two IP addresses mapped to the same MAC, many gratuitous ARP replies, and users seeing duplicate IP warnings. Defenses include Dynamic ARP Inspection (DAI) on switches using the DHCP snooping binding table, port security, and encryption so intercepted data is useless."
+     ]
+    },
+    {
+     "h": "DNS spoofing and cache poisoning",
+     "p": [
+      "DNS translates names to addresses and traditionally has no built-in authentication. In DNS spoofing, an attacker supplies a forged answer so that a name such as www.example.com resolves to a server they control. Cache poisoning gets a resolver to store false data for many users. Randomized source ports and transaction IDs make guessing harder, and DNSSEC adds digital signatures so resolvers can validate that records are authentic. Encrypted DNS (DNS over HTTPS or TLS) protects queries from tampering on the local path. Monitor for unexpected changes in resolution results, and restrict recursive resolvers to the networks they serve."
+     ]
+    },
+    {
+     "h": "SSL stripping and HSTS",
+     "p": [
+      "In SSL stripping, an attacker who is already in the middle intercepts the initial plain HTTP request, talks HTTPS to the real server, and serves the victim an unencrypted copy, removing the lock icon. The defense is HTTP Strict Transport Security (HSTS): the server sends a Strict-Transport-Security header, such as max-age=31536000; includeSubDomains, and the browser then refuses to use plain HTTP for that site, even on the first click. HSTS preload lists build this protection into browsers. Redirect HTTP to HTTPS, use valid certificates, and train users to heed certificate warnings, because a warning is often the only visible sign of interception."
+     ]
+    },
+    {
+     "h": "Detecting and preventing MITM",
+     "p": [
+      "Combine controls at several layers. At the LAN, enable DHCP snooping, DAI and port security on access switches, and consider static ARP entries for critical gateways. Use authenticated encryption end to end: TLS with certificate validation, SSH host key checking, and VPNs on untrusted networks. Certificate pinning and Certificate Transparency monitoring help detect fraudulent certificates. For detection, watch for ARP anomalies in logs, run an IDS rule for gratuitous ARP floods, and alert on certificate changes. Remember that MITM does not require sophisticated tools; an open public Wi-Fi network offers the same position to any nearby user."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "ARP capture (fictional)",
+    "text": "No.  Source              Destination   Info\n112  00:53:00:aa:aa:01   Broadcast     ARP 192.0.2.1 is at 00:53:00:ee:ee:09\n113  00:53:00:ee:ee:09   Broadcast     ARP 192.0.2.1 is at 00:53:00:ee:ee:09 (gratuitous)\n114  00:53:00:ee:ee:09   00:53:00:aa:aa:01  ARP 192.0.2.50 is at 00:53:00:ee:ee:09\nnote: two IPs map to one MAC"
+   },
+   "example": "An analyst opens a capture and sees 192.0.2.1 (the gateway) and 192.0.2.50 both claiming MAC 00:53:00:ee:ee:09, while the gateway's real MAC appeared earlier as 00:53:00:aa:aa:01. Repeated gratuitous replies from ee:ee:09 confirm poisoning. She finds the switch port for that MAC, disables it, enables Dynamic ARP Inspection on the VLAN, and reviews whether any unencrypted traffic was exposed to the attacker.",
+   "terms": [
+    {
+     "term": "ARP spoofing",
+     "def": "Forging ARP replies to redirect local traffic through an attacker."
+    },
+    {
+     "term": "DAI",
+     "def": "A switch feature that validates ARP packets against trusted bindings."
+    },
+    {
+     "term": "DNSSEC",
+     "def": "Digital signatures that let resolvers verify DNS data."
+    },
+    {
+     "term": "SSL stripping",
+     "def": "Downgrading a victim's connection from HTTPS to HTTP."
+    },
+    {
+     "term": "HSTS",
+     "def": "A header telling browsers to always use HTTPS for a site."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does ARP spoofing exploit?",
+     "options": [
+      "ARP accepts unauthenticated replies",
+      "DNS uses UDP",
+      "TLS is old",
+      "IP is routed"
+     ],
+     "a": 0,
+     "why": "Hosts trust gratuitous ARP replies without verification."
+    },
+    {
+     "q": "Which control validates ARP packets on a switch?",
+     "options": [
+      "DAI",
+      "NAT",
+      "QoS",
+      "STP"
+     ],
+     "a": 0,
+     "why": "Dynamic ARP Inspection uses DHCP snooping bindings."
+    },
+    {
+     "q": "What does DNSSEC provide?",
+     "options": [
+      "Encryption of queries",
+      "Authenticity of DNS records",
+      "Faster lookups",
+      "Hiding of IPs"
+     ],
+     "a": 1,
+     "why": "It signs records so tampering is detected."
+    },
+    {
+     "q": "HSTS defends against which attack?",
+     "options": [
+      "SSL stripping",
+      "ARP flood",
+      "Port scan",
+      "SYN flood"
+     ],
+     "a": 0,
+     "why": "Browsers refuse to downgrade to HTTP."
+    }
+   ],
+   "recap": [
+    "ARP and DNS lack authentication, enabling spoofing.",
+    "Use DAI, DNSSEC, TLS and HSTS as layered defenses.",
+    "Detect duplicate MAC mappings, gratuitous ARP bursts and certificate warnings."
+   ]
+  },
+  {
+   "title": "DoS, DDoS and secure protocols",
+   "why": "Availability is a security goal. Flood attacks are cheap to launch, and legacy cleartext protocols remain easy to eavesdrop, so both need deliberate fixes.",
+   "sections": [
+    {
+     "h": "SYN floods and resource exhaustion",
+     "p": [
+      "A denial-of-service (DoS) attack tries to make a service unavailable; a distributed denial-of-service (DDoS) uses many sources, often a botnet. In a SYN flood, the attacker sends many TCP SYN packets, often with spoofed source addresses, and never completes the handshake. The server keeps half-open connections in its backlog until the table is full and real users cannot connect. Mitigations include SYN cookies, which avoid storing state until the final ACK arrives, shorter timeouts, larger backlogs, and rate limiting at the edge. Application-layer floods, such as many HTTP requests to a costly search page, need different controls like caching, WAF rules and per-client limits."
+     ]
+    },
+    {
+     "h": "Amplification and reflection",
+     "p": [
+      "In reflection and amplification attacks the attacker sends small requests with a spoofed source address, the victim's, to open servers that reply with much larger responses. DNS, NTP monlist and memcached over UDP have produced amplification factors from tens to thousands. The victim is flooded by legitimate servers it never contacted. Defenses fall on both sides: network operators apply BCP 38 ingress filtering to drop spoofed source addresses, administrators close open resolvers and disable risky features, and victims rely on upstream scrubbing. Because UDP is connectionless, services that must use it should limit response size and rate."
+     ]
+    },
+    {
+     "h": "Mitigating DDoS",
+     "p": [
+      "Large floods cannot be fixed on your own link, since the pipe is full before the firewall sees the traffic. Use a CDN or DDoS scrubbing provider, anycast routing to spread load, and upstream blackholing or Flowspec in emergencies. Design for resilience: autoscaling, redundant providers and capacity headroom. Prepare a runbook that identifies the type of flood from flow data, top sources and protocol mix, names who contacts the ISP, and defines customer communication. Keep monitoring baselines so an unusual rise in packets per second or half-open connections triggers an alert early."
+     ]
+    },
+    {
+     "h": "Replacing insecure protocols",
+     "p": [
+      "Telnet, FTP and HTTP send credentials and data in cleartext, so anyone on the path can read them. Replace Telnet with SSH (TCP 22), FTP with SFTP (over SSH, port 22) or FTPS, and HTTP with HTTPS (TCP 443) using TLS 1.2 or 1.3. Other swaps include SNMPv1 and v2c to SNMPv3, POP3 and IMAP to their TLS versions, LDAP to LDAPS or StartTLS, and SMBv1 off entirely. Disable old protocol versions and weak ciphers, use certificates from a trusted authority, and verify by scanning your own network for open cleartext services and then closing them."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Connection log summary (fictional)",
+    "text": "State        Count   Top source\nESTABLISHED    412   192.0.2.20\nSYN_RECV     18734   (many; spoofed ranges)\nTIME_WAIT      209   -\nsyslog: possible SYN flooding on port 443. Sending cookies."
+   },
+   "example": "A web server at 203.0.113.10 shows 18,734 connections in SYN_RECV and the kernel logs a SYN flood warning. Real users time out. The administrator enables SYN cookies, asks the upstream provider to filter spoofed ranges, and adds a rate limit for new connections per source at the load balancer. Within minutes the half-open count drops. The same review finds Telnet open on a router, which is replaced by SSH.",
+   "terms": [
+    {
+     "term": "SYN flood",
+     "def": "A DoS attack exhausting TCP half-open connection resources."
+    },
+    {
+     "term": "SYN cookies",
+     "def": "A technique that avoids storing state until the handshake completes."
+    },
+    {
+     "term": "Amplification",
+     "def": "Using a server that returns larger replies than the request to flood a victim."
+    },
+    {
+     "term": "BCP 38",
+     "def": "Ingress filtering that blocks packets with spoofed source addresses."
+    },
+    {
+     "term": "SFTP",
+     "def": "File transfer over SSH, replacing FTP."
+    }
+   ],
+   "check": [
+    {
+     "q": "What do SYN cookies prevent?",
+     "options": [
+      "Resource exhaustion from half-open connections",
+      "ARP spoofing",
+      "XSS",
+      "Password guessing"
+     ],
+     "a": 0,
+     "why": "State is not stored until a valid ACK returns."
+    },
+    {
+     "q": "Why do amplification attacks spoof the source address?",
+     "options": [
+      "So replies hit the victim",
+      "To speed up DNS",
+      "To avoid TLS",
+      "To hide the server"
+     ],
+     "a": 0,
+     "why": "The large responses go to the victim's address."
+    },
+    {
+     "q": "Which is the secure replacement for Telnet?",
+     "options": [
+      "FTP",
+      "SSH",
+      "HTTP",
+      "SNMPv1"
+     ],
+     "a": 1,
+     "why": "SSH encrypts the session and authenticates the server."
+    },
+    {
+     "q": "Which defense helps most for volumetric DDoS?",
+     "options": [
+      "Local firewall rule",
+      "Upstream scrubbing or CDN",
+      "Longer passwords",
+      "Patching browsers"
+     ],
+     "a": 1,
+     "why": "Traffic must be filtered before it saturates your link."
+    }
+   ],
+   "recap": [
+    "SYN floods exhaust connection state; SYN cookies and rate limits help.",
+    "Amplification abuses spoofing and open UDP services.",
+    "Use scrubbing for large DDoS and replace Telnet, FTP, HTTP with SSH, SFTP, HTTPS."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Write firewall rules",
+   "sim": "config-editor",
+   "scenario": "A fictional web server at 203.0.113.10 sits in a DMZ. The current iptables policy is ACCEPT with no rules. Business needs: public HTTPS on 443, HTTP only for a redirect on 80, SSH only from the admin subnet 192.0.2.0/24, and no connection from the DMZ to the internal subnet 10.3.0.0/24. All dropped traffic should be logged with a rate limit.",
+   "objective": "Create a default-deny ruleset that supports the needs and blocks lateral movement.",
+   "steps": [
+    {
+     "do": "Set the default policy for INPUT and FORWARD to DROP.",
+     "see": "iptables -P INPUT DROP ; -P FORWARD DROP : ok. Warning: SSH session may drop, allow established first."
+    },
+    {
+     "do": "Add a rule for loopback and for ESTABLISHED,RELATED connections.",
+     "see": "2 rules added. Existing sessions preserved."
+    },
+    {
+     "do": "Allow TCP 443 and TCP 80 from any source.",
+     "see": "Rules 3 and 4 added. Scan preview: 80, 443 open."
+    },
+    {
+     "do": "Allow TCP 22 only from 192.0.2.0/24.",
+     "see": "Rule 5 added. Preview: 22 open for 192.0.2.0/24 only."
+    },
+    {
+     "do": "Add an OUTPUT rule rejecting traffic to 10.3.0.0/24.",
+     "see": "Rule 6 added: OUTPUT -d 10.3.0.0/24 -j REJECT."
+    },
+    {
+     "do": "Add a LOG rule with limit 5/min before the final drop.",
+     "see": "Rule 7 added: -m limit --limit 5/min -j LOG --log-prefix DROP:"
+    },
+    {
+     "do": "Run the verification test suite.",
+     "see": "PASS: 443 reachable, PASS: 22 blocked from 198.51.100.9, PASS: DMZ to 10.3.0.0/24 blocked, PASS: drops logged."
+    }
+   ],
+   "answer": "A default-drop INPUT policy with allowances for loopback, established traffic, TCP 80 and 443 from anywhere, and TCP 22 from 192.0.2.0/24 only; an OUTPUT reject to 10.3.0.0/24; and a rate-limited LOG rule before the drop. Tests confirm lateral movement is blocked and drops are logged.",
+   "hint": "Allow established traffic before setting a drop policy, and put LOG before the final drop."
+  },
+  {
+   "title": "Design a DMZ network",
+   "sim": "diagram-builder",
+   "scenario": "Fictional company Example Corp is deploying a public web server, a database, and an admin workstation. The canvas has zones labeled Internet, DMZ, Internal Server Zone, User LAN and Management, plus two firewalls. You must place hosts and draw only the flows the application genuinely needs. The company expects audits, so every allow must be justified by a business need and every blocked attempt should leave evidence. The lab checks your result with a simulated scan from the internet and from a compromised internal host.",
+   "objective": "Place hosts in correct zones and draw the minimum allowed flows.",
+   "steps": [
+    {
+     "do": "Drag the web server to the DMZ.",
+     "see": "Placed: web01 in DMZ (203.0.113.10)."
+    },
+    {
+     "do": "Drag the database to the Internal Server Zone.",
+     "see": "Placed: db01 in Internal Server Zone (10.3.0.5)."
+    },
+    {
+     "do": "Drag the admin workstation to the Management zone behind a jump host.",
+     "see": "Placed: admin01 in Management (10.9.0.4)."
+    },
+    {
+     "do": "Draw Internet -> web01 on TCP 443 through the external firewall.",
+     "see": "Flow added: Internet -> DMZ 443/tcp. Validator: ok."
+    },
+    {
+     "do": "Draw web01 -> db01 on TCP 5432 through the internal firewall.",
+     "see": "Flow added: DMZ -> Server 5432/tcp (single host). Validator: ok."
+    },
+    {
+     "do": "Try drawing Internet -> db01.",
+     "see": "Rejected: database must not be reachable from the internet."
+    },
+    {
+     "do": "Draw Management -> web01 and db01 on TCP 22 and run the validator.",
+     "see": "Score: 100%. Warnings: 0. DMZ has no route to User LAN or Management."
+    }
+   ],
+   "answer": "The web server sits in the DMZ, the database in the internal server zone, and administration comes from the management zone. Allowed flows are Internet to web on 443, web to database on 5432 only, and management to both on SSH. Nothing from the DMZ may initiate connections to user or management networks.",
+   "hint": "Ask what happens if the web server is compromised, and make sure it can reach only one thing."
+  },
+  {
+   "title": "Detect ARP spoofing",
+   "sim": "packet-viewer",
+   "scenario": "A fictional capture from the 192.0.2.0/24 office LAN was taken after users reported certificate warnings and slow connections. The gateway is 192.0.2.1. You will read ARP packets and decide which host is poisoning the network. Management asks for a design the audit team can verify: each arrow you draw becomes a line in the allowed flow matrix, and any flow you leave out is denied by default. Keep the least access that still lets the application work.",
+   "objective": "Find conflicting MAC to IP mappings and name the attacker's MAC and IP.",
+   "steps": [
+    {
+     "do": "Apply the display filter arp.",
+     "see": "Showing 42 of 3,918 packets."
+    },
+    {
+     "do": "Sort by time and note the first reply for 192.0.2.1.",
+     "see": "Packet 7: 192.0.2.1 is at 00:53:00:aa:aa:01 (router, normal)."
+    },
+    {
+     "do": "Scroll to later ARP replies for 192.0.2.1.",
+     "see": "Packets 112, 140, 168: 192.0.2.1 is at 00:53:00:ee:ee:09 (changed)."
+    },
+    {
+     "do": "Open the ARP table summary view.",
+     "see": "00:53:00:ee:ee:09 mapped to 192.0.2.1 and 192.0.2.50. Duplicate MAC flagged."
+    },
+    {
+     "do": "Check the packet details for packet 113.",
+     "see": "Opcode: reply, gratuitous (sender = target IP). Source MAC 00:53:00:ee:ee:09."
+    },
+    {
+     "do": "Look up the MAC in the DHCP lease table.",
+     "see": "Lease: 192.0.2.50 -> 00:53:00:ee:ee:09, host 'kali-test'."
+    },
+    {
+     "do": "Submit the finding.",
+     "see": "Correct: attacker is 192.0.2.50 (00:53:00:ee:ee:09). Suggested actions: DAI, port shutdown."
+    }
+   ],
+   "answer": "The attacker is host 192.0.2.50 with MAC 00:53:00:ee:ee:09, which sends repeated gratuitous ARP replies claiming to be the gateway 192.0.2.1 and also appears as a second IP on the same MAC. The legitimate gateway MAC is 00:53:00:aa:aa:01. Recommended response: shut the switch port, enable Dynamic ARP Inspection with DHCP snooping, and check what unencrypted traffic was exposed.",
+   "hint": "One MAC claiming more than one IP, especially the gateway's, is the tell."
+  },
+  {
+   "title": "Tune a Suricata alert",
+   "sim": "log-viewer",
+   "scenario": "The fictional SOC log viewer shows 600 Suricata alerts from the last hour. Many come from a scanner at 192.0.2.40 owned by the security team. You must separate noise from real activity and then write a rule that catches port scans from external hosts. Your tools are a packet list, display filters, a host summary and the DHCP lease table. Work methodically: establish what normal looks like first, then look for the moment the mapping changed and who sent the replies.",
+   "objective": "Suppress the benign scanner alerts and write a threshold rule for external port scans.",
+   "steps": [
+    {
+     "do": "Group alerts by signature and count.",
+     "see": "ET SCAN Nmap: 480; ET POLICY curl UA: 96; ET MALWARE Possible beacon: 4; other: 20."
+    },
+    {
+     "do": "Filter the scan alerts by source.",
+     "see": "Source 192.0.2.40: 478 alerts. Source 198.51.100.77: 2 alerts."
+    },
+    {
+     "do": "Check the asset inventory for 192.0.2.40.",
+     "see": "Asset: vuln-scanner-01, owner SecOps, scheduled Tuesday 01:00."
+    },
+    {
+     "do": "Add a suppression for sid 2000000 range only from 192.0.2.40.",
+     "see": "Suppress rule saved: track by_src, ip 192.0.2.40. Alerts now: 122."
+    },
+    {
+     "do": "Open the remaining 198.51.100.77 alerts and note ports.",
+     "see": "Ports probed: 21,22,23,80,443,445,3389 within 8 seconds."
+    },
+    {
+     "do": "Write the detection rule.",
+     "see": "Rule saved: alert tcp !$SCANNERS any -> $HOME_NET any (flags:S; threshold:type both,track by_src,count 20,seconds 10; sid:1000002;)"
+    },
+    {
+     "do": "Replay the log against the new rule.",
+     "see": "1 alert: 198.51.100.77 port scan. 0 alerts for 192.0.2.40."
+    }
+   ],
+   "answer": "The 478 scan alerts from 192.0.2.40 are authorized vulnerability scanning and can be suppressed for that source only. The real finding is 198.51.100.77 probing many ports quickly, which a threshold rule on SYN packets (about 20 in 10 seconds per source, excluding scanners) detects.",
+   "hint": "Suppress by source address for one rule, not the whole rule for everyone."
+  },
+  {
+   "title": "Triage a SYN flood",
+   "sim": "siem",
+   "scenario": "The fictional SIEM shows rising latency on the public web service at 203.0.113.10. Connection logs from the load balancer show many half-open connections. You must confirm the attack type, characterize sources and choose the right mitigation from a response menu. You can group, filter and search alerts, consult the asset inventory, and test rules by replaying the hour of traffic. Be careful that your suppression is narrow so that a real attacker using the same signature is still reported to the team.",
+   "objective": "Identify a SYN flood and apply the correct mitigation.",
+   "steps": [
+    {
+     "do": "Open the dashboard for 203.0.113.10 and view connection states.",
+     "see": "SYN_RECV rose from 40 to 21,300 in 6 minutes; ESTABLISHED flat at 400."
+    },
+    {
+     "do": "Check packets per second by protocol.",
+     "see": "TCP SYN 94 percent; payload bytes near zero. Not a bandwidth flood."
+    },
+    {
+     "do": "List top source addresses.",
+     "see": "14,000 distinct sources, no source above 0.5 percent. Many in unallocated ranges."
+    },
+    {
+     "do": "Review the server log.",
+     "see": "kernel: TCP: request_sock_TCP: Possible SYN flooding on port 443. Sending cookies."
+    },
+    {
+     "do": "Open the response menu and read the options.",
+     "see": "Options: reset password policy, block one IP, enable SYN cookies and edge rate limit, patch browsers."
+    },
+    {
+     "do": "Select enable SYN cookies and per-source rate limit, then engage upstream scrubbing.",
+     "see": "Applied. SYN_RECV falls to 600 within 3 minutes; latency normal."
+    },
+    {
+     "do": "Write the incident note.",
+     "see": "Saved: type SYN flood, spoofed sources, mitigation SYN cookies plus upstream filter."
+    }
+   ],
+   "answer": "This is a SYN flood: huge SYN_RECV counts, SYN-dominant traffic with no payload, and many spoofed sources so single-IP blocking is useless. The right mitigation is SYN cookies with edge rate limiting and upstream filtering or scrubbing. Single-address blocking is ineffective because spoofed sources change constantly, and bandwidth was not the constraint.",
+   "hint": "Count how many distinct sources there are before choosing to block an address."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "A firewall rule list ends with an explicit drop of all traffic. This is called:",
+   "options": [
+    "Default deny",
+    "Stateful inspection",
+    "Split tunneling",
+    "Port mirroring"
+   ],
+   "a": 0,
+   "why": "Anything not permitted earlier is blocked."
+  },
+  {
+   "q": "Which device can drop malicious packets in real time?",
+   "options": [
+    "IDS on a SPAN port",
+    "IPS inline",
+    "Passive tap",
+    "Syslog server"
+   ],
+   "a": 1,
+   "why": "Only an inline IPS sits in the path."
+  },
+  {
+   "q": "What does a reverse proxy protect?",
+   "options": [
+    "Internal clients going out",
+    "Back-end servers receiving requests",
+    "DNS records",
+    "Wireless clients"
+   ],
+   "a": 1,
+   "why": "It fronts servers."
+  },
+  {
+   "q": "Which design places internet-facing servers in a separate buffer zone?",
+   "options": [
+    "DMZ",
+    "Flat network",
+    "Native VLAN",
+    "Honeypot"
+   ],
+   "a": 0,
+   "why": "A DMZ isolates exposed services."
+  },
+  {
+   "q": "Which Wi-Fi option gives each user unique credentials?",
+   "options": [
+    "WEP",
+    "WPA2-Personal",
+    "WPA2/WPA3-Enterprise with 802.1X",
+    "Open network with captive portal"
+   ],
+   "a": 2,
+   "why": "802.1X uses RADIUS authentication per user or device."
+  },
+  {
+   "q": "Two IP addresses mapped to the same MAC in an ARP table suggests:",
+   "options": [
+    "DHCP success",
+    "ARP spoofing",
+    "DNSSEC",
+    "SYN flood"
+   ],
+   "a": 1,
+   "why": "The attacker's MAC claims multiple identities."
+  },
+  {
+   "q": "Which header makes browsers refuse plain HTTP to a site?",
+   "options": [
+    "X-Frame-Options",
+    "Strict-Transport-Security",
+    "Referer",
+    "Server"
+   ],
+   "a": 1,
+   "why": "HSTS enforces HTTPS."
+  },
+  {
+   "q": "What does DNSSEC provide?",
+   "options": [
+    "Confidentiality of queries",
+    "Signed, verifiable DNS records",
+    "DDoS protection",
+    "Faster resolution"
+   ],
+   "a": 1,
+   "why": "Resolvers can validate authenticity."
+  },
+  {
+   "q": "A server shows tens of thousands of SYN_RECV connections. Best mitigation?",
+   "options": [
+    "Enable SYN cookies and rate limiting",
+    "Reboot daily",
+    "Disable HTTPS",
+    "Open port 23"
+   ],
+   "a": 0,
+   "why": "They avoid state exhaustion."
+  },
+  {
+   "q": "Which pair is a correct secure replacement?",
+   "options": [
+    "Telnet to SSH",
+    "SSH to Telnet",
+    "HTTPS to HTTP",
+    "SFTP to FTP"
+   ],
+   "a": 0,
+   "why": "SSH encrypts management sessions."
+  }
+ ]
+}

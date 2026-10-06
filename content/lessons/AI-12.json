@@ -1,0 +1,908 @@
+{
+ "code": "AI-12",
+ "intro": "Defenders can use AI to read faster, draft queries, summarize cases and spot unusual behavior, but only if they treat its output as a lead, not a verdict. This module covers AI in SOC triage, detection engineering, ML phishing detection, anomaly detection, the real danger of hallucinated CVEs, commands and indicators, and how to judge vendor claims with precision, recall and pilots. The goal is faster work with verification habits that keep errors out of production.",
+ "lessons": [
+  {
+   "title": "AI in the SOC: triage and summarization",
+   "why": "Analysts drown in alerts, and language models can save time on reading and drafting, provided a human checks the result against raw evidence.",
+   "sections": [
+    {
+     "h": "Where LLMs help in triage",
+     "p": [
+      "A security operations center receives far more alerts than people can read. LLMs help with repetitive text work: summarizing an alert and its related events, explaining an unfamiliar command line, translating log fields into plain language, enriching an alert with context from a ticket or asset inventory, and suggesting next investigative steps from a playbook. They also help write incident summaries and shift handover notes. The gain is speed on reading and writing, not better judgment. Treat the output as a first draft produced by a fast but unreliable junior colleague."
+     ]
+    },
+    {
+     "h": "Query drafting and enrichment",
+     "p": [
+      "Analysts often know what they want to ask but not the exact syntax for a SIEM. An assistant can draft a KQL, SPL or SQL query from a description such as 'failed logins from one source across many accounts in the last hour'. The analyst must read the query, confirm field names exist in their schema, run it on a small time range first, and compare counts against a known baseline. Enrichment steps, such as looking up an IP in threat intelligence or a user in the directory, should call real tools whose results are quoted, not be recalled from model memory."
+     ]
+    },
+    {
+     "h": "Human validation and guardrails",
+     "p": [
+      "Always check summaries against raw events: timestamps, users, hosts and counts. Require the assistant to cite the log lines it used, so reviewers can click through. Never let a model close alerts or run containment actions on its own without policy and approval; start with read-only access and suggestions. Limit the data sent to the model: mask secrets and personal data, and know whether the vendor retains prompts. Remember that log content can contain attacker-controlled text, so an alert field might carry a prompt injection aimed at the assistant itself."
+     ]
+    },
+    {
+     "h": "Measuring benefit",
+     "p": [
+      "Measure before and after: mean time to triage, share of alerts closed correctly, analyst corrections per summary, and escalation accuracy. Sample summaries regularly and score them for factual errors. Track failure types, such as invented hostnames or wrong time ranges, and adjust prompts, retrieval of context and permissions. Keep a rollback path to the old workflow. Document where AI is allowed in the process, and train analysts on both capabilities and failure modes so trust is calibrated rather than blind or dismissive."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Summary with citations",
+    "text": "ALERT 8841  Multiple failed logins then success (user: svc-demo)\nAI summary: 42 failures from 198.51.100.23 between 10:02-10:06 UTC,\n  success at 10:07 from same IP. [evt 9921-9963, 9964]\nAnalyst check: counts match raw events (42 fail, 1 success)\nAnalyst check: svc-demo is a service account (hostname not in summary)\nNext step suggested: reset credentials, review sessions after 10:07"
+   },
+   "example": "An assistant summarizes an alert as a brute-force success from 198.51.100.23 and says the account is an administrator. The analyst opens the cited events: 42 failures and one success match, but the directory shows the account is a low-privilege service account. The analyst corrects the summary before it reaches the ticket, resets the credential and notes the error pattern. The time saved on reading is real, yet the check caught a factual mistake that would have changed priority.",
+   "terms": [
+    {
+     "term": "Alert enrichment",
+     "def": "Adding context such as asset owner or reputation to an alert."
+    },
+    {
+     "term": "Citation requirement",
+     "def": "Requiring the model to reference the raw events it used."
+    },
+    {
+     "term": "Human in the loop",
+     "def": "A person reviews or approves AI output before action."
+    },
+    {
+     "term": "Prompt injection in logs",
+     "def": "Attacker text in data that tries to steer an AI assistant."
+    },
+    {
+     "term": "Mean time to triage",
+     "def": "The average time from alert creation to first assessment."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the main benefit of LLMs in triage?",
+     "options": [
+      "Replacing analysts entirely",
+      "Saving time on reading, summarizing and drafting",
+      "Eliminating false positives",
+      "Removing logs"
+     ],
+     "a": 1,
+     "why": "They accelerate text tasks but do not replace judgment."
+    },
+    {
+     "q": "Before trusting an AI-written SIEM query you should:",
+     "options": [
+      "Run it in production at once",
+      "Check field names and test on a small range",
+      "Delete the schema",
+      "Ignore results"
+     ],
+     "a": 1,
+     "why": "Queries can reference nonexistent fields or wrong logic."
+    },
+    {
+     "q": "Why require citations to raw events?",
+     "options": [
+      "To make summaries longer",
+      "So reviewers can verify claims",
+      "To hide errors",
+      "To speed up the model"
+     ],
+     "a": 1,
+     "why": "Citations make checking against evidence quick."
+    },
+    {
+     "q": "Log fields can attack an AI assistant because:",
+     "options": [
+      "Logs may contain attacker-controlled text",
+      "Logs are encrypted",
+      "SIEMs run Java",
+      "Models read PDFs only"
+     ],
+     "a": 0,
+     "why": "Attacker-controlled strings in logs may carry injected instructions."
+    }
+   ],
+   "recap": [
+    "Use LLMs for reading, summarizing and drafting.",
+    "Verify against raw events and test queries before use.",
+    "Start read-only, protect data and measure outcomes."
+   ]
+  },
+  {
+   "title": "AI-assisted detection engineering",
+   "why": "AI can draft detection rules quickly, but an untested rule can miss attacks or flood the SOC, so validation is the real work.",
+   "sections": [
+    {
+     "h": "Detection rules and formats",
+     "p": [
+      "Detection engineering turns attacker behavior into rules that run on logs. Sigma is a vendor-neutral YAML rule format that converts into backend queries for many SIEMs, with fields such as title, logsource, detection, condition, falsepositives and level. KQL (Kusto Query Language) is used in Microsoft Sentinel and Defender, while SPL is used in Splunk. An assistant can draft a Sigma rule from a technique description, for example MITRE ATT&CK T1059.001 (PowerShell), and suggest which log source, such as Windows process creation events, is needed."
+     ]
+    },
+    {
+     "h": "Typical errors in generated rules",
+     "p": [
+      "Generated rules often look right and fail in subtle ways. Common problems include wrong field names for the target logsource, case-sensitivity assumptions, regular expressions that match too much, conditions that use OR where AND was intended, selection of a log source you do not collect, and filters so narrow that a trivial change evades them. Models may also invent technique details or tools. Because the rule reads fluently, reviewers are tempted to trust it. Treat each generated rule as untested code and review the logic line by line."
+     ]
+    },
+    {
+     "h": "Validation workflow",
+     "p": [
+      "Validate in stages. First, lint and compile the rule to the target backend. Second, run it against positive samples, such as logs from an authorized simulation of the behavior (Atomic Red Team style tests in a lab) to confirm it fires. Third, run it against a representative window of normal logs to measure false positives, and tune with exclusions that are justified and documented. Fourth, check for evasions, such as renamed binaries or reordered arguments. Only then deploy, first in alert-only mode, and watch volume. Keep tests with the rule in version control."
+     ]
+    },
+    {
+     "h": "Governance of AI-generated content",
+     "p": [
+      "Record that a rule was AI-assisted, who reviewed it, and what tests it passed. Use pull requests with mandatory human approval and automated tests in CI. Do not paste proprietary logs or incident data into tools without approval. Maintain a rule catalog with ATT&CK mapping, owner, data source dependencies and review dates, and retire stale rules. Track rule performance: true positives, false positives and time to tune. AI should shorten the draft stage, while the test evidence determines whether a detection is good."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Sigma rule under test",
+    "text": "title: Encoded PowerShell command (demo)\nlogsource:\n  category: process_creation\n  product: windows\ndetection:\n  sel:\n    Image|endswith: '\\powershell.exe'\n    CommandLine|contains: ' -enc'\n  condition: sel\nfalsepositives: admin scripts\nlevel: medium"
+   },
+   "example": "An assistant drafts the rule shown for encoded PowerShell. The engineer runs it on lab logs and it fires on the simulated test, but on a week of normal logs it produces 340 hits from a software deployment tool that launches PowerShell with encoded commands. The engineer adds a documented exclusion for the tool's parent process and signer, reduces hits to 3 per week, and adds a test that confirms the attack sample still triggers.",
+   "terms": [
+    {
+     "term": "Sigma",
+     "def": "A vendor-neutral YAML format for describing detection rules."
+    },
+    {
+     "term": "KQL",
+     "def": "Kusto Query Language used in Microsoft security products."
+    },
+    {
+     "term": "logsource",
+     "def": "The Sigma field naming the type of log a rule needs."
+    },
+    {
+     "term": "False positive",
+     "def": "An alert on benign activity."
+    },
+    {
+     "term": "Alert-only mode",
+     "def": "Deploying a rule to generate alerts without automated action while tuning."
+    }
+   ],
+   "check": [
+    {
+     "q": "What should you do first with an AI-written rule?",
+     "options": [
+      "Deploy it",
+      "Treat it as untested code and validate it",
+      "Delete the tests",
+      "Rename it"
+     ],
+     "a": 1,
+     "why": "Generated rules need linting and testing before use."
+    },
+    {
+     "q": "Why test against normal logs?",
+     "options": [
+      "To measure false positives",
+      "To save storage",
+      "To speed up SIEM",
+      "To hide the rule"
+     ],
+     "a": 0,
+     "why": "Normal logs reveal noisy conditions."
+    },
+    {
+     "q": "Which is a common flaw in generated rules?",
+     "options": [
+      "Using a log source you do not collect",
+      "Being written in YAML",
+      "Having a title",
+      "Having a level"
+     ],
+     "a": 0,
+     "why": "A rule is useless if the needed telemetry is missing."
+    },
+    {
+     "q": "A good deployment practice is:",
+     "options": [
+      "Start in alert-only mode and watch volume",
+      "Auto-isolate hosts immediately",
+      "Disable logging",
+      "Skip review"
+     ],
+     "a": 0,
+     "why": "Alert-only mode allows tuning before automated actions."
+    }
+   ],
+   "recap": [
+    "AI can draft Sigma or KQL, but you must validate.",
+    "Test on positive samples and on normal logs, then tune.",
+    "Keep tests in version control with human approval."
+   ]
+  },
+  {
+   "title": "Phishing detection with ML",
+   "why": "Phishing remains a top initial access path, and ML classifiers help filter it, but attackers adapt, so defenders must know where models are weak.",
+   "sections": [
+    {
+     "h": "Feature-based classifiers",
+     "p": [
+      "Classical phishing detection extracts features and trains a classifier such as logistic regression, random forest or gradient boosting. Email features include sender domain age, mismatch between display name and address, SPF, DKIM and DMARC results, reply-to differences, number and type of links, URL length, use of IP addresses or lookalike characters, attachment types, and header anomalies. URL features cover entropy, subdomain depth, redirects and TLS certificate age. These models are fast, explainable and cheap, but they depend on the features chosen, and attackers learn what is measured."
+     ]
+    },
+    {
+     "h": "Language-model classifiers",
+     "p": [
+      "Transformer and LLM-based classifiers read the message text, tone and intent: urgency, requests for credentials or payment, impersonation of executives or vendors, and unusual requests that conflict with context. They handle varied wording and multiple languages better than keyword rules, and can catch business email compromise that has no malicious link. Embedding similarity can compare an email with known campaigns. Costs include higher latency, compute and privacy concerns about sending mail to a model. Combine them with the feature-based layer and with reputation and authentication checks for stronger results."
+     ]
+    },
+    {
+     "h": "Evasion and adversarial weaknesses",
+     "p": [
+      "Attackers try to evade classifiers. Techniques include text hidden in images, QR codes, HTML tricks that show different text to readers than to parsers, character substitution, use of legitimate cloud services to host pages, short-lived domains, and conversation hijacking with real compromised accounts. Against ML specifically, small wording changes can flip a score, and generative models can produce endless fresh variants that lack the telltale phrases of old campaigns. Models also decay as campaigns change, so detection must include retraining, feedback from user reports and layered controls."
+     ]
+    },
+    {
+     "h": "Operating a phishing model",
+     "p": [
+      "Measure with precision, recall and false positive rate on recent labeled mail, since a rate that sounds small can still mean many blocked legitimate emails at scale. Choose thresholds by action: quarantine at high confidence, warn banners at medium confidence. Provide an easy report button and feed confirmed outcomes back to training. Combine ML with SPF, DKIM and DMARC enforcement, link rewriting and sandboxing, and user training. Monitor for drift, such as a sudden fall in detection after a new lure style, and keep a human review path for borderline cases."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Classifier output",
+    "text": "msg-id: 7f31  from: billing@examp1e.com (display: Example Billing)\nspf=pass dkim=none dmarc=fail  domain age: 6 days\nlinks: 1 (redirect chain depth 3)  reply-to differs: yes\nfeature model score: 0.91   language model intent: payment_request 0.88\nverdict: QUARANTINE (threshold 0.85)"
+   },
+   "example": "A message from a lookalike domain registered six days ago asks for an urgent invoice payment. SPF passes for the attacker's own domain, DMARC fails alignment, a redirect chain hides the final page, and the language model rates payment-request intent at 0.88. The combined score exceeds the quarantine threshold. The analyst confirms the verdict, adds the domain to blocks, and the user report button feeds the sample into the next retraining set.",
+   "terms": [
+    {
+     "term": "Feature-based model",
+     "def": "A classifier using hand-chosen measurable properties of a message."
+    },
+    {
+     "term": "DMARC alignment",
+     "def": "A check that the visible From domain aligns with SPF or DKIM domains."
+    },
+    {
+     "term": "Precision",
+     "def": "Share of flagged messages that are truly malicious."
+    },
+    {
+     "term": "Recall",
+     "def": "Share of malicious messages that were flagged."
+    },
+    {
+     "term": "Concept drift",
+     "def": "Change in data over time that degrades a model."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which is a feature in a classic phishing classifier?",
+     "options": [
+      "Sender domain age",
+      "Monitor brightness",
+      "CPU model",
+      "Keyboard layout"
+     ],
+     "a": 0,
+     "why": "Domain age is a common signal for newly registered attack domains."
+    },
+    {
+     "q": "Why can generative AI weaken keyword-based detection?",
+     "options": [
+      "It produces fresh varied wording",
+      "It blocks email",
+      "It encrypts links",
+      "It deletes headers"
+     ],
+     "a": 0,
+     "why": "New phrasing avoids known telltale phrases."
+    },
+    {
+     "q": "A higher precision means:",
+     "options": [
+      "Fewer legitimate emails wrongly flagged",
+      "More missed attacks",
+      "Slower mail",
+      "No users"
+     ],
+     "a": 0,
+     "why": "Precision measures how many flags are correct."
+    },
+    {
+     "q": "Which layering is best?",
+     "options": [
+      "ML alone",
+      "ML plus authentication, link controls, reporting and training",
+      "Training alone",
+      "DMARC alone"
+     ],
+     "a": 1,
+     "why": "Layers cover each other's weaknesses."
+    }
+   ],
+   "recap": [
+    "Feature models are fast and explainable; LLM models read intent.",
+    "Attackers evade with images, QR codes and fresh wording.",
+    "Measure precision and recall, and feed back user reports."
+   ]
+  },
+  {
+   "title": "Anomaly detection basics",
+   "why": "Anomaly detection can surface unknown threats that signatures miss, but it needs baselines and careful tuning to avoid alert fatigue.",
+   "sections": [
+    {
+     "h": "Baselines and what 'normal' means",
+     "p": [
+      "Anomaly detection flags behavior that departs from a baseline. The baseline may describe a user, a host, a service, a peer group or the whole network: typical login hours, data volume, countries, processes launched, or API call patterns. Baselines need enough clean history, often weeks, and must account for seasonality such as month-end workloads. If the training period already contains attacker activity, the attack becomes part of normal. Simple statistics, like a z-score of how many standard deviations a value is from its mean, are a good start before complex models."
+     ]
+    },
+    {
+     "h": "Isolation forests and other methods",
+     "p": [
+      "An isolation forest is an unsupervised algorithm that builds many random trees by choosing random features and split values. Anomalies are few and different, so they are isolated in fewer splits, giving them shorter average path lengths and a higher anomaly score. Other methods include clustering, one-class SVMs, autoencoders that flag high reconstruction error, and time-series models. No method knows what is malicious; it only knows what is unusual. A large download by a data scientist is unusual and benign, while a slow low-volume exfiltration may look normal."
+     ]
+    },
+    {
+     "h": "UEBA scoring",
+     "p": [
+      "User and Entity Behavior Analytics (UEBA) products combine many weak anomaly signals per user or host into a risk score. Examples are impossible travel, first-time access to a sensitive server, unusual hours, rare process launch and sudden volume of file access. Scores accumulate over time and can decay. Peer group comparison helps: a finance clerk compared with other clerks. UEBA works best when fed good identity data and when the SOC knows how each score is derived, so analysts can see the contributing events and judge whether they form a coherent story."
+     ]
+    },
+    {
+     "h": "Managing false positives",
+     "p": [
+      "Because rare events are common in aggregate, anomaly systems produce many false positives. Reduce them by tuning thresholds, adding context such as change tickets and maintenance windows, whitelisting known benign patterns with expiry dates, grouping related anomalies into one case, and using feedback labels from analysts to refine models. Review precision on sampled alerts regularly. Track alert-to-incident ratio. Be careful with concept drift: new software or reorganizations change normal. Keep anomaly detections as hunting leads or medium-priority signals unless they correlate with other evidence."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Anomaly scoring output",
+    "text": "entity: user jlee-demo   baseline: 30 days, peer group: sales\nfeature            value      baseline   z\nmb_downloaded      4,820      310 +/- 120  37.6\nlogin_hour_utc     03         09-17        n/a\nnew_country        no\nisolation_forest score: 0.78 (threshold 0.65)\nrisk_score: 74/100  context: quarter-end report export"
+   },
+   "example": "UEBA flags a salesperson who downloaded 4.8 GB, far above a 310 MB baseline, at 03:00 UTC. The risk score is 74. The analyst checks the ticket system and finds a quarter-end export approved by the manager. The alert is a true anomaly but not malicious. The analyst records the context and tunes the rule to apply a higher threshold during quarter-end with a documented expiry, instead of whitelisting the user permanently.",
+   "terms": [
+    {
+     "term": "Baseline",
+     "def": "A model of normal behavior for an entity or group."
+    },
+    {
+     "term": "Z-score",
+     "def": "Number of standard deviations a value is from the mean."
+    },
+    {
+     "term": "Isolation forest",
+     "def": "An algorithm that scores points by how quickly random splits isolate them."
+    },
+    {
+     "term": "UEBA",
+     "def": "Analytics scoring unusual user and entity behavior."
+    },
+    {
+     "term": "Alert fatigue",
+     "def": "Reduced attention caused by too many low-value alerts."
+    }
+   ],
+   "check": [
+    {
+     "q": "An isolation forest scores a point as anomalous when it:",
+     "options": [
+      "Is isolated in few random splits",
+      "Is the largest file",
+      "Is encrypted",
+      "Is old"
+     ],
+     "a": 0,
+     "why": "Anomalies are isolated quickly, giving short average path lengths."
+    },
+    {
+     "q": "Why can a contaminated baseline be a problem?",
+     "options": [
+      "Attack activity becomes 'normal'",
+      "It reduces storage",
+      "It speeds queries",
+      "It adds colors"
+     ],
+     "a": 0,
+     "why": "Training on attacker behavior teaches the model to ignore it."
+    },
+    {
+     "q": "An anomaly always means:",
+     "options": [
+      "Malicious activity",
+      "Unusual behavior that needs context",
+      "A false alarm",
+      "A patch"
+     ],
+     "a": 1,
+     "why": "Unusual does not equal malicious."
+    },
+    {
+     "q": "A good way to reduce false positives is:",
+     "options": [
+      "Permanent whitelisting of any user",
+      "Context such as change tickets and expiring exceptions",
+      "Turning off detection",
+      "Doubling alerts"
+     ],
+     "a": 1,
+     "why": "Context and time-limited tuning keep coverage."
+    }
+   ],
+   "recap": [
+    "Baselines define normal and must be clean and seasonal.",
+    "Isolation forests and UEBA score unusual behavior, not malice.",
+    "Manage false positives with context and feedback."
+   ]
+  },
+  {
+   "title": "Hallucination risks in security work",
+   "why": "Language models state invented facts with confidence, and in security a fake CVE, command or indicator can waste hours or cause damage.",
+   "sections": [
+    {
+     "h": "What hallucination looks like",
+     "p": [
+      "A hallucination is fluent output that is not grounded in fact. In security work it appears as CVE identifiers that do not exist or belong to another product, invented patch versions, file hashes or IP addresses presented as indicators of compromise, nonexistent command flags, misattributed threat actor behavior, and fabricated references to advisories. Models predict plausible text, and security identifiers have a plausible format: CVE-2024-12345 looks real whether it is or not. The confident tone and neat structure make errors persuasive, particularly under time pressure during an incident."
+     ]
+    },
+    {
+     "h": "Why it is dangerous",
+     "p": [
+      "Acting on a false statement has costs. A fake indicator can send responders chasing a benign host or tempt them to block legitimate infrastructure. A wrong remediation command may delete data or disable logging. A fabricated CVE can make a team believe a product is patched or vulnerable. Wrong attribution can lead to misleading executive reports. Hash values are especially risky because a model cannot compute them; any hash it supplies for a file is made up unless a tool calculated it. Dangerous suggestions can also include insecure code or packages with plausible but nonexistent names that attackers may later register."
+     ]
+    },
+    {
+     "h": "Verification habits",
+     "p": [
+      "Verify against authoritative sources: look up CVEs in NVD, the CISA Known Exploited Vulnerabilities catalog or the vendor advisory; confirm affected versions and fixed versions there. Check indicators in threat intelligence platforms and in your own logs. Calculate hashes with tools like sha256sum on actual files. Read command documentation, and run unfamiliar commands in a lab or with a dry-run flag first. Ask the assistant to cite sources, then open them. Prefer retrieval-based assistants wired to trusted data and tool calls whose results are quoted, and be wary when no source can be produced."
+     ]
+    },
+    {
+     "h": "Process controls",
+     "p": [
+      "Build verification into the workflow. Label AI-generated content in tickets and reports. Require a second human check for any indicator added to blocklists, and for any command that changes systems. Keep a log of hallucination cases and share them in team training so people learn typical patterns. Use prompts that permit 'I do not know' and constrain answers to supplied evidence. Set low temperature for factual tasks, though that does not eliminate errors. Assess the assistant on your own question set periodically, tracking fabricated identifiers, and make clear that responsibility for the final report stays with the analyst."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Verification checklist",
+    "text": "CVE-2026-99999 (from assistant)\n  NVD lookup: no record found -> treat as fabricated\nSHA256 9f2c...e1a4 (from assistant)\n  sha256sum suspect.bin: 41d0...77ab -> mismatch, hash invalid\nIP 203.0.113.77 (from assistant)\n  seen in own logs? 0 events; intel match: none -> unconfirmed\nCommand 'tool --purge-all' (from assistant)\n  man page: flag not found -> do not run"
+   },
+   "example": "An assistant's incident report lists a CVE, a SHA-256 hash, an IP address and a cleanup command. The analyst runs the checklist: the CVE is absent from NVD, the hash does not match the sample, the IP never appears in logs and has no intelligence match, and the command flag does not exist. Nothing from the draft enters the final report. The analyst keeps only the facts verified from raw telemetry and adds the case to the team's hallucination log.",
+   "terms": [
+    {
+     "term": "Hallucination",
+     "def": "Fluent model output that is false or unsupported."
+    },
+    {
+     "term": "NVD",
+     "def": "The US National Vulnerability Database of CVE records."
+    },
+    {
+     "term": "KEV catalog",
+     "def": "CISA's list of vulnerabilities known to be exploited."
+    },
+    {
+     "term": "Grounding",
+     "def": "Tying model output to retrieved, checkable sources."
+    },
+    {
+     "term": "Indicator of compromise",
+     "def": "An observable artifact such as a hash, IP or domain linked to malicious activity."
+    }
+   ],
+   "check": [
+    {
+     "q": "A model supplies a SHA-256 hash for a file it has not seen. It is:",
+     "options": [
+      "Reliable",
+      "Made up unless a tool computed it",
+      "Always correct",
+      "A CVE"
+     ],
+     "a": 1,
+     "why": "Models cannot compute hashes; they generate plausible strings."
+    },
+    {
+     "q": "Where should you verify a CVE?",
+     "options": [
+      "NVD or the vendor advisory",
+      "A chat reply only",
+      "Social media memes",
+      "The model itself"
+     ],
+     "a": 0,
+     "why": "Authoritative databases confirm existence and details."
+    },
+    {
+     "q": "Before running an AI-suggested command on a system you should:",
+     "options": [
+      "Run it as admin",
+      "Check documentation and test in a lab or dry-run",
+      "Add --force",
+      "Share it publicly"
+     ],
+     "a": 1,
+     "why": "Unverified commands may cause damage."
+    },
+    {
+     "q": "Which setting removes hallucinations completely?",
+     "options": [
+      "Low temperature",
+      "Nothing; verification is still needed",
+      "A longer prompt",
+      "Using emojis"
+     ],
+     "a": 1,
+     "why": "No setting eliminates fabricated output."
+    }
+   ],
+   "recap": [
+    "Models invent plausible CVEs, hashes, IPs and commands.",
+    "Verify against NVD, KEV, advisories, docs and your own telemetry.",
+    "Add human checks before indicators or commands take effect."
+   ]
+  },
+  {
+   "title": "Judging AI security tools",
+   "why": "Vendors promise big gains, and buyers need a repeatable way to separate measured performance from marketing.",
+   "sections": [
+    {
+     "h": "Metrics that matter",
+     "p": [
+      "Ask for precision (true positives divided by all alerts), recall (true positives divided by all real attacks), and false positive rate, ideally on data like yours. A tool that claims 99 percent accuracy may be useless if attacks are 0.1 percent of events, because predicting 'benign' always achieves 99.9 percent accuracy. Accuracy alone hides this base rate problem. Look at the confusion matrix, the precision-recall trade-off at different thresholds, time to detect, analyst time saved per case and coverage of ATT&CK techniques. Insist on how ground truth labels were made."
+     ]
+    },
+    {
+     "h": "Data handling and architecture",
+     "p": [
+      "Learn where your data goes. Questions include: is customer data used to train shared models, where is it stored, how long is it retained, which sub-processors are involved, can you opt out of training, is there tenant isolation, and what certifications exist (for example SOC 2 or ISO 27001)? Check what permissions the tool needs: read-only access is far safer than the ability to disable accounts or change firewall rules. Review how the tool defends against prompt injection and what logs it provides for audit. Ensure a data processing agreement and exit terms covering deletion."
+     ]
+    },
+    {
+     "h": "Explainability and transparency",
+     "p": [
+      "Analysts must understand why something was flagged. Look for evidence trails: the events that led to a verdict, feature contributions, links to underlying logs, and plain-language rationale that can be verified. Black-box scores without evidence slow investigation and make errors hard to catch. Ask how models are updated and how you are told about changes, since a silent model update can alter alert volume. Ask about known limitations and evasion testing. A vendor that cannot describe failure cases or share any evaluation method deserves caution."
+     ]
+    },
+    {
+     "h": "Running a pilot",
+     "p": [
+      "Test claims with a pilot on your own data. Define success criteria beforehand: minimum recall on a set of known incidents or simulated attacks, a maximum alert volume, and analyst time targets. Run the tool in parallel with the current process, in observe mode, for a few weeks. Replay historical incidents and red team simulations, and sample alerts to compute precision. Measure total cost including tuning effort and integration. Use a scorecard that weights security effectiveness, data handling, explainability, integration and cost, then make a written decision with the evidence."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Pilot scorecard",
+    "text": "metric           tool A    tool B   target\nprecision        0.62      0.81     >= 0.70\nrecall (12 sims) 0.92      0.75     >= 0.80\nalerts/day       410       95       <= 150\nevidence trail   partial   full     full\ntrains on data   yes       no (opt) no\ndecision: neither passes all; request tuning from B, retest"
+   },
+   "example": "Two vendors run a four-week pilot. Tool A catches 11 of 12 simulated attacks but is right on only 62 percent of its alerts and trains on customer data. Tool B catches 9 of 12 with 81 percent precision, gives full evidence trails and does not train on data. The team scores both, sees neither meets all targets, asks B to tune its detections for the three missed techniques, and schedules a short re-pilot before deciding.",
+   "terms": [
+    {
+     "term": "Precision",
+     "def": "Fraction of alerts that are real attacks."
+    },
+    {
+     "term": "Recall",
+     "def": "Fraction of real attacks that the tool alerts on."
+    },
+    {
+     "term": "Base rate problem",
+     "def": "High accuracy claims being meaningless when attacks are rare."
+    },
+    {
+     "term": "Pilot",
+     "def": "A time-boxed trial against defined success criteria."
+    },
+    {
+     "term": "Explainability",
+     "def": "The ability to see why a tool reached a decision."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why is '99 percent accuracy' a weak claim?",
+     "options": [
+      "Attacks are rare so always predicting benign scores high",
+      "It is too low",
+      "It means no false positives",
+      "It is illegal"
+     ],
+     "a": 0,
+     "why": "The base rate problem makes accuracy misleading."
+    },
+    {
+     "q": "What does recall measure?",
+     "options": [
+      "Share of real attacks detected",
+      "Share of alerts that are correct",
+      "Speed",
+      "Cost"
+     ],
+     "a": 0,
+     "why": "Recall is true positives over all actual positives."
+    },
+    {
+     "q": "Which data question is critical when buying?",
+     "options": [
+      "Is our data used to train shared models?",
+      "What color is the dashboard?",
+      "Who designed the logo?",
+      "How many offices?"
+     ],
+     "a": 0,
+     "why": "Data use and retention drive privacy and confidentiality risk."
+    },
+    {
+     "q": "A good pilot should:",
+     "options": [
+      "Use your own data and predefined success criteria",
+      "Use only vendor demo data",
+      "Last one hour",
+      "Skip metrics"
+     ],
+     "a": 0,
+     "why": "Your data and clear criteria show real-world performance."
+    }
+   ],
+   "recap": [
+    "Demand precision, recall and false positive rates, not accuracy alone.",
+    "Check data use, permissions and evidence trails.",
+    "Pilot on your own data with predefined criteria."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Triage alerts with AI summaries",
+   "sim": "siem",
+   "scenario": "You are a Tier 1 analyst at fictional Example Corp. The SIEM shows five alerts, each with an AI-generated summary. You must open the raw events for each alert, compare them to the summary and mark which summaries are wrong.",
+   "objective": "Identify which AI summaries contradict the raw events.",
+   "steps": [
+    {
+     "do": "Open alert A-1: summary says '42 failed logins from 198.51.100.23, then success'.",
+     "see": "Raw events: 42 failures, 1 success from 198.51.100.23. Summary matches."
+    },
+    {
+     "do": "Open alert A-2: summary says 'admin account svc-demo compromised'.",
+     "see": "Directory shows svc-demo is a low-privilege service account. Summary wrong: privilege level."
+    },
+    {
+     "do": "Open alert A-3: summary says 'malware detected on host WS-14'.",
+     "see": "Raw event: AV flagged a test file (EICAR), quarantined. Summary overstates; mark misleading."
+    },
+    {
+     "do": "Open alert A-4: summary says 'DNS query to rare domain from 192.0.2.40'.",
+     "see": "Raw event confirms query to rare domain, once. Summary matches."
+    },
+    {
+     "do": "Open alert A-5: summary says 'data exfiltration of 5 GB to 203.0.113.9'.",
+     "see": "Raw bytes_out: 5 MB, not 5 GB. Summary wrong: unit error."
+    },
+    {
+     "do": "Submit marks: A-2, A-3 and A-5 incorrect.",
+     "see": "Score 5/5 correct. Note: unit and privilege errors are common AI summary faults."
+    }
+   ],
+   "answer": "Alerts A-1 and A-4 are accurate. A-2 is wrong because svc-demo is a low-privilege service account, A-3 overstates an EICAR test file as malware, and A-5 inflates 5 MB into 5 GB. Verify counts, units and account types in raw events.",
+   "hint": "Compare numbers, units and account roles in the raw event first."
+  },
+  {
+   "title": "Validate an AI-written detection",
+   "sim": "code-editor",
+   "scenario": "A colleague pasted an AI-written Sigma rule meant to detect encoded PowerShell. You have sample logs: five malicious events from a lab simulation and 200 normal events. Test the rule, fix the logic error and cut false positives.",
+   "objective": "Make the rule detect all malicious samples while limiting false positives.",
+   "steps": [
+    {
+     "do": "Run the rule against the sample logs.",
+     "see": "Result: 0/5 malicious matched, 0/200 normal matched. Rule never fires."
+    },
+    {
+     "do": "Inspect the rule's condition.",
+     "see": "Condition requires CommandLine contains ' -enc' AND Image endswith 'pwsh.exe'; lab events use powershell.exe."
+    },
+    {
+     "do": "Change Image selection to endswith powershell.exe or pwsh.exe.",
+     "see": "Run: 5/5 malicious matched, 41/200 normal matched (deployment tool)."
+    },
+    {
+     "do": "Inspect the 41 normal hits.",
+     "see": "All have ParentImage C:\\Tools\\deploy.exe signed by Example Corp."
+    },
+    {
+     "do": "Add a filter excluding that parent image and signer.",
+     "see": "Run: 5/5 malicious, 0/200 normal."
+    },
+    {
+     "do": "Add a test for variant ' -EncodedCommand'.",
+     "see": "Run: variant sample not matched. Add contains for ' -encodedcommand'."
+    },
+    {
+     "do": "Rerun the full test suite.",
+     "see": "Pass: 6/6 malicious variants, 0 false positives. Ready for alert-only deploy."
+    }
+   ],
+   "answer": "The logic error was the Image filter that excluded powershell.exe. After fixing it, a documented filter for the deployment tool removed 41 false positives, and a variant check for -EncodedCommand closed an evasion gap. The rule matches all malicious samples and no normal events.",
+   "hint": "Check the filter on the binary name before suspecting the command line."
+  },
+  {
+   "title": "Catch a hallucinated IOC",
+   "sim": "chat-sim",
+   "scenario": "An AI assistant produced an incident report for fictional Example Corp listing two CVEs, two SHA-256 hashes and one IP. You can query tools in the simulator to verify each item. Mark the fabricated ones before the report is published.",
+   "objective": "Verify each CVE, hash and IP and flag the fabricated items.",
+   "steps": [
+    {
+     "do": "Ask the assistant to cite sources for CVE-2024-3094.",
+     "see": "Assistant cites NVD. Lookup tool: record exists (xz backdoor). Verified."
+    },
+    {
+     "do": "Look up the second CVE, CVE-2026-98765, in the NVD tool.",
+     "see": "No record found. Mark fabricated."
+    },
+    {
+     "do": "Run sha256sum on sample1.bin and compare to the first hash.",
+     "see": "Computed value matches the report. Verified."
+    },
+    {
+     "do": "Run sha256sum on sample2.bin and compare to the second hash.",
+     "see": "Computed hash differs. Mark fabricated."
+    },
+    {
+     "do": "Search the proxy and DNS logs for 203.0.113.58.",
+     "see": "0 events in 30 days; no intel match. Mark unverified, remove from report."
+    },
+    {
+     "do": "Submit the review.",
+     "see": "Score 5/5. Final report keeps 1 CVE and 1 hash; removes 3 items."
+    }
+   ],
+   "answer": "CVE-2024-3094 and the first hash are verified. CVE-2026-98765 is not in NVD, the second hash does not match the actual file, and the IP has no log or intelligence support. Remove those three items from the report.",
+   "hint": "Use tools to verify; do not ask the model to confirm its own output."
+  },
+  {
+   "title": "Score a vendor tool",
+   "sim": "scenario",
+   "scenario": "Example Corp is choosing between two AI detection products after a 4-week pilot. You receive pilot numbers for both. You must compare them and justify a choice in writing against the targets: precision at least 0.70, recall at least 0.80, no training on customer data.",
+   "objective": "Compare the two products and choose one with written justification.",
+   "steps": [
+    {
+     "do": "Open the pilot summary for Product Atlas.",
+     "see": "Precision 0.62, recall 0.92, 410 alerts/day, trains on customer data by default."
+    },
+    {
+     "do": "Open the pilot summary for Product Beacon.",
+     "see": "Precision 0.81, recall 0.84, 95 alerts/day, does not train on customer data."
+    },
+    {
+     "do": "Compare against the targets.",
+     "see": "Atlas fails precision and data terms. Beacon meets all three targets."
+    },
+    {
+     "do": "Review explainability notes.",
+     "see": "Atlas: score only. Beacon: shows evidence events and rationale."
+    },
+    {
+     "do": "Check permissions requested.",
+     "see": "Atlas requests account-disable rights. Beacon read-only. Note risk for Atlas."
+    },
+    {
+     "do": "Write the decision.",
+     "see": "Accepted: choose Beacon; reasons cite metrics, data handling, evidence trail, permissions."
+    }
+   ],
+   "answer": "Choose Beacon: precision 0.81 and recall 0.84 meet the targets, alert volume is 95 per day, it does not train on customer data, provides an evidence trail and needs only read-only access. Atlas misses precision, floods analysts and uses customer data for training by default.",
+   "hint": "Check each product against every written target, not only one metric."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "An AI assistant summarizes an alert. The best next step is:",
+   "options": [
+    "Close the alert",
+    "Verify the summary against raw events",
+    "Forward to the CEO",
+    "Delete the logs"
+   ],
+   "a": 1,
+   "why": "Summaries can be wrong and must be checked against evidence."
+  },
+  {
+   "q": "Which is an AI-specific risk in SOC data?",
+   "options": [
+    "Logs may carry injected instructions",
+    "Logs are always clean",
+    "Logs cannot be read",
+    "Logs are large"
+   ],
+   "a": 0,
+   "why": "Attacker-controlled text in logs can steer assistants."
+  },
+  {
+   "q": "Sigma is:",
+   "options": [
+    "A vendor-neutral rule format in YAML",
+    "A malware family",
+    "A hashing algorithm",
+    "A switch"
+   ],
+   "a": 0,
+   "why": "Sigma rules convert to many SIEM query languages."
+  },
+  {
+   "q": "Why test a new rule against normal logs?",
+   "options": [
+    "To measure false positives",
+    "To speed it up",
+    "To hide it",
+    "To compress"
+   ],
+   "a": 0,
+   "why": "Normal data shows how noisy the rule is."
+  },
+  {
+   "q": "DMARC fails on a message. This is:",
+   "options": [
+    "A phishing signal combined with others",
+    "Proof of malware",
+    "Irrelevant",
+    "A TLS error"
+   ],
+   "a": 0,
+   "why": "Authentication failure is one signal among many."
+  },
+  {
+   "q": "An isolation forest gives high scores to points that:",
+   "options": [
+    "Are isolated quickly by random splits",
+    "Are largest",
+    "Are oldest",
+    "Are encrypted"
+   ],
+   "a": 0,
+   "why": "Short average path lengths mean anomaly."
+  },
+  {
+   "q": "An anomaly alert means:",
+   "options": [
+    "Behavior is unusual and needs context",
+    "A confirmed breach",
+    "A software bug",
+    "A false positive always"
+   ],
+   "a": 0,
+   "why": "Unusual does not automatically mean malicious."
+  },
+  {
+   "q": "A model gives a SHA-256 hash for a sample it never saw. It is likely:",
+   "options": [
+    "Fabricated",
+    "Computed",
+    "Verified",
+    "A CVE"
+   ],
+   "a": 0,
+   "why": "Models cannot compute hashes."
+  },
+  {
+   "q": "Why is accuracy alone a poor vendor metric?",
+   "options": [
+    "The base rate problem hides weak detection",
+    "It is illegal",
+    "It is too complex",
+    "It measures cost"
+   ],
+   "a": 0,
+   "why": "With rare attacks, a useless tool can still score high accuracy."
+  },
+  {
+   "q": "A sound pilot uses:",
+   "options": [
+    "Your own data and predefined success criteria",
+    "Demo data only",
+    "One day",
+    "No metrics"
+   ],
+   "a": 0,
+   "why": "Realistic data and clear criteria produce trustworthy evidence."
+  }
+ ]
+}

@@ -1,0 +1,1106 @@
+{
+ "code": "ENG-03",
+ "intro": "Identity is now the main security perimeter, and this module teaches you to engineer it. You will study directory services and Active Directory, access control models, SAML and OIDC single sign-on, and token validation. You will plan MFA rollouts that resist phishing and fatigue attacks, control privileged access with vaulting and just-in-time elevation, and manage service accounts and secrets without hardcoded credentials. Stolen or over-privileged credentials are involved in most breaches, so getting identity right removes the most common attack path.",
+ "lessons": [
+  {
+   "title": "Directory services and AD architecture",
+   "why": "Nearly every enterprise login, permission and policy depends on a directory. Understanding its structure shows where attackers aim and how administrators should protect it.",
+   "sections": [
+    {
+     "h": "LDAP and the directory tree",
+     "p": [
+      "A directory is a hierarchical database of identities and resources. The Lightweight Directory Access Protocol (LDAP) is the standard way to query and modify it. Entries are identified by a distinguished name (DN), for example cn=Alice Example,ou=Finance,dc=corp,dc=example,dc=com, built from a relative name and its parent containers. LDAP listens on TCP 389, with StartTLS available, and LDAPS on 636; the global catalog uses 3268 and 3269. A client performs a bind to authenticate, then searches with a base DN, scope and filter. Anonymous or simple binds without encryption expose credentials, so require signing and TLS."
+     ]
+    },
+    {
+     "h": "Kerberos in Active Directory",
+     "p": [
+      "Active Directory (AD) combines LDAP, DNS and Kerberos. Kerberos, on port 88, uses tickets so passwords are not sent across the network. A user authenticates to the Key Distribution Center on a domain controller and receives a Ticket Granting Ticket (TGT), encrypted with the secret of the krbtgt account. To use a service, the client presents the TGT and gets a service ticket for that service principal name (SPN). Clocks must agree within five minutes by default. Attacks such as Kerberoasting, which cracks service ticket secrets of weak service account passwords, and golden tickets, which forge TGTs using the krbtgt secret, show why service passwords and the krbtgt account need protection."
+     ]
+    },
+    {
+     "h": "Domains, OUs and groups",
+     "p": [
+      "An AD forest is the security boundary, containing one or more domains that share a schema and trust each other. Within a domain, organizational units (OUs) organize objects and are the targets for Group Policy and delegated administration. Groups hold users and other groups. Security groups grant permissions; distribution groups only email. Scopes are domain local, global and universal. A common practice, AGDLP, places Accounts into Global groups, nests them into Domain Local groups, and assigns Permissions to those local groups. Privileged groups such as Domain Admins, Enterprise Admins and Schema Admins grant control over the whole directory and must be kept tiny and monitored."
+     ]
+    },
+    {
+     "h": "Tiered administration",
+     "p": [
+      "The tier model separates administrative credentials by what they control. Tier 0 covers domain controllers, the identity system and anything with control over them. Tier 1 covers servers and applications. Tier 2 covers user workstations and devices. An administrator in a higher tier never logs on to a lower tier, because credentials left in memory on a less trusted machine can be stolen and used upward. Use separate admin accounts, privileged access workstations, and the Protected Users group for sensitive accounts, and use authentication policy silos to restrict where Tier 0 accounts may sign in."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "LDAP search and DN",
+    "text": "$ ldapsearch -H ldaps://dc01.corp.example.com -D \"cn=svc-ldap,ou=Service,dc=corp,dc=example,dc=com\" -W \\\n   -b \"ou=Finance,dc=corp,dc=example,dc=com\" \"(sAMAccountName=aexample)\" memberOf\ndn: CN=Alice Example,OU=Finance,DC=corp,DC=example,DC=com\nmemberOf: CN=GG-Finance-Users,OU=Groups,DC=corp,DC=example,DC=com"
+   },
+   "example": "An engineer reviews corp.example.com. A server admin account, adm-bob, is a member of Domain Admins and also signs in to ordinary workstations to fix printers. This breaks tiering, since a credential used on a Tier 2 machine can be harvested from memory. The fix is a separate Tier 1 account for servers, no logon rights for admins on workstations, Domain Admins membership limited to a few Tier 0 accounts, and use of the Protected Users group.",
+   "terms": [
+    {
+     "term": "LDAP",
+     "def": "Protocol for querying and modifying directory entries."
+    },
+    {
+     "term": "Distinguished name",
+     "def": "The unique path identifying a directory entry."
+    },
+    {
+     "term": "TGT",
+     "def": "Ticket Granting Ticket issued by the Kerberos KDC after authentication."
+    },
+    {
+     "term": "SPN",
+     "def": "Service principal name that identifies a Kerberos service."
+    },
+    {
+     "term": "AGDLP",
+     "def": "Accounts to Global groups to Domain Local groups to Permissions."
+    },
+    {
+     "term": "Tier 0",
+     "def": "The set of assets that control the identity system."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which port does Kerberos use?",
+     "options": [
+      "88",
+      "389",
+      "636",
+      "3389"
+     ],
+     "a": 0,
+     "why": "Kerberos uses TCP and UDP 88."
+    },
+    {
+     "q": "What encrypts the TGT in Active Directory?",
+     "options": [
+      "The krbtgt account secret",
+      "The user's email",
+      "The firewall key",
+      "The SPN list"
+     ],
+     "a": 0,
+     "why": "The krbtgt secret protects TGTs, so it must be guarded."
+    },
+    {
+     "q": "Why should Tier 0 admins avoid signing in to workstations?",
+     "options": [
+      "It is slower",
+      "Credentials in memory can be stolen on less trusted systems",
+      "Workstations lack screens",
+      "It disables Kerberos"
+     ],
+     "a": 1,
+     "why": "Higher privilege credentials must not be exposed on weaker tiers."
+    },
+    {
+     "q": "Which secure LDAP port is standard?",
+     "options": [
+      "389",
+      "636",
+      "110",
+      "25"
+     ],
+     "a": 1,
+     "why": "LDAPS uses TCP 636."
+    }
+   ],
+   "recap": [
+    "LDAP queries a directory tree, and Kerberos on port 88 uses TGTs and service tickets.",
+    "AD organizes forests, domains, OUs and groups; use AGDLP and protect privileged groups.",
+    "Use tiered administration so privileged credentials stay on trusted systems."
+   ]
+  },
+  {
+   "title": "AuthN, AuthZ and access models",
+   "why": "Authentication proves who someone is, and authorization decides what they may do. Choosing the right model and keeping permissions current prevents privilege creep.",
+   "sections": [
+    {
+     "h": "Authentication versus authorization",
+     "p": [
+      "Authentication (AuthN) establishes identity by verifying something the user knows, has or is. Authorization (AuthZ) decides what an authenticated identity may do. A system can authenticate correctly yet authorize badly, as in an application where any logged-in user can open any account number. Accounting records what happened. Keep the concepts apart in design: identity providers handle AuthN, while each application or a central policy service handles AuthZ per request. Never treat the presence of a valid session as permission, and check authorization on the server for each action and object."
+     ]
+    },
+    {
+     "h": "RBAC, ABAC and ReBAC",
+     "p": [
+      "Role-based access control (RBAC) grants permissions to roles, and users get roles. It is simple to audit but can suffer role explosion when many special cases arise. Attribute-based access control (ABAC) evaluates policies over attributes of the user, resource, action and context, such as 'allow if department equals finance and device is compliant and time is business hours'. It is flexible and fine-grained, but policies are harder to review. Relationship-based access control (ReBAC), used in systems inspired by Google Zanzibar, grants access from relationships, such as 'viewer of a folder is viewer of files inside'. Many organizations combine models."
+     ]
+    },
+    {
+     "h": "Least privilege and the identity lifecycle",
+     "p": [
+      "Least privilege gives users only the access needed. Enforce it through the joiner, mover, leaver (JML) process. Joiners receive a role-based starting set from HR data. Movers must lose access tied to the old job, because accumulated permissions, called privilege creep, are a major source of excess access. Leavers are disabled on their last day or sooner, with sessions and tokens revoked and owned resources reassigned. Automate through HR-driven provisioning with SCIM or an identity governance tool, and periodically run access recertification campaigns where managers confirm or remove each person's entitlements."
+     ]
+    },
+    {
+     "h": "Separation of duties and review",
+     "p": [
+      "Separation of duties prevents a single person from completing a risky process alone, for example creating and approving a vendor payment. Define conflicting role pairs and have the governance tool block or flag them. Review privileged and sensitive entitlements more often than ordinary ones, such as quarterly for administrators and annually for standard access. Log every grant and revocation with approver and reason. Orphaned accounts, shared accounts and accounts without owners should be found and removed. Measure the process using time to deprovision, percentage of accounts with an owner, and the number of overdue reviews."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Policy examples",
+    "text": "RBAC : user alice -> role Finance-Analyst -> permission reports:read\nABAC : allow if user.dept == \"finance\"\n              and device.compliant == true\n              and resource.classification <= \"internal\"\nReBAC: folder:Q3#viewer@group:finance#member\n       doc:budget#parent@folder:Q3   -> finance can view doc:budget"
+   },
+   "example": "When Dana moves from Support to Finance at example.com, the mover process assigns the Finance-Analyst role but does not remove her old Support-Admin role. Six months later an access review shows she can both approve refunds and issue them. Recertification catches the conflict. The company adds a mover trigger that removes prior role assignments and a separation-of-duties rule that blocks the two roles from coexisting.",
+   "terms": [
+    {
+     "term": "Authentication",
+     "def": "Verifying the identity of a user or system."
+    },
+    {
+     "term": "Authorization",
+     "def": "Deciding what an authenticated identity may do."
+    },
+    {
+     "term": "RBAC",
+     "def": "Access control by assigning permissions to roles."
+    },
+    {
+     "term": "ABAC",
+     "def": "Access control by evaluating attributes and context."
+    },
+    {
+     "term": "ReBAC",
+     "def": "Access control derived from relationships between entities."
+    },
+    {
+     "term": "Privilege creep",
+     "def": "Accumulation of access beyond what a current role needs."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which describes authorization?",
+     "options": [
+      "Proving who you are",
+      "Deciding what an identity may do",
+      "Encrypting a disk",
+      "Resolving a hostname"
+     ],
+     "a": 1,
+     "why": "Authorization governs permitted actions."
+    },
+    {
+     "q": "Which model evaluates user, resource and context attributes?",
+     "options": [
+      "ABAC",
+      "RBAC only",
+      "MAC only",
+      "DAC only"
+     ],
+     "a": 0,
+     "why": "ABAC policies use attributes."
+    },
+    {
+     "q": "What is privilege creep?",
+     "options": [
+      "Faster logins",
+      "Accumulated access not needed for a current role",
+      "A network attack",
+      "A password policy"
+     ],
+     "a": 1,
+     "why": "Movers keep old permissions unless removed."
+    },
+    {
+     "q": "What process most directly fixes excess entitlements over time?",
+     "options": [
+      "Access recertification",
+      "More logging",
+      "Bigger firewalls",
+      "Longer passwords"
+     ],
+     "a": 0,
+     "why": "Managers review and remove unneeded access."
+    }
+   ],
+   "recap": [
+    "AuthN proves identity; AuthZ checks permission for every action.",
+    "RBAC is simple, ABAC is flexible, ReBAC follows relationships, and many systems mix them.",
+    "Automate joiner, mover and leaver, recertify access, and enforce separation of duties."
+   ]
+  },
+  {
+   "title": "SAML federation",
+   "why": "SAML is still the backbone of enterprise SSO for many SaaS applications. Reading an assertion correctly is how you find misconfigurations and forged responses.",
+   "sections": [
+    {
+     "h": "The SP-initiated flow",
+     "p": [
+      "SAML 2.0 federates identity between an Identity Provider (IdP) and a Service Provider (SP). In the SP-initiated flow a user visits the application, which has no session. The SP creates an AuthnRequest and redirects the browser to the IdP, usually with the HTTP-Redirect binding. The IdP authenticates the user, then builds a SAML Response containing an Assertion and returns it to the browser as an auto-submitted form using the HTTP-POST binding to the SP's Assertion Consumer Service (ACS) URL. The SP validates the response and creates a session. Metadata files exchange entity IDs, certificates and endpoints in advance."
+     ]
+    },
+    {
+     "h": "Anatomy of an assertion",
+     "p": [
+      "An assertion contains an Issuer (the IdP entity ID), a Subject with a NameID and SubjectConfirmationData, Conditions with NotBefore, NotOnOrAfter and an AudienceRestriction, an AuthnStatement saying when and how the user authenticated, and an AttributeStatement with values such as email and groups. SubjectConfirmationData holds Recipient, which must equal the ACS URL, InResponseTo, which should match the original request ID, and its own NotOnOrAfter. The XML is signed using XML Digital Signature, with a signature over the Response, the Assertion, or both, and the SP holds the IdP's public certificate."
+     ]
+    },
+    {
+     "h": "What the SP must validate",
+     "p": [
+      "The SP must verify the signature with the trusted IdP certificate and make sure the signature covers the element it actually uses, because XML signature wrapping attacks insert unsigned content next to a validly signed element. It must also check Issuer, check that the Audience equals its own entity ID, Recipient equals its ACS URL, the current time lies within NotBefore and NotOnOrAfter (allowing small clock skew), and InResponseTo matches an outstanding request. It should reject replayed assertion IDs. Accepting unsigned responses or ignoring audience lets an attacker reuse assertions meant for other applications."
+     ]
+    },
+    {
+     "h": "Operating SAML safely",
+     "p": [
+      "Use a maintained SAML library rather than writing XML parsing yourself, and disable external entity processing to avoid XXE. Prefer signing both the response and assertion where supported, and encrypt assertions that carry sensitive attributes. Plan certificate rollover, since an expired IdP signing certificate breaks all logins at once, by publishing the new certificate in metadata before switching. Keep assertion lifetimes short, a few minutes. Map groups to roles carefully and validate that attribute values come from the signed assertion. Log failed validations with reason so attacks and misconfigurations can be distinguished."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "SAML assertion (trimmed)",
+    "text": "<saml:Assertion ID=\"_a1b2\" IssueInstant=\"2026-03-02T09:00:00Z\">\n <saml:Issuer>https://idp.example.com/metadata</saml:Issuer>\n <saml:Subject><saml:NameID>alice@example.com</saml:NameID>\n  <saml:SubjectConfirmationData Recipient=\"https://app.example.com/saml/acs\"\n     InResponseTo=\"_req77\" NotOnOrAfter=\"2026-03-02T09:05:00Z\"/></saml:Subject>\n <saml:Conditions NotBefore=\"2026-03-02T08:59:30Z\" NotOnOrAfter=\"2026-03-02T09:05:00Z\">\n  <saml:AudienceRestriction><saml:Audience>https://app.example.com/sp</saml:Audience>\n </saml:AudienceRestriction></saml:Conditions></saml:Assertion>"
+   },
+   "example": "A reviewer examines logs for app.example.com. The SP accepted a response whose Audience is https://other.example.com/sp and whose signature element was missing. Both are failures: the audience is not this application, and an unsigned response cannot be trusted. Anyone able to tamper with the browser POST could set NameID to an administrator. The fix is to require a valid signature from the IdP certificate, reject mismatched audience, recipient and expired NotOnOrAfter values, and add replay detection.",
+   "terms": [
+    {
+     "term": "IdP",
+     "def": "Identity Provider that authenticates users and issues assertions."
+    },
+    {
+     "term": "SP",
+     "def": "Service Provider that consumes assertions to grant access."
+    },
+    {
+     "term": "ACS",
+     "def": "Assertion Consumer Service, the SP endpoint receiving SAML responses."
+    },
+    {
+     "term": "NotOnOrAfter",
+     "def": "Timestamp after which an assertion or confirmation is invalid."
+    },
+    {
+     "term": "Audience restriction",
+     "def": "Limits the assertion to a named service provider."
+    },
+    {
+     "term": "XML signature wrapping",
+     "def": "Attack that moves signed content to confuse validation."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which binding commonly carries the SAML Response to the SP?",
+     "options": [
+      "HTTP-POST",
+      "FTP",
+      "SMTP",
+      "DNS"
+     ],
+     "a": 0,
+     "why": "The IdP posts the response to the ACS."
+    },
+    {
+     "q": "What should an SP check in the Audience?",
+     "options": [
+      "It equals its own entity ID",
+      "It equals the IdP name",
+      "It is empty",
+      "It matches any value"
+     ],
+     "a": 0,
+     "why": "Audience restriction binds the assertion to this SP."
+    },
+    {
+     "q": "What does NotOnOrAfter protect against?",
+     "options": [
+      "Use of stale assertions",
+      "Slow networks",
+      "Weak ciphers",
+      "Large attributes"
+     ],
+     "a": 0,
+     "why": "It limits the time an assertion can be used."
+    },
+    {
+     "q": "What is the main defense against XML signature wrapping?",
+     "options": [
+      "Verify the signature covers the exact element you consume, using a maintained library",
+      "Use shorter URLs",
+      "Disable HTTPS",
+      "Trust any signed element"
+     ],
+     "a": 0,
+     "why": "The processed content must be the signed content."
+    }
+   ],
+   "recap": [
+    "SP-initiated SAML redirects with an AuthnRequest and returns a signed Response by POST to the ACS.",
+    "Assertions carry Issuer, Subject, Conditions, Audience, NotOnOrAfter and attributes.",
+    "Validate signature, audience, recipient, time and InResponseTo, and use a maintained library."
+   ]
+  },
+  {
+   "title": "OAuth 2.0 and OIDC",
+   "why": "OAuth 2.0 and OpenID Connect power modern web, mobile and API logins. Correct flow choice and token validation are what separate secure integrations from account takeovers.",
+   "sections": [
+    {
+     "h": "Roles and the difference between OAuth and OIDC",
+     "p": [
+      "OAuth 2.0 is an authorization framework in which a client obtains an access token from an authorization server to call a resource server on behalf of a resource owner. It does not by itself say who the user is. OpenID Connect (OIDC) adds an identity layer: when the scope openid is requested, the authorization server also returns an ID token, a JSON Web Token (JWT) asserting who authenticated and how. Scopes such as profile, email and custom API scopes limit what the access token permits. Access tokens are for APIs; ID tokens are for the client and should not be sent to APIs."
+     ]
+    },
+    {
+     "h": "Authorization code flow with PKCE",
+     "p": [
+      "The recommended flow is authorization code with Proof Key for Code Exchange (PKCE, RFC 7636). The client generates a random code_verifier and sends its SHA-256 hash as code_challenge with code_challenge_method=S256 in the authorization request, along with client_id, redirect_uri, scope, a random state and, for OIDC, a nonce. After authentication the server redirects back with a code. The client exchanges the code at the token endpoint, supplying the code_verifier, and the server checks it matches the challenge. An attacker who steals the code cannot redeem it. Use exact redirect URI matching, and avoid the implicit flow."
+     ]
+    },
+    {
+     "h": "Validating the ID token",
+     "p": [
+      "A client must validate the ID token before trusting it. Check the signature using keys from the provider's JWKS endpoint, selecting by kid, and allow only expected algorithms; never accept alg none or let the token header choose a weaker algorithm. Check iss equals the expected issuer, aud contains your client_id, exp has not passed, iat is reasonable, and nonce matches the value sent, which prevents replay. Verify state on the redirect to stop cross-site request forgery. Resource servers validate access tokens similarly, checking audience and scope for each request, or call the introspection endpoint for opaque tokens."
+     ]
+    },
+    {
+     "h": "Common mistakes",
+     "p": [
+      "Frequent errors include using a loose redirect URI pattern that lets attackers capture codes, storing tokens in places scripts can read, requesting broad scopes, skipping nonce or state, and trusting claims from a token whose signature was not verified. Keep access tokens short-lived, use refresh token rotation, and bind tokens to the client where possible. Treat the sub claim together with iss as the stable user identifier, not email, which can change. Public clients such as single-page and mobile applications cannot keep secrets, so rely on PKCE rather than a client secret. Log token validation failures for monitoring."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Decoded ID token claims",
+    "text": "{\"iss\":\"https://login.example.com\",\n \"sub\":\"u-4821\",\n \"aud\":\"client-web-01\",\n \"exp\":1767225900,\n \"iat\":1767225600,\n \"nonce\":\"n-0S6_WzA2Mj\",\n \"email\":\"alice@example.com\"}\nheader: {\"alg\":\"RS256\",\"kid\":\"2026-01\"}"
+   },
+   "example": "A single-page app at app.example.com receives an ID token. The developer's code only base64-decodes the payload and reads email. A reviewer points out that without signature verification, anyone can craft a token. The fix: fetch the JWKS, verify RS256 against the kid, require iss to be https://login.example.com, aud to equal client-web-01, exp in the future and nonce to match the stored value, and reject the token if any check fails.",
+   "terms": [
+    {
+     "term": "PKCE",
+     "def": "Extension that binds an authorization code to the client that requested it."
+    },
+    {
+     "term": "ID token",
+     "def": "A JWT asserting the user's authentication result in OIDC."
+    },
+    {
+     "term": "JWKS",
+     "def": "The set of public keys published to verify token signatures."
+    },
+    {
+     "term": "Nonce",
+     "def": "A random value that ties an ID token to a specific request."
+    },
+    {
+     "term": "Scope",
+     "def": "A string that limits what an access token allows."
+    },
+    {
+     "term": "State",
+     "def": "A random value that protects the redirect from forgery."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does PKCE protect against?",
+     "options": [
+      "Redeeming a stolen authorization code",
+      "Weak passwords",
+      "Large cookies",
+      "DNS spoofing"
+     ],
+     "a": 0,
+     "why": "The verifier proves the redeemer started the flow."
+    },
+    {
+     "q": "Which claim must match your client_id?",
+     "options": [
+      "aud",
+      "iss",
+      "kid",
+      "iat"
+     ],
+     "a": 0,
+     "why": "aud identifies the intended recipient."
+    },
+    {
+     "q": "What should a validator do with a token whose alg is none?",
+     "options": [
+      "Accept it",
+      "Reject it",
+      "Cache it",
+      "Decode only"
+     ],
+     "a": 1,
+     "why": "Unsigned tokens must never be trusted."
+    },
+    {
+     "q": "Which token is meant to be sent to an API?",
+     "options": [
+      "Access token",
+      "ID token",
+      "State value",
+      "Nonce"
+     ],
+     "a": 0,
+     "why": "ID tokens are for the client; access tokens are for APIs."
+    }
+   ],
+   "recap": [
+    "OAuth authorizes API access; OIDC adds an ID token for authentication.",
+    "Use authorization code with PKCE, exact redirect URIs, state and nonce.",
+    "Verify signature, iss, aud, exp and nonce, and reject alg none."
+   ]
+  },
+  {
+   "title": "MFA rollout",
+   "why": "Passwords alone fail against phishing and credential stuffing. A well-planned MFA program raises the cost of attack without overwhelming users or help desks.",
+   "sections": [
+    {
+     "h": "Factor types and strength",
+     "p": [
+      "Multi-factor authentication combines at least two of something you know, have or are. Time-based one-time passwords (TOTP, RFC 6238) from an authenticator app generate a code every 30 seconds; they are good against password reuse but can be phished by a fake login page. Push approvals are convenient but susceptible to fatigue prompts and blind approval. SMS and voice codes are the weakest, exposed to SIM swapping and interception. FIDO2 and WebAuthn security keys and passkeys use public key cryptography bound to the site's origin, so a lookalike domain cannot obtain a valid response, making them phishing-resistant."
+     ]
+    },
+    {
+     "h": "Planning phased enrollment",
+     "p": [
+      "Roll out in phases. Start with administrators and privileged users, then remote access and email, then high-value applications, then everyone. Run a pilot to find usability problems. Communicate early with clear instructions, support hours and deadlines. Prefer registering at a moment of strong identity proof, such as onboarding or from a trusted network, to stop an attacker enrolling their own device on a compromised account. Use conditional access to require MFA more strictly for risky sign-ins, such as new devices or impossible travel, and enforce phishing-resistant methods first for Tier 0 and finance roles."
+     ]
+    },
+    {
+     "h": "Recovery and help desk",
+     "p": [
+      "Recovery is the weak point attackers target, because a social engineered reset bypasses MFA. Issue backup codes or a second registered factor at enrollment. Require identity verification for resets, such as a manager approval or video check, and never reset solely on a caller's claim. Notify the user and the security team when factors change, and delay or limit sensitive actions after a reset. Document break-glass accounts for outages of the MFA service itself, protected by long random passwords and alerts on use. Measure enrollment coverage, method distribution and help desk reset volume."
+     ]
+    },
+    {
+     "h": "Mitigating MFA fatigue",
+     "p": [
+      "MFA fatigue, or push bombing, floods a user with approval requests until they accept one. Defenses include number matching, where the user must type a number shown on the login screen, showing application and location context in the prompt, rate limiting prompts and locking after repeated denials, and alerting when a user denies several prompts or reports one as not theirs. Train users to report unexpected prompts instead of approving them, and make reporting easy. Prefer phishing-resistant methods over push where possible. Review sign-in logs for patterns such as many denials followed by a success from a new location."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Sign-in log excerpt",
+    "text": "2026-04-11T02:14:07Z user=bob@example.com mfa=push result=denied   ip=203.0.113.88\n2026-04-11T02:14:41Z user=bob@example.com mfa=push result=denied   ip=203.0.113.88\n2026-04-11T02:15:12Z user=bob@example.com mfa=push result=denied   ip=203.0.113.88\n2026-04-11T02:15:50Z user=bob@example.com mfa=push result=approved ip=203.0.113.88\nALERT: 3 denials then approval from new location -> block and review"
+   },
+   "example": "A company enrolls 2,000 staff. Phase 1 gives FIDO2 keys to 40 administrators. Phase 2 enrolls remote access users with authenticator apps and number-matching push. Phase 3 covers everyone, with registration only from the office network or after a manager-verified link. The help desk script requires video verification for resets. After deployment, an alert fires on a user who denied three prompts at 2 a.m. and then approved one, and the security team blocks the session and resets the password.",
+   "terms": [
+    {
+     "term": "TOTP",
+     "def": "A time-based one-time password generated every 30 seconds."
+    },
+    {
+     "term": "FIDO2",
+     "def": "Standards for public key authentication using security keys or passkeys."
+    },
+    {
+     "term": "WebAuthn",
+     "def": "The web API that lets sites use FIDO2 credentials."
+    },
+    {
+     "term": "Number matching",
+     "def": "A push approval requiring the user to enter a displayed number."
+    },
+    {
+     "term": "MFA fatigue",
+     "def": "Repeated prompts meant to trick a user into approving."
+    },
+    {
+     "term": "Break-glass account",
+     "def": "An emergency account used if normal authentication fails."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which factor type is the most phishing-resistant?",
+     "options": [
+      "SMS code",
+      "FIDO2 security key",
+      "Email code",
+      "Security question"
+     ],
+     "a": 1,
+     "why": "FIDO2 binds the response to the site origin."
+    },
+    {
+     "q": "What is a common defense against push bombing?",
+     "options": [
+      "Number matching",
+      "Longer logos",
+      "More SMS",
+      "Disabling logs"
+     ],
+     "a": 0,
+     "why": "The user must enter a number shown on the login screen."
+    },
+    {
+     "q": "Who should receive MFA first in a phased rollout?",
+     "options": [
+      "Privileged users",
+      "Guests only",
+      "Printers",
+      "No one"
+     ],
+     "a": 0,
+     "why": "Administrator accounts carry the highest risk."
+    },
+    {
+     "q": "Why is the reset process an attack target?",
+     "options": [
+      "It is rarely used",
+      "A social engineered reset can bypass MFA",
+      "It encrypts data",
+      "It needs a firewall"
+     ],
+     "a": 1,
+     "why": "Weak recovery undermines strong factors."
+    }
+   ],
+   "recap": [
+    "TOTP, push and SMS vary in strength; FIDO2 and WebAuthn resist phishing.",
+    "Roll out in phases starting with admins, and enroll under strong identity proof.",
+    "Secure recovery, and counter fatigue with number matching, limits and alerts."
+   ]
+  },
+  {
+   "title": "Privileged access management",
+   "why": "Privileged accounts can change or destroy everything. PAM limits how long, how widely and how invisibly those powers can be used.",
+   "sections": [
+    {
+     "h": "Vaulting and rotation",
+     "p": [
+      "Privileged access management (PAM) controls accounts with elevated rights, such as domain admins, root, database administrators and cloud owners. A vault stores privileged credentials, encrypted and with strong access control. Users check out a credential through an approval workflow, or the PAM system injects it into a session without revealing it. After use, the credential is rotated automatically, so a stolen copy is soon useless. Shared and default accounts such as root or sa are brought under the vault, and each checkout is tied to a named person and a ticket. Discovery tools find unmanaged privileged accounts."
+     ]
+    },
+    {
+     "h": "Just-in-time elevation",
+     "p": [
+      "Standing privilege, where an account holds admin rights permanently, gives attackers a constant target. Just-in-time (JIT) elevation grants rights only when needed and only for a set time, for example 60 minutes, after a request and approval. Examples include Microsoft Entra Privileged Identity Management, time-limited sudo rules, and cloud role assumption with short sessions. Requests can require MFA, a ticket reference and a justification, and can be scoped to a single system. The goal is zero standing privilege for most administrators, with permanent rights reserved for a few audited accounts."
+     ]
+    },
+    {
+     "h": "Session recording and monitoring",
+     "p": [
+      "A PAM gateway or bastion can proxy SSH, RDP and database sessions, recording keystrokes and screens, and logging commands. Recordings give accountability, speed investigations and support compliance. Real-time monitoring can alert on risky commands or terminate a session. Protect recordings from tampering and restrict who may view them, since they can contain sensitive data. Forward PAM events to the SIEM and correlate them with change tickets so activity without a matching ticket stands out. Note that recording a session does not stop an attack; it must be paired with approvals, least privilege and alerting."
+     ]
+    },
+    {
+     "h": "Break-glass accounts",
+     "p": [
+      "Break-glass or emergency accounts restore access when normal systems, such as the identity provider or PAM vault, are unavailable. Create a small number, such as two, with long random passwords stored offline in a sealed, access-controlled location, excluded from conditional access policies that depend on the failed system but protected by other controls. Alert immediately on any use, and review each use. Test the process periodically, then rotate the credentials after every use. Without monitoring, a break-glass account becomes a silent backdoor, so treat each sign-in as an incident until verified."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "PAM checkout record",
+    "text": "request  : id=PAM-5521 user=ops-carol target=db-prod-01 (192.0.2.90)\napproval : approver=mgr-dave ticket=CHG-1043 duration=60m\nsession  : proxied SSH, recording=on, start=14:02 end=15:01\nrotate   : account dbadmin password rotated at 15:02\nevent    : forwarded to SIEM, matched to CHG-1043"
+   },
+   "example": "A database administrator at example.com previously kept a permanent dbadmin password in a shared spreadsheet. After PAM adoption, the account password is vaulted and unknown to people. When Carol needs to fix an issue she opens ticket CHG-1043, gets approval, and the PAM gateway opens a recorded session for 60 minutes. Afterward the password rotates. Months later an auditor can show who accessed the database, when, why, and what commands ran.",
+   "terms": [
+    {
+     "term": "PAM",
+     "def": "Controls and tools for managing and monitoring privileged accounts."
+    },
+    {
+     "term": "Vault",
+     "def": "Secure store for privileged credentials with controlled checkout."
+    },
+    {
+     "term": "JIT access",
+     "def": "Granting elevated rights only when needed and for a limited time."
+    },
+    {
+     "term": "Standing privilege",
+     "def": "Permanent administrative rights held by an account."
+    },
+    {
+     "term": "Session recording",
+     "def": "Capturing privileged sessions for review and accountability."
+    },
+    {
+     "term": "Break-glass account",
+     "def": "Emergency account used only when normal access fails."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the main benefit of just-in-time elevation?",
+     "options": [
+      "Reduces standing privilege",
+      "Removes MFA",
+      "Disables logging",
+      "Speeds up DNS"
+     ],
+     "a": 0,
+     "why": "Rights exist only for the approved time."
+    },
+    {
+     "q": "Why rotate a credential after each checkout?",
+     "options": [
+      "A copied credential becomes useless",
+      "To use more storage",
+      "To remove audit",
+      "To change usernames"
+     ],
+     "a": 0,
+     "why": "Rotation limits the value of a stolen secret."
+    },
+    {
+     "q": "What must accompany break-glass accounts?",
+     "options": [
+      "Alerts on every use",
+      "No password",
+      "Public sharing",
+      "Daily use"
+     ],
+     "a": 0,
+     "why": "Use must be detected and reviewed."
+    },
+    {
+     "q": "Does session recording alone prevent misuse?",
+     "options": [
+      "Yes, fully",
+      "No, it supports accountability but needs other controls",
+      "Yes, for cloud only",
+      "It replaces MFA"
+     ],
+     "a": 1,
+     "why": "Recording is detective and must pair with preventive controls."
+    }
+   ],
+   "recap": [
+    "Vault privileged credentials, check them out with approval and rotate after use.",
+    "Use just-in-time elevation to approach zero standing privilege.",
+    "Record sessions, forward events to the SIEM, and monitor break-glass accounts closely."
+   ]
+  },
+  {
+   "title": "Service accounts and secrets",
+   "why": "Applications need credentials too, and hardcoded passwords in code or scripts are among the most common and damaging mistakes.",
+   "sections": [
+    {
+     "h": "Why service accounts are risky",
+     "p": [
+      "Service accounts let applications and scripts authenticate without a person. They often have static passwords that never expire, broad permissions, no MFA and no owner, which makes them attractive targets and hard to audit. In AD, weak passwords on service accounts with SPNs enable Kerberoasting. Reduce risk by inventorying each account with an owner and purpose, scoping permissions to least privilege, forbidding interactive logon, and monitoring for use from unusual hosts. Where possible replace them with identities the platform manages, so no human ever knows or types a password."
+     ]
+    },
+    {
+     "h": "Managed identities and short-lived credentials",
+     "p": [
+      "Managed identities remove stored secrets. Windows group Managed Service Accounts (gMSA) have passwords of 240 characters that the domain rotates automatically. In cloud platforms, workloads receive an identity such as an AWS IAM role, an Azure managed identity or a Google Cloud service account bound to the workload, and obtain short-lived tokens from a metadata or token service. Kubernetes can issue projected service account tokens, and OIDC workload identity federation lets pipelines such as CI jobs exchange a signed token for cloud access without long-lived keys. Short lifetimes of minutes to hours limit stolen token value."
+     ]
+    },
+    {
+     "h": "Secrets management and rotation",
+     "p": [
+      "A secrets manager such as HashiCorp Vault, AWS Secrets Manager or Azure Key Vault stores secrets encrypted, authenticates the requesting application, authorizes access by policy, and logs every read. Vault can create dynamic secrets, such as a database user generated on request with a lease of one hour that is revoked on expiry, so no shared password exists. Static secrets should be rotated automatically on a schedule and immediately after suspected exposure. Applications fetch secrets at start or on demand, hold them in memory, and handle rotation without restarting where possible."
+     ]
+    },
+    {
+     "h": "Keeping secrets out of code",
+     "p": [
+      "Never hardcode credentials in source, container images, configuration committed to Git, or chat. Once committed, a secret persists in history and should be treated as compromised and rotated. Use pre-commit and CI secret scanning, for example gitleaks or GitHub secret scanning, to catch leaks. Inject secrets at runtime through the platform's secret store, mounted files or a Vault agent, and note that plain environment variables can leak through process listings, crash dumps and logs, so apply care. Separate secrets per environment, grant each application access to only its own secrets, and audit reads for anomalies."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Before and after",
+    "text": "# BEFORE (bad)\nDB_PASS = \"Summer2025!\"          # hardcoded, in Git history\n# AFTER\nimport hvac, os\nc = hvac.Client(url=\"https://vault.example.com:8200\")\nc.auth.approle.login(role_id=os.environ[\"ROLE_ID\"], secret_id=os.environ[\"SECRET_ID\"])\ncred = c.secrets.database.generate_credentials(\"orders-ro\")  # 1h lease\ndb_user, db_pass = cred[\"data\"][\"username\"], cred[\"data\"][\"password\"]"
+   },
+   "example": "A nightly backup script on host 192.0.2.70 contains a domain administrator password. A review finds it in a Git repository, so the password is rotated at once and treated as exposed. The team replaces the account with a gMSA limited to the backup share, removes the secret from history, adds gitleaks to CI, and retrieves the one remaining database secret from Vault at runtime. The job now has no human-known password and only the rights it needs.",
+   "terms": [
+    {
+     "term": "Service account",
+     "def": "A non-human identity used by applications or scripts."
+    },
+    {
+     "term": "gMSA",
+     "def": "Group Managed Service Account with automatically rotated password."
+    },
+    {
+     "term": "Managed identity",
+     "def": "A platform-provided workload identity with no stored secret."
+    },
+    {
+     "term": "Dynamic secret",
+     "def": "A credential generated on demand with a limited lease."
+    },
+    {
+     "term": "Secret scanning",
+     "def": "Automated detection of credentials in code and repositories."
+    },
+    {
+     "term": "Workload identity federation",
+     "def": "Exchanging a trusted token for cloud access without static keys."
+    }
+   ],
+   "check": [
+    {
+     "q": "What should you do after discovering a secret committed to Git?",
+     "options": [
+      "Delete the file only",
+      "Treat it as compromised and rotate it",
+      "Ignore it",
+      "Make the repo private only"
+     ],
+     "a": 1,
+     "why": "History retains the secret, so it must be rotated."
+    },
+    {
+     "q": "What is a benefit of a gMSA?",
+     "options": [
+      "Passwords rotate automatically and are not known to people",
+      "It disables Kerberos",
+      "It needs MFA prompts",
+      "It is always interactive"
+     ],
+     "a": 0,
+     "why": "The domain manages a long random password."
+    },
+    {
+     "q": "What does a dynamic secret provide?",
+     "options": [
+      "A short-lived credential created on request",
+      "A permanent shared password",
+      "A public key",
+      "An email alias"
+     ],
+     "a": 0,
+     "why": "Leases limit exposure and are revoked at expiry."
+    },
+    {
+     "q": "Which is the best way to give a cloud workload access without long-lived keys?",
+     "options": [
+      "Managed identity or workload identity federation",
+      "Hardcoded access key",
+      "Shared admin password",
+      "Public bucket"
+     ],
+     "a": 0,
+     "why": "Short-lived tokens replace stored keys."
+    }
+   ],
+   "recap": [
+    "Inventory service accounts, scope them tightly and prevent interactive logon.",
+    "Prefer managed identities, gMSA and short-lived tokens over static credentials.",
+    "Use a secrets manager with rotation and scanning, and never hardcode or commit secrets."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Decode a SAML assertion",
+   "sim": "web-proxy",
+   "scenario": "A web proxy has intercepted a SAML POST to https://app.example.com/saml/acs during a security test of a fictional training app. Support reports a user could log in as another person. You must inspect the decoded response and identify why the SP accepted it.",
+   "objective": "Spot the missing signature validation and the incorrect audience in the assertion.",
+   "steps": [
+    {
+     "do": "Open the intercepted POST and select the SAMLResponse parameter.",
+     "see": "Base64 value shown, 2,314 characters."
+    },
+    {
+     "do": "Click Decode.",
+     "see": "XML Response displayed with one Assertion."
+    },
+    {
+     "do": "Inspect the Issuer element.",
+     "see": "Issuer: https://idp.example.com/metadata (expected)."
+    },
+    {
+     "do": "Look for a ds:Signature element.",
+     "see": "No ds:Signature found in Response or Assertion."
+    },
+    {
+     "do": "Check Conditions and AudienceRestriction.",
+     "see": "Audience: https://other.example.com/sp (expected https://app.example.com/sp)."
+    },
+    {
+     "do": "Check NotOnOrAfter against the clock.",
+     "see": "NotOnOrAfter: 09:05:00Z; current 09:41:12Z. Expired."
+    },
+    {
+     "do": "Open the SP validation log.",
+     "see": "Log: signature check skipped (config verify_signature=false)."
+    },
+    {
+     "do": "Click Submit findings.",
+     "see": "Findings recorded: 3 defects."
+    }
+   ],
+   "answer": "The assertion has no signature, its audience names a different service provider, and it is past NotOnOrAfter, yet the SP accepted it because signature verification is disabled. Enable signature verification, enforce audience, recipient and time checks, and add replay detection.",
+   "hint": "Check signature, audience and time before looking at attributes."
+  },
+  {
+   "title": "Inspect an OIDC token",
+   "sim": "code-editor",
+   "scenario": "A single-page app validates ID tokens with a small JavaScript function. A tester reports that a token with header alg set to none was accepted. The editor shows the validation code and a decoded token. You must find and fix the validation bug.",
+   "objective": "Correct the token validation so it enforces signature, algorithm and claim checks.",
+   "steps": [
+    {
+     "do": "Open validate.js and the sample token.",
+     "see": "Token header: {alg:none}; payload shows iss, aud, exp, nonce."
+    },
+    {
+     "do": "Run the existing test suite.",
+     "see": "FAIL: unsigned token accepted (expected rejection)."
+    },
+    {
+     "do": "Read the verifyToken function.",
+     "see": "Line 12: algorithm taken from the token header: jwt.verify(t, key, {algorithms: [header.alg]})."
+    },
+    {
+     "do": "Change to a fixed allow list: algorithms: ['RS256'].",
+     "see": "Line 12 updated."
+    },
+    {
+     "do": "Add checks: iss must equal https://login.example.com and aud must contain client-web-01.",
+     "see": "Lines 14-15 added."
+    },
+    {
+     "do": "Add checks for exp and for nonce equal to the stored value.",
+     "see": "Lines 16-17 added."
+    },
+    {
+     "do": "Run the test suite again.",
+     "see": "PASS 8 of 8: alg none rejected, wrong aud rejected, expired rejected, wrong nonce rejected."
+    }
+   ],
+   "answer": "The bug was letting the token header choose the verification algorithm, which allowed alg none. The fix uses a fixed RS256 allow list with JWKS keys and verifies iss, aud, exp and nonce, so unsigned or mismatched tokens are rejected.",
+   "hint": "Never take the algorithm from the token you are verifying."
+  },
+  {
+   "title": "MFA rollout plan",
+   "sim": "scenario",
+   "scenario": "Example Corp has 1,500 staff: 30 administrators, 120 finance users, 200 remote contractors and 1,150 general staff. The help desk is small, and a recent phishing campaign targeted finance. You must choose factors per group, order enrollment and define safe recovery.",
+   "objective": "Build a phased MFA plan with appropriate factors and a secure recovery process.",
+   "steps": [
+    {
+     "do": "Assign factors to Administrators.",
+     "see": "Option chosen: FIDO2 security keys. Rated: phishing-resistant."
+    },
+    {
+     "do": "Assign factors to Finance.",
+     "see": "Option chosen: FIDO2 or passkeys. Rated: strong, addresses recent phishing."
+    },
+    {
+     "do": "Assign factors to Contractors.",
+     "see": "Option chosen: authenticator app with number matching. Rated: acceptable."
+    },
+    {
+     "do": "Assign factors to General staff.",
+     "see": "Option chosen: authenticator app, passkeys optional. Rated: acceptable."
+    },
+    {
+     "do": "Set enrollment order: Admins, Finance, Contractors, General.",
+     "see": "Order accepted: highest risk first."
+    },
+    {
+     "do": "Set recovery: backup codes at enrollment, manager and video verification for resets.",
+     "see": "Recovery rated: strong."
+    },
+    {
+     "do": "Add alert: 3 denied prompts followed by an approval.",
+     "see": "Fatigue detection enabled."
+    },
+    {
+     "do": "Click Evaluate.",
+     "see": "Score 95: SMS avoided, privileged users first, recovery verified."
+    }
+   ],
+   "answer": "Use FIDO2 keys for administrators and finance, authenticator apps with number matching for others, enroll highest risk first, protect recovery with identity verification, and alert on repeated denials. Avoid SMS where possible.",
+   "hint": "Match factor strength to the risk of the group."
+  },
+  {
+   "title": "Audit AD groups",
+   "sim": "file-explorer",
+   "scenario": "You are given an exported view of corp.example.com groups in a file explorer. Domain Admins should contain only a few Tier 0 accounts, but an audit suggests stale and nested memberships grant extra privilege. You must browse and flag problems.",
+   "objective": "Find stale admins and nested privilege paths and flag them for removal.",
+   "steps": [
+    {
+     "do": "Open Groups > Domain Admins.",
+     "see": "Members: adm-alice, adm-bob, svc-backup, jdoe-old, group: IT-Helpdesk."
+    },
+    {
+     "do": "Open the account properties of jdoe-old.",
+     "see": "Last logon: 412 days ago. Status: enabled."
+    },
+    {
+     "do": "Flag jdoe-old as stale admin.",
+     "see": "Flag added."
+    },
+    {
+     "do": "Open svc-backup.",
+     "see": "Service account with password never expires, last set 5 years ago. SPN present."
+    },
+    {
+     "do": "Flag svc-backup as over-privileged service account.",
+     "see": "Flag added with note: use gMSA with limited rights."
+    },
+    {
+     "do": "Open IT-Helpdesk and view its members.",
+     "see": "Members include nested group Contractors-Temp (14 users)."
+    },
+    {
+     "do": "Trace the path.",
+     "see": "Path: Contractors-Temp -> IT-Helpdesk -> Domain Admins. 14 users have domain admin."
+    },
+    {
+     "do": "Flag the nested path and submit.",
+     "see": "3 findings submitted."
+    }
+   ],
+   "answer": "Three findings: jdoe-old is an enabled stale admin, svc-backup is an over-privileged service account with an old never-expiring password, and nested groups give 14 temporary contractors Domain Admin rights through IT-Helpdesk. Remove each.",
+   "hint": "Expand every nested group; effective membership is what counts."
+  },
+  {
+   "title": "Remove hardcoded secrets",
+   "sim": "code-editor",
+   "scenario": "A deployment script backup.py at example.com contains a database password and an API key in plain text and is stored in a Git repository. You must remove them and read secrets safely at runtime using environment-injected values and a Vault lookup.",
+   "objective": "Replace hardcoded credentials with injected secrets and a Vault lookup, and ensure scanning catches regressions.",
+   "steps": [
+    {
+     "do": "Open backup.py.",
+     "see": "Line 4: DB_PASS = 'Summer2025!'  Line 5: API_KEY = 'ak_live_example123'."
+    },
+    {
+     "do": "Run the secret scanner.",
+     "see": "2 findings: generic password, API key."
+    },
+    {
+     "do": "Replace DB_PASS with a Vault lookup using hvac and an AppRole.",
+     "see": "Code now calls client.secrets.kv.v2.read_secret_version(path='backup/db')."
+    },
+    {
+     "do": "Read ROLE_ID and SECRET_ID from environment variables injected by the platform.",
+     "see": "os.environ['ROLE_ID'] and os.environ['SECRET_ID'] in use."
+    },
+    {
+     "do": "Remove API_KEY and read it from the same Vault path.",
+     "see": "No literal secrets remain in the file."
+    },
+    {
+     "do": "Run the scanner again.",
+     "see": "0 findings in working tree. Warning: 2 findings in Git history."
+    },
+    {
+     "do": "Click Rotate exposed secrets.",
+     "see": "Both old secrets marked revoked; new values issued."
+    }
+   ],
+   "answer": "The script should hold no literal secrets: it authenticates to Vault with injected AppRole values and reads the database password and key at runtime. Because the old values were committed, rotate them. Add pre-commit and CI scanning to catch regressions.",
+   "hint": "Removing a secret from the file is not enough if it was committed; rotate it."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which port does Kerberos use by default?",
+   "options": [
+    "88",
+    "443",
+    "161",
+    "514"
+   ],
+   "a": 0,
+   "why": "Kerberos uses port 88."
+  },
+  {
+   "q": "Why should Tier 0 admin accounts avoid workstation logons?",
+   "options": [
+    "Credentials can be stolen from less trusted machines",
+    "It blocks LDAP",
+    "It breaks DNS",
+    "It disables GPO"
+   ],
+   "a": 0,
+   "why": "Tiering contains credential theft."
+  },
+  {
+   "q": "Which model grants access based on user, resource and context attributes?",
+   "options": [
+    "ABAC",
+    "Role list only",
+    "ACL on files only",
+    "Discretionary only"
+   ],
+   "a": 0,
+   "why": "ABAC evaluates attributes in policy."
+  },
+  {
+   "q": "Which SAML check ensures the assertion was meant for this application?",
+   "options": [
+    "Audience restriction",
+    "The Issuer color",
+    "NameID length",
+    "ACS file size"
+   ],
+   "a": 0,
+   "why": "Audience binds the assertion to the SP."
+  },
+  {
+   "q": "In SAML, why is an unsigned response dangerous?",
+   "options": [
+    "Anyone could alter the NameID",
+    "It uses too much bandwidth",
+    "It breaks TLS",
+    "It changes DNS"
+   ],
+   "a": 0,
+   "why": "Without a signature, tampering is undetectable."
+  },
+  {
+   "q": "In OIDC, the nonce is used to:",
+   "options": [
+    "Bind the ID token to the original request and prevent replay",
+    "Encrypt the token",
+    "Hash the password",
+    "Select the scope"
+   ],
+   "a": 0,
+   "why": "The client compares nonce with the value it sent."
+  },
+  {
+   "q": "Which ID token claim must contain your client_id?",
+   "options": [
+    "aud",
+    "kid",
+    "jti",
+    "scope"
+   ],
+   "a": 0,
+   "why": "aud names the intended audience."
+  },
+  {
+   "q": "Which MFA method is most phishing-resistant?",
+   "options": [
+    "FIDO2 or WebAuthn",
+    "SMS",
+    "Email OTP",
+    "Security questions"
+   ],
+   "a": 0,
+   "why": "WebAuthn credentials are origin-bound."
+  },
+  {
+   "q": "What is the best description of just-in-time privilege?",
+   "options": [
+    "Admin rights granted temporarily when needed",
+    "Permanent admin for all",
+    "Shared password",
+    "Disabled MFA"
+   ],
+   "a": 0,
+   "why": "JIT limits standing privilege."
+  },
+  {
+   "q": "What must you do with a secret that was committed to Git?",
+   "options": [
+    "Rotate it",
+    "Leave it",
+    "Rename the file",
+    "Tag the commit"
+   ],
+   "a": 0,
+   "why": "Git history keeps it, so treat it as exposed."
+  }
+ ]
+}

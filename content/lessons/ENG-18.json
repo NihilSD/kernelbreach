@@ -1,0 +1,540 @@
+{
+ "code": "ENG-18",
+ "intro": "This capstone brings the whole path together. You will act as an engineer reviewing a fictional company, Harbor Goods, from the outside in. You will threat model its architecture, find gaps in identity, network, cloud and data, and rank the findings by risk, effort and owner. Finally you will turn the plan into a 12-month roadmap with metrics and present it to leadership, including the risk that remains. These are the skills employers expect from a security engineer who can move from analysis to action.",
+ "lessons": [
+  {
+   "title": "Design review of the company",
+   "why": "A capstone starts by looking at the whole system the way an attacker and an auditor would, before anyone proposes a single fix.",
+   "sections": [
+    {
+     "h": "Scope and threat model",
+     "p": [
+      "A design review begins with scope. Our fictional company, Harbor Goods, sells outdoor gear through a web shop at shop.example.com, runs a small office network, stores customer data in a cloud database and employs 120 people. Draw a data flow diagram showing users, the web tier, the application, the database, the office, and the identity provider. Mark trust boundaries, the lines where data crosses from a less trusted zone to a more trusted one, such as internet to web tier. Then apply STRIDE to each element and flow: spoofing, tampering, repudiation, information disclosure, denial of service and elevation of privilege. The output is a list of plausible threats, not yet a list of fixes."
+     ]
+    },
+    {
+     "h": "Identity gaps",
+     "p": [
+      "Identity is usually the richest source of findings. At Harbor Goods, the review finds that multi-factor authentication covers only email, while the VPN and the cloud console accept passwords alone. Three administrators share one cloud root-level account. Former contractors still have active accounts, and a service account used by the build pipeline has an access key that never expires and holds administrator rights. Each gap maps to a known failure: weak authentication, no accountability, stale access and excessive privilege. Record the evidence for each finding, such as an export of users with last-login dates, so that the claim can be checked rather than argued."
+     ]
+    },
+    {
+     "h": "Network and cloud gaps",
+     "p": [
+      "On the network side the office uses one flat segment, so a compromised laptop can reach printers, file servers and the badge system. A firewall rule allows RDP on TCP 3389 from any address to a jump host. In the cloud, a storage bucket holding product exports is publicly readable, security groups allow SSH on TCP 22 from 0.0.0.0/0, and virtual machines still permit the older metadata service version that is vulnerable to request-forgery abuse. Outbound traffic is unrestricted, so malware could reach any server on the internet. Compare each setting with a baseline such as the CIS benchmarks for your cloud provider."
+     ]
+    },
+    {
+     "h": "Data gaps",
+     "p": [
+      "Data findings ask where sensitive information lives, how it is protected and whether it can be recovered. Harbor Goods has never classified its data, so payment-related logs, customer addresses and internal pricing sit in the same folders. Database snapshots are unencrypted, secrets such as API tokens appear in a code repository history, and nightly backups are stored in the same account as production, where a stolen admin key could delete them. Logging exists but is kept for only seven days. Note the regulatory angle too: card data brings PCI DSS duties, and customer personal data may bring privacy law obligations."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Finding record format",
+    "text": "ID: F-07\nArea: Identity\nFinding: Cloud admin account shared by 3 people\nEvidence: IAM export 2026-03-02, 1 user, 3 owners\nThreat: Spoofing / no accountability\nImpact: High  Likelihood: Medium\nTag: access-control, cloud"
+   },
+   "example": "A reviewer walks through the Harbor Goods diagram with the engineering lead. At the arrow from the internet to the web tier she asks what authenticates the caller, and at the arrow from the web tier to the database she asks what limits the queries. The second answer is that the application connects as a database owner. She writes two findings: excessive privilege on the database account, and a public bucket seen in the cloud inventory. Each finding carries evidence, an affected asset and a STRIDE category, ready for the prioritization step.",
+   "terms": [
+    {
+     "term": "Trust boundary",
+     "def": "A line in a design where data moves between zones of different trust and controls must be enforced."
+    },
+    {
+     "term": "STRIDE",
+     "def": "A threat categorization: spoofing, tampering, repudiation, information disclosure, denial of service, elevation of privilege."
+    },
+    {
+     "term": "Data flow diagram",
+     "def": "A drawing of processes, stores, actors and the data moving between them, used for threat modeling."
+    },
+    {
+     "term": "Least privilege",
+     "def": "Giving an account only the access it needs for its task."
+    },
+    {
+     "term": "Flat network",
+     "def": "A network with little or no segmentation, letting one compromised host reach many others."
+    },
+    {
+     "term": "Baseline",
+     "def": "An agreed secure configuration used as a yardstick, such as a CIS benchmark."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the main purpose of marking trust boundaries on a data flow diagram?",
+     "options": [
+      "To show where controls must be enforced as data changes trust level",
+      "To count network cables",
+      "To choose the backup schedule",
+      "To list every employee"
+     ],
+     "a": 0,
+     "why": "Boundaries identify points where authentication, validation and filtering are needed."
+    },
+    {
+     "q": "Which finding best matches the STRIDE category of elevation of privilege?",
+     "options": [
+      "A missing company logo",
+      "A web page that loads slowly",
+      "A pipeline service account holding administrator rights it does not need",
+      "A printer out of toner"
+     ],
+     "a": 2,
+     "why": "Excess rights let a compromised account do far more than intended."
+    },
+    {
+     "q": "Why should each finding include evidence?",
+     "options": [
+      "Because auditors forbid opinions",
+      "To make the report longer",
+      "So the claim can be verified and not just argued",
+      "To avoid assigning owners"
+     ],
+     "a": 2,
+     "why": "Evidence such as exports and screenshots makes findings credible and reproducible."
+    },
+    {
+     "q": "A bucket holding exports is publicly readable. Which goal is most directly at risk?",
+     "options": [
+      "Confidentiality",
+      "Availability of the printers",
+      "Password length",
+      "Physical safety"
+     ],
+     "a": 0,
+     "why": "Public read access exposes data to anyone, which is a confidentiality failure."
+    }
+   ],
+   "recap": [
+    "Start with scope, a data flow diagram and trust boundaries.",
+    "Walk identity, network, cloud and data areas looking for gaps against a baseline.",
+    "Record every finding with evidence, asset, threat and impact."
+   ]
+  },
+  {
+   "title": "Hardening plan and prioritization",
+   "why": "A long list of findings helps nobody until it is ranked, owned and scheduled against real budget and staff limits.",
+   "sections": [
+    {
+     "h": "Scoring findings",
+     "p": [
+      "Turn each finding into a risk by judging impact and likelihood. A simple three-level scale, low, medium and high, is often enough, while larger programs use CVSS for vulnerabilities and a numeric matrix such as 1 to 5 on each axis. Impact asks what is lost if it happens: money, regulated data, uptime or reputation. Likelihood asks how easy it is to exploit and whether the weakness is exposed to the internet. A public bucket with customer exports is high impact and high likelihood. A missing sticker on a server room door is neither. Write the reasoning down so reviewers can challenge the score."
+     ]
+    },
+    {
+     "h": "Effort, owners and quick wins",
+     "p": [
+      "Next add effort and an owner. Effort can be hours, days or quarters, and an owner is a named person or team accountable for delivery, not a vague department. The most valuable group is quick wins: high risk reduction for low effort. At Harbor Goods these include closing public access on the bucket, restricting SSH and RDP to known addresses such as 203.0.113.10, enforcing multi-factor authentication on the VPN and cloud console, and disabling stale accounts. Larger items, such as network segmentation or a new logging platform, need projects with milestones and dependencies, so they are scheduled rather than rushed."
+     ]
+    },
+    {
+     "h": "Sequencing under constraints",
+     "p": [
+      "Sequence work by risk reduction per unit of cost, then adjust for dependencies. You cannot detect misuse well without logging, and you cannot segment safely before you know which systems talk to each other. Also consider controls that cover several findings at once: a central identity provider with MFA fixes weak authentication, shared accounts and stale access together. Budget and staff are fixed, so something will be deferred. State the trade-off openly: for example, defer the new endpoint tool a quarter in order to fund immutable backups that protect against ransomware, the threat with the largest impact."
+     ]
+    },
+    {
+     "h": "Defense in depth and accepting risk",
+     "p": [
+      "A good plan layers controls so that one failure is not fatal: prevent with hardening, detect with logging and alerts, and recover with tested backups. Some risks will not be fixed. Leadership may accept, transfer or avoid a risk, but only through a documented decision with an owner and an expiry date for review. A risk accepted silently is just an unmanaged risk. Plans should also define how to verify each fix, such as a repeat scan or configuration check, so that a ticket closed means a weakness truly removed."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Prioritized plan excerpt",
+    "text": "Rank Risk   Effort  Owner     Item\n1    High   2 h     CloudOps  Block public access on bucket\n2    High   1 d     NetOps    Limit SSH/RDP to 203.0.113.10\n3    High   3 d     IT        MFA on VPN and console\n4    High   2 w     Platform  Immutable offsite backups\n5    Med    1 q     NetOps    Segment office network"
+   },
+   "example": "The Harbor Goods team has a budget for three projects this quarter. The findings list has twenty-two items. The reviewer groups them: four quick wins that need under a week in total, three medium projects, and several long ones. She funds all quick wins first, then selects immutable backups and central MFA because they reduce the most risk across several findings. Network segmentation is scheduled for the next quarter, with its dependency, an asset inventory, started now. The deferral and its reason are written into the plan.",
+   "terms": [
+    {
+     "term": "Risk",
+     "def": "The combination of how likely a harmful event is and how bad its impact would be."
+    },
+    {
+     "term": "Quick win",
+     "def": "A fix with large risk reduction for little effort."
+    },
+    {
+     "term": "Risk acceptance",
+     "def": "A documented decision to live with a risk, with an owner and review date."
+    },
+    {
+     "term": "Dependency",
+     "def": "Work that must be done before another task can safely start."
+    },
+    {
+     "term": "Residual risk",
+     "def": "The risk that remains after controls are applied."
+    },
+    {
+     "term": "CVSS",
+     "def": "A standard scoring system for the severity of vulnerabilities."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which finding is the best quick win?",
+     "options": [
+      "Blocking public access on a bucket holding customer exports",
+      "Replacing the whole network",
+      "Buying a new SIEM",
+      "Writing a five-year strategy"
+     ],
+     "a": 0,
+     "why": "It cuts a high risk in hours with little cost."
+    },
+    {
+     "q": "Why does a plan need a named owner for each item?",
+     "options": [
+      "Owners are required by TCP",
+      "Owners set the risk scores",
+      "To lengthen the document",
+      "So someone is accountable for delivery"
+     ],
+     "a": 3,
+     "why": "Without accountable owners, items stall."
+    },
+    {
+     "q": "Why might logging be scheduled before segmentation?",
+     "options": [
+      "Segmentation is illegal",
+      "Segmentation depends on knowing which systems communicate, which logs help reveal",
+      "Logging removes vulnerabilities",
+      "Logs are cheaper than firewalls in every case"
+     ],
+     "a": 1,
+     "why": "Dependencies shape sequence; visibility informs safe segmentation."
+    },
+    {
+     "q": "What makes a risk acceptance valid?",
+     "options": [
+      "Closing the ticket without a fix",
+      "A verbal comment in chat",
+      "A documented decision with owner and review date",
+      "An engineer ignoring the ticket"
+     ],
+     "a": 2,
+     "why": "Formal acceptance keeps the risk visible and reviewed."
+    }
+   ],
+   "recap": [
+    "Score by impact and likelihood and record the reasoning.",
+    "Add effort and owner, fund quick wins first, then high-leverage projects.",
+    "Document deferred items and accepted risks and verify each fix."
+   ]
+  },
+  {
+   "title": "Roadmap and presentation",
+   "why": "Findings only change a company when leadership understands them, so the final skill is communicating risk, progress and a realistic timeline.",
+   "sections": [
+    {
+     "h": "Know the audience",
+     "p": [
+      "Executives, engineers and auditors need different views of the same plan. Leaders want to know what could hurt the business, what you recommend, what it costs and what decision you need. Open with a one-page summary: top three risks in business terms, such as 'a stolen admin password could let an attacker delete our backups and halt sales for days', then the recommended spend. Avoid unexplained acronyms. Engineers receive the detailed finding records and technical steps. Auditors want evidence and control mapping, for example to ISO 27001 or the NIST Cybersecurity Framework functions of identify, protect, detect, respond and recover."
+     ]
+    },
+    {
+     "h": "Metrics that mean something",
+     "p": [
+      "Choose a small set of metrics that show risk falling, not just activity. Useful examples are the percentage of accounts protected by MFA, the count of internet-exposed administrative ports, the share of critical vulnerabilities patched within 14 days, mean time to detect and respond, and the proportion of backups tested by a successful restore. Give each a baseline and target, for instance MFA coverage from 40 percent to 100 percent. Avoid vanity numbers such as the count of blocked scans, which rise with internet noise and say little about safety. Report trends quarterly so the board sees direction."
+     ]
+    },
+    {
+     "h": "The 12-month roadmap",
+     "p": [
+      "A roadmap groups work in time horizons. Months one to three hold quick wins and urgent fixes: exposed storage, remote-access hardening, MFA and admin cleanup. Months four to six deliver foundations such as central logging with alerts, immutable backups, and an asset inventory. Months seven to nine address structural change, including network segmentation and secrets management. Months ten to twelve cover maturity: an incident response exercise, a repeat of the design review and a penetration test. Show dependencies, owners and milestones, and keep a reserve for surprises, because new findings will arrive during the year."
+     ]
+    },
+    {
+     "h": "Residual risk and honest limits",
+     "p": [
+      "End by stating what remains. After the roadmap, Harbor Goods will still face phishing, supplier compromise and unknown flaws. Present residual risk plainly, with the controls that limit its impact and the decisions leaders must accept. Anticipate questions: why this order, what if budget is cut, how will we know it worked. Prepare a fallback ranking if funds shrink. Close with the ask, a date for the first review and the metrics you will report. A credible presentation neither promises zero risk nor frightens people into inaction; it shows a managed path."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Metric table sample",
+    "text": "Metric                         Now   Target(12m)\nMFA coverage (all users)       40%   100%\nExposed admin ports            4     0\nCritical vulns patched in 14d  55%   95%\nBackup restores tested/qtr     0     4\nMean time to detect            9 d   1 d"
+   },
+   "example": "The Harbor Goods review lead presents for ten minutes to the leadership team. Slide one states that a single stolen password could halt sales and names three risks in plain words. Slide two shows the roadmap in four quarters with the quick wins in the first. Slide three shows five metrics with baselines and targets. The final slide lists residual risks, one accepted risk with an owner, and the request to approve the budget by Friday. The finance director asks what is cut if funds fall short, and the fallback list is ready.",
+   "terms": [
+    {
+     "term": "Roadmap",
+     "def": "A time-phased plan showing what will be delivered, in what order and by whom."
+    },
+    {
+     "term": "Residual risk",
+     "def": "Risk remaining after planned controls are in place."
+    },
+    {
+     "term": "Mean time to detect",
+     "def": "The average time between an incident beginning and its discovery."
+    },
+    {
+     "term": "NIST CSF",
+     "def": "A framework organizing security outcomes into identify, protect, detect, respond and recover."
+    },
+    {
+     "term": "Baseline metric",
+     "def": "The starting measurement used to show improvement."
+    },
+    {
+     "term": "Vanity metric",
+     "def": "A number that looks impressive but does not reflect real risk reduction."
+    }
+   ],
+   "check": [
+    {
+     "q": "What should an executive summary lead with?",
+     "options": [
+      "Top risks in business terms and the decision needed",
+      "Every CVE number",
+      "A list of tools",
+      "Raw port scan output"
+     ],
+     "a": 0,
+     "why": "Leaders need impact, recommendation and ask."
+    },
+    {
+     "q": "Which is the strongest metric of improvement?",
+     "options": [
+      "Number of scans blocked",
+      "Pages in the report",
+      "Number of meetings held",
+      "MFA coverage rising from 40 to 100 percent"
+     ],
+     "a": 3,
+     "why": "It measures an actual control and has a baseline and target."
+    },
+    {
+     "q": "Where would segmentation likely appear on the roadmap?",
+     "options": [
+      "Months seven to nine as structural change after inventory and logging",
+      "Never",
+      "After the audit ends",
+      "Only in month one"
+     ],
+     "a": 0,
+     "why": "It depends on earlier visibility work and needs more time."
+    },
+    {
+     "q": "Why present residual risk?",
+     "options": [
+      "It reduces budget",
+      "It cancels the plan",
+      "It shows honestly what remains and what leaders accept",
+      "It replaces metrics"
+     ],
+     "a": 2,
+     "why": "No plan removes all risk; transparency builds trust."
+    }
+   ],
+   "recap": [
+    "Tailor the message to leaders, engineers and auditors.",
+    "Use baseline-and-target metrics that show falling risk.",
+    "Present a phased 12-month roadmap, residual risk and a clear ask."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Review the architecture",
+   "sim": "diagram-builder",
+   "scenario": "You are given the Harbor Goods architecture diagram: internet, web tier, application servers, a cloud database, an office network with a VPN, a backup store and an identity provider. Several components hide weaknesses such as public exposure, shared accounts and missing segmentation. Your task is to inspect each component and flag problems directly on the diagram, then tag each flag with a risk level so that the later planning exercise has a ranked starting list.",
+   "objective": "Mark at least six weaknesses on the diagram and tag each as high, medium or low risk.",
+   "steps": [
+    {
+     "do": "Open the diagram and list its components.",
+     "see": "Nine nodes and the trust boundaries appear."
+    },
+    {
+     "do": "Select the storage bucket node and read its settings.",
+     "see": "Public read access is enabled."
+    },
+    {
+     "do": "Add a weakness marker on the bucket with category data.",
+     "see": "A marker appears and asks for a risk tag."
+    },
+    {
+     "do": "Tag the bucket marker high.",
+     "see": "The marker turns red."
+    },
+    {
+     "do": "Inspect the VPN node and the identity provider.",
+     "see": "VPN accepts password only; MFA covers email only."
+    },
+    {
+     "do": "Mark the VPN as identity weakness, tag high.",
+     "see": "A second red marker appears."
+    },
+    {
+     "do": "Mark the flat office segment as medium and unencrypted snapshots as medium.",
+     "see": "Two amber markers appear."
+    },
+    {
+     "do": "Submit the diagram.",
+     "see": "Score shows markers matched against the hidden weakness list."
+    }
+   ],
+   "answer": "High: public bucket, password-only VPN and cloud console, backups in production account. Medium: flat office network, unencrypted snapshots, short log retention. Low: missing asset labels. Tag by impact and exposure, with internet-facing data and authentication weaknesses ranked highest.",
+   "hint": "Look first at anything reachable from the internet and at every login that lacks MFA."
+  },
+  {
+   "title": "Build the plan",
+   "sim": "scenario",
+   "scenario": "Harbor Goods has a fixed budget of ten work units this quarter. A list of remediation items is offered, each with cost, risk reduction and dependencies: bucket lockdown, SSH and RDP restriction, MFA rollout, immutable backups, network segmentation, central logging and a new endpoint tool. You must choose and order items within budget and write a short justification for what is deferred. The simulator scores risk reduced and the quality of your reasoning.",
+   "objective": "Select and sequence remediation items within ten units and justify the deferred items.",
+   "steps": [
+    {
+     "do": "Read the item list with costs and risk reductions.",
+     "see": "Seven items show cost between 1 and 5 units."
+    },
+    {
+     "do": "Select bucket lockdown (1 unit).",
+     "see": "Budget used: 1 of 10."
+    },
+    {
+     "do": "Select SSH and RDP restriction (1 unit).",
+     "see": "Budget used: 2 of 10."
+    },
+    {
+     "do": "Select MFA rollout (2 units).",
+     "see": "Budget used: 4 of 10; identity risk bar drops."
+    },
+    {
+     "do": "Select immutable backups (3 units).",
+     "see": "Budget used: 7 of 10; ransomware impact drops."
+    },
+    {
+     "do": "Try adding segmentation (5 units).",
+     "see": "Warning: over budget and depends on an inventory."
+    },
+    {
+     "do": "Select central logging (3 units) instead.",
+     "see": "Budget used: 10 of 10."
+    },
+    {
+     "do": "Write the justification for deferring segmentation and the endpoint tool.",
+     "see": "Plan accepted; score shown."
+    }
+   ],
+   "answer": "Fund the four quick wins and immutable backups, then logging, for ten units. Defer segmentation, which depends on an inventory and exceeds budget, and the endpoint tool, which has lower risk reduction. Justify by risk reduction per cost and dependencies, and schedule deferred items for next quarter.",
+   "hint": "Fund cheap high-risk fixes first, then pick the large item that reduces the worst impact."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "In a design review, what is the first step before listing fixes?",
+   "options": [
+    "Run an exploit",
+    "Rewrite policies",
+    "Define scope and draw the data flow with trust boundaries",
+    "Buy security tools"
+   ],
+   "a": 2,
+   "why": "Scope and a model of the system make findings systematic."
+  },
+  {
+   "q": "A review finds three admins sharing one cloud account. Which problems does this cause?",
+   "options": [
+    "Faster backups",
+    "Lower attack surface",
+    "No accountability and weak access control",
+    "Better logging"
+   ],
+   "a": 2,
+   "why": "Shared accounts cannot be attributed to a person."
+  },
+  {
+   "q": "Which firewall rule is the most concerning on a jump host?",
+   "options": [
+    "RDP 3389 allowed from any address",
+    "SSH allowed from 203.0.113.10",
+    "HTTPS from the load balancer",
+    "DNS to the resolver"
+   ],
+   "a": 0,
+   "why": "Open RDP from anywhere is a common attack path."
+  },
+  {
+   "q": "Which backup design best resists ransomware?",
+   "options": [
+    "Immutable copies stored offsite in a separate account",
+    "Backups with no restore tests",
+    "One copy on a shared drive",
+    "Backups on the same server"
+   ],
+   "a": 0,
+   "why": "Separation and immutability stop an attacker deleting copies."
+  },
+  {
+   "q": "How should risk be scored in a simple plan?",
+   "options": [
+    "By alphabetical order",
+    "Impact and likelihood with written reasoning",
+    "By the length of the finding",
+    "By who found it"
+   ],
+   "a": 1,
+   "why": "Both factors are needed and reasoning allows challenge."
+  },
+  {
+   "q": "What defines a quick win?",
+   "options": [
+    "Lowest cost regardless of value",
+    "High risk reduction for low effort",
+    "Items finished last",
+    "Any item with a vendor"
+   ],
+   "a": 1,
+   "why": "Quick wins offer the best return early."
+  },
+  {
+   "q": "Why should a risk acceptance have an expiry date?",
+   "options": [
+    "So it can be forgotten",
+    "So it is reviewed again as conditions change",
+    "To raise the risk score",
+    "To satisfy a network protocol"
+   ],
+   "a": 1,
+   "why": "Conditions change and accepted risk must be revisited."
+  },
+  {
+   "q": "Which metric best shows reduced exposure?",
+   "options": [
+    "Pages of policy",
+    "Number of staff trained in a year only",
+    "Count of internet-exposed administrative ports falling to zero",
+    "Total alerts generated"
+   ],
+   "a": 2,
+   "why": "It measures a concrete exposure."
+  },
+  {
+   "q": "What belongs in an executive summary?",
+   "options": [
+    "Business-language risks, recommendation, cost and decision needed",
+    "Source code",
+    "Every ticket",
+    "Packet captures"
+   ],
+   "a": 0,
+   "why": "Leaders need clear decisions."
+  },
+  {
+   "q": "Why present residual risk at the end of a roadmap?",
+   "options": [
+    "No plan removes all risk and leaders must understand what remains",
+    "To hide findings",
+    "It is optional vanity",
+    "To undo the plan"
+   ],
+   "a": 0,
+   "why": "Honest residual risk supports informed decisions."
+  }
+ ]
+}

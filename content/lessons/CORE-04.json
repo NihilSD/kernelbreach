@@ -1,0 +1,1212 @@
+{
+ "code": "CORE-04",
+ "intro": "This module separates three tools that beginners confuse: encoding, encryption and hashing. You will study symmetric ciphers such as AES and their modes, public-key systems and key exchange, hashes, HMAC and salts, and digital signatures. You then see how certificates and PKI create trust, how the TLS 1.2 and 1.3 handshakes combine everything, and how passwords should be stored and how attackers crack weak ones. These ideas explain why secure connections work and why they sometimes fail.",
+ "lessons": [
+  {
+   "title": "Encoding vs encryption vs hashing",
+   "why": "Mixing up these three operations is one of the most common and costly mistakes in security, so you must know which one protects what.",
+   "sections": [
+    {
+     "h": "Encoding is not secret",
+     "p": [
+      "Encoding transforms data into another format so it can be stored or transmitted safely, with no key and no secrecy. Base64 turns binary bytes into 64 printable ASCII characters so they survive email or JSON, and URL encoding replaces unsafe characters with percent codes. Anyone can reverse it because the algorithm is public. The string 'dXNlcjpwYXNz' is simply 'user:pass' in Base64, which is exactly how HTTP Basic authentication carries credentials. Treating encoding as protection is a classic mistake: a Base64 value in a cookie or config file gives no confidentiality at all, and analysts decode such values in seconds."
+     ]
+    },
+    {
+     "h": "Encryption is reversible with a key",
+     "p": [
+      "Encryption transforms plaintext into ciphertext using an algorithm and a secret key, and only someone with the right key can reverse it. Its purpose is confidentiality. Symmetric ciphers such as AES use one shared key, while asymmetric ciphers such as RSA use a public and private key pair. The algorithm is public by design, following Kerckhoffs's principle: security must rest on the key, not on keeping the method secret. Use encryption when data must later be recovered, such as files on a laptop disk, database fields holding card numbers, or traffic crossing the internet."
+     ]
+    },
+    {
+     "h": "Hashing is one way",
+     "p": [
+      "A hash function maps input of any size to a fixed-size digest, for example 256 bits for SHA-256. It has no key and cannot be reversed. The same input always gives the same output, a tiny change gives a completely different output, and finding two inputs with the same digest should be infeasible. Hashes provide integrity checks, such as comparing a downloaded file against a published checksum, and they are the basis of password storage. You cannot decrypt a hash, but short or common inputs can still be guessed and re-hashed, which is why password hashing needs extra care."
+     ]
+    },
+    {
+     "h": "Choosing the right tool",
+     "p": [
+      "Ask what you need. If you only need a safe format for transport, use encoding. If you need to keep data secret but recover it later, use encryption. If you need to verify data without recovering it, or store a password, use hashing, ideally a purpose-built slow hash. If you need to prove who produced data, use a signature, covered later. Obfuscation, such as XOR with a fixed byte or ROT13, resembles encryption but offers no real strength, and malware uses it constantly. Remember: encoding hides nothing, encryption hides with a key, hashing destroys the original."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Same text, three operations",
+    "text": "$ echo -n 'hello' | base64\naGVsbG8=              # encoding, reversible by anyone\n$ echo 'aGVsbG8=' | base64 -d\nhello\n$ echo -n 'hello' | sha256sum\n2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824\n# hashing, fixed 64 hex characters, not reversible"
+   },
+   "example": "A junior developer at Example Corp stores API tokens in a settings file as Base64 strings and calls them 'encrypted'. During a code review, a colleague pastes one string into a decoder and reads the token instantly. The fix is to store secrets in a vault, encrypting them with a managed key if they must be written to disk. For user passwords the team uses a salted slow hash instead, since the application never needs to read the original. Three data types, three correct tools: encoding for transport, encryption for recoverable secrets, hashing for verification.",
+   "terms": [
+    {
+     "term": "Encoding",
+     "def": "Format conversion with no key and no secrecy, such as Base64."
+    },
+    {
+     "term": "Encryption",
+     "def": "Key-based reversible transformation that provides confidentiality."
+    },
+    {
+     "term": "Hash",
+     "def": "Fixed-size one-way digest of input data."
+    },
+    {
+     "term": "Plaintext",
+     "def": "Readable data before encryption."
+    },
+    {
+     "term": "Ciphertext",
+     "def": "Encrypted output that looks random without the key."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which operation provides no confidentiality?",
+     "options": [
+      "AES encryption",
+      "Base64 encoding",
+      "RSA encryption",
+      "TLS"
+     ],
+     "a": 1,
+     "why": "Base64 is public and reversible by anyone."
+    },
+    {
+     "q": "Which operation is not reversible?",
+     "options": [
+      "Hashing",
+      "Encoding",
+      "Symmetric encryption",
+      "Asymmetric encryption"
+     ],
+     "a": 0,
+     "why": "A hash discards the original input and cannot be decrypted."
+    },
+    {
+     "q": "You must store a credit card number and later recover it. Which fits?",
+     "options": [
+      "Base64",
+      "SHA-256",
+      "Encryption",
+      "URL encoding"
+     ],
+     "a": 2,
+     "why": "Recoverable secrets need encryption with a protected key."
+    },
+    {
+     "q": "Kerckhoffs's principle says security should depend on what?",
+     "options": [
+      "Secret algorithm",
+      "The key",
+      "Obscure file names",
+      "Short messages"
+     ],
+     "a": 1,
+     "why": "Algorithms should be public; only the key is secret."
+    }
+   ],
+   "recap": [
+    "Encoding is for format, encryption for secrecy, hashing for verification.",
+    "Base64 and ROT13 are not protection.",
+    "Choose by whether you need the original back."
+   ]
+  },
+  {
+   "title": "Symmetric encryption",
+   "why": "Symmetric ciphers do nearly all the bulk work of protecting data, and choosing the wrong mode or mishandling IVs can break them.",
+   "sections": [
+    {
+     "h": "One key, fast and strong",
+     "p": [
+      "Symmetric encryption uses the same secret key to encrypt and decrypt. It is fast, which makes it the choice for large data such as disks, backups and network streams. The standard is AES (Advanced Encryption Standard), adopted by NIST in 2001. It is a block cipher with a 128-bit block and key sizes of 128, 192 or 256 bits. AES-128 is considered strong for the foreseeable future, and AES-256 adds margin including against future quantum attacks on key search. Older ciphers are obsolete: DES has a 56-bit key and was brute-forced in the 1990s, and 3DES is deprecated. Stream ciphers such as ChaCha20 encrypt byte by byte and perform well on devices without AES hardware."
+     ]
+    },
+    {
+     "h": "Block modes matter",
+     "p": [
+      "A block cipher only handles 16 bytes at a time, so a mode of operation defines how longer messages are processed. ECB encrypts every block independently, so identical plaintext blocks give identical ciphertext blocks and patterns remain visible; the famous encrypted-image demonstration shows the outline of the picture. ECB should not be used. CBC chains each block with the previous ciphertext and needs a random IV, but it provides no integrity and has been abused in padding oracle attacks. CTR turns the cipher into a stream. GCM combines CTR encryption with an authentication tag, giving authenticated encryption that detects tampering."
+     ]
+    },
+    {
+     "h": "IVs and nonces",
+     "p": [
+      "An initialization vector (IV) or nonce is a value that makes each encryption unique even when the same key and plaintext are reused. In CBC the IV must be unpredictable and random. In GCM the 96-bit nonce must never repeat under the same key; reuse lets an attacker recover plaintext relations and forge tags, a catastrophic failure. The IV is not secret and is usually sent along with the ciphertext. Authenticated encryption with associated data (AEAD), such as AES-GCM and ChaCha20-Poly1305, is the recommended default because it protects both confidentiality and integrity in one operation. Unauthenticated encryption lets attackers flip bits without detection."
+     ]
+    },
+    {
+     "h": "The key distribution problem",
+     "p": [
+      "The strength of symmetric encryption is irrelevant if the key is exposed. Two parties must somehow agree on a key without an eavesdropper learning it, and with n users who each need private channels you need n(n-1)/2 keys, which grows quickly. This is the key distribution problem, and asymmetric cryptography and key exchange protocols exist to solve it. Keys must also be generated by a cryptographically secure random source, stored in hardware modules or key management services, rotated, and never hard-coded in source code. Passwords can be turned into keys with a key derivation function, but they inherit the weakness of the password."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "AES-256-GCM with OpenSSL concept",
+    "text": "# Conceptual parameters for an AEAD message\nAlgorithm : AES-256-GCM\nKey       : 32 random bytes (from a CSPRNG)\nNonce     : 12 bytes, unique per message\nTag       : 16 bytes, verified before decrypting\n\n# ECB leaks patterns, GCM does not\nECB: same block -> same ciphertext\nGCM: same block -> different ciphertext"
+   },
+   "example": "Example Corp encrypts nightly backups with AES-256. The first version used ECB mode because it was the default in a small script, and an auditor noticed that repeated records in the database produced repeating ciphertext blocks. The team switched to AES-256-GCM with a fresh random nonce for each file and stored the key in a managed key service rather than the backup server. Tampering with a backup file now causes decryption to fail the tag check instead of silently producing damaged data. The cipher stayed the same; the mode and key handling made the difference.",
+   "terms": [
+    {
+     "term": "AES",
+     "def": "The standard symmetric block cipher with 128-bit blocks and 128, 192 or 256-bit keys."
+    },
+    {
+     "term": "ECB",
+     "def": "A block mode that encrypts blocks independently and leaks patterns."
+    },
+    {
+     "term": "GCM",
+     "def": "An authenticated mode providing encryption and integrity."
+    },
+    {
+     "term": "IV / nonce",
+     "def": "A per-message value that makes encryption output unique."
+    },
+    {
+     "term": "AEAD",
+     "def": "Authenticated encryption with associated data."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which mode should not be used because it reveals patterns?",
+     "options": [
+      "GCM",
+      "ECB",
+      "CTR",
+      "ChaCha20-Poly1305"
+     ],
+     "a": 1,
+     "why": "ECB maps identical blocks to identical ciphertext."
+    },
+    {
+     "q": "What block size does AES use?",
+     "options": [
+      "56 bits",
+      "64 bits",
+      "128 bits",
+      "256 bits"
+     ],
+     "a": 2,
+     "why": "AES uses 128-bit blocks regardless of key length."
+    },
+    {
+     "q": "What is the danger of reusing a GCM nonce with the same key?",
+     "options": [
+      "Slower speed",
+      "Loss of confidentiality and forgery risk",
+      "Larger files",
+      "None"
+     ],
+     "a": 1,
+     "why": "Nonce reuse breaks both secrecy and authentication."
+    },
+    {
+     "q": "What is the hard part of symmetric encryption?",
+     "options": [
+      "Encrypting fast",
+      "Safely sharing and storing the key",
+      "Block size",
+      "Using hex"
+     ],
+     "a": 1,
+     "why": "Both sides need the same secret without exposure."
+    }
+   ],
+   "recap": [
+    "AES is the standard; use AEAD modes such as GCM.",
+    "Never use ECB, and never repeat a nonce under one key.",
+    "Key distribution and storage are the real challenges."
+   ]
+  },
+  {
+   "title": "Asymmetric encryption and key exchange",
+   "why": "Public-key cryptography lets strangers establish secrets over an open network, which is the foundation of secure web traffic.",
+   "sections": [
+    {
+     "h": "Key pairs",
+     "p": [
+      "Asymmetric cryptography uses a mathematically linked key pair. The public key can be shared with anyone, while the private key is kept secret. Data encrypted with the public key can be decrypted only with the private key, so anyone can send a confidential message to the owner without a prior shared secret. The reverse use, producing something with the private key that anyone can verify with the public key, gives digital signatures. Asymmetric operations are far slower than symmetric ones, so they are used for small tasks such as exchanging a symmetric session key, and the symmetric cipher protects the bulk data."
+     ]
+    },
+    {
+     "h": "RSA",
+     "p": [
+      "RSA, published in 1977, relies on the difficulty of factoring the product of two large primes. Security depends on key size: 2048-bit keys are the common minimum today and 3072 or 4096 bits are used for longer protection, while 1024-bit keys are considered broken in principle. RSA encryption must use padding such as OAEP, and signatures use PSS or PKCS#1 v1.5; raw RSA without padding is insecure. RSA keys are large and operations are relatively slow, but support is universal in certificates, SSH and code signing. A sufficiently large quantum computer running Shor's algorithm would break RSA, motivating post-quantum standards."
+     ]
+    },
+    {
+     "h": "ECC",
+     "p": [
+      "Elliptic curve cryptography bases security on the elliptic curve discrete logarithm problem. It reaches equivalent strength with much smaller keys: a 256-bit curve key is roughly comparable to 3072-bit RSA. Smaller keys mean faster operations, less bandwidth and lower power use, which suits phones and embedded devices. Common curves are P-256 (secp256r1) from NIST and Curve25519, used for X25519 key exchange and Ed25519 signatures. ECDSA and EdDSA are the signature algorithms. Curve choice matters, and implementations must avoid weak random numbers: a repeated nonce in ECDSA can leak the private key."
+     ]
+    },
+    {
+     "h": "Diffie-Hellman key exchange",
+     "p": [
+      "Diffie-Hellman (DH), published in 1976, lets two parties derive a shared secret across an open channel. Each side picks a private value, sends a public value computed from it, and combines the other side's public value with its own private value to reach the same secret. An eavesdropper sees only the public values and cannot feasibly compute the secret. Elliptic curve versions are ECDH. Plain DH does not authenticate the parties, so an active attacker could sit in the middle; real protocols add certificates or signatures. Using fresh ephemeral keys for each session (DHE, ECDHE) gives forward secrecy."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Diffie-Hellman with small numbers (teaching only)",
+    "text": "Public: p=23, g=5\nAlice private a=6 -> sends A = 5^6 mod 23 = 8\nBob   private b=15 -> sends B = 5^15 mod 23 = 19\nAlice: 19^6  mod 23 = 2\nBob  :  8^15 mod 23 = 2\nShared secret = 2 (real keys use 2048+ bits or curves)"
+   },
+   "example": "Alice at Example Corp wants to send a file to Bob without ever meeting him. Bob publishes his public key on his site. Alice generates a random AES-256 key, encrypts the file with it, and encrypts that small AES key with Bob's public key. Bob uses his private key to recover the AES key and decrypt the file. This hybrid approach pairs the speed of symmetric encryption with the convenience of public-key encryption. Because only Bob holds the private key, an eavesdropper who captures everything sent learns nothing useful.",
+   "terms": [
+    {
+     "term": "Public key",
+     "def": "The shareable half of a key pair."
+    },
+    {
+     "term": "Private key",
+     "def": "The secret half of a key pair; never shared."
+    },
+    {
+     "term": "RSA",
+     "def": "Public-key system based on the difficulty of factoring large integers."
+    },
+    {
+     "term": "ECC",
+     "def": "Public-key cryptography using elliptic curves with small keys."
+    },
+    {
+     "term": "Diffie-Hellman",
+     "def": "Protocol for two parties to derive a shared secret over an open channel."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which key decrypts data encrypted with a recipient's public key?",
+     "options": [
+      "The same public key",
+      "The recipient's private key",
+      "The sender's private key",
+      "Any hash"
+     ],
+     "a": 1,
+     "why": "Only the private key matching the public key can decrypt."
+    },
+    {
+     "q": "About how large an RSA key is considered a safe minimum today?",
+     "options": [
+      "512 bits",
+      "1024 bits",
+      "2048 bits",
+      "128 bits"
+     ],
+     "a": 2,
+     "why": "2048 bits is the common minimum."
+    },
+    {
+     "q": "Why use hybrid encryption?",
+     "options": [
+      "Public-key operations are slow, so they protect a symmetric key",
+      "It removes keys",
+      "It avoids certificates",
+      "It is always weaker"
+     ],
+     "a": 0,
+     "why": "Symmetric ciphers handle bulk data efficiently."
+    },
+    {
+     "q": "What does plain Diffie-Hellman lack?",
+     "options": [
+      "Shared secret",
+      "Authentication of parties",
+      "Math",
+      "Public values"
+     ],
+     "a": 1,
+     "why": "Without certificates or signatures, a man in the middle is possible."
+    }
+   ],
+   "recap": [
+    "Public keys can be shared, private keys never.",
+    "RSA and ECC solve key exchange and signing; ECC uses smaller keys.",
+    "Diffie-Hellman derives a shared secret; ephemeral versions give forward secrecy."
+   ]
+  },
+  {
+   "title": "Hashing, HMAC and salting",
+   "why": "Hash functions verify integrity and store passwords, but only if you pick a modern algorithm and add the right protections.",
+   "sections": [
+    {
+     "h": "Properties and algorithms",
+     "p": [
+      "A cryptographic hash should be preimage resistant (you cannot recover the input from the digest), second-preimage resistant (you cannot find another input with the same digest) and collision resistant (you cannot find any two inputs with the same digest). MD5 produces 128 bits and SHA-1 produces 160 bits; both are broken for collision resistance. MD5 collisions were practical by 2004 and the first public SHA-1 collision came in 2017. SHA-256 and SHA-512 from the SHA-2 family, and SHA-3, are current choices. MD5 and SHA-1 may remain in non-security checksums, but must not be used for signatures or certificates."
+     ]
+    },
+    {
+     "h": "Collisions and the birthday bound",
+     "p": [
+      "Because digests are fixed-size and inputs are unlimited, collisions must exist; security means they are infeasible to find. Thanks to the birthday paradox, finding a collision takes about 2^(n/2) work for an n-bit hash, so a 128-bit hash offers roughly 64 bits of collision resistance, which is not enough. SHA-256 gives about 128 bits. Attackers exploiting collisions can create two different documents with the same hash, for example a harmless file and a malicious one, then present the first for approval and deliver the second. That is why algorithms with demonstrated collisions are retired from signing."
+     ]
+    },
+    {
+     "h": "HMAC",
+     "p": [
+      "A plain hash cannot prove who made a message, since anyone can compute it. A keyed construction called HMAC (hash-based message authentication code) mixes a secret key into the hash: HMAC(key, message) = H((key xor opad) || H((key xor ipad) || message)). Only parties with the key can produce or verify the tag, so it provides integrity and authenticity, though not non-repudiation because both sides share the key. HMAC-SHA256 is widespread in API request signing, JWT tokens using HS256 and TLS. Verification should use a constant-time comparison so that timing differences do not leak information. Never build your own scheme as hash(key + message), which is vulnerable to length extension with SHA-2."
+     ]
+    },
+    {
+     "h": "Salting and rainbow tables",
+     "p": [
+      "An attacker who steals a password database can precompute hashes of common passwords, or store them in a compressed form called a rainbow table, and look up matches instantly. A salt is a unique random value, typically 16 bytes or more, generated per user and stored beside the hash. The system hashes salt plus password, so identical passwords yield different hashes and precomputed tables become useless, forcing the attacker to attack each hash separately. Salts are not secret. A pepper is a secret value kept outside the database, for example in a hardware module, which adds extra protection if only the database leaks. Plain fast hashes are still unsuitable for passwords, as the last lesson shows."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Salt effect (illustrative values)",
+    "text": "password='Summer2024'\nSHA-256(password)         = same for every user\nSHA-256(saltA + password) = differs for user A\nSHA-256(saltB + password) = differs for user B\n\nHMAC-SHA256(key, 'amount=100') -> tag\nChange one byte of the message -> tag fails"
+   },
+   "example": "Example Corp finds that its old login table stores unsalted SHA-1 hashes. Two accounts, alice and bob, share the same hash value, which immediately tells an attacker they chose the same password, and a public lookup site returns the plaintext in seconds. The team migrates to a slow salted algorithm, unique per user. For its payment API, the team also adds an HMAC-SHA256 header over each request body so the server can reject any message altered in transit. Hashing without salt exposed passwords, while a keyed hash protected message integrity.",
+   "terms": [
+    {
+     "term": "Collision",
+     "def": "Two different inputs producing the same hash."
+    },
+    {
+     "term": "HMAC",
+     "def": "A keyed hash providing integrity and authenticity."
+    },
+    {
+     "term": "Salt",
+     "def": "A unique random value mixed into each password hash."
+    },
+    {
+     "term": "Rainbow table",
+     "def": "A precomputed table of hashes used to look up passwords."
+    },
+    {
+     "term": "Pepper",
+     "def": "A secret value stored outside the database and added to password hashing."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which algorithm is broken for collision resistance?",
+     "options": [
+      "SHA-256",
+      "SHA-3",
+      "MD5",
+      "SHA-512"
+     ],
+     "a": 2,
+     "why": "MD5 collisions are practical."
+    },
+    {
+     "q": "What does a salt defeat?",
+     "options": [
+      "Encryption",
+      "Precomputed rainbow tables",
+      "TLS",
+      "Hash length"
+     ],
+     "a": 1,
+     "why": "Unique salts make precomputed tables useless."
+    },
+    {
+     "q": "HMAC proves what?",
+     "options": [
+      "Only that a file is large",
+      "Integrity and authenticity using a shared key",
+      "Non-repudiation",
+      "Confidentiality"
+     ],
+     "a": 1,
+     "why": "Only holders of the key can create or verify the tag."
+    },
+    {
+     "q": "About how much work finds a collision in an n-bit hash?",
+     "options": [
+      "2^n",
+      "2^(n/2)",
+      "n",
+      "n squared"
+     ],
+     "a": 1,
+     "why": "The birthday bound is about 2^(n/2)."
+    }
+   ],
+   "recap": [
+    "Use SHA-256 or SHA-3, not MD5 or SHA-1, for security.",
+    "HMAC adds a secret key for authenticity.",
+    "Per-user salts defeat rainbow tables; peppers add secret protection."
+   ]
+  },
+  {
+   "title": "Digital signatures",
+   "why": "Signatures prove that data came from a specific key holder and was not altered, which underpins software updates, certificates and contracts.",
+   "sections": [
+    {
+     "h": "How signing works",
+     "p": [
+      "A digital signature applies the private key to a hash of the message. The signer computes a digest, for example SHA-256, then transforms it with the private key to produce the signature. A verifier recomputes the digest of the received message, uses the signer's public key on the signature, and checks that the two match. Signing the hash rather than the whole message keeps the operation fast and the signature small. If even one bit of the message changes, the digests differ and verification fails. Common algorithms are RSA with PSS padding, ECDSA over curves such as P-256, and Ed25519."
+     ]
+    },
+    {
+     "h": "What a signature provides",
+     "p": [
+      "A valid signature gives three properties. Integrity: the message was not modified after signing. Authenticity: it was produced by the holder of the private key matching the public key. Non-repudiation: because only one party holds the private key, the signer cannot plausibly deny signing, unlike an HMAC where both sides share the secret. Notice that a signature alone does not give confidentiality, since the message itself is still readable. Signing and encryption are separate operations and are often combined: sign first to prove origin, then encrypt to hide content. Encryption never replaces signing."
+     ]
+    },
+    {
+     "h": "Trust in the public key",
+     "p": [
+      "Verification only proves that someone holding the matching private key signed the data. You must still know that the public key truly belongs to the claimed person or organization. If an attacker can substitute their own public key, they can sign forged data that verifies correctly. Certificates solve this by binding a public key to an identity under a certification authority's signature, as the next lessons show. Other models exist: PGP uses a web of trust where people sign each other's keys, and SSH relies on first-use trust with a recorded host fingerprint that warns you when it later changes."
+     ]
+    },
+    {
+     "h": "Real-world uses",
+     "p": [
+      "Signatures appear everywhere. Operating systems and package managers verify signed updates before installing them, and Windows drivers, macOS apps and Android packages are code-signed. TLS certificates are signed by CAs, and the server signs handshake data to prove it owns its key. DNSSEC signs DNS records, and email standards such as DKIM sign message headers. Git commits can be signed with GPG or SSH keys. Protect signing keys carefully, ideally in hardware modules, because stolen keys let attackers sign malware that appears legitimate, as seen in several supply-chain incidents. Timestamping shows the signature existed before a certificate expired."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Sign and verify with OpenSSL (sample files)",
+    "text": "$ openssl dgst -sha256 -sign private.pem -out update.sig update.bin\n$ openssl dgst -sha256 -verify public.pem \\\n      -signature update.sig update.bin\nVerified OK\n$ echo 'x' >> update.bin     # tamper\n$ openssl dgst -sha256 -verify public.pem \\\n      -signature update.sig update.bin\nVerification Failure"
+   },
+   "example": "Example Corp publishes a software update, update.bin, along with a signature file and its public key on example.com. A customer downloads all three, runs the verification command and sees 'Verified OK', confirming that the file matches what the vendor signed. Later a mirror site offers the same filename, but verification fails because someone inserted extra bytes. The customer discards the file. Note that the check works only if the customer obtained the public key through a trustworthy channel, since a forged key and matching forged signature would also verify.",
+   "terms": [
+    {
+     "term": "Digital signature",
+     "def": "A value created with a private key over a hash, verifiable with the public key."
+    },
+    {
+     "term": "Integrity",
+     "def": "Assurance that data has not changed."
+    },
+    {
+     "term": "Authenticity",
+     "def": "Assurance of who created the data."
+    },
+    {
+     "term": "Non-repudiation",
+     "def": "Inability of the signer to deny signing."
+    },
+    {
+     "term": "Code signing",
+     "def": "Signing software so users can verify its origin and integrity."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which key creates a digital signature?",
+     "options": [
+      "Public key",
+      "Private key",
+      "Session key",
+      "Salt"
+     ],
+     "a": 1,
+     "why": "The signer uses the private key; anyone verifies with the public key."
+    },
+    {
+     "q": "Why does a signature give non-repudiation but an HMAC does not?",
+     "options": [
+      "Hashes are longer",
+      "Only one party holds the signing key",
+      "HMAC is encrypted",
+      "Signatures are shorter"
+     ],
+     "a": 1,
+     "why": "HMAC keys are shared, so either party could have created the tag."
+    },
+    {
+     "q": "What does a signature not provide?",
+     "options": [
+      "Integrity",
+      "Authenticity",
+      "Confidentiality",
+      "Non-repudiation"
+     ],
+     "a": 2,
+     "why": "The signed message is not hidden unless it is also encrypted."
+    },
+    {
+     "q": "What happens when one bit of a signed file changes?",
+     "options": [
+      "Verification still passes",
+      "Verification fails",
+      "The key changes",
+      "The file is encrypted"
+     ],
+     "a": 1,
+     "why": "The digest no longer matches the signed value."
+    }
+   ],
+   "recap": [
+    "Sign a hash with the private key, verify with the public key.",
+    "Signatures give integrity, authenticity and non-repudiation, not secrecy.",
+    "You still need a trustworthy way to know whose public key it is."
+   ]
+  },
+  {
+   "title": "Certificates and PKI",
+   "why": "Certificates bind a public key to an identity so browsers and systems can trust servers they have never seen before.",
+   "sections": [
+    {
+     "h": "X.509 certificates",
+     "p": [
+      "An X.509 certificate is a signed data structure that binds a public key to an identity. Key fields include the version, serial number, issuer (the CA that signed it), subject (the owner), validity period (not before and not after), the subject's public key, and extensions. Important extensions are Subject Alternative Name (SAN), which lists the hostnames or IP addresses the certificate covers, Key Usage and Extended Key Usage, and Basic Constraints, which says whether the certificate is a CA. Modern browsers match the hostname against the SAN, not the older Common Name. The certificate also contains the CA's signature over all these fields, so alteration is detectable."
+     ]
+    },
+    {
+     "h": "Chains of trust",
+     "p": [
+      "Trust flows through a chain. A root CA certificate is self-signed and stored in a root store shipped with the operating system or browser. Root keys are kept offline, so roots sign intermediate CA certificates, and intermediates sign end-entity (leaf) certificates for websites. A client builds the chain from the leaf upward, checks each signature, confirms validity dates and constraints, and stops at a root it already trusts. Servers should send the leaf plus intermediates; a missing intermediate is a frequent cause of validation errors. Private enterprise PKI works the same way, with the company root installed on managed devices."
+     ]
+    },
+    {
+     "h": "Issuance, CSR and revocation",
+     "p": [
+      "To obtain a certificate, the owner generates a key pair and a certificate signing request (CSR) containing the public key and requested subject names, signed by the private key. The CA verifies control of the domain, with validation levels DV, OV and EV, and returns the signed certificate. The private key never leaves the server. Automated issuance through ACME, used by Let's Encrypt, issues short-lived certificates. If a key is compromised, the certificate can be revoked. A CRL is a signed list of revoked serial numbers, and OCSP lets a client query the status of one certificate; OCSP stapling lets the server attach a fresh signed response."
+     ]
+    },
+    {
+     "h": "Expiry and common failures",
+     "p": [
+      "Certificates expire, with the public web limiting lifetimes to 398 days and moving toward shorter periods. Expired certificates cause outages and warnings, so monitoring and automated renewal are essential. Other common failures are a hostname mismatch, where the name in the URL is absent from the SAN, an untrusted or self-signed issuer, an incomplete chain, and a revoked certificate. Certificate Transparency logs publicly record issued certificates so that mis-issuance can be detected. Attackers abuse weak validation, such as users clicking through warnings, so warnings should never be trained away. A compromised CA is severe, and past incidents led to distrust of those CAs."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Reading a certificate with OpenSSL (sample)",
+    "text": "$ openssl x509 -in server.pem -noout -subject -issuer -dates -ext subjectAltName\nsubject=CN = www.example.com\nissuer=C = US, O = Example Intermediate CA\nnotBefore=Jan  1 00:00:00 2026 GMT\nnotAfter=Mar  1 00:00:00 2027 GMT\nX509v3 Subject Alternative Name:\n    DNS:www.example.com, DNS:example.com\n$ openssl req -new -key server.key -out server.csr"
+   },
+   "example": "A browser at Example Corp shows a warning for https://shop.example.com. An analyst inspects the certificate and finds a SAN containing only www.example.com and example.com, so the hostname does not match. A second server shows a different error: the leaf is valid, but the chain ends at an intermediate the client does not trust because the server forgot to send it. A third has simply expired last week. Each failure appears as a warning to the user, but each has a different cause and a different fix: reissue with the correct SAN, install the intermediate, or renew.",
+   "terms": [
+    {
+     "term": "X.509",
+     "def": "The standard format for public key certificates."
+    },
+    {
+     "term": "CA",
+     "def": "Certification authority that signs certificates."
+    },
+    {
+     "term": "CSR",
+     "def": "Certificate signing request containing a public key and requested identity."
+    },
+    {
+     "term": "SAN",
+     "def": "Subject Alternative Name listing valid hostnames."
+    },
+    {
+     "term": "OCSP",
+     "def": "Protocol for checking one certificate's revocation status."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which field do modern browsers use to match a hostname?",
+     "options": [
+      "Serial number",
+      "Subject Alternative Name",
+      "Issuer",
+      "Validity"
+     ],
+     "a": 1,
+     "why": "The SAN lists the names the certificate is valid for."
+    },
+    {
+     "q": "What does a CSR contain?",
+     "options": [
+      "The private key",
+      "The public key and requested subject",
+      "The root store",
+      "The CRL"
+     ],
+     "a": 1,
+     "why": "The CSR carries the public key and identity; the private key stays secret."
+    },
+    {
+     "q": "A server sends only its leaf certificate and clients fail validation. Likely cause?",
+     "options": [
+      "Missing intermediate",
+      "Weak AES",
+      "Wrong port",
+      "Short salt"
+     ],
+     "a": 0,
+     "why": "Clients need the intermediate chain to reach a trusted root."
+    },
+    {
+     "q": "What is OCSP stapling?",
+     "options": [
+      "Server attaches a signed revocation response",
+      "Client signs a CSR",
+      "A CRL for roots",
+      "An encryption mode"
+     ],
+     "a": 0,
+     "why": "The server provides a fresh signed status to clients."
+    }
+   ],
+   "recap": [
+    "X.509 certificates bind keys to identities under a CA signature.",
+    "Trust flows root -> intermediate -> leaf via the root store.",
+    "Check SAN, issuer, dates and revocation when diagnosing errors."
+   ]
+  },
+  {
+   "title": "The TLS 1.2 and 1.3 handshake",
+   "why": "TLS protects almost all web traffic, and reading its handshake shows how keys, certificates and ciphers work together.",
+   "sections": [
+    {
+     "h": "Goals and the TLS 1.2 flow",
+     "p": [
+      "TLS provides confidentiality, integrity and server authentication over TCP, typically on port 443 for HTTPS. In TLS 1.2 the client sends a ClientHello listing supported versions, cipher suites and a random value. The server replies with a ServerHello choosing a suite, its own random value and its certificate chain, followed by key exchange parameters for ECDHE and a ServerHelloDone. The client validates the certificate chain, hostname and dates, sends its key share, and both sides compute a master secret and session keys. ChangeCipherSpec and Finished messages confirm that both sides derived identical keys. That takes two round trips before application data."
+     ]
+    },
+    {
+     "h": "TLS 1.3 improvements",
+     "p": [
+      "TLS 1.3 (RFC 8446, 2018) removes legacy features and speeds things up. The client sends its key share inside the ClientHello, so the server can answer with ServerHello and key share immediately, and everything after ServerHello, including the certificate, is encrypted. The handshake finishes in one round trip, and resumption can allow 0-RTT early data, which carries a replay risk. Static RSA key exchange, CBC, RC4, SHA-1, compression and renegotiation are gone. Only five AEAD cipher suites remain, such as TLS_AES_256_GCM_SHA384 and TLS_CHACHA20_POLY1305_SHA256. Because key exchange is always ephemeral, forward secrecy is mandatory."
+     ]
+    },
+    {
+     "h": "Forward secrecy and cipher suites",
+     "p": [
+      "Forward secrecy means that compromise of the server's long-term private key does not reveal past recorded sessions, because each session used temporary ECDHE or DHE keys that are discarded. Without it, as in static RSA key exchange, an attacker who records traffic and later steals the key can decrypt everything. A TLS 1.2 cipher suite name such as TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 spells out the key exchange (ECDHE), the authentication (RSA certificate), the bulk cipher (AES-128-GCM) and the hash for the PRF (SHA-256). Prefer ECDHE with AEAD ciphers, and disable SSLv3, TLS 1.0 and 1.1, RC4, 3DES, export suites and null ciphers."
+     ]
+    },
+    {
+     "h": "Validation and attacks",
+     "p": [
+      "The client authenticates the server by validating the certificate chain, the SAN against the requested name, validity dates and revocation, and by checking that the server proves possession of the private key in the handshake. Mutual TLS adds a client certificate. Downgrade attacks try to force older versions; defenses include disabling old protocols and the TLS_FALLBACK_SCSV signal. Past flaws include POODLE against SSLv3 CBC, BEAST, CRIME, Heartbleed in an OpenSSL implementation and ROBOT against RSA key exchange. HSTS tells browsers to use only HTTPS, and SNI lets clients name the host in the ClientHello, though Encrypted Client Hello is emerging to hide it."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Reading a handshake (simplified)",
+    "text": "1 Client -> Server  ClientHello  versions: 1.3, 1.2\n                    suites: TLS_AES_256_GCM_SHA384 ...\n                    key_share: x25519\n2 Server -> Client  ServerHello  suite: TLS_AES_256_GCM_SHA384\n                    key_share: x25519\n3 Server -> Client  {Certificate} {CertVerify} {Finished}\n4 Client -> Server  {Finished}\n5 Application data (encrypted)\n{ } = encrypted under handshake keys"
+   },
+   "example": "An analyst at Example Corp captures traffic between a client and 203.0.113.50 on port 443. The first packet is a ClientHello offering TLS 1.3 and 1.2. The ServerHello selects TLS 1.3 and TLS_AES_256_GCM_SHA384, and nothing after it shows the certificate in readable form because TLS 1.3 encrypts it. A different capture to an old server shows a TLS 1.2 handshake with TLS_RSA_WITH_AES_128_CBC_SHA, which has no forward secrecy and no AEAD. The analyst recommends upgrading that server to ECDHE with GCM suites.",
+   "terms": [
+    {
+     "term": "ClientHello",
+     "def": "The first handshake message offering versions, suites and a key share."
+    },
+    {
+     "term": "Cipher suite",
+     "def": "A named set of key exchange, authentication, cipher and hash algorithms."
+    },
+    {
+     "term": "Forward secrecy",
+     "def": "Past sessions stay safe even if the long-term key is later stolen."
+    },
+    {
+     "term": "ECDHE",
+     "def": "Ephemeral elliptic curve Diffie-Hellman key exchange."
+    },
+    {
+     "term": "mTLS",
+     "def": "Mutual TLS, where the client also presents a certificate."
+    }
+   ],
+   "check": [
+    {
+     "q": "How many round trips does a full TLS 1.3 handshake need?",
+     "options": [
+      "Three",
+      "Two",
+      "One",
+      "Zero always"
+     ],
+     "a": 2,
+     "why": "TLS 1.3 completes in one round trip."
+    },
+    {
+     "q": "What provides forward secrecy?",
+     "options": [
+      "Static RSA key exchange",
+      "Ephemeral ECDHE keys",
+      "Longer certificates",
+      "HSTS"
+     ],
+     "a": 1,
+     "why": "Temporary keys are discarded, so later key theft does not expose old sessions."
+    },
+    {
+     "q": "Which is no longer present in TLS 1.3?",
+     "options": [
+      "AEAD ciphers",
+      "RC4 and static RSA key exchange",
+      "Certificates",
+      "Key shares"
+     ],
+     "a": 1,
+     "why": "TLS 1.3 removed legacy ciphers and static RSA."
+    },
+    {
+     "q": "What does the SAN check in the client confirm?",
+     "options": [
+      "Cipher strength",
+      "The name requested matches the certificate",
+      "Server load",
+      "Compression"
+     ],
+     "a": 1,
+     "why": "The client checks that the hostname appears in the SAN."
+    }
+   ],
+   "recap": [
+    "TLS 1.3 uses one round trip and mandatory forward secrecy.",
+    "A cipher suite names key exchange, authentication, cipher and hash.",
+    "Disable SSLv3, TLS 1.0/1.1, RC4 and CBC-based legacy suites."
+   ]
+  },
+  {
+   "title": "Password storage and cracking",
+   "why": "Databases of stolen password hashes appear in breaches constantly, so how you store passwords decides how much damage follows.",
+   "sections": [
+    {
+     "h": "Why fast hashes fail",
+     "p": [
+      "General hashes such as SHA-256 are designed to be fast, and a modern GPU can compute billions of them per second. If an attacker steals a table of fast hashes, they can test enormous numbers of guesses offline, with no lockout and no network detection. Therefore password storage uses slow, tunable algorithms that cost memory or time per guess. Passwords must always be salted, and the system should never store them reversibly. Even strong hashing cannot rescue very weak passwords: the algorithm only slows each guess, so password length, uniqueness and breach checking still matter. Reused passwords also put other sites at risk."
+     ]
+    },
+    {
+     "h": "The right algorithms",
+     "p": [
+      "PBKDF2 applies an HMAC repeatedly, with OWASP guidance suggesting at least 600,000 iterations for PBKDF2-HMAC-SHA256, and is common in FIPS contexts. bcrypt, from 1999, has a cost factor and a 72-byte input limit, and uses salts automatically. scrypt adds memory hardness to resist GPU and ASIC attacks. Argon2, winner of the 2015 Password Hashing Competition, comes in Argon2id, Argon2d and Argon2i variants; Argon2id is the recommended default, with parameters such as 19 MiB of memory, 2 iterations and 1 lane as an OWASP minimum. Tune the cost so a single verification takes roughly 100 to 500 milliseconds on your hardware."
+     ]
+    },
+    {
+     "h": "Attack methods",
+     "p": [
+      "Attackers use several methods against stolen hashes. A dictionary attack tries wordlists of known passwords, such as those from earlier breaches. Rules mutate words, for example turning 'password' into 'P@ssw0rd1'. A brute-force attack tries every combination of a character set up to a length, which is feasible only for short passwords. Masks target patterns like a capital letter followed by lowercase and four digits. Rainbow tables are defeated by salts. Online attacks, such as password spraying and credential stuffing, target the live login with common or leaked passwords, and are countered by rate limiting, lockout, MFA and breach-password checks. Tools such as hashcat and John the Ripper are used by testers to audit strength."
+     ]
+    },
+    {
+     "h": "Operational practice",
+     "p": [
+      "Defenders should hash with Argon2id or bcrypt, use unique salts, optionally add a pepper held outside the database, and re-hash at login when parameters are upgraded. Encourage long passphrases of 12 or more characters, block known-breached and common passwords, and avoid forced periodic rotation without a reason, as recommended by NIST SP 800-63B. Add MFA so a cracked password is not enough. Compare hash comparisons in constant time, never log passwords, and protect the credential database with strong access control and monitoring. Plan for a breach: be ready to force resets and notify users, since even good hashing buys time rather than total safety."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Hash formats you will see (illustrative)",
+    "text": "MD5 unsalted : 5f4dcc3b5aa765d61d8327deb882cf99\nbcrypt       : $2b$12$<22-char salt><31-char hash>\nArgon2id     : $argon2id$v=19$m=19456,t=2,p=1$<salt>$<hash>\n\nCost 12 bcrypt = 2^12 = 4096 rounds of key setup\nEach +1 doubles the work"
+   },
+   "example": "Example Corp suffers a database leak. The old accounts table holds unsalted MD5 hashes, and within an hour a wordlist attack in a lab recovers most of them, including identical hashes for users who share common passwords. The newer table uses bcrypt with cost 12 and unique salts, and the same wordlist recovers only a handful of very weak passwords after a long time. The team forces resets, migrates every account to Argon2id at next login, adds MFA and starts checking new passwords against a breach list. The algorithm and salt reduced damage, but weak passwords still fell first.",
+   "terms": [
+    {
+     "term": "bcrypt",
+     "def": "Slow adaptive password hash with a cost factor."
+    },
+    {
+     "term": "Argon2id",
+     "def": "Memory-hard password hash recommended as a default."
+    },
+    {
+     "term": "PBKDF2",
+     "def": "Password key derivation using many HMAC iterations."
+    },
+    {
+     "term": "Pepper",
+     "def": "A secret value kept outside the database and added to hashing."
+    },
+    {
+     "term": "Credential stuffing",
+     "def": "Trying leaked username and password pairs on other sites."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why is SHA-256 alone poor for storing passwords?",
+     "options": [
+      "It is too slow",
+      "It is too fast for offline guessing",
+      "It is encrypted",
+      "It uses salts"
+     ],
+     "a": 1,
+     "why": "Fast hashes let attackers test billions of guesses per second."
+    },
+    {
+     "q": "Which algorithm is memory-hard and the common recommended default?",
+     "options": [
+      "MD5",
+      "Argon2id",
+      "SHA-1",
+      "CRC32"
+     ],
+     "a": 1,
+     "why": "Argon2id resists GPU and ASIC cracking with memory cost."
+    },
+    {
+     "q": "Trying one common password across many accounts is called?",
+     "options": [
+      "Brute force",
+      "Password spraying",
+      "Rainbow lookup",
+      "Hash collision"
+     ],
+     "a": 1,
+     "why": "Spraying avoids lockouts by spreading attempts across accounts."
+    },
+    {
+     "q": "What does a bcrypt cost increase of 1 do?",
+     "options": [
+      "Halves the work",
+      "Doubles the work",
+      "No change",
+      "Shortens the hash"
+     ],
+     "a": 1,
+     "why": "The cost is exponential; each +1 doubles the rounds."
+    }
+   ],
+   "recap": [
+    "Store passwords with salted, slow, memory-hard hashes such as Argon2id or bcrypt.",
+    "Dictionary, rule, mask and brute-force attacks all run offline against stolen hashes.",
+    "Add MFA, breach checks and unique long passwords."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Decode, decrypt and hash",
+   "sim": "terminal",
+   "scenario": "You are in a sandboxed terminal at Example Corp with three sample files: note.txt, a Base64 string, and a hash list. The goal is to run the three kinds of operation and learn by direct comparison which of them can be undone. Use base64, openssl enc with AES-256-CBC and a throwaway password, and sha256sum, and then try to reverse each result. Record your observations. Everything uses fictional sample data and the key 'labpass'.",
+   "objective": "Run base64, openssl enc and sha256sum and state which operations are reversible.",
+   "steps": [
+    {
+     "do": "Run: echo -n 'meet at noon' | base64",
+     "see": "Output: bWVldCBhdCBub29u"
+    },
+    {
+     "do": "Run: echo 'bWVldCBhdCBub29u' | base64 -d",
+     "see": "Output: meet at noon. Encoding reverses with no key."
+    },
+    {
+     "do": "Run: openssl enc -aes-256-cbc -pbkdf2 -in note.txt -out note.enc -pass pass:labpass",
+     "see": "note.enc is created and looks like random bytes."
+    },
+    {
+     "do": "Run the same command with -d and the right password, then again with the wrong one.",
+     "see": "Right password restores the text; wrong password fails with a bad decrypt error."
+    },
+    {
+     "do": "Run: sha256sum note.txt",
+     "see": "A 64-hex-character digest appears."
+    },
+    {
+     "do": "Change one letter in note.txt and run sha256sum again.",
+     "see": "The digest is completely different."
+    },
+    {
+     "do": "Try to recover note.txt from the digest.",
+     "see": "No tool can; hashing is one way."
+    }
+   ],
+   "answer": "Base64 encoding is reversible by anyone. Encryption is reversible only with the correct key. Hashing is not reversible, and a one-letter change produces a totally different digest. So encoding gives format, encryption gives secrecy and hashing gives verification.",
+   "hint": "Only one of the three needs no key to reverse and only one cannot be reversed."
+  },
+  {
+   "title": "Spot weak crypto choices",
+   "sim": "config-editor",
+   "scenario": "The Example Corp web server at 198.51.100.40 serves HTTPS with an inherited configuration written years ago. A scan report flags SSLv3, RC4 and several CBC cipher suites, and says that TLS 1.3 is not enabled. In the config editor you will edit the protocol and cipher lines, then press Validate to see the grade change. Replace each weak setting with a modern equivalent, keeping compatibility with current browsers while removing anything with known attacks.",
+   "objective": "Remove SSLv3, RC4 and CBC suites and enable TLS 1.3 with strong ciphers.",
+   "steps": [
+    {
+     "do": "Open tls.conf and read the protocols line.",
+     "see": "It lists SSLv3, TLSv1, TLSv1.1, TLSv1.2."
+    },
+    {
+     "do": "Replace it with TLSv1.2 TLSv1.3.",
+     "see": "Validator: legacy protocols removed."
+    },
+    {
+     "do": "Open the ciphers line and delete RC4 and 3DES entries.",
+     "see": "Validator: weak ciphers removed."
+    },
+    {
+     "do": "Remove all CBC suites such as ECDHE-RSA-AES128-SHA.",
+     "see": "Validator: CBC suites removed."
+    },
+    {
+     "do": "Add ECDHE-ECDSA-AES256-GCM-SHA384, ECDHE-RSA-AES256-GCM-SHA384 and ECDHE-RSA-CHACHA20-POLY1305.",
+     "see": "Validator: AEAD with forward secrecy."
+    },
+    {
+     "do": "Enable the TLS 1.3 suites TLS_AES_256_GCM_SHA384 and TLS_CHACHA20_POLY1305_SHA256.",
+     "see": "Validator: TLS 1.3 enabled."
+    },
+    {
+     "do": "Click Validate.",
+     "see": "Grade moves from C to A."
+    }
+   ],
+   "answer": "Allow only TLS 1.2 and TLS 1.3, drop SSLv3, TLS 1.0 and 1.1, remove RC4, 3DES and CBC suites, and keep ECDHE with AES-GCM or ChaCha20-Poly1305. This gives forward secrecy and authenticated encryption.",
+   "hint": "Look for RC4, SSL and anything ending in -SHA with CBC."
+  },
+  {
+   "title": "Verify a signed file",
+   "sim": "terminal",
+   "scenario": "A fictional vendor, Example Corp, posted tool.tar.gz, a checksum file tool.sha256 and a signature tool.sig, with public.pem for verification. Two download copies exist: one from the official site and one from a mirror. Use the terminal to check the SHA-256 checksum and the openssl signature on both copies and decide which download was tampered with. Remember that a matching checksum from the same untrusted place is weak, which is why the signature matters.",
+   "objective": "Check a checksum and an openssl signature and detect the tampered download.",
+   "steps": [
+    {
+     "do": "Run: sha256sum tool.tar.gz and compare with tool.sha256.",
+     "see": "Official copy: digests match."
+    },
+    {
+     "do": "Run: sha256sum mirror/tool.tar.gz.",
+     "see": "Digest differs from the published value."
+    },
+    {
+     "do": "Run: openssl dgst -sha256 -verify public.pem -signature tool.sig tool.tar.gz",
+     "see": "Verified OK."
+    },
+    {
+     "do": "Run the same command on mirror/tool.tar.gz.",
+     "see": "Verification Failure."
+    },
+    {
+     "do": "Compare file sizes with ls -l.",
+     "see": "The mirror file is a few bytes larger."
+    },
+    {
+     "do": "Decide which copy to trust.",
+     "see": "Only the official copy passes both checks."
+    },
+    {
+     "do": "Report the finding in the notes box.",
+     "see": "Lab marked complete."
+    }
+   ],
+   "answer": "The official download matches the checksum and verifies against the public key. The mirror copy fails both, so it was modified after signing. Delete it and report the mirror. The signature proves origin and integrity when the public key came from a trusted source.",
+   "hint": "A checksum detects change, a signature also proves who produced the file."
+  },
+  {
+   "title": "Inspect a certificate chain",
+   "sim": "file-explorer",
+   "scenario": "The file explorer holds three fictional PEM certificates from Example Corp: leaf.pem, intermediate.pem and root.pem, plus a second set from a test host called broken-leaf.pem. Open each file in the viewer, read the issuer, subject, SAN and expiry fields, and check how they link into a chain. Then find out why the second set triggers a browser warning, whether it is a hostname mismatch, an expired date or a broken chain.",
+   "objective": "Find issuer, SAN and expiry and identify the broken chain or hostname mismatch.",
+   "steps": [
+    {
+     "do": "Open leaf.pem.",
+     "see": "Subject: www.example.com. Issuer: Example Intermediate CA."
+    },
+    {
+     "do": "Read the SAN field.",
+     "see": "DNS:www.example.com, DNS:example.com."
+    },
+    {
+     "do": "Open intermediate.pem.",
+     "see": "Subject: Example Intermediate CA. Issuer: Example Root CA."
+    },
+    {
+     "do": "Open root.pem.",
+     "see": "Subject and Issuer are the same; it is self-signed."
+    },
+    {
+     "do": "Note the notAfter dates of all three.",
+     "see": "Leaf expires first; all still valid."
+    },
+    {
+     "do": "Open broken-leaf.pem and read its SAN.",
+     "see": "Only DNS:test.example.com, but the site requested is shop.example.com."
+    },
+    {
+     "do": "Check its issuer against the provided chain.",
+     "see": "Issuer name is not in the chain; the intermediate is missing as well."
+    }
+   ],
+   "answer": "The good chain links leaf to intermediate to root by issuer and subject, with a matching SAN and valid dates. The broken set has a hostname mismatch (the SAN lacks shop.example.com) and an incomplete chain, since its issuing intermediate was not supplied.",
+   "hint": "Match each certificate's issuer to the next one's subject."
+  },
+  {
+   "title": "Read a TLS handshake",
+   "sim": "packet-viewer",
+   "scenario": "The packet viewer loads a short capture from a fictional client at 192.0.2.60 connecting to 203.0.113.80 on port 443. Frames are listed with protocol, length and summary. You must locate the ClientHello, the ServerHello, the cipher suite the server selected and the frame that carries the certificate. Use the detail pane to expand the TLS record layers. Note the TLS version and decide whether forward secrecy is in use for this session.",
+   "objective": "Identify ClientHello, ServerHello, the selected cipher and certificate frames.",
+   "steps": [
+    {
+     "do": "Filter the list with tls.",
+     "see": "Handshake frames only are shown."
+    },
+    {
+     "do": "Select the first TLS frame from 192.0.2.60.",
+     "see": "Frame 4: Client Hello."
+    },
+    {
+     "do": "Expand the cipher suites list in the details.",
+     "see": "About 17 suites offered; TLS 1.3 and 1.2 in supported versions."
+    },
+    {
+     "do": "Select the reply from 203.0.113.80.",
+     "see": "Frame 6: Server Hello."
+    },
+    {
+     "do": "Expand the Server Hello and read the cipher suite.",
+     "see": "TLS_AES_256_GCM_SHA384 selected."
+    },
+    {
+     "do": "Look for a Certificate frame.",
+     "see": "For TLS 1.2 capture B, frame 7 shows Certificate; in TLS 1.3 it is encrypted."
+    },
+    {
+     "do": "Check key exchange extensions.",
+     "see": "key_share x25519 means ECDHE; forward secrecy is in use."
+    }
+   ],
+   "answer": "Frame 4 is the ClientHello, frame 6 the ServerHello selecting TLS_AES_256_GCM_SHA384 over TLS 1.3. The certificate is visible only in the TLS 1.2 capture, because TLS 1.3 encrypts it. The x25519 key share shows ephemeral key exchange and forward secrecy.",
+   "hint": "Client Hello is sent first; the server's choice is in Server Hello."
+  },
+  {
+   "title": "Crack weak password hashes",
+   "sim": "terminal",
+   "scenario": "In an isolated lab shell at Example Corp you have two fictional credential files: users_md5.txt with unsalted MD5 hashes of five made-up users, and users_bcrypt.txt with the same five passwords stored with bcrypt cost 12. A short wordlist, words.txt, holds 10,000 common passwords. You will run the same dictionary attack against both files and compare the results and timing. This is an authorized sandbox exercise using sample data only.",
+   "objective": "Crack unsalted MD5 with a wordlist, then show bcrypt resisting the same attack.",
+   "steps": [
+    {
+     "do": "Run: head users_md5.txt",
+     "see": "Five lines of user:hash with 32 hex characters."
+    },
+    {
+     "do": "Run: hashcat -m 0 users_md5.txt words.txt",
+     "see": "Four of five hashes cracked in under a second."
+    },
+    {
+     "do": "Run: hashcat --show users_md5.txt",
+     "see": "Shows the recovered weak passwords, such as summer2024."
+    },
+    {
+     "do": "Run: head users_bcrypt.txt",
+     "see": "Hashes begin with $2b$12$ and each has a different salt."
+    },
+    {
+     "do": "Run: hashcat -m 3200 users_bcrypt.txt words.txt",
+     "see": "Speed drops to a few hundred guesses per second."
+    },
+    {
+     "do": "Wait for the run to finish or check status.",
+     "see": "Only one very weak password falls and it takes much longer."
+    },
+    {
+     "do": "Compare the two timing summaries.",
+     "see": "MD5: seconds. bcrypt: minutes to hours for the same list."
+    }
+   ],
+   "answer": "Unsalted MD5 fell almost instantly because it is fast and identical passwords share hashes. The bcrypt file resisted: unique salts and a high cost made every guess expensive. Slow salted hashes cut the number of guesses an attacker can make, though weak passwords remain at risk.",
+   "hint": "Compare guesses per second between the two hash types."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "A cookie contains the value 'YWRtaW46MTIzNA=='. What is this most likely?",
+   "options": [
+    "Strongly encrypted data",
+    "Base64 encoded text",
+    "A salted hash",
+    "A certificate"
+   ],
+   "a": 1,
+   "why": "The trailing == padding is typical of Base64, which anyone can decode."
+  },
+  {
+   "q": "Which operation cannot be reversed, even with all information?",
+   "options": [
+    "Encoding",
+    "Symmetric encryption",
+    "Hashing",
+    "Asymmetric encryption"
+   ],
+   "a": 2,
+   "why": "A hash is one way."
+  },
+  {
+   "q": "Which AES mode provides authenticated encryption?",
+   "options": [
+    "ECB",
+    "CBC",
+    "GCM",
+    "Plain CTR without a tag"
+   ],
+   "a": 2,
+   "why": "GCM includes an authentication tag."
+  },
+  {
+   "q": "Why is key distribution the hard part of symmetric encryption?",
+   "options": [
+    "The cipher is slow",
+    "Both sides need the same secret without exposure",
+    "Keys are too long",
+    "AES has no keys"
+   ],
+   "a": 1,
+   "why": "Sharing the secret safely requires another mechanism."
+  },
+  {
+   "q": "Why do TLS sessions use both asymmetric and symmetric cryptography?",
+   "options": [
+    "Asymmetric exchanges the key, symmetric protects bulk data fast",
+    "Symmetric is weaker",
+    "Asymmetric is unsupported",
+    "To double the size"
+   ],
+   "a": 0,
+   "why": "Hybrid use combines safe key exchange with fast encryption."
+  },
+  {
+   "q": "A salt mainly protects against what?",
+   "options": [
+    "Collisions in AES",
+    "Precomputed lookup tables and shared-hash detection",
+    "Expired certificates",
+    "Packet loss"
+   ],
+   "a": 1,
+   "why": "Unique salts force per-hash attacks."
+  },
+  {
+   "q": "Which key signs a document?",
+   "options": [
+    "The receiver's public key",
+    "The signer's private key",
+    "A shared AES key",
+    "A salt"
+   ],
+   "a": 1,
+   "why": "Signing uses the private key and verification uses the public key."
+  },
+  {
+   "q": "A browser warns that a certificate's SAN lacks the visited hostname. This is a?",
+   "options": [
+    "Hostname mismatch",
+    "Expired root",
+    "OCSP stapling",
+    "Weak cipher"
+   ],
+   "a": 0,
+   "why": "The name in the URL is not in the certificate."
+  },
+  {
+   "q": "Which feature is mandatory in TLS 1.3 but optional in TLS 1.2?",
+   "options": [
+    "Forward secrecy through ephemeral key exchange",
+    "RC4",
+    "Compression",
+    "SSLv3 fallback"
+   ],
+   "a": 0,
+   "why": "TLS 1.3 removed static RSA key exchange."
+  },
+  {
+   "q": "Which password storage choice is best?",
+   "options": [
+    "Unsalted SHA-256",
+    "Base64 of the password",
+    "Argon2id with unique salts",
+    "AES-ECB"
+   ],
+   "a": 2,
+   "why": "Slow, salted, memory-hard hashing is recommended."
+  }
+ ]
+}

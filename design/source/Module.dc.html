@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Module page</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+a{color:inherit}
+</style>
+</helmet>
+<div style="width:390px;height:844px;box-sizing:border-box;position:relative;overflow:hidden;display:flex;flex-direction:column;background-color:#F3F5F9;background-image:radial-gradient(#D3DAE8 1px,transparent 1px);background-size:18px 18px;font-family:'Hanken Grotesk',sans-serif;color:#101B33">
+  <div style="flex:1;min-height:0;padding:48px 20px 0;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden">
+    <a href="Map.dc.html" style="align-self:flex-start;min-height:44px;margin-left:-8px;padding:0 8px;display:inline-flex;align-items:center;gap:4px;text-decoration:none;font:600 15px/1 'Hanken Grotesk',sans-serif;color:#46546F">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#46546F" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>Map
+    </a>
+    <div style="margin-top:2px;display:flex;align-items:center;gap:8px;font:600 12px/1 'Hanken Grotesk',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#5B6781"><span style="width:10px;height:10px;border-radius:50%;background:#0F9D8A"></span>Cybersecurity Rookie · ROOK-03</div>
+    <h1 style="margin:8px 0 0;font:700 32px/1.08 'Bricolage Grotesque',sans-serif;letter-spacing:-.01em">Networking Fundamentals</h1>
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <span style="padding:7px 12px;border-radius:999px;background:#fff;border:1px solid #DCE2EC;font:600 13px/1 'Hanken Grotesk',sans-serif">8 lessons · 6 labs</span>
+      <span style="padding:7px 12px;border-radius:999px;background:#fff;border:1px solid #DCE2EC;font:600 13px/1 'Hanken Grotesk',sans-serif">5h 30m</span>
+      <span style="padding:7px 12px;border-radius:999px;background:#fff;border:1px solid #DCE2EC;font:600 13px/1 'Hanken Grotesk',sans-serif">Beginner</span>
+    </div>
+
+    <div style="margin-top:16px;background:#fff;border:1px solid #DCE2EC;border-radius:18px;padding:14px 16px">
+      <div style="font:600 12px/1 'Hanken Grotesk',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#5B6781">By the end you can</div>
+      <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:flex-start;gap:10px;font:500 15px/1.3 'Hanken Grotesk',sans-serif"><span style="width:20px;height:20px;border-radius:50%;background:#FFE066;display:flex;align-items:center;justify-content:center;flex:none;margin-top:1px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#101B33" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>Explain what an IP address and a port are</div>
+        <div style="display:flex;align-items:flex-start;gap:10px;font:500 15px/1.3 'Hanken Grotesk',sans-serif"><span style="width:20px;height:20px;border-radius:50%;background:#FFE066;display:flex;align-items:center;justify-content:center;flex:none;margin-top:1px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#101B33" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>Describe how DNS finds a website</div>
+        <div style="display:flex;align-items:flex-start;gap:10px;font:500 15px/1.3 'Hanken Grotesk',sans-serif"><span style="width:20px;height:20px;border-radius:50%;background:#FFE066;display:flex;align-items:center;justify-content:center;flex:none;margin-top:1px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#101B33" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>Trace a packet from your phone to a server</div>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;font:600 12px/1 'Hanken Grotesk',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#5B6781">Lessons</div>
+    <div style="margin-top:6px;display:flex;flex-direction:column">
+      <sc-for list="{{lessons}}" as="l" hint-placeholder-count="8">
+        <sc-if value="{{l.isDone}}" hint-placeholder-val="{{true}}">
+          <div style="min-height:44px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #E3E8F0">
+            <span style="width:26px;height:26px;border-radius:50%;background:#0F9D8A;display:flex;align-items:center;justify-content:center;flex:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+            <span style="flex:1;font:500 15px/1.2 'Hanken Grotesk',sans-serif;color:#46546F">{{l.title}}</span>
+            <span style="font:400 13px/1 'Hanken Grotesk',sans-serif;color:#5B6781">{{l.time}}</span>
+          </div>
+        </sc-if>
+        <sc-if value="{{l.isCurrent}}" hint-placeholder-val="{{false}}">
+          <a href="Learn.dc.html" style="margin:6px -6px;padding:10px 12px;min-height:44px;box-sizing:border-box;display:flex;align-items:center;gap:12px;background:#fff;border:2px solid #101B33;border-radius:16px;text-decoration:none;color:#101B33;box-shadow:0 10px 22px -14px rgba(16,27,51,.4)">
+            <span style="width:26px;height:26px;border-radius:50%;background:#101B33;color:#fff;display:flex;align-items:center;justify-content:center;flex:none;font:700 13px/1 'Hanken Grotesk',sans-serif">{{l.n}}</span>
+            <span style="flex:1;font:700 16px/1.2 'Hanken Grotesk',sans-serif"><span style="background:linear-gradient(transparent 52%,#FFE066 52%);padding:0 2px">{{l.title}}</span></span>
+            <span style="padding:7px 12px;border-radius:999px;background:#101B33;color:#fff;font:700 12px/1 'Hanken Grotesk',sans-serif">Start</span>
+          </a>
+        </sc-if>
+        <sc-if value="{{l.isTodo}}" hint-placeholder-val="{{false}}">
+          <div style="min-height:44px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #E3E8F0">
+            <span style="width:26px;height:26px;box-sizing:border-box;border-radius:50%;border:2px solid #C9D1E0;color:#5B6781;display:flex;align-items:center;justify-content:center;flex:none;font:600 12px/1 'Hanken Grotesk',sans-serif">{{l.n}}</span>
+            <span style="flex:1;font:500 15px/1.2 'Hanken Grotesk',sans-serif;color:#101B33">{{l.title}}</span>
+            <span style="font:400 13px/1 'Hanken Grotesk',sans-serif;color:#5B6781">{{l.time}}</span>
+          </div>
+        </sc-if>
+      </sc-for>
+      <div style="min-height:52px;display:flex;align-items:center;gap:12px">
+        <span style="width:26px;height:26px;border-radius:50%;background:#E6EAF2;display:flex;align-items:center;justify-content:center;flex:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#46546F" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>
+        <span style="flex:1;font:600 15px/1.2 'Hanken Grotesk',sans-serif">Checkpoint</span>
+        <span style="font:400 13px/1 'Hanken Grotesk',sans-serif;color:#5B6781">10 questions</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="flex:none;background:#fff;border-top:1px solid #DCE2EC;padding:14px 20px 30px;box-sizing:border-box">
+    <a href="Learn.dc.html" style="height:54px;border-radius:16px;background:#101B33;color:#fff;text-decoration:none;font:600 16px/1 'Hanken Grotesk',sans-serif;display:flex;align-items:center;justify-content:center;gap:8px">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M7 4.5l13 7.5-13 7.5z"/></svg>
+      Continue: DNS
+    </a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const raw = [
+      ['What is a network?', 'done'],
+      ['IP and MAC addresses', 'done'],
+      ['OSI and TCP/IP models', 'done'],
+      ['TCP, UDP and ports', 'done'],
+      ["DNS: the internet's phone book", 'current'],
+      ['DHCP and NAT', 'todo'],
+      ['Routers, switches and Wi-Fi', 'todo'],
+      ['ping and traceroute', 'todo']
+    ];
+    const lessons = raw.map((r, i) => ({
+      n: i + 1,
+      title: r[0],
+      time: "15 min",
+      isDone: r[1] === 'done',
+      isCurrent: r[1] === 'current',
+      isTodo: r[1] === 'todo'
+    }));
+    return { lessons: lessons };
+  }
+}
+</script>
+</body>
+</html>

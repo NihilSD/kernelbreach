@@ -1,0 +1,1320 @@
+{
+ "code": "ENG-08",
+ "intro": "This module shows how to secure the three major clouds with one consistent design. You will start from the shared responsibility model and common attack paths, then read and tighten IAM policies, design network and data protections, and enable logging and detection. You will use CSPM to find and prioritize misconfigurations, plan a multi-account landing zone with guardrails, and map equivalent services across AWS, Azure and GCP so you can apply the same principles on any platform.",
+ "lessons": [
+  {
+   "title": "Shared responsibility and cloud threat model",
+   "why": "Most cloud breaches come from the customer's side of the line, so you must know exactly where that line sits for each service type.",
+   "sections": [
+    {
+     "h": "The shared responsibility model",
+     "p": [
+      "Cloud providers secure the cloud, and customers secure what they put in it. The provider always owns the physical data centers, hardware, hypervisor and core network. The customer always owns its data, its identities and access decisions, and its configuration choices. Everything in between shifts with the service model. The exact split is published by AWS, Microsoft and Google in their documentation, and auditors expect you to cite it. The practical lesson is that moving to the cloud transfers some operational work but never transfers accountability for your data and who can reach it."
+     ]
+    },
+    {
+     "h": "IaaS, PaaS and SaaS",
+     "p": [
+      "With IaaS, such as EC2, Azure Virtual Machines or Compute Engine, you manage the guest operating system, patching, host firewall, applications, and data. With PaaS, such as managed databases or app platforms, the provider patches the operating system and runtime, while you manage application code, configuration, identities and data. With SaaS, such as a mail or CRM service, the provider runs nearly everything, and you still manage users, MFA, sharing settings, and data classification. Serverless functions sit near PaaS. A frequent mistake is assuming 'managed' means 'secured': a managed database with a public endpoint and a weak password is still your failure."
+     ]
+    },
+    {
+     "h": "Common cloud attack paths",
+     "p": [
+      "Attackers rarely break the hypervisor. They use exposed credentials, such as access keys committed to a public repository or leaked in CI logs, phished console logins without MFA, over-permissive roles, and publicly readable storage. A common chain starts with a vulnerable web application, uses server-side request forgery to reach the instance metadata service at 169.254.169.254, steals temporary role credentials, and then uses the role's permissions to read storage or create new users. Other paths include exposed management ports, unpatched workloads, misconfigured Kubernetes dashboards, and compromised third-party integrations with broad cross-account access."
+     ]
+    },
+    {
+     "h": "Building a cloud threat model",
+     "p": [
+      "A cloud threat model lists assets such as data stores, identities, keys and pipelines, then maps entry points, trust boundaries and likely abuse paths. Useful boundaries include the internet to the account, one account to another, a workload to the control plane, and a CI system to production. For each path, note the preventive control, the detective control, and the response. Prioritize identity, because the control plane is reachable from anywhere with valid credentials. Use frameworks such as the MITRE ATT&CK Cloud matrix and the cloud provider's well-architected security pillar to make sure categories are not forgotten, and revisit the model after major architecture changes."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Responsibility by model (summary)",
+    "text": "Layer            IaaS      PaaS      SaaS\nData, identity   customer  customer  customer\nApplication      customer  customer  provider\nOS, patching     customer  provider  provider\nHypervisor, HW   provider  provider  provider"
+   },
+   "example": "A startup stores customer exports in a managed object storage bucket. A developer tests with a public-read setting and forgets to revert it. A security researcher finds the bucket by searching for its predictable name and notifies the company. The provider's data centers and storage service were fully secure, but the bucket configuration, which is the customer's responsibility, exposed 80,000 records. The fix is a block-public-access setting at the account level plus an alert when a policy makes a bucket public.",
+   "terms": [
+    {
+     "term": "Shared responsibility model",
+     "def": "Division of security duties between cloud provider and customer, varying by service type."
+    },
+    {
+     "term": "Control plane",
+     "def": "APIs and consoles used to create and manage cloud resources."
+    },
+    {
+     "term": "Instance metadata service",
+     "def": "Local endpoint at 169.254.169.254 that serves instance details and temporary credentials."
+    },
+    {
+     "term": "SSRF",
+     "def": "Server-side request forgery: tricking a server into making requests on the attacker's behalf."
+    },
+    {
+     "term": "Trust boundary",
+     "def": "Point where data or control passes between zones of different trust."
+    }
+   ],
+   "check": [
+    {
+     "q": "In IaaS, who patches the guest operating system?",
+     "options": [
+      "The provider",
+      "The customer",
+      "The ISP",
+      "Nobody"
+     ],
+     "a": 1,
+     "why": "The customer manages everything above the hypervisor in IaaS."
+    },
+    {
+     "q": "Which responsibility never moves to the provider, even in SaaS?",
+     "options": [
+      "Physical security",
+      "Data and identity management",
+      "Hypervisor patching",
+      "Power and cooling"
+     ],
+     "a": 1,
+     "why": "Customers always own data classification, users and access settings."
+    },
+    {
+     "q": "What does SSRF commonly target in cloud workloads?",
+     "options": [
+      "The metadata service for temporary credentials",
+      "The monitor's power supply",
+      "Physical disks",
+      "DNS root servers"
+     ],
+     "a": 0,
+     "why": "Reaching 169.254.169.254 can yield role credentials."
+    },
+    {
+     "q": "Why prioritize identity in a cloud threat model?",
+     "options": [
+      "It is cheaper",
+      "The control plane is reachable from anywhere with valid credentials",
+      "Identity is provider owned",
+      "Networks no longer exist"
+     ],
+     "a": 1,
+     "why": "Stolen credentials give direct control-plane access."
+    }
+   ],
+   "recap": [
+    "Providers secure the cloud; customers secure what they configure and store.",
+    "Responsibility shifts by IaaS, PaaS and SaaS but data and identity stay with you.",
+    "Leaked keys, weak identity and public storage are the main attack paths."
+   ]
+  },
+  {
+   "title": "Cloud IAM fundamentals",
+   "why": "Every cloud action is an API call authorized by IAM, so reading policies correctly is the most important cloud security skill.",
+   "sections": [
+    {
+     "h": "Principals, policies and roles",
+     "p": [
+      "A principal is who acts: a user, a group member, a service account, or a workload assuming a role. Policies are documents that allow or deny actions on resources. In AWS, identity-based policies attach to users or roles and resource-based policies attach to things like S3 buckets. A role has no permanent password; a principal assumes it through AWS STS and receives temporary credentials. Azure uses Microsoft Entra ID identities with role-based access control assignments at a scope, and GCP binds members to roles on resources through IAM policies. Prefer roles and workload identities over long-lived users."
+     ]
+    },
+    {
+     "h": "Reading an IAM policy",
+     "p": [
+      "An AWS policy statement has Effect, Action, Resource and optional Condition. Evaluation follows fixed logic: all requests start denied, an explicit Deny always wins, and an Allow works only if no boundary blocks it. A statement with Action 's3:*' and Resource '*' lets the principal do anything with every bucket in the account. Watch for NotAction, wildcards in the Principal element, and conditions that look protective but are not. In Azure, a role assignment pairs a principal, a role definition and a scope; in GCP, check whether a role is basic (Owner, Editor, Viewer), which is too broad, or predefined and narrower."
+     ]
+    },
+    {
+     "h": "Trust relationships",
+     "p": [
+      "A role has two policies in effect: a permission policy saying what it can do, and a trust policy saying who can assume it. A trust policy that names Principal AWS '*' with no condition lets anyone with an AWS account assume the role. Cross-account access should name the exact account or role and, for third parties, require an ExternalId to prevent the confused deputy problem. Federation uses OIDC or SAML so that workloads, such as GitHub Actions, assume roles without stored secrets. Always review trust policies as carefully as permissions, because they decide who can start the chain."
+     ]
+    },
+    {
+     "h": "Organization-level boundaries",
+     "p": [
+      "Above individual accounts, organization policies set limits that no local administrator can override. AWS Service Control Policies (SCPs) in AWS Organizations define the maximum permissions available within accounts and OUs; they never grant access by themselves. Azure uses management groups with Azure Policy and role assignment inheritance, and GCP uses Organization Policy constraints and folder-level IAM. Effective permission is the intersection of what an identity policy allows and what these guardrails permit. Typical SCPs deny leaving the organization, disabling logging, or using unapproved regions, which gives security teams a safety net even when workload teams make mistakes."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "AWS policy statement (documentation account)",
+    "text": "{\"Effect\":\"Allow\",\n \"Action\":[\"s3:GetObject\"],\n \"Resource\":\"arn:aws:s3:::example-reports/*\",\n \"Condition\":{\"StringEquals\":{\n   \"aws:PrincipalAccount\":\"111122223333\"}}}"
+   },
+   "example": "A reviewer finds a role named 'DevHelper' whose trust policy allows Principal AWS '*'. Any AWS account in the world could ask to assume it. Its permission policy allows 's3:*' on all resources. The reviewer changes the trust policy to the specific build role in account 111122223333, narrows the permission to s3:GetObject on one bucket path, and adds an SCP that denies disabling logging organization-wide. The same role now has a small, auditable blast radius.",
+   "terms": [
+    {
+     "term": "Principal",
+     "def": "The identity, such as a user, role or service account, making a request."
+    },
+    {
+     "term": "Trust policy",
+     "def": "Policy on a role stating who may assume it."
+    },
+    {
+     "term": "SCP",
+     "def": "Organization policy that sets the maximum permissions in member accounts."
+    },
+    {
+     "term": "STS",
+     "def": "Service issuing temporary credentials for assumed roles."
+    },
+    {
+     "term": "Explicit deny",
+     "def": "A Deny statement that overrides any Allow."
+    }
+   ],
+   "check": [
+    {
+     "q": "In AWS evaluation, what overrides an Allow?",
+     "options": [
+      "An explicit Deny",
+      "A tag",
+      "A DNS entry",
+      "A comment"
+     ],
+     "a": 0,
+     "why": "Explicit denies always win."
+    },
+    {
+     "q": "What does a role's trust policy define?",
+     "options": [
+      "What the role may do",
+      "Who may assume the role",
+      "Which region it runs in",
+      "Its billing owner"
+     ],
+     "a": 1,
+     "why": "The trust policy names the principals allowed to assume the role."
+    },
+    {
+     "q": "An SCP by itself can:",
+     "options": [
+      "Grant access to a user",
+      "Limit the maximum permissions in accounts",
+      "Create buckets",
+      "Encrypt data"
+     ],
+     "a": 1,
+     "why": "SCPs only restrict; identity policies must still grant."
+    },
+    {
+     "q": "Why use ExternalId with third-party roles?",
+     "options": [
+      "To speed up login",
+      "To prevent the confused deputy problem",
+      "To encrypt traffic",
+      "To skip MFA"
+     ],
+     "a": 1,
+     "why": "It ensures the vendor assumes the role only on behalf of the right customer."
+    }
+   ],
+   "recap": [
+    "Policies allow or deny actions; explicit deny wins and defaults are deny.",
+    "Read trust policies as well as permission policies.",
+    "Organization guardrails cap what any account administrator can do."
+   ]
+  },
+  {
+   "title": "IAM least privilege in practice",
+   "why": "Permissions grow over time; deliberate techniques shrink them back to what is actually used.",
+   "sections": [
+    {
+     "h": "Starting small and measuring use",
+     "p": [
+      "Least privilege means granting only the actions needed, on only the resources needed, for only as long as needed. In practice teams start too broad because it is easier. The fix is measurement. AWS IAM Access Analyzer can generate a policy from CloudTrail activity and report unused access, and IAM last-accessed data shows which services a role has not touched in 90 days. Azure offers Entra permissions management and access reviews, and GCP offers the IAM Recommender, which suggests removing unused roles. Treat these suggestions as input to review, and test changes in a non-production account first."
+     ]
+    },
+    {
+     "h": "Conditions and scoping",
+     "p": [
+      "Conditions narrow a permission without rewriting it. Typical examples limit actions to a source IP range, require aws:MultiFactorAuthPresent to be true for sensitive calls, restrict to a region with aws:RequestedRegion, or require a resource tag to match the principal's tag, an approach known as attribute-based access control (ABAC). Replace 'Resource: *' with specific ARNs wherever the service allows it. Where the action cannot be scoped, use the condition keys the service provides. Avoid broad actions like iam:PassRole on all roles, because it lets a principal hand powerful roles to services it controls."
+     ]
+    },
+    {
+     "h": "Permission boundaries and escalation paths",
+     "p": [
+      "A permission boundary is a managed policy that sets the maximum permissions an IAM user or role can ever have, even if broader policies are attached. It lets you delegate: developers may create roles for their applications, but only roles carrying the boundary, so they cannot create an administrator. Without such controls, privilege escalation paths appear, for example iam:CreatePolicyVersion, iam:AttachUserPolicy, iam:PassRole combined with lambda:CreateFunction, or sts:AssumeRole into a more powerful role. Review who can change IAM, since the ability to write policy is effectively administrator access."
+     ]
+    },
+    {
+     "h": "Short-lived credentials and break-glass",
+     "p": [
+      "Static access keys are the most commonly leaked credential. Replace them with temporary credentials: IAM roles for EC2 and containers, IAM Identity Center or Entra ID sign-in with SSO for humans, and OIDC federation for pipelines so no secret is stored. Set session durations to hours, not days. Where keys are unavoidable, rotate them at least every 90 days, alert on keys older than that, and scan code repositories for secrets. Keep one or two break-glass administrator accounts, protected by hardware MFA, excluded from conditional access outages, monitored with alerts on every use."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Scoped policy with MFA and region conditions",
+    "text": "{\"Effect\":\"Allow\",\n \"Action\":[\"ec2:StopInstances\",\"ec2:StartInstances\"],\n \"Resource\":\"arn:aws:ec2:eu-west-1:111122223333:instance/*\",\n \"Condition\":{\"Bool\":{\"aws:MultiFactorAuthPresent\":\"true\"},\n  \"StringEquals\":{\"aws:ResourceTag/team\":\"web\"}}}"
+   },
+   "example": "A developer role has 'ec2:*' and 'iam:*' on all resources. Access Analyzer shows that in 90 days the role only called StartInstances, StopInstances and DescribeInstances on instances tagged team=web. The engineer writes a policy limited to those actions, requires MFA, and attaches a permission boundary that blocks IAM changes. A tester then confirms that the developer can still restart web servers, while attempts to create users or touch database instances are denied and appear in the audit log.",
+   "terms": [
+    {
+     "term": "Least privilege",
+     "def": "Granting only the minimum permissions needed, scoped by action, resource and time."
+    },
+    {
+     "term": "Permission boundary",
+     "def": "Policy that caps the maximum permissions an identity may have."
+    },
+    {
+     "term": "ABAC",
+     "def": "Access control using attributes such as tags to decide permissions."
+    },
+    {
+     "term": "Privilege escalation",
+     "def": "Gaining higher permissions than originally granted, often through IAM misconfigurations."
+    },
+    {
+     "term": "Break-glass account",
+     "def": "Emergency administrator identity with strict protection and monitoring."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which tool builds a policy from observed CloudTrail activity?",
+     "options": [
+      "IAM Access Analyzer",
+      "Route 53",
+      "CloudFront",
+      "Glacier"
+     ],
+     "a": 0,
+     "why": "Access Analyzer can generate least-privilege policies from logs."
+    },
+    {
+     "q": "What does a permission boundary do?",
+     "options": [
+      "Grants permissions",
+      "Caps the maximum permissions of a principal",
+      "Encrypts keys",
+      "Blocks the internet"
+     ],
+     "a": 1,
+     "why": "It sets the ceiling regardless of attached policies."
+    },
+    {
+     "q": "Which approach best avoids leaked access keys?",
+     "options": [
+      "Emailing keys securely",
+      "Roles, SSO and OIDC federation with temporary credentials",
+      "Longer keys",
+      "Storing keys in code"
+     ],
+     "a": 1,
+     "why": "Temporary credentials remove long-lived secrets."
+    },
+    {
+     "q": "Why is iam:PassRole on all roles dangerous?",
+     "options": [
+      "It slows APIs",
+      "It lets a principal give a powerful role to a service it controls",
+      "It disables logs",
+      "It needs MFA"
+     ],
+     "a": 1,
+     "why": "That can become a path to administrator permissions."
+    }
+   ],
+   "recap": [
+    "Measure real use and trim permissions with Access Analyzer or recommender tools.",
+    "Use conditions, tags and boundaries to scope and delegate safely.",
+    "Prefer short-lived credentials and protect break-glass accounts."
+   ]
+  },
+  {
+   "title": "Cloud network controls",
+   "why": "The network is a second line of defense: well-designed cloud networks keep services private and make data theft harder.",
+   "sections": [
+    {
+     "h": "VPC and VNet segmentation",
+     "p": [
+      "A virtual private cloud (AWS VPC, Azure VNet, GCP VPC) is a software-defined network divided into subnets. Public subnets have a route to an internet gateway; private subnets do not, and reach the internet through a NAT gateway if at all. A common layout puts load balancers in public subnets, application servers in private subnets, and databases in isolated subnets with no internet route, spread across at least two availability zones. Use non-overlapping CIDR ranges, such as 10.10.0.0/16, to allow future peering. Separate production and development into different VPCs or accounts, not only subnets."
+     ]
+    },
+    {
+     "h": "Security groups, NACLs and firewalls",
+     "p": [
+      "AWS security groups are stateful, attach to network interfaces, and only allow rules; their default for inbound is deny. Network ACLs are stateless, apply at the subnet, support allow and deny, and are numbered rules. Azure uses network security groups and Application Security Groups, while GCP uses VPC firewall rules with network tags or service accounts as targets. Reference security groups by ID instead of IP ranges, so that 'app tier may reach database tier on 5432' remains true when instances change. Never open SSH 22 or RDP 3389 to 0.0.0.0/0; use Session Manager, Azure Bastion or IAP instead."
+     ]
+    },
+    {
+     "h": "Private endpoints and service access",
+     "p": [
+      "Cloud services such as storage and databases are reachable over public endpoints by default. Private connectivity keeps traffic off the internet: AWS PrivateLink and gateway endpoints, Azure Private Link and private endpoints, and GCP Private Service Connect and Private Google Access. Combined with a policy on the service, for example a bucket policy that denies requests not coming from a given VPC endpoint (aws:SourceVpce), this prevents access from stolen credentials used outside the network. Private DNS zones must resolve the service name to the private address, which is a common misconfiguration during rollout."
+     ]
+    },
+    {
+     "h": "Egress control and inspection",
+     "p": [
+      "Attackers need an outbound path for command and control and data theft, so egress deserves as much design as ingress. Route outbound traffic from private subnets through a central inspection point: a firewall such as AWS Network Firewall or Azure Firewall, or a proxy with a domain allow list. Block unneeded ports, use DNS firewalls to filter malicious domains, and restrict which services may send traffic to the internet. Enable VPC Flow Logs, NSG flow logs and VPC Flow Logs in GCP to record accepted and rejected connections. A hub-and-spoke or transit gateway design gives one place to enforce and log shared controls."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Security group reference by ID (generic)",
+    "text": "sg-web : inbound 443 from 0.0.0.0/0 (via load balancer only)\nsg-app : inbound 8443 from sg-web\nsg-db  : inbound 5432 from sg-app\nsg-db  : outbound none except sg-app responses (stateful)\nAdmin  : no 22/3389 open; use Session Manager / Bastion / IAP"
+   },
+   "example": "An engineer discovers that a database security group allows TCP 5432 from 0.0.0.0/0 because of a test rule. Flow logs show repeated rejected and accepted attempts from addresses like 203.0.113.80. The engineer replaces the rule with a source of the application security group, moves the database to an isolated subnet, adds a private endpoint for backups to storage, and routes outbound traffic through a firewall with a domain allow list. The next scan of the account finds no reachable database port.",
+   "terms": [
+    {
+     "term": "VPC",
+     "def": "Isolated virtual network in a cloud account, divided into subnets."
+    },
+    {
+     "term": "Security group",
+     "def": "Stateful, allow-only virtual firewall attached to network interfaces."
+    },
+    {
+     "term": "NACL",
+     "def": "Stateless subnet-level access control list with allow and deny rules."
+    },
+    {
+     "term": "PrivateLink",
+     "def": "Service providing private access to cloud services without internet exposure."
+    },
+    {
+     "term": "Egress control",
+     "def": "Restricting and inspecting outbound traffic."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which statement about security groups is correct?",
+     "options": [
+      "They are stateless",
+      "They are stateful and only allow",
+      "They apply only to subnets and support deny",
+      "They need an internet gateway"
+     ],
+     "a": 1,
+     "why": "AWS security groups are stateful allow lists on interfaces."
+    },
+    {
+     "q": "Why avoid opening SSH to 0.0.0.0/0?",
+     "options": [
+      "It slows the instance",
+      "It exposes the service to internet-wide scanning and brute force",
+      "It breaks DNS",
+      "It disables logs"
+     ],
+     "a": 1,
+     "why": "Use managed access paths like Session Manager instead."
+    },
+    {
+     "q": "What do private endpoints achieve?",
+     "options": [
+      "Public bucket listing",
+      "Service access without crossing the public internet",
+      "Faster NAT",
+      "Free storage"
+     ],
+     "a": 1,
+     "why": "Traffic stays on the provider's private network."
+    },
+    {
+     "q": "Why design egress controls?",
+     "options": [
+      "To stop outbound command and control and data theft",
+      "To speed downloads",
+      "To remove firewalls",
+      "To avoid DNS"
+     ],
+     "a": 0,
+     "why": "Blocking outbound paths limits attacker options."
+    }
+   ],
+   "recap": [
+    "Segment with public, private and isolated subnets across availability zones.",
+    "Reference security groups by ID and avoid open admin ports.",
+    "Use private endpoints and inspect egress, with flow logs enabled."
+   ]
+  },
+  {
+   "title": "Data protection and encryption",
+   "why": "Encryption and storage policies are the last barrier protecting data when other controls fail, and public exposure remains the most common cloud data breach.",
+   "sections": [
+    {
+     "h": "Encryption at rest with KMS",
+     "p": [
+      "Cloud storage services encrypt data at rest using keys managed in a key management service: AWS KMS, Azure Key Vault and Managed HSM, and Google Cloud KMS. Envelope encryption is the standard pattern: a data key encrypts the data, and a master key in the KMS encrypts the data key. Choose between provider-owned keys, customer-managed keys (CMKs) you control through key policy, and customer-supplied keys. Customer-managed keys let you restrict who can decrypt, audit every use, and disable a key to cut off access. Enable automatic annual rotation, separate key administrators from key users, and use per-environment keys."
+     ]
+    },
+    {
+     "h": "Encryption in transit and secrets",
+     "p": [
+      "Require TLS 1.2 or newer for all service endpoints. Bucket policies can deny requests where aws:SecureTransport is false, and storage accounts can enforce secure transfer. Use managed certificates and automatic renewal. Application secrets such as database passwords belong in a secrets manager (AWS Secrets Manager, Azure Key Vault, GCP Secret Manager) with rotation and access logging, not in environment variables baked into images or source code. For highly sensitive workloads, consider confidential computing and hardware security modules, but only after the basics of access control are in place."
+     ]
+    },
+    {
+     "h": "Bucket and storage policies",
+     "p": [
+      "Object storage breaches usually come from permissive access, not weak ciphers. AWS S3 Block Public Access can be turned on for an account and for each bucket, and overrides ACLs and policies that would grant public access. Disable legacy ACLs with the Bucket Owner Enforced setting, grant access through policies to named roles, and use versioning plus Object Lock or MFA Delete for protection against deletion and ransomware. Azure uses storage account settings to disallow anonymous blob access and shared key authorization, and GCP uses uniform bucket-level access and public access prevention."
+     ]
+    },
+    {
+     "h": "Classification, backup and monitoring",
+     "p": [
+      "Not all data needs the same protection. Classify data, for example public, internal, confidential and regulated, and apply stronger controls to the higher classes. Tools such as Amazon Macie, Microsoft Purview and Google Sensitive Data Protection discover personal and financial data in storage. Keep backups in a separate account with restricted delete rights, and test restores. Enable access logging on sensitive buckets, set lifecycle policies to remove obsolete data, and alert on policy changes that open access. Data that you do not keep cannot be stolen, so deletion schedules are a security control too."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Bucket policy: require TLS and deny deletes of logs",
+    "text": "{\"Effect\":\"Deny\",\"Principal\":\"*\",\n \"Action\":\"s3:*\",\n \"Resource\":[\"arn:aws:s3:::example-data\",\"arn:aws:s3:::example-data/*\"],\n \"Condition\":{\"Bool\":{\"aws:SecureTransport\":\"false\"}}}\n# plus: Block Public Access = ON, default encryption = aws:kms,\n# versioning = enabled, Object Ownership = BucketOwnerEnforced"
+   },
+   "example": "A company stores invoices in a bucket encrypted with a customer-managed KMS key. A former contractor's leaked credentials are used to list the bucket, but the key policy allows decryption only to the invoice-processing role, so reads fail with AccessDenied and each attempt appears in KMS logs. The team enables account-wide Block Public Access, enforces TLS in the bucket policy, and turns on versioning. Even a successful deletion could now be undone, and the exposure surface is far smaller.",
+   "terms": [
+    {
+     "term": "Envelope encryption",
+     "def": "Encrypting data with a data key that is itself encrypted by a master key in a KMS."
+    },
+    {
+     "term": "Customer-managed key",
+     "def": "KMS key whose policy and lifecycle the customer controls."
+    },
+    {
+     "term": "Block Public Access",
+     "def": "S3 setting that overrides policies and ACLs that would make data public."
+    },
+    {
+     "term": "Object Lock",
+     "def": "Feature that makes stored objects immutable for a retention period."
+    },
+    {
+     "term": "Secrets manager",
+     "def": "Service that stores, rotates and audits access to credentials."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is envelope encryption?",
+     "options": [
+      "A data key encrypts data and a master key encrypts the data key",
+      "Sending data in an envelope",
+      "Encrypting only emails",
+      "Hashing passwords"
+     ],
+     "a": 0,
+     "why": "The KMS key protects the data keys, which protect the data."
+    },
+    {
+     "q": "What does S3 Block Public Access do?",
+     "options": [
+      "Overrides settings that would expose data publicly",
+      "Encrypts objects",
+      "Deletes old data",
+      "Opens buckets"
+     ],
+     "a": 0,
+     "why": "It prevents public ACLs and policies from taking effect."
+    },
+    {
+     "q": "Why prefer customer-managed keys for sensitive data?",
+     "options": [
+      "They cost nothing",
+      "You control key policy, auditing and can disable them",
+      "They remove TLS",
+      "They are unbreakable"
+     ],
+     "a": 1,
+     "why": "Control and visibility over decryption is the benefit."
+    },
+    {
+     "q": "Where should database passwords be stored?",
+     "options": [
+      "In source code",
+      "In a secrets manager with rotation",
+      "In a public wiki",
+      "In bucket names"
+     ],
+     "a": 1,
+     "why": "Secrets managers add rotation and audit trails."
+    }
+   ],
+   "recap": [
+    "Use KMS envelope encryption and customer-managed keys for sensitive data.",
+    "Enable Block Public Access, TLS enforcement and versioning on storage.",
+    "Classify data, back up to a separate account, and delete what is not needed."
+   ]
+  },
+  {
+   "title": "Logging and detection",
+   "why": "You cannot investigate what you did not record; control-plane logs are the foundation of cloud detection.",
+   "sections": [
+    {
+     "h": "The control-plane logs",
+     "p": [
+      "Each cloud records management API calls. AWS CloudTrail logs who called what, from which IP, with which user agent, and whether it succeeded; management events are free for one copy in the default event history of 90 days, but you need a trail to keep them longer. Azure's Activity Log records subscription-level operations, supplemented by Entra ID sign-in and audit logs. GCP Cloud Audit Logs include Admin Activity, which is always on, Data Access, which is off by default for most services, and System Event logs. Turn on organization-wide trails and enable data events for sensitive buckets and key operations."
+     ]
+    },
+    {
+     "h": "Resource and network logs",
+     "p": [
+      "Control-plane logs miss what happens inside resources. Add VPC Flow Logs, DNS query logs such as Route 53 Resolver logs, load balancer and WAF logs, object storage access logs, and database audit logs. For instances, ship operating system logs with an agent. Azure Monitor diagnostic settings route resource logs to a destination, and GCP uses log sinks. Include Kubernetes audit logs for clusters. Choose retention by need: many organizations keep 90 days hot for search and one year or more archived to satisfy compliance, using lifecycle rules to cut cost."
+     ]
+    },
+    {
+     "h": "Centralize and protect the logs",
+     "p": [
+      "Send logs from every account to a dedicated logging account that workload administrators cannot modify. In AWS, an organization trail writes to an S3 bucket in the log archive account with log file validation and Object Lock or a deny policy against deletion. An attacker's first move is often to stop logging, so alert on StopLogging, DeleteTrail, and changes to log sinks, and use SCPs to forbid them. Forward logs to a SIEM or a cloud-native tool such as Amazon Security Hub and GuardDuty, Microsoft Sentinel, or Google Security Command Center and Chronicle."
+     ]
+    },
+    {
+     "h": "Detections that matter",
+     "p": [
+      "Start with high-signal events: root account use, console login without MFA, creation of access keys, changes to IAM policies and trust relationships, disabling of logging or encryption, security group changes opening 0.0.0.0/0, public bucket policy changes, and API calls from unusual regions or from Tor exit nodes. Managed detection services such as GuardDuty add machine-learning findings like credential use from an unusual location. Write detections as queries, test them against past incidents, and document the response steps. Tune out noise so alerts remain trusted, and check that logging continues, with an alert if a source stops sending."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "CloudTrail event (shortened)",
+    "text": "{\"eventTime\":\"2026-03-04T02:14:09Z\",\n \"eventName\":\"CreateAccessKey\",\n \"userIdentity\":{\"type\":\"IAMUser\",\"userName\":\"svc-build\"},\n \"sourceIPAddress\":\"203.0.113.77\",\n \"requestParameters\":{\"userName\":\"svc-build\"},\n \"additionalEventData\":{\"MFAUsed\":\"No\"}}"
+   },
+   "example": "An alert fires at 02:14 UTC: a ConsoleLogin for user 'dana-test' succeeded with MFAUsed 'No' from 203.0.113.77, and minutes later CreateAccessKey ran for the same user. The analyst searches the central log archive, sees the same address attempt ListBuckets, and disables the user, revokes sessions, and deletes the new key. Because the organization trail writes to a locked log account, the attacker could not remove the evidence, and the full timeline is available for the incident report.",
+   "terms": [
+    {
+     "term": "CloudTrail",
+     "def": "AWS service recording management and data API activity."
+    },
+    {
+     "term": "Activity Log",
+     "def": "Azure record of subscription-level control-plane operations."
+    },
+    {
+     "term": "Audit Logs",
+     "def": "GCP logs of admin and data access API activity."
+    },
+    {
+     "term": "Log archive account",
+     "def": "Dedicated account holding immutable centralized logs."
+    },
+    {
+     "term": "GuardDuty",
+     "def": "AWS managed threat detection service analyzing logs for suspicious activity."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which AWS service records API calls?",
+     "options": [
+      "CloudTrail",
+      "CloudFront",
+      "Route 53",
+      "Athena"
+     ],
+     "a": 0,
+     "why": "CloudTrail logs management and data events."
+    },
+    {
+     "q": "Why send logs to a separate account?",
+     "options": [
+      "To protect them from tampering by workload admins or attackers",
+      "To save electricity",
+      "To avoid encryption",
+      "To speed up VMs"
+     ],
+     "a": 0,
+     "why": "Isolated storage keeps evidence trustworthy."
+    },
+    {
+     "q": "Which event should always raise an alert?",
+     "options": [
+      "StopLogging or DeleteTrail",
+      "ListRegions",
+      "DescribeTags",
+      "GetObject on public data"
+     ],
+     "a": 0,
+     "why": "Disabling logging is a common attacker step."
+    },
+    {
+     "q": "In GCP, which audit log type is on by default?",
+     "options": [
+      "Admin Activity",
+      "Data Access for all services",
+      "VPC billing",
+      "Debug logs"
+     ],
+     "a": 0,
+     "why": "Admin Activity logs are always enabled; Data Access is mostly opt-in."
+    }
+   ],
+   "recap": [
+    "Enable organization-wide control-plane logs plus resource, flow and DNS logs.",
+    "Centralize into an immutable log account and alert on tampering.",
+    "Detect root use, no-MFA logins, key creation and policy or network changes."
+   ]
+  },
+  {
+   "title": "CSPM and misconfiguration",
+   "why": "Cloud environments change daily, so posture must be checked continuously and fixed in order of real risk.",
+   "sections": [
+    {
+     "h": "What CSPM does",
+     "p": [
+      "Cloud security posture management (CSPM) tools continuously compare your cloud configuration with benchmarks and policies. They use read-only API access to inventory resources across accounts and clouds, and report findings such as public buckets, security groups open to 0.0.0.0/0, unencrypted volumes and databases, missing MFA on privileged users, and disabled logging. Examples include AWS Security Hub and Config, Microsoft Defender for Cloud, Google Security Command Center, and third-party products. Checks usually map to frameworks like the CIS Foundations Benchmarks, which many auditors accept as evidence."
+     ]
+    },
+    {
+     "h": "Common misconfigurations",
+     "p": [
+      "A short list explains most incidents. Publicly readable storage, open database or management ports, unencrypted snapshots shared too widely, root or global administrator accounts without MFA, access keys that are old or unused, over-privileged service accounts, default network settings left unchanged, and disabled audit logs. Also common are public container registries with secrets inside images, exposed Kubernetes API servers, and instance metadata v1 still enabled, which makes SSRF attacks easier; IMDSv2 requires a session token. CSPM finds these quickly, but the better outcome is preventing them from being deployed at all."
+     ]
+    },
+    {
+     "h": "Prioritizing findings",
+     "p": [
+      "A large account can produce thousands of findings, and treating them equally leads to alert fatigue. Prioritize by combining severity with context: is the resource internet-reachable, does it hold sensitive data, does its role allow privilege escalation, and is there evidence of exploitation? An open security group on an empty test instance is lower risk than a public bucket holding customer records. Many tools show attack paths, chaining an exposed server with a powerful role and sensitive storage. Assign each finding an owner and a due date based on risk, and track mean time to remediate."
+     ]
+    },
+    {
+     "h": "Fixing and preventing at scale",
+     "p": [
+      "Remediate at the source. Fix the infrastructure-as-code template, such as Terraform or CloudFormation, so the problem does not return, and scan templates in the pipeline with tools like Checkov or cfn-guard before deployment. Use preventive guardrails, for example SCPs and Azure Policy deny effects, to block public storage outright. Where fast response is needed, automate safe remediation, such as removing a public ACL or tagging the owner, but test it, as automation can break production. Record accepted risks with an expiry date. Measure posture trends, since a falling count of critical findings shows the program works."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "CSPM finding record (example)",
+    "text": "id: FIND-1042  severity: CRITICAL\nresource: bucket example-customer-exports (acct 111122223333)\nissue: public read via bucket policy; data class: PII\nexposure: internet; owner: team-billing\nfix: enable Block Public Access; patch Terraform module\ndue: 24h"
+   },
+   "example": "A CSPM dashboard lists 2,300 findings. The analyst filters to internet-exposed resources and finds 14 items: a public bucket with personal data, three databases with open ports, and ten stale test instances. Ranking by exposure and data sensitivity puts the bucket first, then the databases. The team enables Block Public Access, restricts security groups, updates the Terraform module that created them, and adds a policy that denies public buckets in the organization. The next scan shows zero of the 14 findings and no new ones.",
+   "terms": [
+    {
+     "term": "CSPM",
+     "def": "Tooling that continuously checks cloud configuration against security benchmarks."
+    },
+    {
+     "term": "CIS Benchmark",
+     "def": "Consensus configuration guidelines for hardening cloud platforms."
+    },
+    {
+     "term": "IMDSv2",
+     "def": "Session-token-based instance metadata service that resists SSRF credential theft."
+    },
+    {
+     "term": "Infrastructure as code",
+     "def": "Defining infrastructure in version-controlled templates."
+    },
+    {
+     "term": "Attack path",
+     "def": "Chain of weaknesses that together lead an attacker to a valuable asset."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the main job of CSPM?",
+     "options": [
+      "Continuously detect cloud misconfigurations against benchmarks",
+      "Replace firewalls",
+      "Encrypt email",
+      "Train staff"
+     ],
+     "a": 0,
+     "why": "It inventories and checks posture continuously."
+    },
+    {
+     "q": "Which finding deserves top priority?",
+     "options": [
+      "Open port on an empty test host",
+      "Public bucket holding customer personal data",
+      "Missing tag",
+      "Old naming convention"
+     ],
+     "a": 1,
+     "why": "Internet exposure plus sensitive data creates the highest risk."
+    },
+    {
+     "q": "Why scan infrastructure-as-code templates in pipelines?",
+     "options": [
+      "To prevent misconfigurations before deployment",
+      "To slow releases",
+      "To disable CSPM",
+      "To hide logs"
+     ],
+     "a": 0,
+     "why": "Shifting left stops issues recurring."
+    },
+    {
+     "q": "What does IMDSv2 improve?",
+     "options": [
+      "Disk speed",
+      "Resistance of metadata credentials to SSRF theft",
+      "DNS caching",
+      "Billing"
+     ],
+     "a": 1,
+     "why": "It requires a session token, blocking simple SSRF requests."
+    }
+   ],
+   "recap": [
+    "CSPM compares configuration to benchmarks such as CIS across accounts.",
+    "Prioritize by exposure, data sensitivity and attack path, not count.",
+    "Fix templates and add preventive guardrails so issues do not return."
+   ]
+  },
+  {
+   "title": "Landing zones and multi-account design",
+   "why": "A landing zone gives every new workload a secure, governed starting point so security does not depend on each team's memory.",
+   "sections": [
+    {
+     "h": "Why multiple accounts",
+     "p": [
+      "An account (AWS), subscription (Azure) or project (GCP) is the strongest isolation boundary the provider offers for permissions, quotas, billing and blast radius. Putting everything in one account means one compromised role may reach every workload. Separate accounts for production, development, security tooling, logging, networking and shared services limit damage and simplify access decisions. Differing compliance needs, such as payment data, are another reason to isolate. Multi-account design adds overhead, such as cross-account roles and central networking, which is why automation and standard baselines are needed."
+     ]
+    },
+    {
+     "h": "Organizations, OUs and guardrails",
+     "p": [
+      "AWS Organizations groups accounts into organizational units (OUs), such as Security, Infrastructure, Workloads-Prod, Workloads-Dev and Sandbox. Azure uses management groups and GCP uses folders in the same way. Policy attaches at the OU and is inherited: SCPs deny actions like leaving the organization, disabling CloudTrail or GuardDuty, deleting the log archive, creating IAM users, or using regions you do not operate in. Guardrails are preventive if they block, or detective if they report, as with AWS Config rules. Keep the management account nearly empty, with very few people allowed in it."
+     ]
+    },
+    {
+     "h": "Baseline accounts and services",
+     "p": [
+      "A well-known pattern, used by AWS Control Tower, defines core accounts. The management account runs Organizations and billing. A log archive account stores immutable audit logs. A security tooling or audit account hosts GuardDuty, Security Hub and read-only access for responders, with delegated administration. A network account holds transit gateways, shared DNS and egress inspection. Workload accounts are created from a template through an account factory, arriving with logging, encryption defaults, baseline roles, networking and CSPM already attached. Azure landing zones and GCP's foundation blueprint follow the same logic."
+     ]
+    },
+    {
+     "h": "Operating the landing zone",
+     "p": [
+      "Build the landing zone with infrastructure as code, in version control, with review and automated tests, so changes are traceable. Use central identity: one identity provider with SSO, permission sets mapped to groups, and no local IAM users. Detect drift when someone changes a baseline control manually, and re-apply it. Plan for sandbox accounts with budgets and tight limits so experimentation does not touch production. Create an exception process, since teams will have valid needs outside the baseline. Document ownership of each account and test your recovery, including loss of the identity provider and a locked-out management account."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Organization layout (illustrative)",
+    "text": "Root\n |- Security OU: log-archive, security-tooling\n |- Infrastructure OU: network, shared-services\n |- Workloads OU: prod OU (strict SCPs), dev OU\n |- Sandbox OU: budget-limited, no prod connectivity\nSCPs: deny leave-org, deny StopLogging, region allow-list"
+   },
+   "example": "A growing company runs everything in one AWS account, and a developer's leaked key lets an intruder delete log files and instances. The company builds a landing zone: separate production, development, log archive and security accounts under distinct OUs. An SCP now blocks stopping CloudTrail, an organization trail writes to the locked log archive, and new accounts come from a template with GuardDuty and encryption defaults. A similar leak later is confined to one development account, with logs intact.",
+   "terms": [
+    {
+     "term": "Landing zone",
+     "def": "Pre-configured, governed multi-account environment into which workloads are deployed."
+    },
+    {
+     "term": "OU",
+     "def": "Organizational unit: a group of accounts that share policies."
+    },
+    {
+     "term": "Guardrail",
+     "def": "Preventive or detective control applied across accounts."
+    },
+    {
+     "term": "Account factory",
+     "def": "Automated process that creates new accounts with a standard baseline."
+    },
+    {
+     "term": "Drift",
+     "def": "Divergence of live configuration from the intended baseline."
+    }
+   ],
+   "check": [
+    {
+     "q": "Why use separate accounts for prod and dev?",
+     "options": [
+      "To limit blast radius and simplify permissions",
+      "It is required by TCP",
+      "To avoid logging",
+      "To remove IAM"
+     ],
+     "a": 0,
+     "why": "Accounts are a strong isolation boundary."
+    },
+    {
+     "q": "Where should immutable audit logs live?",
+     "options": [
+      "In the workload account",
+      "In a dedicated log archive account",
+      "On developer laptops",
+      "In a public bucket"
+     ],
+     "a": 1,
+     "why": "Separation prevents workload admins from altering evidence."
+    },
+    {
+     "q": "What do SCPs attached to an OU do?",
+     "options": [
+      "Grant access",
+      "Set maximum permissions for all accounts below",
+      "Encrypt data",
+      "Create VPCs"
+     ],
+     "a": 1,
+     "why": "They enforce guardrails with inheritance."
+    },
+    {
+     "q": "What is the purpose of an account factory?",
+     "options": [
+      "Create accounts with a standard secure baseline",
+      "Mine data",
+      "Store passwords",
+      "Replace DNS"
+     ],
+     "a": 0,
+     "why": "New accounts start with controls already in place."
+    }
+   ],
+   "recap": [
+    "Use multiple accounts to isolate workloads, logging and security tooling.",
+    "OUs and SCPs or policies apply inherited guardrails.",
+    "Create accounts from automated baselines and detect drift."
+   ]
+  },
+  {
+   "title": "Cloud pattern comparison",
+   "why": "The three major clouds solve the same problems with different names, and mapping them lets you apply one security design everywhere.",
+   "sections": [
+    {
+     "h": "Identity and access",
+     "p": [
+      "The concepts match but the vocabulary differs. AWS uses IAM users, roles, policies, IAM Identity Center and Organizations with SCPs. Azure uses Microsoft Entra ID for identities, Azure RBAC for resources, managed identities for workloads, Conditional Access for sign-in policy, and management groups with Azure Policy. GCP uses Cloud Identity or Workspace, IAM roles bound to members at organization, folder, project or resource level, service accounts, and Organization Policy constraints. A key difference: Azure separates directory roles from resource roles, while GCP inherits policy downward through its resource hierarchy, so a grant at a folder reaches every project below."
+     ]
+    },
+    {
+     "h": "Network, data and key services",
+     "p": [
+      "Networking maps as VPC, security group and NACL in AWS; VNet, network security group and Azure Firewall in Azure; VPC, firewall rules and Cloud Armor in GCP. Private access is PrivateLink, Private Link and Private Service Connect respectively. Object storage is S3, Blob Storage and Cloud Storage. Key management is KMS, Key Vault and Cloud KMS, and secrets are Secrets Manager, Key Vault and Secret Manager. Note one detail with direct security consequences: AWS VPCs are regional, while GCP VPCs are global, so a single GCP network can span regions and firewall rules apply across them."
+     ]
+    },
+    {
+     "h": "Monitoring and posture services",
+     "p": [
+      "Audit logging is CloudTrail, Activity Log with Entra logs, and Cloud Audit Logs. Threat detection is GuardDuty, Microsoft Defender for Cloud with Sentinel as the SIEM, and Security Command Center with Chronicle. Posture and compliance are Security Hub with Config, Defender for Cloud secure score, and Security Command Center findings. Web and DDoS protection are AWS WAF and Shield, Azure Front Door WAF and DDoS Protection, and Cloud Armor. Using a multi-cloud CSPM or a common SIEM can give one view, but native tools often integrate best with provider-specific signals, so many teams use both."
+     ]
+    },
+    {
+     "h": "Choosing patterns for workloads",
+     "p": [
+      "For a public web application, place a CDN and WAF in front of a load balancer, run the application in private subnets with a role-based identity, keep the database in an isolated subnet with private endpoints, and encrypt with customer-managed keys. For a data lake, use private storage with Block Public Access equivalents, fine-grained access, classification scanning and complete data access logs. For containers, use managed Kubernetes with private nodes, workload identity, network policies and image scanning. For serverless, scope each function's role tightly. Across clouds, keep the principles identical and write controls once as policy as code."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Service mapping (summary)",
+    "text": "Concept        AWS              Azure              GCP\nIdentity       IAM/Identity Ctr Entra ID           Cloud Identity/IAM\nGuardrails     SCP              Azure Policy       Org Policy\nKeys           KMS              Key Vault          Cloud KMS\nAudit log      CloudTrail       Activity Log       Cloud Audit Logs\nPosture        Security Hub     Defender for Cloud Security Cmd Center"
+   },
+   "example": "A company acquires a startup running on GCP while its own workloads are on AWS. The security engineer maps controls: SCPs correspond to Organization Policy constraints, CloudTrail to Cloud Audit Logs with Data Access logs enabled, and KMS to Cloud KMS. She notes the GCP default service account has the broad Editor role and replaces it with dedicated service accounts. Logs from both clouds flow to one SIEM with the same detections, such as key creation and public storage, written once and translated per provider.",
+   "terms": [
+    {
+     "term": "Managed identity",
+     "def": "Azure workload identity that removes the need to store credentials."
+    },
+    {
+     "term": "Organization Policy",
+     "def": "GCP service applying constraints across an organization, folder or project."
+    },
+    {
+     "term": "Cloud Armor",
+     "def": "GCP WAF and DDoS service."
+    },
+    {
+     "term": "Security Command Center",
+     "def": "GCP security and risk platform for findings and posture."
+    },
+    {
+     "term": "Policy as code",
+     "def": "Expressing controls in versioned, testable code applied across environments."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which service is Azure's equivalent of AWS SCPs for guardrails?",
+     "options": [
+      "Azure Policy with management groups",
+      "Azure Disk",
+      "Key Vault",
+      "Cloud Armor"
+     ],
+     "a": 0,
+     "why": "Policy and management groups provide hierarchical guardrails."
+    },
+    {
+     "q": "Which statement about VPC scope is correct?",
+     "options": [
+      "AWS VPCs are global and GCP VPCs regional",
+      "AWS VPCs are regional and GCP VPCs are global",
+      "Both are physical",
+      "Neither exists"
+     ],
+     "a": 1,
+     "why": "This difference affects network and firewall design."
+    },
+    {
+     "q": "What is the GCP equivalent of AWS KMS?",
+     "options": [
+      "Cloud KMS",
+      "Chronicle",
+      "Cloud Armor",
+      "BigQuery"
+     ],
+     "a": 0,
+     "why": "Cloud KMS provides managed keys on GCP."
+    },
+    {
+     "q": "Why keep principles identical across clouds?",
+     "options": [
+      "It lets you write controls once and apply them consistently",
+      "Clouds are identical",
+      "It avoids logging",
+      "It removes IAM"
+     ],
+     "a": 0,
+     "why": "Consistent principles reduce gaps; only implementation names differ."
+    }
+   ],
+   "recap": [
+    "Identity, network, data, logging and posture each have an equivalent on every cloud.",
+    "Watch for real differences such as global versus regional VPCs and hierarchy inheritance.",
+    "Apply the same design principles and express them as policy as code."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Fix an IAM policy",
+   "sim": "config-editor",
+   "scenario": "A fictional analytics team at example.com has a role used by a reporting job. Its policy allows every action on every resource, which the last audit flagged as critical. Logs show the job only reads objects from one bucket, example-reports, and writes results to one prefix. Your task is to rewrite the policy with scoped actions, specific resources and conditions, and then run the policy validator in the config editor.",
+   "objective": "Replace a wildcard policy with scoped actions, resources and conditions.",
+   "steps": [
+    {
+     "do": "Open the config editor and read the current policy.",
+     "see": "Statement: Effect Allow, Action *, Resource *."
+    },
+    {
+     "do": "Remove the wildcard action and add s3:GetObject and s3:ListBucket.",
+     "see": "The editor flags ListBucket as needing a bucket-level resource."
+    },
+    {
+     "do": "Set the Resource for GetObject to arn:aws:s3:::example-reports/input/*.",
+     "see": "The validator accepts an object-level ARN."
+    },
+    {
+     "do": "Add a second statement allowing s3:PutObject on arn:aws:s3:::example-reports/output/*.",
+     "see": "Write access is limited to the output prefix."
+    },
+    {
+     "do": "Add a condition requiring aws:SourceVpc to equal the job's VPC.",
+     "see": "Condition block appears in the statement."
+    },
+    {
+     "do": "Add an explicit Deny for iam:* on all resources.",
+     "see": "The validator notes a guardrail against escalation."
+    },
+    {
+     "do": "Run the validator and Access Analyzer comparison.",
+     "see": "No wildcard warnings; unused permissions: none. Score 100 percent."
+    }
+   ],
+   "answer": "Allow s3:GetObject and ListBucket on the example-reports input path, allow s3:PutObject only on the output prefix, add a VPC source condition, and deny iam:*. No wildcard actions or resources remain, and the job still works because it only used those calls.",
+   "hint": "Take the actions and resources from what the logs show the job really did."
+  },
+  {
+   "title": "Trace a privilege escalation",
+   "sim": "scenario",
+   "scenario": "In a fictional account for example.com, a low-privilege role named 'Intern-Dev' is used by a trainee. Investigators suspect it could become an administrator. The scenario simulator shows the role's policies and the other roles in the account. Your job is to follow the permissions step by step, find the chain that leads to admin, and then choose the changes that break it without stopping legitimate work.",
+   "objective": "Follow an IAM path from low-privilege role to admin and break the chain.",
+   "steps": [
+    {
+     "do": "Open the scenario and review Intern-Dev's attached policies.",
+     "see": "Permissions include iam:PassRole, lambda:CreateFunction and lambda:InvokeFunction on '*'."
+    },
+    {
+     "do": "List the roles in the account.",
+     "see": "A role 'Admin-Automation' with AdministratorAccess is trusted by lambda.amazonaws.com."
+    },
+    {
+     "do": "Trace the path: create a function, pass Admin-Automation to it, invoke it.",
+     "see": "The map highlights the chain ending in admin permissions."
+    },
+    {
+     "do": "Mark iam:PassRole on '*' as the key weakness.",
+     "see": "The simulator confirms it is the pivot step."
+    },
+    {
+     "do": "Restrict PassRole to the single role 'Intern-Lambda-Exec' with a condition on iam:PassedToService.",
+     "see": "The chain turns grey."
+    },
+    {
+     "do": "Add a permission boundary to Intern-Dev denying iam:* and attach it.",
+     "see": "A second route via IAM policy edits is closed."
+    },
+    {
+     "do": "Add an alert on CreateFunction using privileged roles and rerun the test.",
+     "see": "No path to admin remains. Score 100 percent."
+    }
+   ],
+   "answer": "The chain is Intern-Dev, iam:PassRole on all roles, creating a Lambda with Admin-Automation, then invoking it for admin rights. Break it by limiting PassRole to one low-privilege role, adding a permission boundary, and alerting on functions created with privileged roles.",
+   "hint": "Look for permissions that let you hand a powerful role to a service you control."
+  },
+  {
+   "title": "Lock down a bucket",
+   "sim": "config-editor",
+   "scenario": "A fictional bucket, example-customer-exports, holds exported invoices for example.com. A routine scan found that it is readable by anyone, stores objects unencrypted, and has no access logging. You edit the bucket configuration in the config editor to enable protection settings and a policy, then run the checker which tests anonymous access, encryption and whether access logs are actually delivered to the central archive.",
+   "objective": "Enable block public access, encryption and logging on a storage bucket policy.",
+   "steps": [
+    {
+     "do": "Open the bucket configuration.",
+     "see": "Block Public Access is off, encryption is none, logging is off."
+    },
+    {
+     "do": "Turn on all four Block Public Access settings.",
+     "see": "The status banner changes from Public to Not public."
+    },
+    {
+     "do": "Set default encryption to SSE-KMS with the key alias invoice-key.",
+     "see": "New objects will be encrypted with the customer-managed key."
+    },
+    {
+     "do": "Set Object Ownership to Bucket owner enforced.",
+     "see": "ACLs are disabled."
+    },
+    {
+     "do": "Enable versioning and server access logging to the log archive bucket.",
+     "see": "Logging target accepted."
+    },
+    {
+     "do": "Add a bucket policy denying requests when aws:SecureTransport is false.",
+     "see": "The policy validator shows one Deny statement."
+    },
+    {
+     "do": "Run the checker, including an anonymous read test.",
+     "see": "Anonymous read denied, encryption enforced, logs delivered. Score 100 percent."
+    }
+   ],
+   "answer": "Enable all Block Public Access settings, default SSE-KMS with a customer-managed key, Bucket Owner Enforced ownership, versioning and access logging to the log archive, and a bucket policy denying non-TLS requests. The anonymous read test then fails as intended.",
+   "hint": "Check public access first, then encryption, then logging and TLS."
+  },
+  {
+   "title": "Hunt in CloudTrail",
+   "sim": "log-viewer",
+   "scenario": "The security team received a report about odd activity in a fictional account. The log viewer contains a day of CloudTrail events with timestamps, event names, user names, source IPs and MFA fields. You must find a console login that did not use MFA, the access key that was created shortly afterward, and the source address, then decide what containment steps should follow.",
+   "objective": "Find the console login without MFA and the key creation that followed.",
+   "steps": [
+    {
+     "do": "Open the log viewer and filter eventName = ConsoleLogin.",
+     "see": "Twelve logins are listed."
+    },
+    {
+     "do": "Add a filter for MFAUsed = No.",
+     "see": "One result: user dana-test at 02:14 UTC from 203.0.113.77."
+    },
+    {
+     "do": "Note the source IP and user, then filter all events from 203.0.113.77.",
+     "see": "Events include ListBuckets and CreateAccessKey."
+    },
+    {
+     "do": "Open the CreateAccessKey event.",
+     "see": "A new key was created for dana-test at 02:19 UTC."
+    },
+    {
+     "do": "Check for later use of the new key.",
+     "see": "GetObject calls from the same IP appear at 02:31 UTC."
+    },
+    {
+     "do": "Select containment actions: disable user, delete key, revoke sessions, rotate related secrets.",
+     "see": "The checker marks the actions correct."
+    },
+    {
+     "do": "Add a recommendation to require MFA via policy condition.",
+     "see": "Report generated. Score 100 percent."
+    }
+   ],
+   "answer": "User dana-test logged in at 02:14 UTC from 203.0.113.77 without MFA, then created an access key at 02:19 and used it to read objects. Contain by disabling the user, deleting the key, revoking sessions and enforcing MFA through an IAM condition.",
+   "hint": "Filter by ConsoleLogin and the MFA field, then pivot on the source IP."
+  },
+  {
+   "title": "Triage CSPM findings",
+   "sim": "siem",
+   "scenario": "A fictional company's posture tool has produced 40 findings across two accounts. The SIEM view lists each with severity, resource, internet exposure and data classification. You have time to fix three issues today. You must sort the findings by exposure and sensitivity, choose the top three, and state the fix for each, avoiding the temptation to simply sort by the tool's default severity.",
+   "objective": "Sort misconfiguration alerts by exposure and data sensitivity and fix the top three.",
+   "steps": [
+    {
+     "do": "Open the SIEM findings view.",
+     "see": "40 findings appear sorted by default severity."
+    },
+    {
+     "do": "Add columns for exposure and data class.",
+     "see": "Each row shows Internet or Internal and Public, Internal or PII."
+    },
+    {
+     "do": "Filter to Exposure = Internet.",
+     "see": "Eleven findings remain."
+    },
+    {
+     "do": "Sort by data class and select the PII items.",
+     "see": "A public bucket and a database with port 3306 open to 0.0.0.0/0 rise to the top."
+    },
+    {
+     "do": "Select the third item: an access key for an admin user, 400 days old.",
+     "see": "It is marked as an escalation risk."
+    },
+    {
+     "do": "Assign fixes: Block Public Access, restrict the security group to the app tier, rotate and remove the key.",
+     "see": "Each fix is attached with owner and due date."
+    },
+    {
+     "do": "Submit the triage.",
+     "see": "Checker agrees with the top three. Score 100 percent."
+    }
+   ],
+   "answer": "Top three: the public bucket with personal data, the database open to the internet, and the stale admin access key. Fixes are Block Public Access, a security group limited to the application tier, and key rotation or removal. Rank by exposure plus data sensitivity, not by count.",
+   "hint": "Ask whether the internet can reach it and what the damage would be."
+  },
+  {
+   "title": "Design a landing zone",
+   "sim": "diagram-builder",
+   "scenario": "A fictional company, Example Retail, is moving to AWS and needs a multi-account design. It has production and development workloads, a security team that needs central tooling, and an auditor who requires tamper-proof logs. In the diagram builder you lay out the organization, OUs, accounts and guardrail policies, and then the checker evaluates isolation, tamper-proof logging and control coverage.",
+   "objective": "Lay out OUs, accounts and guardrail policies for prod, dev and security tooling.",
+   "steps": [
+    {
+     "do": "Open the diagram builder with an empty organization root.",
+     "see": "A management account icon is shown."
+    },
+    {
+     "do": "Create OUs: Security, Infrastructure, Workloads-Prod, Workloads-Dev and Sandbox.",
+     "see": "Five OUs are added under the root."
+    },
+    {
+     "do": "Add accounts: log-archive and security-tooling under Security; network under Infrastructure.",
+     "see": "Account icons appear in their OUs."
+    },
+    {
+     "do": "Add prod and dev workload accounts under the matching OUs.",
+     "see": "The checker notes separate blast radii."
+    },
+    {
+     "do": "Attach SCPs: deny StopLogging, deny leaving the organization, region allow-list at the root.",
+     "see": "Policy badges appear on the root."
+    },
+    {
+     "do": "Attach a stricter SCP to Workloads-Prod denying IAM user creation.",
+     "see": "The badge shows inheritance to prod accounts."
+    },
+    {
+     "do": "Connect the organization trail to log-archive and run the checker.",
+     "see": "Immutable logging, isolation and guardrails all pass. Score 100 percent."
+    }
+   ],
+   "answer": "Root with Security, Infrastructure, Workloads-Prod, Workloads-Dev and Sandbox OUs. Accounts: log-archive, security-tooling, network, prod and dev. Root SCPs block disabling logging, leaving the organization and unapproved regions; prod adds stricter limits. The organization trail writes to log-archive.",
+   "hint": "Separate logs, security tooling and workloads, then attach guardrails at the highest sensible level."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "In an IaaS deployment, who is responsible for patching the guest operating system?",
+   "options": [
+    "The customer",
+    "The cloud provider",
+    "The ISP",
+    "The auditor"
+   ],
+   "a": 0,
+   "why": "IaaS customers manage everything above the hypervisor."
+  },
+  {
+   "q": "What happens in AWS policy evaluation when an explicit Deny and an Allow both apply?",
+   "options": [
+    "Allow wins",
+    "Deny wins",
+    "They cancel",
+    "The older wins"
+   ],
+   "a": 1,
+   "why": "An explicit Deny always overrides an Allow."
+  },
+  {
+   "q": "Which trust policy is most dangerous?",
+   "options": [
+    "Principal limited to one named role",
+    "Principal AWS '*' with no condition",
+    "Principal limited to the same account",
+    "Principal with ExternalId"
+   ],
+   "a": 1,
+   "why": "It lets any AWS account attempt to assume the role."
+  },
+  {
+   "q": "Which technique best reduces unused permissions?",
+   "options": [
+    "Granting Administrator",
+    "Generating policies from CloudTrail activity with Access Analyzer",
+    "Sharing credentials",
+    "Disabling logs"
+   ],
+   "a": 1,
+   "why": "Observed usage informs minimal policies."
+  },
+  {
+   "q": "What does a permission boundary do?",
+   "options": [
+    "Sets the maximum permissions an identity can have",
+    "Opens ports",
+    "Rotates keys",
+    "Encrypts buckets"
+   ],
+   "a": 0,
+   "why": "It caps permissions even if broader policies are attached."
+  },
+  {
+   "q": "Which is the safest way to give administrators shell access to cloud servers?",
+   "options": [
+    "Open port 22 to the internet",
+    "Use Session Manager, Bastion or IAP",
+    "Share a private key",
+    "Use password only"
+   ],
+   "a": 1,
+   "why": "Managed access paths avoid public admin ports."
+  },
+  {
+   "q": "What does S3 Block Public Access provide?",
+   "options": [
+    "Overrides policies and ACLs that would make data public",
+    "Faster downloads",
+    "Cross-region copy",
+    "Automatic backups"
+   ],
+   "a": 0,
+   "why": "It is a guardrail against accidental public exposure."
+  },
+  {
+   "q": "Why centralize logs in a separate account?",
+   "options": [
+    "To prevent tampering by workload administrators or attackers",
+    "To lower IP costs",
+    "To skip retention",
+    "To avoid MFA"
+   ],
+   "a": 0,
+   "why": "Attackers often try to delete logs in the compromised account."
+  },
+  {
+   "q": "How should CSPM findings be prioritized?",
+   "options": [
+    "By exposure, data sensitivity and attack path",
+    "Alphabetically",
+    "By oldest",
+    "Randomly"
+   ],
+   "a": 0,
+   "why": "Context decides real risk."
+  },
+  {
+   "q": "What is the primary benefit of a multi-account landing zone?",
+   "options": [
+    "Smaller blast radius and consistent guardrails",
+    "Fewer logs",
+    "No need for IAM",
+    "Free compute"
+   ],
+   "a": 0,
+   "why": "Isolation and inherited guardrails limit the damage and ensure baseline controls."
+  }
+ ]
+}

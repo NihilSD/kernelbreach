@@ -1,0 +1,1078 @@
+{
+ "code": "CORE-10",
+ "intro": "This module covers the blue team daily work: collecting and searching logs, using a SIEM, triaging alerts as a SOC analyst, enriching them with threat intelligence, and responding to incidents with the NIST lifecycle. You will also learn the basics of digital forensics and evidence handling, and finish by writing a detection rule and a runbook. These skills turn raw events into decisions and form the core of entry-level SOC, incident response and DFIR jobs.",
+ "lessons": [
+  {
+   "title": "Logging and monitoring fundamentals",
+   "why": "You cannot detect or investigate what you did not record, so knowing where logs come from and how long to keep them is the base of all defense.",
+   "sections": [
+    {
+     "h": "Key log sources",
+     "p": [
+      "Windows records events in the Security, System and Application logs. Important Security Event IDs include 4624 (successful logon), 4625 (failed logon), 4648 (logon with explicit credentials), 4672 (special privileges assigned), 4688 (process creation), 4720 (user account created), 4732 (member added to a local group) and 1102 (audit log cleared). Linux systems write to syslog and journald, with authentication events in /var/log/auth.log on Debian-based systems or /var/log/secure on Red Hat. Each entry shows time, host, program and message, and the facility and severity define its category."
+     ]
+    },
+    {
+     "h": "Network and application sources",
+     "p": [
+      "Beyond hosts, defenders collect firewall logs (allowed and denied connections), proxy logs (URLs, user agents, bytes transferred), DNS logs (queried names, useful for spotting malware domains), DHCP logs (which device held which IP at which time), VPN and identity provider logs (sign-ins, MFA results), email gateway logs, web server access logs and cloud audit trails such as AWS CloudTrail. Endpoint detection and response (EDR) tools add process trees and file activity. Together they let an analyst follow one user or one IP across several systems."
+     ]
+    },
+    {
+     "h": "Time, format and retention",
+     "p": [
+      "Correlation only works if clocks agree. Every device should sync to trusted NTP servers and log in UTC, otherwise events from different systems cannot be lined up. Standard formats such as syslog (RFC 5424), JSON, CEF and Windows Event XML make parsing easier. Logs should be forwarded to a central collector quickly because attackers often clear local logs. Retention depends on need and regulation: hot storage for recent searches, such as 30 to 90 days, and archives for a year or more. PCI DSS, for example, requires at least one year of audit log history with three months immediately available."
+     ]
+    },
+    {
+     "h": "Protecting and tuning logging",
+     "p": [
+      "Log integrity matters. Restrict who can delete logs, forward them to a separate system, and alert on log clearing (Event ID 1102) or a stopped logging service. Decide what to log with purpose: too little leaves blind spots, too much hides signals and raises storage costs. Enable useful audit policies, such as process creation with command line, which is off by default on Windows. Keep sensitive data like passwords out of logs. A baseline of normal volume per source also helps you notice when a source suddenly goes quiet, which can mean failure or tampering."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Windows event excerpt",
+    "text": "EventID=4625 Computer=WS-014.example.com\nTime=2026-03-10T09:14:02Z\nAccount=jdoe  LogonType=3\nSourceIP=203.0.113.45\nStatus=0xC000006D SubStatus=0xC000006A\n(wrong password for existing user)"
+   },
+   "example": "A help desk reports that user jdoe is locked out. The analyst searches the domain controller for Event ID 4740 and sees the lockout came from WS-014, then finds many 4625 events with logon type 3 from 203.0.113.45 over ten minutes. Time sync between hosts is correct, so the sequence is trustworthy. The analyst concludes someone is guessing the password over the network and escalates, rather than just unlocking the account.",
+   "terms": [
+    {
+     "term": "Event ID 4625",
+     "def": "Windows event recording a failed logon attempt."
+    },
+    {
+     "term": "Syslog",
+     "def": "A standard protocol and format for forwarding log messages."
+    },
+    {
+     "term": "NTP",
+     "def": "Network Time Protocol, used to keep clocks synchronized."
+    },
+    {
+     "term": "Retention",
+     "def": "How long logs are kept before deletion."
+    },
+    {
+     "term": "Log forwarding",
+     "def": "Sending logs to a central collector as they are created."
+    },
+    {
+     "term": "EDR",
+     "def": "Endpoint tooling that records process and file activity."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which Windows Security Event ID records a failed logon?",
+     "options": [
+      "4624",
+      "4625",
+      "4688",
+      "1102"
+     ],
+     "a": 1,
+     "why": "4625 is a failed logon; 4624 is a success."
+    },
+    {
+     "q": "Why must clocks be synchronized across devices?",
+     "options": [
+      "To reduce disk usage",
+      "So events from different systems can be correlated in order",
+      "To encrypt logs",
+      "To avoid DNS caching"
+     ],
+     "a": 1,
+     "why": "Correlation depends on consistent timestamps."
+    },
+    {
+     "q": "Event ID 1102 signals:",
+     "options": [
+      "A new service",
+      "The audit log was cleared",
+      "A password change",
+      "A group change"
+     ],
+     "a": 1,
+     "why": "Clearing the log is a common attacker cleanup step and should alert."
+    },
+    {
+     "q": "Which Linux file usually holds SSH login events on Debian systems?",
+     "options": [
+      "/etc/passwd",
+      "/var/log/auth.log",
+      "/tmp/ssh",
+      "/boot/grub"
+     ],
+     "a": 1,
+     "why": "auth.log records authentication events on Debian-based systems."
+    }
+   ],
+   "recap": [
+    "Know the key sources: host, network, identity, cloud and application logs.",
+    "Sync clocks, centralize logs and protect them from tampering.",
+    "Set retention to meet investigation and compliance needs."
+   ]
+  },
+  {
+   "title": "SIEM basics",
+   "why": "A SIEM turns millions of scattered events into searchable, correlated evidence that analysts can act on.",
+   "sections": [
+    {
+     "h": "What a SIEM does",
+     "p": [
+      "A Security Information and Event Management (SIEM) platform such as Splunk, Elastic Security, Microsoft Sentinel or QRadar collects logs from many sources, stores them, and lets analysts search, visualize and alert on them. Collection happens through agents (Splunk Universal Forwarder, Elastic Beats), syslog listeners, APIs or cloud connectors. The platform centralizes data so one query can cover firewalls, servers and identity providers, and its retention and access controls support audits."
+     ]
+    },
+    {
+     "h": "Ingestion and normalization",
+     "p": [
+      "Raw logs from different vendors look different. Parsing extracts fields, and normalization maps them to a common schema, so that source address is always src_ip whether it came from a firewall or a web server. Elastic uses the Elastic Common Schema (ECS) and Splunk uses the Common Information Model (CIM). Good normalization lets one rule work across products. Timestamps are converted to a standard form, and events are tagged with source type, host and index. Parsing failures leave fields empty, which silently breaks searches, so analysts check that expected fields exist."
+     ]
+    },
+    {
+     "h": "Searching and correlation",
+     "p": [
+      "Searching uses a query language: Splunk's SPL, Elastic's KQL or Lucene, and Sentinel's KQL. A simple search filters by field, then counts and groups results. For example, count failed logons by source IP over 10 minutes. Correlation rules combine events: many failures followed by a success for the same account, or a login from two countries within an hour. Rules run on a schedule or in real time and create alerts with a severity. Dashboards give an overview, and saved searches support repeatable hunts."
+     ]
+    },
+    {
+     "h": "Tuning and limits",
+     "p": [
+      "A SIEM is only as good as its data and rules. Poorly tuned rules create alert fatigue, where analysts ignore noise and miss real attacks. Tuning means adding allow lists for known scanners, adjusting thresholds and enriching with asset information. Missing log sources create blind spots, and clock or parsing errors create false trails. Many teams pair the SIEM with SOAR (Security Orchestration, Automation and Response) to automate repetitive steps such as looking up an IP reputation. Measure usefulness with the false positive rate and the time from event to alert."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "SPL-style query",
+    "text": "index=wineventlog EventCode=4625\n| bucket _time span=10m\n| stats count by _time, src_ip, user\n| where count > 20\n| sort - count"
+   },
+   "example": "The query above groups failed logons into 10 minute buckets by source IP and user and keeps those with more than 20 failures. Running it returns 203.0.113.45 with 143 failures against 12 different users, which is password spraying rather than a single user forgetting a password. The analyst converts the query into a scheduled correlation rule with a threshold of 20, adds an allow list for the vulnerability scanner at 192.0.2.99, and sets severity to medium.",
+   "terms": [
+    {
+     "term": "SIEM",
+     "def": "A platform that collects, stores, searches and correlates security logs."
+    },
+    {
+     "term": "Normalization",
+     "def": "Mapping fields from different sources to a common schema."
+    },
+    {
+     "term": "Correlation rule",
+     "def": "Logic that links several events into one alert."
+    },
+    {
+     "term": "SPL",
+     "def": "Splunk's Search Processing Language."
+    },
+    {
+     "term": "SOAR",
+     "def": "Tooling that automates response and enrichment steps."
+    },
+    {
+     "term": "Alert fatigue",
+     "def": "Analyst desensitization caused by too many low-value alerts."
+    }
+   ],
+   "check": [
+    {
+     "q": "What does normalization achieve in a SIEM?",
+     "options": [
+      "Deletes old logs",
+      "Maps fields from different sources to common names",
+      "Encrypts events",
+      "Speeds up the network"
+     ],
+     "a": 1,
+     "why": "A common schema lets one query or rule work across sources."
+    },
+    {
+     "q": "Which is an example of a correlation rule?",
+     "options": [
+      "Storing a log",
+      "Many failed logins followed by a success for one account",
+      "Viewing a dashboard",
+      "Syncing time"
+     ],
+     "a": 1,
+     "why": "Correlation links multiple events to find a pattern."
+    },
+    {
+     "q": "What problem does poor tuning cause?",
+     "options": [
+      "Faster searches",
+      "Alert fatigue",
+      "Better coverage",
+      "Shorter retention"
+     ],
+     "a": 1,
+     "why": "Too many noisy alerts cause analysts to ignore real ones."
+    },
+    {
+     "q": "A SOAR platform mainly:",
+     "options": [
+      "Replaces firewalls",
+      "Automates repetitive response and enrichment tasks",
+      "Stores backups",
+      "Issues certificates"
+     ],
+     "a": 1,
+     "why": "SOAR runs playbooks to automate routine steps."
+    }
+   ],
+   "recap": [
+    "A SIEM centralizes, parses, normalizes, searches and correlates logs.",
+    "Query languages count, group and filter events to reveal patterns.",
+    "Tune rules and keep sources healthy to avoid noise and blind spots."
+   ]
+  },
+  {
+   "title": "SOC roles and alert triage",
+   "why": "Triage is the skill that decides whether an alert becomes an incident, and doing it consistently protects both the organization and the analyst's time.",
+   "sections": [
+    {
+     "h": "SOC tiers and roles",
+     "p": [
+      "A Security Operations Center (SOC) monitors and responds around the clock. Tier 1 analysts watch the queue, validate alerts and close false positives or escalate. Tier 2 analysts perform deeper investigation, scoping and containment. Tier 3 analysts or threat hunters handle advanced incidents, malware analysis, detection engineering and proactive hunting. The SOC manager owns process and metrics, and an incident commander leads a major event. Other roles include threat intelligence analysts and detection engineers. Clear escalation criteria prevent both hero work and silent delays."
+     ]
+    },
+    {
+     "h": "The triage steps",
+     "p": [
+      "A repeatable method keeps decisions consistent. First, validate: is the alert real and complete, and what exactly fired? Second, scope: which users, hosts and time range are involved, and is it still happening? Third, enrich: look up the IP, domain or file hash in threat intelligence, check the asset's owner and criticality, and see what else the host did. Fourth, classify: true positive, false positive, benign true positive (real activity that is allowed, such as an admin scan) or undetermined. Fifth, act: close with notes, escalate or contain. Write down evidence at each step."
+     ]
+    },
+    {
+     "h": "Priority and escalation",
+     "p": [
+      "Priority combines severity and business impact. A malware alert on a domain controller outranks the same alert on a lab laptop. Escalate when you find confirmed compromise, sensitive data involvement, privileged accounts, spread to several hosts or any legal or regulatory trigger. Include in the handoff what you saw, what you checked, what you think and what you need. Service level targets, such as acknowledge within 15 minutes for critical alerts, keep the queue healthy. Never close an alert you do not understand just to reduce the backlog."
+     ]
+    },
+    {
+     "h": "Documenting and improving",
+     "p": [
+      "Good tickets have a clear timeline, the exact queries used, observables such as IPs and hashes, the verdict and the reason. Notes allow another analyst to reproduce the work and help tune rules later. Track false positive reasons per rule; a rule with 95 percent false positives needs tuning, not more analysts. Metrics like mean time to detect (MTTD) and mean time to respond (MTTR) show how the SOC performs. Avoid confirmation bias: look for evidence that contradicts your first guess, and ask a colleague when unsure."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Triage note",
+    "text": "Alert: Multiple failed logons then success\nValidate: 143 x 4625 then 4624, user svc-backup\nScope: host SRV-07, 09:02-09:14Z, ongoing no\nEnrich: src 203.0.113.45 external, no known owner\nVerdict: True positive, escalate to Tier 2\nAction: disable svc-backup, preserve logs"
+   },
+   "example": "A Tier 1 analyst receives an alert for a successful login to a server after many failures. Validation confirms the events. Scoping shows the source is an external address and the account is a service account that should never log in interactively. Enrichment finds no business reason for the connection. The analyst classifies it as a true positive, escalates with the timeline and observables to Tier 2 and asks for the account to be disabled, instead of closing it as a routine failed login alert.",
+   "terms": [
+    {
+     "term": "Tier 1",
+     "def": "Analysts who validate alerts and escalate incidents."
+    },
+    {
+     "term": "True positive",
+     "def": "An alert that correctly identifies real malicious activity."
+    },
+    {
+     "term": "Benign true positive",
+     "def": "Real activity detected correctly but allowed or expected."
+    },
+    {
+     "term": "Escalation",
+     "def": "Passing an incident to a more senior team with context."
+    },
+    {
+     "term": "MTTR",
+     "def": "Mean time to respond or recover."
+    },
+    {
+     "term": "Enrichment",
+     "def": "Adding context such as reputation or asset owner to an alert."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the correct order of the triage method described?",
+     "options": [
+      "Classify, scope, validate, enrich",
+      "Validate, scope, enrich, classify",
+      "Enrich, close, scope, validate",
+      "Scope, close, classify, validate"
+     ],
+     "a": 1,
+     "why": "You verify the alert, define its extent, add context, then decide the verdict."
+    },
+    {
+     "q": "A vulnerability scanner generates alerts as authorized. This is best classified as:",
+     "options": [
+      "False positive",
+      "Benign true positive",
+      "Malware",
+      "Zero-day"
+     ],
+     "a": 1,
+     "why": "The activity is real but expected and allowed."
+    },
+    {
+     "q": "Which item most clearly requires escalation?",
+     "options": [
+      "A single failed login",
+      "Confirmed compromise of a privileged account",
+      "A scheduled patch",
+      "A blocked ad domain"
+     ],
+     "a": 1,
+     "why": "Privileged account compromise is high impact and needs senior response."
+    },
+    {
+     "q": "A rule that is 95 percent false positives should be:",
+     "options": [
+      "Ignored",
+      "Tuned or reviewed",
+      "Raised in severity",
+      "Deleted without review"
+     ],
+     "a": 1,
+     "why": "High false positive rates are a signal to tune the detection."
+    }
+   ],
+   "recap": [
+    "Tier 1 validates and escalates, Tier 2 investigates, Tier 3 hunts and engineers.",
+    "Triage: validate, scope, enrich, classify, act, with notes.",
+    "Escalate on privileged, sensitive or spreading incidents."
+   ]
+  },
+  {
+   "title": "Threat intelligence intro",
+   "why": "Threat intelligence adds outside knowledge about attackers to your own alerts, which speeds up decisions.",
+   "sections": [
+    {
+     "h": "Indicators and behaviors",
+     "p": [
+      "An indicator of compromise (IOC) is a piece of evidence of malicious activity: a file hash, IP address, domain, URL or registry key. IOCs are easy to share and match but attackers change them quickly. Tactics, techniques and procedures (TTPs) describe how attackers behave, such as using phishing for initial access or scheduled tasks for persistence. The MITRE ATT&CK framework catalogs these behaviors with IDs like T1566 (Phishing) and T1053 (Scheduled Task/Job). Behaviors are harder for attackers to change than indicators."
+     ]
+    },
+    {
+     "h": "The Pyramid of Pain",
+     "p": [
+      "David Bianco's Pyramid of Pain ranks indicators by how much pain it causes an adversary when you detect and deny them. From the bottom: hash values (trivial to change), IP addresses (easy), domain names (simple), network and host artifacts (annoying), tools (challenging) and TTPs (tough). Detections based on the top of the pyramid last longer. A hash block stops one file; a rule that detects an unusual use of a legitimate tool forces the attacker to rethink their approach. Mature teams combine fast IOC matching with behavior-based detection."
+     ]
+    },
+    {
+     "h": "Sharing standards and platforms",
+     "p": [
+      "Structured Threat Information Expression (STIX) is a JSON-based language for describing indicators, malware, campaigns and relationships. Trusted Automated Exchange of Intelligence Information (TAXII) is the transport protocol that moves STIX over HTTPS. MISP is an open source platform for storing, correlating and sharing intelligence in communities. Other sources include commercial feeds, ISACs (sector sharing groups), government alerts and open sources like abuse.ch. The Traffic Light Protocol (TLP) labels sharing limits: TLP:RED for named recipients only, TLP:AMBER for limited sharing, TLP:GREEN for the community and TLP:CLEAR for public."
+     ]
+    },
+    {
+     "h": "Using intelligence well",
+     "p": [
+      "Intelligence needs quality checks: source reliability, age, confidence level and context. Old IP indicators may point to a shared hosting address that now belongs to a harmless site, so blocking them causes false positives. Enrich alerts by looking up observables in MISP or a reputation service, then check whether the indicator was seen elsewhere in your logs, a practice called retro-hunting. Strategic intelligence informs leaders about trends, operational intelligence describes campaigns, and tactical intelligence supplies indicators for tools. Always record the source and confidence in your ticket notes."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "STIX indicator (simplified)",
+    "text": "{\"type\":\"indicator\",\n \"spec_version\":\"2.1\",\n \"name\":\"Known phishing domain\",\n \"pattern\":\"[domain-name:value = 'login.example-bad.test']\",\n \"pattern_type\":\"stix\",\n \"valid_from\":\"2026-03-01T00:00:00Z\"}"
+   },
+   "example": "An email alert shows a link to login.example-bad.test. The analyst searches MISP and finds the domain tagged as a phishing kit from a sector sharing group at TLP:GREEN, seen two weeks ago with medium confidence. A retro-hunt of DNS logs shows two internal hosts resolved it yesterday. The analyst blocks the domain, resets the credentials of the two users, and also writes a detection for the kit's unusual URL path, which is higher on the Pyramid of Pain and more durable.",
+   "terms": [
+    {
+     "term": "IOC",
+     "def": "Observable evidence of malicious activity, such as a hash or domain."
+    },
+    {
+     "term": "TTP",
+     "def": "The tactics, techniques and procedures describing attacker behavior."
+    },
+    {
+     "term": "STIX",
+     "def": "A JSON language for describing cyber threat information."
+    },
+    {
+     "term": "TAXII",
+     "def": "A protocol for exchanging STIX data over HTTPS."
+    },
+    {
+     "term": "MISP",
+     "def": "An open source threat intelligence sharing platform."
+    },
+    {
+     "term": "Retro-hunt",
+     "def": "Searching past logs for newly learned indicators."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which item is at the bottom of the Pyramid of Pain?",
+     "options": [
+      "TTPs",
+      "Tools",
+      "Hash values",
+      "Network artifacts"
+     ],
+     "a": 2,
+     "why": "Hashes are the easiest for attackers to change."
+    },
+    {
+     "q": "STIX and TAXII are respectively:",
+     "options": [
+      "A scanner and a firewall",
+      "A data format and a transport protocol",
+      "Two log types",
+      "Two encryption ciphers"
+     ],
+     "a": 1,
+     "why": "STIX describes the data and TAXII carries it."
+    },
+    {
+     "q": "Why can old IP indicators cause false positives?",
+     "options": [
+      "IPs are encrypted",
+      "Addresses may be reassigned to harmless hosts",
+      "They are too short",
+      "They never change"
+     ],
+     "a": 1,
+     "why": "Shared or reassigned addresses can make old IOCs misleading."
+    },
+    {
+     "q": "TLP:RED means:",
+     "options": [
+      "Share publicly",
+      "Limited to named recipients only",
+      "Share with community",
+      "No restrictions"
+     ],
+     "a": 1,
+     "why": "RED is the most restrictive Traffic Light Protocol label."
+    }
+   ],
+   "recap": [
+    "IOCs are quick to match but short lived; TTPs last longer.",
+    "STIX describes, TAXII transports, MISP shares.",
+    "Check source, age and confidence before acting on intelligence."
+   ]
+  },
+  {
+   "title": "Incident response lifecycle",
+   "why": "Having a tested response process is what separates a controlled incident from a chaotic one.",
+   "sections": [
+    {
+     "h": "What counts as an incident",
+     "p": [
+      "An event is any observable occurrence; an incident is an event that violates or threatens security policy, such as ransomware, a data breach or a compromised account. NIST SP 800-61 Revision 2 describes the lifecycle in four stages that are often taught as six steps: preparation, detection and analysis, containment, eradication, recovery and post-incident activity (lessons learned). Revision 3, published in 2025, aligns incident response with the NIST Cybersecurity Framework 2.0 functions, but the classic phases remain the common teaching model."
+     ]
+    },
+    {
+     "h": "Preparation and detection",
+     "p": [
+      "Preparation means having a written plan, trained staff, contact lists, tools, access to logs, backups and a communication channel that does not depend on the compromised network. It includes tabletop exercises. Detection and analysis combine alerts, user reports and hunting. The team determines what happened, which systems and data are affected, and the severity, then assigns an incident handler and starts a log of actions with timestamps. Classifying incidents by type and impact guides resources and notifications to legal, management or regulators."
+     ]
+    },
+    {
+     "h": "Containment, eradication and recovery",
+     "p": [
+      "Containment limits damage. Short-term actions include isolating a host with the EDR network quarantine, disabling an account or blocking an address. Long-term containment may mean rebuilding segments or applying temporary controls. Before wiping a machine, capture volatile evidence. Eradication removes the cause: delete malware and persistence, patch the exploited flaw, reset credentials and close the entry route. Recovery restores systems from clean backups, monitors closely for re-infection and returns services in a planned order. Rushing recovery before eradication often leads to repeat compromise."
+     ]
+    },
+    {
+     "h": "Lessons learned and communication",
+     "p": [
+      "After the incident, hold a blameless review within a few weeks. Ask what happened, how it was detected, what worked, what slowed the team and which controls or detections to add. Update the plan, rules and training, and track the actions to completion. Communication is part of the response: keep an internal need-to-know channel, give regular updates to management, and follow legal obligations such as breach notification, which can be as short as 72 hours under GDPR. Preserve notes and evidence in case of litigation or law enforcement involvement."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Incident timeline",
+    "text": "09:02Z  Alert: ransomware behavior on WS-021\n09:10Z  Analyst confirms encryption activity\n09:12Z  Host isolated via EDR (containment)\n09:40Z  Phishing email and persistence found\n11:30Z  Credentials reset, malware removed (eradication)\n14:00Z  Restored from backup (recovery)\nD+7    Lessons learned meeting"
+   },
+   "example": "A workstation begins renaming files with a strange extension. The analyst confirms the activity and isolates the host through EDR within ten minutes, preserving the machine powered on to keep memory. The team traces the infection to a phishing attachment, finds a scheduled task used for persistence, removes it, resets the user's credentials and blocks the sender domain. The machine is restored from backup and monitored. A review adds attachment sandboxing and a faster EDR isolation playbook.",
+   "terms": [
+    {
+     "term": "Incident",
+     "def": "An event that violates or threatens security policy."
+    },
+    {
+     "term": "Containment",
+     "def": "Actions that stop an incident from spreading or causing more damage."
+    },
+    {
+     "term": "Eradication",
+     "def": "Removing the root cause, malware and persistence."
+    },
+    {
+     "term": "Recovery",
+     "def": "Restoring systems and services to normal operation."
+    },
+    {
+     "term": "Tabletop exercise",
+     "def": "A discussion-based rehearsal of an incident scenario."
+    },
+    {
+     "term": "Lessons learned",
+     "def": "A post-incident review that improves people, process and tools."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which phase comes immediately after containment?",
+     "options": [
+      "Preparation",
+      "Eradication",
+      "Detection",
+      "Lessons learned"
+     ],
+     "a": 1,
+     "why": "After stopping spread you remove the cause, then recover."
+    },
+    {
+     "q": "Why capture volatile evidence before wiping a host?",
+     "options": [
+      "It speeds up the wipe",
+      "Memory and running state disappear once the host is powered off or rebuilt",
+      "It is required by DNS",
+      "It reduces storage"
+     ],
+     "a": 1,
+     "why": "Volatile data is lost on shutdown or rebuild."
+    },
+    {
+     "q": "What is the aim of a blameless review?",
+     "options": [
+      "Assign fault",
+      "Improve controls and process",
+      "Delete evidence",
+      "Reduce the budget"
+     ],
+     "a": 1,
+     "why": "Reviews focus on learning and fixing weaknesses."
+    },
+    {
+     "q": "Which standard describes the incident response lifecycle used here?",
+     "options": [
+      "NIST SP 800-61",
+      "ISO 9001",
+      "PCI DSS 4.0",
+      "RFC 5424"
+     ],
+     "a": 0,
+     "why": "NIST SP 800-61 is the widely used incident handling guide."
+    }
+   ],
+   "recap": [
+    "Phases: preparation, detection and analysis, containment, eradication, recovery, lessons learned.",
+    "Isolate first, preserve evidence, then remove the cause.",
+    "Communicate and document throughout, and learn afterward."
+   ]
+  },
+  {
+   "title": "Digital forensics fundamentals",
+   "why": "Forensics lets you prove what happened, but only if evidence is collected and handled in a way that keeps it trustworthy.",
+   "sections": [
+    {
+     "h": "Order of volatility",
+     "p": [
+      "Digital evidence differs in how fast it disappears. The order of volatility, from most to least volatile, is: CPU registers and cache, memory (RAM), network state and connections, running processes, then disk, then remote logs and monitoring data, then archival media and backups. Collect the most volatile data first. A live memory capture can reveal running malware, decrypted data and network connections that do not exist on disk. The decision to pull the power or keep a system running depends on the case and should be made deliberately and recorded."
+     ]
+    },
+    {
+     "h": "Imaging and hashing",
+     "p": [
+      "Forensic analysts work on copies, never the original. A forensic image is a bit-for-bit copy of a drive that includes deleted and unallocated space. A write blocker, hardware or software, prevents the examiner's computer from altering the source. After imaging, a cryptographic hash such as SHA-256 is calculated for the original and the copy; matching values show the copy is exact. MD5 and SHA-1 are weaker but still appear in older workflows. The hash is recalculated whenever the evidence is handled to show it has not changed. Memory images are captured with tools such as those built into EDR or dedicated acquisition utilities."
+     ]
+    },
+    {
+     "h": "Chain of custody",
+     "p": [
+      "Chain of custody is the documented record of who collected, held, transferred and analyzed each piece of evidence, with dates, times, locations and reasons. Each item is labeled, sealed, stored securely and logged. Any gap can make evidence inadmissible or untrustworthy in legal or HR proceedings. A custody form typically contains a case number, item description, serial number, hash value, collector name and each transfer signature. Keep working copies separate from the master image, and store masters in locked, access-controlled storage. Photograph the scene and record system state before touching anything."
+     ]
+    },
+    {
+     "h": "Analysis and good practice",
+     "p": [
+      "Analysis uses artifacts: file system timestamps (modified, accessed, created), event logs, browser history, registry hives, prefetch files, and memory structures such as process lists. Build a timeline that merges artifacts from several sources. Be careful with time zones and with the fact that timestamps can be altered. Document every command and finding so another examiner can reproduce them. Stay within authorization and privacy law: collect only what is permitted. Report facts and evidence-backed conclusions, separate from opinion, and state limitations honestly."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Evidence hash record",
+    "text": "Case: IR-2026-014  Item: E-03 (laptop SSD)\nImage: E-03.dd  Size: 500107862016 bytes\nSHA-256 (source): 9f2c...b71a\nSHA-256 (image):  9f2c...b71a  MATCH\nAcquired by: A. Analyst  2026-03-10 10:20Z\nWrite blocker: yes   Stored: Locker 4"
+   },
+   "example": "An employee is suspected of copying files to a personal drive. The responder photographs the desk, notes that the laptop is on, captures memory first, then images the SSD through a write blocker and records matching SHA-256 hashes. The image is sealed in an evidence bag and the custody form is signed at each transfer. The examiner works only on a copy of the image and builds a timeline from file system and USB artifact data, so the conclusions can withstand review.",
+   "terms": [
+    {
+     "term": "Order of volatility",
+     "def": "The sequence for collecting evidence from most to least short-lived."
+    },
+    {
+     "term": "Forensic image",
+     "def": "An exact bit-for-bit copy of a storage device."
+    },
+    {
+     "term": "Write blocker",
+     "def": "A device or software that prevents changes to the source media."
+    },
+    {
+     "term": "Hash",
+     "def": "A fixed-length fingerprint used to verify that data is unchanged."
+    },
+    {
+     "term": "Chain of custody",
+     "def": "The documented history of evidence handling."
+    },
+    {
+     "term": "Timeline",
+     "def": "A merged chronological view of artifacts from multiple sources."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which is the MOST volatile?",
+     "options": [
+      "Disk",
+      "RAM",
+      "Backup tape",
+      "Remote logs"
+     ],
+     "a": 1,
+     "why": "Memory is lost quickly when power is removed, so it is collected before disk."
+    },
+    {
+     "q": "Why use a write blocker?",
+     "options": [
+      "To compress the image",
+      "To prevent changes to the original media",
+      "To encrypt the evidence",
+      "To speed up copying"
+     ],
+     "a": 1,
+     "why": "Write blockers preserve the integrity of the source."
+    },
+    {
+     "q": "Matching hashes between source and image show:",
+     "options": [
+      "The disk is encrypted",
+      "The copy is an exact duplicate",
+      "The user is guilty",
+      "Malware is absent"
+     ],
+     "a": 1,
+     "why": "A match means the copy is bit-for-bit identical."
+    },
+    {
+     "q": "Chain of custody documents:",
+     "options": [
+      "Network speed",
+      "Who handled evidence, when and why",
+      "Antivirus versions",
+      "Backup schedules"
+     ],
+     "a": 1,
+     "why": "It records each handling step to keep evidence credible."
+    }
+   ],
+   "recap": [
+    "Collect the most volatile data first: memory before disk.",
+    "Image through a write blocker, hash, and analyze copies only.",
+    "Record chain of custody for every transfer."
+   ]
+  },
+  {
+   "title": "Detection use cases and playbooks",
+   "why": "Detection rules and runbooks convert knowledge into repeatable, fast action that any analyst on shift can follow.",
+   "sections": [
+    {
+     "h": "Detection use cases",
+     "p": [
+      "A use case defines a threat, the data needed to see it and the logic to detect it. Start from risk or from MITRE ATT&CK: for brute force, the technique is T1110. Required data is authentication logs with source, user and result. Logic might be: more than 10 failed logons for one account, or more than 20 across many accounts, from one source within 5 minutes. Define severity, expected false positives such as a vulnerability scanner or a user with a stale mobile password, and the response expected. Test the rule against past data and sample attacks before enabling it."
+     ]
+    },
+    {
+     "h": "Writing a brute force rule",
+     "p": [
+      "A good rule has a clear window, threshold and grouping. For failures, group by source IP and by target user separately: one IP against many users indicates spraying, many IPs against one user indicates a distributed attack. Add a second stage that triggers at high severity if a success follows the failures within a short time, since that suggests the guess worked. Exclude known scanner addresses. Include context fields in the alert, such as the last logon time and the account's group memberships. Write the rule in your SIEM language and document its owner, version and tuning history."
+     ]
+    },
+    {
+     "h": "Runbooks and playbooks",
+     "p": [
+      "A runbook is a step-by-step procedure for a specific alert type, and a playbook covers a broader scenario. Elements include trigger, severity, checks to perform, decision points, containment actions, escalation contacts, evidence to save, communication steps and closure criteria. For a brute force alert: check whether the source is internal or external, check for success after failures, look up the IP in threat intelligence, confirm whether MFA stopped the login, and, if the account was accessed, disable it, reset credentials, check recent activity and escalate to Tier 2."
+     ]
+    },
+    {
+     "h": "Communication and maintenance",
+     "p": [
+      "Define who gets told, when and how: the on-call lead, the system owner, management for major events, legal and privacy officers for data exposure, and PR for public impact. Use templates with facts, impact, actions taken and next update time. Avoid speculation in messages. Review runbooks after every incident and at least yearly, and test them in exercises. Measure each rule's true positive rate and each runbook's time to complete. Where steps are repetitive, such as IP lookups, automate them with SOAR while keeping a human decision for destructive actions."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Detection rule (pseudo)",
+    "text": "rule: brute-force-success\nsource: auth logs\ngroup_by: src_ip, user\nwindow: 5m\ncondition: count(event=4625) >= 10\n  AND followed_by(event=4624, 5m)\nexclude: src_ip in [192.0.2.99]\nseverity: high  ATTACK: T1110"
+   },
+   "example": "A SOC wants to catch password guessing against the VPN. The detection engineer writes a rule that flags 10 or more failures per account in 5 minutes, then raises severity if a success follows. In testing against last month's logs, it fires 14 times; 11 are the monitoring probe at 192.0.2.99, which is added to the exclusion list. The runbook tells Tier 1 to check MFA status, disable the account if the login succeeded and escalate with the source IP and timeline.",
+   "terms": [
+    {
+     "term": "Use case",
+     "def": "A defined threat, data source and detection logic."
+    },
+    {
+     "term": "T1110",
+     "def": "MITRE ATT&CK technique ID for brute force."
+    },
+    {
+     "term": "Runbook",
+     "def": "A step-by-step procedure for handling a specific alert."
+    },
+    {
+     "term": "Playbook",
+     "def": "A broader plan for responding to a type of incident."
+    },
+    {
+     "term": "Threshold",
+     "def": "The count or value that triggers an alert."
+    },
+    {
+     "term": "Allow list",
+     "def": "A list of known benign sources excluded from a rule."
+    }
+   ],
+   "check": [
+    {
+     "q": "Many IPs failing against one account suggests:",
+     "options": [
+      "Password spraying from one host",
+      "A distributed attack on one user",
+      "Normal usage",
+      "DNS failure"
+     ],
+     "a": 1,
+     "why": "Several sources targeting one account indicates a distributed attempt."
+    },
+    {
+     "q": "Why add a 'success after failures' stage?",
+     "options": [
+      "To reduce disk use",
+      "A success may mean the guess worked, raising severity",
+      "To hide alerts",
+      "To clear logs"
+     ],
+     "a": 1,
+     "why": "The pattern suggests account compromise."
+    },
+    {
+     "q": "What should a runbook include?",
+     "options": [
+      "Only the vendor name",
+      "Trigger, checks, decisions, escalation and closure steps",
+      "Marketing text",
+      "Raw logs"
+     ],
+     "a": 1,
+     "why": "A runbook guides analysts through a repeatable response."
+    },
+    {
+     "q": "Before enabling a new rule you should:",
+     "options": [
+      "Deploy it to all production blindly",
+      "Test it against historical data to estimate false positives",
+      "Remove the logging",
+      "Disable MFA"
+     ],
+     "a": 1,
+     "why": "Backtesting shows noise levels and prevents alert fatigue."
+    }
+   ],
+   "recap": [
+    "Define use cases with threat, data, logic, severity and false positives.",
+    "Brute force rules use windows, thresholds, grouping and a follow-on success check.",
+    "Runbooks give clear steps, escalation and communication."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Hunt failed logins in a SIEM",
+   "sim": "siem",
+   "scenario": "The authentication logs of Example Corp's domain controller are loaded into the SIEM simulator. Help desk reports several lockouts. You must find the source and the targeted accounts.",
+   "objective": "Find the spike of Event ID 4625 and identify the source IP and targeted accounts.",
+   "steps": [
+    {
+     "do": "Search: EventCode=4625 earliest=-24h | timechart span=1h count",
+     "see": "Chart shows normal 5 to 10 per hour, then 412 at 09:00 to 10:00."
+    },
+    {
+     "do": "Search: EventCode=4625 | stats count by src_ip | sort - count",
+     "see": "203.0.113.45: 398; 192.0.2.77: 6; others under 5."
+    },
+    {
+     "do": "Search: EventCode=4625 src_ip=203.0.113.45 | stats dc(user) as users, values(user)",
+     "see": "users=14; values include admin, jdoe, asmith, backup, svc-sql and others."
+    },
+    {
+     "do": "Search: EventCode=4624 src_ip=203.0.113.45",
+     "see": "1 result: user=svc-sql at 09:47, LogonType=3."
+    },
+    {
+     "do": "Check the LogonType and status fields of the 4625 events.",
+     "see": "Status 0xC000006A, wrong password; mostly LogonType=3 (network)."
+    },
+    {
+     "do": "Open the asset page for svc-sql.",
+     "see": "Service account, no interactive logon expected, owner: Database team."
+    }
+   ],
+   "answer": "Source 203.0.113.45 produced 398 failures against 14 accounts in one hour, which is password spraying, and one logon succeeded as svc-sql at 09:47. Disable or reset svc-sql, block the source, and escalate as a likely compromise.",
+   "hint": "Group by source first, then count distinct users, and finally look for a success from that source."
+  },
+  {
+   "title": "Triage a phishing alert",
+   "sim": "siem",
+   "scenario": "An email alert fired for a message to the finance team with a link and an attachment. The SIEM provides sender, URL and file hash and a threat intelligence panel.",
+   "objective": "Enrich the sender, URL and hash and decide whether the alert is a true positive.",
+   "steps": [
+    {
+     "do": "Open the alert and read the fields.",
+     "see": "Sender: billing@examp1e-pay.test; URL: http://login.example-bad.test/pay; Attachment: invoice.xlsm, SHA-256 a1b2...c3d4."
+    },
+    {
+     "do": "Enrich the sender domain.",
+     "see": "Registered 3 days ago; looks like example-pay.test; no MX history."
+    },
+    {
+     "do": "Enrich the URL.",
+     "see": "MISP: tagged phishing kit, TLP:GREEN, confidence medium."
+    },
+    {
+     "do": "Enrich the hash.",
+     "see": "Sandbox: macro downloads second stage from 198.51.100.77; verdict malicious."
+    },
+    {
+     "do": "Search proxy logs for the URL and IP.",
+     "see": "2 internal users visited the URL; one downloaded invoice.xlsm."
+    },
+    {
+     "do": "Select verdict and next action.",
+     "see": "Verdict recorded as True Positive; escalate to Tier 2 with containment recommendation."
+    }
+   ],
+   "answer": "The alert is a true positive. The lookalike sender domain, the known phishing URL and the malicious macro attachment agree, and two users interacted with it. Block the domain and IP, remove the email, isolate the affected host, reset credentials and escalate.",
+   "hint": "Look for agreement between three independent enrichment sources."
+  },
+  {
+   "title": "Analyze a Linux auth.log",
+   "sim": "log-viewer",
+   "scenario": "You have /var/log/auth.log from an Ubuntu server at 192.0.2.60. The server administrator suspects a break-in last night.",
+   "objective": "Find the SSH brute force, the successful login and the following sudo activity.",
+   "steps": [
+    {
+     "do": "Filter: Failed password",
+     "see": "Lines show 312 failures from 203.0.113.45 between 02:11 and 02:19 for users root, admin, test."
+    },
+    {
+     "do": "Filter: Accepted",
+     "see": "02:20:31 Accepted password for deploy from 203.0.113.45 port 51234 ssh2."
+    },
+    {
+     "do": "Filter by user: deploy",
+     "see": "02:20:31 session opened; 02:22:10 sudo: deploy : COMMAND=/bin/bash."
+    },
+    {
+     "do": "Filter: sudo",
+     "see": "02:22:10 sudo command /bin/bash; 02:23:02 useradd backdoor; 02:23:40 sudo passwd backdoor."
+    },
+    {
+     "do": "Filter: session closed",
+     "see": "02:31:55 session closed for user deploy."
+    },
+    {
+     "do": "Mark the key lines and build a timeline.",
+     "see": "Timeline saved with 5 entries."
+    }
+   ],
+   "answer": "Timeline: 312 failed SSH attempts from 203.0.113.45 ending 02:19, a successful login as deploy at 02:20:31, sudo to a root shell at 02:22:10, creation of a new account named backdoor at 02:23:02. This is a successful brute force followed by persistence; contain the host and reset credentials.",
+   "hint": "Follow one source IP and one username from the failures through the success and onward."
+  },
+  {
+   "title": "Contain a compromised host",
+   "sim": "scenario",
+   "scenario": "A workstation at 192.0.2.88 shows ransomware behavior. You are the incident handler and must choose actions in the correct order using the NIST lifecycle.",
+   "objective": "Choose containment, eradication and recovery actions in the right order.",
+   "steps": [
+    {
+     "do": "Review the alert and confirm file encryption on WS-088.",
+     "see": "Confirmed: files renamed with .locked extension."
+    },
+    {
+     "do": "Choose first action: isolate host with EDR.",
+     "see": "Accepted; host network quarantined, memory kept."
+    },
+    {
+     "do": "Capture memory and preserve logs.",
+     "see": "Accepted: memory image and logs stored with hashes."
+    },
+    {
+     "do": "Identify and remove the source: phishing email, persistence task.",
+     "see": "Accepted; scheduled task removed, email purged from mailboxes."
+    },
+    {
+     "do": "Reset the user's credentials and patch the exploited software.",
+     "see": "Accepted; eradication complete."
+    },
+    {
+     "do": "Restore from last clean backup and monitor.",
+     "see": "Accepted; restored and monitoring for 14 days."
+    },
+    {
+     "do": "Schedule lessons learned.",
+     "see": "Review scheduled for day 7."
+    }
+   ],
+   "answer": "Correct order: isolate, preserve evidence, find and remove the cause (malware, persistence, entry route), reset credentials and patch, restore from clean backup, monitor, then lessons learned. Restoring before eradication risks reinfection.",
+   "hint": "Stop the spread first, save volatile evidence, then remove the cause before restoring."
+  },
+  {
+   "title": "Preserve evidence",
+   "sim": "file-explorer",
+   "scenario": "A disk image of a suspected insider laptop and a USB drive were seized in the Example Corp case IR-2026-014. The case files are listed in the explorer with timestamps and hashes.",
+   "objective": "Hash the image files, record chain of custody and sort evidence by volatility.",
+   "steps": [
+    {
+     "do": "Select E-03.dd and run sha256sum.",
+     "see": "SHA-256: 9f2c...b71a (matches the acquisition record)."
+    },
+    {
+     "do": "Select E-04.dd and run sha256sum.",
+     "see": "SHA-256: 77de...0a12 (does NOT match record 77de...0a13)."
+    },
+    {
+     "do": "Open the custody form for E-04.",
+     "see": "Missing signature for transfer on 2026-03-11."
+    },
+    {
+     "do": "Flag E-04 as integrity issue and re-acquire.",
+     "see": "Re-acquired image hashes to 77de...0a13, match."
+    },
+    {
+     "do": "Sort items by order of volatility.",
+     "see": "Order: memory.raw, netstat_output.txt, E-03.dd, E-04.dd, cloud_logs.zip."
+    },
+    {
+     "do": "Sign the custody form entries.",
+     "see": "Chain of custody complete for 5 items."
+    }
+   ],
+   "answer": "E-03 matches its recorded hash. E-04 did not match and had a custody gap, so it must be re-acquired and documented. Evidence order: memory first, then network state, then disk images, then remote logs.",
+   "hint": "Compare computed and recorded hashes, and read the custody form for gaps."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which log source helps identify which device held an IP address at a given time?",
+   "options": [
+    "DHCP logs",
+    "NTP logs",
+    "Printer logs",
+    "BIOS logs"
+   ],
+   "a": 0,
+   "why": "DHCP leases map IPs to devices."
+  },
+  {
+   "q": "Event ID 4624 indicates:",
+   "options": [
+    "A failed logon",
+    "A successful logon",
+    "Log cleared",
+    "Process created"
+   ],
+   "a": 1,
+   "why": "4624 is successful logon."
+  },
+  {
+   "q": "Normalization in a SIEM means:",
+   "options": [
+    "Deleting duplicates",
+    "Mapping fields to a common schema",
+    "Encrypting data",
+    "Compressing data"
+   ],
+   "a": 1,
+   "why": "A common schema enables cross-source queries."
+  },
+  {
+   "q": "In triage, scoping means:",
+   "options": [
+    "Closing the alert",
+    "Determining affected users, hosts and time range",
+    "Buying tools",
+    "Writing the report"
+   ],
+   "a": 1,
+   "why": "Scoping defines the extent of the activity."
+  },
+  {
+   "q": "In the Pyramid of Pain, which causes the most pain to adversaries?",
+   "options": [
+    "Hashes",
+    "IPs",
+    "TTPs",
+    "Domains"
+   ],
+   "a": 2,
+   "why": "Behavior-based detection forces attackers to change how they operate."
+  },
+  {
+   "q": "What does TAXII do?",
+   "options": [
+    "Describes indicators",
+    "Transports threat intelligence over HTTPS",
+    "Scans ports",
+    "Encrypts disks"
+   ],
+   "a": 1,
+   "why": "TAXII is the exchange protocol; STIX is the data format."
+  },
+  {
+   "q": "In NIST incident response, removing malware and persistence is:",
+   "options": [
+    "Containment",
+    "Eradication",
+    "Preparation",
+    "Detection"
+   ],
+   "a": 1,
+   "why": "Eradication removes the root cause."
+  },
+  {
+   "q": "Which should be collected first?",
+   "options": [
+    "Backups",
+    "Disk",
+    "Memory",
+    "Archived logs"
+   ],
+   "a": 2,
+   "why": "Memory is more volatile than disk."
+  },
+  {
+   "q": "Matching SHA-256 values of source and image prove:",
+   "options": [
+    "The user is guilty",
+    "The image is an exact copy",
+    "The disk is clean",
+    "The data is encrypted"
+   ],
+   "a": 1,
+   "why": "Equal hashes mean identical data."
+  },
+  {
+   "q": "A good brute force rule uses:",
+   "options": [
+    "A single failed login",
+    "A window, threshold and grouping by source and user",
+    "No exclusions",
+    "Only manual review"
+   ],
+   "a": 1,
+   "why": "Windows, thresholds and grouping reduce noise and capture patterns."
+  }
+ ]
+}

@@ -1,0 +1,528 @@
+{
+ "code": "CORE-14",
+ "intro": "This module helps you turn what you have learned into a plan. You will compare the main certifications by level, focus and prerequisites, see how a portfolio of write-ups, a home lab and CTF practice proves real skill, and look at the daily work of common roles from SOC analyst to GRC to AppSec. By the end you should be able to choose a direction and a practice routine.",
+ "lessons": [
+  {
+   "title": "Certification map",
+   "why": "Certifications are a common way to prove baseline knowledge to employers, but choosing them in the wrong order wastes money and time.",
+   "sections": [
+    {
+     "h": "What a certification does and does not prove",
+     "p": [
+      "A certification is an independent test of defined knowledge or skill. Employers use it as a quick filter, and some government and contractor roles require specific ones. A certificate does not prove you can work a real incident or test a real application, so it works best alongside hands-on evidence. Most exams are either knowledge based (multiple choice, sometimes with performance-based items) or practical (you work in a live lab and submit answers or a report). When comparing options, ask four questions. What level is it, entry, intermediate or senior? What is its focus, general knowledge, defense, offense or management? What are the prerequisites, formal or recommended? Is it vendor-neutral or tied to a product? Keep in mind that exam details such as question counts, prices and exam codes change, so always confirm them on the official provider site before you pay."
+     ]
+    },
+    {
+     "h": "Entry level: Network+, Security+ and eJPT",
+     "p": [
+      "CompTIA Network+ covers networking fundamentals: the OSI model, IP addressing, routing, switching, ports and troubleshooting. It has no formal prerequisite and is useful before any security path. CompTIA Security+ is the most common first security certification. It is vendor-neutral and broad, covering threats, cryptography, identity, network security, risk and incident response. It has no formal prerequisite, though CompTIA recommends Network+ and about two years of IT experience, and it is widely listed in job postings. eJPT (eLearnSecurity Junior Penetration Tester, now offered by INE) is a practical entry-level offensive exam. You work through a lab network over a fixed period and answer questions based on what you find, so it tests whether you can apply scanning, enumeration and basic exploitation, not only recall them. It is a good first step if your goal is penetration testing."
+     ]
+    },
+    {
+     "h": "Intermediate: CySA+, BTL1, CEH and SSCP",
+     "p": [
+      "CompTIA CySA+ (Cybersecurity Analyst) targets defenders: log analysis, vulnerability management, threat intelligence and incident response. CompTIA recommends Network+, Security+ and several years of experience. Blue Team Level 1 (BTL1) from Security Blue Team is a practical defensive exam covering phishing analysis, digital forensics, SIEM use, incident response and threat intelligence, completed in a timed lab. The Certified Ethical Hacker (CEH) from EC-Council is a knowledge-based exam on attacker tools and techniques, with a separate practical version. It is recognized by some employers and contracts, while many practitioners prefer practical exams for skill. SSCP, from (ISC)2, is an operations-focused credential across seven domains, and it requires about one year of paid experience in the domains."
+     ]
+    },
+    {
+     "h": "Advanced: CISSP and how to order your path",
+     "p": [
+      "CISSP, also from (ISC)2, is a senior, management-leaning certification spanning eight domains such as risk management, architecture, identity and software security. It requires about five years of paid experience in two or more domains, with a reduction for a degree or an approved credential. Candidates without the experience can pass the exam and become Associates of (ISC)2 while they gain it. A sensible order follows your goal. For a general or defensive route: Network+, Security+, then CySA+ or BTL1. For offense: Security+ or networking knowledge, then eJPT and later a deeper practical credential. For management: Security+, SSCP, then CISSP once the experience requirement is met. Do not collect certifications for their own sake; each one should answer a concrete role requirement."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Typical progressions",
+    "text": "General/defense : Network+ -> Security+ -> CySA+ or BTL1\nOffense         : Networking basics -> eJPT -> deeper practical cert\nManagement      : Security+ -> SSCP -> CISSP (5 yrs experience)\nCEH             : knowledge exam; CEH Practical is separate"
+   },
+   "example": "Priya works the help desk at the fictional firm Example Corp and wants to become a SOC analyst within two years. She skips CISSP, which needs five years of experience she lacks, and plans Network+ to fill gaps in networking, then Security+ for broad coverage. After six months in a junior monitoring role she adds BTL1 to prove practical triage and phishing analysis, and later CySA+. Each certificate matches a task in the job she wants.",
+   "terms": [
+    {
+     "term": "Vendor-neutral",
+     "def": "A certification that tests general concepts instead of one company's product."
+    },
+    {
+     "term": "Performance-based",
+     "def": "An exam item or full exam where you complete tasks in a simulated or live environment."
+    },
+    {
+     "term": "Prerequisite",
+     "def": "A required or recommended experience or credential before attempting an exam."
+    },
+    {
+     "term": "Domain",
+     "def": "A defined topic area an exam blueprint covers, for example risk management or identity."
+    },
+    {
+     "term": "Associate of (ISC)2",
+     "def": "Status for someone who passes CISSP or SSCP but has not yet met the experience requirement."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which certification is the most common broad, vendor-neutral first security credential?",
+     "options": [
+      "CISSP",
+      "CompTIA Security+",
+      "BTL1",
+      "SSCP"
+     ],
+     "a": 1,
+     "why": "Security+ has no formal prerequisite and covers broad foundations, so it is the usual first security certification."
+    },
+    {
+     "q": "Which pairing correctly describes a practical, hands-on entry-level offensive exam?",
+     "options": [
+      "eJPT",
+      "CISSP",
+      "Network+",
+      "SSCP"
+     ],
+     "a": 0,
+     "why": "eJPT has you work through a lab network and answer based on your findings. CISSP and Network+ are knowledge based."
+    },
+    {
+     "q": "Why is CISSP a poor first certification for a new graduate?",
+     "options": [
+      "It covers only networking",
+      "It requires about five years of paid experience for full certification",
+      "It cannot be taken in English",
+      "It is only for pentesters"
+     ],
+     "a": 1,
+     "why": "CISSP is a senior credential requiring years of experience, though passers can become Associates while gaining it."
+    },
+    {
+     "q": "BTL1 is best described as which of the following?",
+     "options": [
+      "A practical defensive certification covering phishing, forensics, SIEM and incident response",
+      "A management exam on risk",
+      "An offensive web exam only",
+      "A networking exam"
+     ],
+     "a": 0,
+     "why": "Blue Team Level 1 is a timed practical blue-team exam."
+    }
+   ],
+   "recap": [
+    "Match each certification to level, focus and prerequisites, and verify details on the official site.",
+    "Common paths: Network+ then Security+ then CySA+/BTL1; eJPT for offense; SSCP then CISSP for management.",
+    "Certificates support, but do not replace, hands-on proof of skill."
+   ]
+  },
+  {
+   "title": "Portfolio, labs and CTFs",
+   "why": "Hiring managers want evidence that you can do the work, and a portfolio turns practice into proof.",
+   "sections": [
+    {
+     "h": "What a security portfolio contains",
+     "p": [
+      "A portfolio is a small collection of public, safe artifacts that show how you think. Good items include written lab or CTF write-ups, a short detection or log-analysis report, a simple script that automates a task, a diagram of a home lab, and notes on projects such as hardening a server. Quality beats quantity. Three clear write-ups that explain your reasoning are worth more than thirty screenshots. Host it somewhere easy to read, such as a personal site or a public repository with a clear README. Remove anything sensitive: no real credentials, no employer data, no real personal information. Use only systems you built or were explicitly allowed to test. A portfolio that shows unauthorized activity harms you more than having none."
+     ]
+    },
+    {
+     "h": "Writing a good write-up",
+     "p": [
+      "A strong write-up follows a repeatable structure: the goal, the environment, the steps you took, what you observed, the conclusion, and what a defender should do about it. Explain why you tried each step, including dead ends, because reasoning is what an interviewer wants to see. Include commands and short log excerpts, and describe the defensive lesson, for example which log entry would reveal the activity. Respect platform rules. Hack The Box, for example, does not allow publishing solutions to currently active machines, while retired machines are generally fine, and many CTFs ask you to wait until the event ends. Never publish flags or answers for graded courses. When in doubt, write about the concept and your method instead of copying the exact solution."
+     ]
+    },
+    {
+     "h": "Building a home lab",
+     "p": [
+      "A home lab is a safe, isolated place to practice. A modest setup is a laptop with 16 GB of RAM running virtualization software such as VirtualBox, VMware Workstation Player or Proxmox. Typical virtual machines include a Linux attacker or analyst system, a deliberately vulnerable target, a Windows evaluation VM, a firewall such as pfSense or OPNsense, and a monitoring stack such as Security Onion, Wazuh or an Elastic stack. Isolation is the key rule. Put practice machines on a host-only or internal virtual network so vulnerable systems never touch your home network or the internet. Take snapshots before each experiment so you can restore a clean state. Label what you build and keep notes; the lab itself, documented with a diagram, becomes a portfolio piece."
+     ]
+    },
+    {
+     "h": "CTFs and practice platforms",
+     "p": [
+      "Capture the Flag events are legal puzzles where you find a hidden flag by solving security tasks. Jeopardy-style CTFs offer categories such as web, cryptography, forensics, reverse engineering and binary exploitation. Attack-defense CTFs have teams protecting their own services while attacking others. Beginners can start with picoCTF, a free event from Carnegie Mellon University aimed at students, and OverTheWire wargames such as Bandit for Linux command-line skills. Hack The Box and TryHackMe provide guided learning paths and vulnerable machines; CyberDefenders and Blue Team Labs Online offer defensive investigations with logs and packet captures. Build a routine, for instance three or four sessions a week, and finish with a short note about what you learned. Consistency, not marathon sessions, builds skill, and playing with a team teaches communication as well."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Write-up skeleton",
+    "text": "# Challenge name - platform - date\n1. Goal\n2. Environment (VMs, tools, versions)\n3. Steps and reasoning (include dead ends)\n4. Evidence (short command output or log lines)\n5. Result\n6. Defender takeaway: how to detect or prevent this\n(Do not publish active-machine solutions or live flags)"
+   },
+   "example": "Marcus builds a lab on one laptop: a host-only network with an OPNsense firewall, a deliberately vulnerable web VM, and a Wazuh server that collects logs. He runs a scan from his analyst VM, then reads the alerts it generated and writes a two-page note with a diagram and three log excerpts. He publishes it with a README, having first removed the lab passwords. A recruiter sees both offense and detection reasoning in one project.",
+   "terms": [
+    {
+     "term": "Write-up",
+     "def": "A written explanation of how you solved a challenge or investigation."
+    },
+    {
+     "term": "Jeopardy CTF",
+     "def": "A CTF format with independent challenges grouped by category and worth points."
+    },
+    {
+     "term": "Host-only network",
+     "def": "A virtual network that connects only the VMs and the host, with no outside access."
+    },
+    {
+     "term": "Snapshot",
+     "def": "A saved VM state that lets you roll back after an experiment."
+    },
+    {
+     "term": "Flag",
+     "def": "A secret string a CTF challenge hides to prove you solved it."
+    }
+   ],
+   "check": [
+    {
+     "q": "What is the most important safety rule for a home lab with vulnerable machines?",
+     "options": [
+      "Use the same network as your family devices",
+      "Isolate it on a host-only or internal virtual network",
+      "Disable all logging",
+      "Expose the targets to the internet for realism"
+     ],
+     "a": 1,
+     "why": "Vulnerable systems must never be reachable from your normal network or the internet."
+    },
+    {
+     "q": "Which platform is a free beginner-friendly CTF from Carnegie Mellon University?",
+     "options": [
+      "picoCTF",
+      "CISSP",
+      "Wazuh",
+      "pfSense"
+     ],
+     "a": 0,
+     "why": "picoCTF is aimed at students and beginners."
+    },
+    {
+     "q": "Which element makes a write-up most valuable to an interviewer?",
+     "options": [
+      "The raw flag value",
+      "A clear explanation of your reasoning and the defender takeaway",
+      "Only screenshots",
+      "A list of tools with no context"
+     ],
+     "a": 1,
+     "why": "Reasoning and defensive lessons show how you think."
+    },
+    {
+     "q": "What should you avoid publishing?",
+     "options": [
+      "A diagram of your lab",
+      "Solutions to active machines on platforms that forbid it, and real credentials",
+      "A README",
+      "A concept summary"
+     ],
+     "a": 1,
+     "why": "Many platforms prohibit active-machine write-ups, and credentials must never be exposed."
+    }
+   ],
+   "recap": [
+    "Portfolio items: write-ups, lab diagrams, small scripts and detection notes, all sanitized.",
+    "Run labs on isolated networks and snapshot before experiments.",
+    "Use CTFs and platforms on a steady routine, and respect each platform's publishing rules."
+   ]
+  },
+  {
+   "title": "Choosing a specialization",
+   "why": "Security is a family of roles, and picking a direction early focuses your learning and certification choices.",
+   "sections": [
+    {
+     "h": "Defensive roles: SOC and DFIR",
+     "p": [
+      "A SOC analyst monitors alerts from a SIEM and EDR, triages them, and escalates real incidents. Daily work includes reading logs, checking indicators against threat intelligence, writing tickets and tuning noisy rules. Typical skills are networking, Windows and Linux logs, a query language and calm judgment. Tiers often run from Tier 1 triage to Tier 3 hunting and engineering. Digital forensics and incident response (DFIR) investigators go deeper after an incident is confirmed. They collect disk and memory images with documented chain of custody, analyze timelines, determine scope and help eradicate the attacker. It rewards patience, operating system internals and careful written reports, and it can involve legal processes."
+     ]
+    },
+    {
+     "h": "Offensive and application roles",
+     "p": [
+      "Penetration testers are authorized to attack systems under a written scope and rules of engagement, then report findings with remediation advice. They spend time on scoping, reconnaissance, testing, and a large amount of reporting. Red teamers run longer, goal-based simulations of real adversaries. Both need networking, scripting and web knowledge, and strong communication. Application security (AppSec) engineers work with developers to keep software safe. They review code and designs, run static and dynamic testing in the CI/CD pipeline, perform threat modeling and teach secure coding using references such as the OWASP Top 10. Programming skill is more central here than in most other roles."
+     ]
+    },
+    {
+     "h": "Governance, cloud and engineering roles",
+     "p": [
+      "Governance, risk and compliance (GRC) staff manage policies, risk registers, audits and frameworks such as ISO 27001, NIST CSF and SOC 2. Their days involve interviews, evidence collection and writing, so they fit people strong in communication and structure. Technical depth is lighter, but understanding controls is essential. Cloud security specialists secure AWS, Azure or Google Cloud through identity design, configuration review, logging and infrastructure-as-code checks. Security engineers build and run the tooling: firewalls, SIEM pipelines, endpoint platforms, automation and detections. Both roles lean on scripting, networking and a solid grasp of how systems are built."
+     ]
+    },
+    {
+     "h": "Choosing and testing your direction",
+     "p": [
+      "Pick by how you like to work. Enjoy puzzles and breaking things with rules? Consider offense. Like steady investigation and patterns? Consider SOC or DFIR. Prefer building and automating? Consider engineering or cloud. Prefer people, policy and structure? Consider GRC. Like code and developers? Consider AppSec. Test the choice cheaply before committing. Spend two weeks on a platform track for each role, read real job postings and list the repeated skills, and talk to people in those jobs. Specializations are not permanent; many professionals start in a SOC and move to detection engineering, DFIR or pentesting. Build a shared base in networking, operating systems and scripting, and add depth after you have chosen."
+     ]
+    }
+   ],
+   "snippet": {
+    "label": "Role to focus map",
+    "text": "SOC analyst : alert triage, SIEM, logs\nDFIR        : forensics, timelines, memory/disk\nPentester   : scoping, testing, reporting\nAppSec      : code review, SAST/DAST, threat modeling\nGRC         : policy, risk, audits, ISO 27001/NIST\nCloud       : IAM, config review, cloud logging\nEngineer    : build and automate security tooling"
+   },
+   "example": "Lena enjoys scripting and tidy systems, but does not enjoy long reports. She tries two weeks of pentest labs and two weeks of SOC investigations. She finds that tuning alerts and writing small Python parsers gives her the most satisfaction, so she targets a security engineer role with detection engineering duties. She plans Security+, a SIEM course and a portfolio project that ships logs from her home lab into a dashboard.",
+   "terms": [
+    {
+     "term": "SOC",
+     "def": "Security operations center, the team that monitors and responds to alerts."
+    },
+    {
+     "term": "DFIR",
+     "def": "Digital forensics and incident response, investigating confirmed incidents."
+    },
+    {
+     "term": "GRC",
+     "def": "Governance, risk and compliance, managing policy, risk and audits."
+    },
+    {
+     "term": "AppSec",
+     "def": "Application security, building and reviewing software safely."
+    },
+    {
+     "term": "Red team",
+     "def": "A group that simulates real adversaries over a longer goal-based engagement."
+    }
+   ],
+   "check": [
+    {
+     "q": "Which role mainly triages alerts from a SIEM and escalates real incidents?",
+     "options": [
+      "GRC analyst",
+      "SOC analyst",
+      "AppSec engineer",
+      "Auditor"
+     ],
+     "a": 1,
+     "why": "Alert triage and escalation is the core of SOC work."
+    },
+    {
+     "q": "Which role is most associated with risk registers, audits and ISO 27001?",
+     "options": [
+      "Pentester",
+      "DFIR",
+      "GRC",
+      "Security engineer"
+     ],
+     "a": 2,
+     "why": "GRC manages policy, risk and compliance frameworks."
+    },
+    {
+     "q": "An AppSec engineer most likely does what?",
+     "options": [
+      "Collects memory images after a breach",
+      "Reviews code and runs security testing in the development pipeline",
+      "Manages payroll systems",
+      "Writes audit policies only"
+     ],
+     "a": 1,
+     "why": "AppSec works with developers on code review, testing and threat modeling."
+    },
+    {
+     "q": "What is a good low-cost way to test whether a specialization suits you?",
+     "options": [
+      "Commit to an expensive certification first",
+      "Try a short platform track, read job postings and talk to practitioners",
+      "Choose randomly",
+      "Avoid all hands-on work"
+     ],
+     "a": 1,
+     "why": "Short trials and research cost little and give real information."
+    }
+   ],
+   "recap": [
+    "Roles: SOC, DFIR, pentest, AppSec, GRC, cloud and engineering each have distinct daily work.",
+    "Choose by how you like to work and test the choice with short trials.",
+    "Build a shared base in networking, operating systems and scripting first."
+   ]
+  }
+ ],
+ "labs": [
+  {
+   "title": "Build a certification roadmap",
+   "sim": "scenario",
+   "scenario": "You are advising a fictional learner, Sam Rivera, who works at the help desk of Example Corp. Sam wants to become a SOC analyst within two years and has a limited budget. The simulator lists eight certifications with their level, focus and prerequisites, and asks you to choose the best four in order, giving a short reason for each. Your plan should respect experience requirements and match defensive work.",
+   "objective": "Order four certifications for a SOC analyst goal with prerequisites and reasons.",
+   "steps": [
+    {
+     "do": "Read Sam's profile: help desk, basic networking, 2-year goal, SOC analyst.",
+     "see": "Eight certification cards are shown: Network+, Security+, CySA+, eJPT, BTL1, CEH, SSCP, CISSP."
+    },
+    {
+     "do": "Flag CISSP as unsuitable now.",
+     "see": "The card notes about five years of experience needed; the simulator marks it as a later goal."
+    },
+    {
+     "do": "Place Network+ first to close networking gaps.",
+     "see": "Reason accepted: networking is the base for reading logs and traffic."
+    },
+    {
+     "do": "Place Security+ second.",
+     "see": "Reason accepted: broad vendor-neutral foundation with no formal prerequisite."
+    },
+    {
+     "do": "Place BTL1 third.",
+     "see": "Reason accepted: practical defensive skills such as phishing analysis and SIEM use."
+    },
+    {
+     "do": "Place CySA+ fourth.",
+     "see": "Reason accepted: analyst-focused, builds on Security+ and experience."
+    },
+    {
+     "do": "Set aside eJPT and CEH as optional offense-focused items.",
+     "see": "Simulator notes they are valid but less aligned with the SOC goal."
+    },
+    {
+     "do": "Submit the roadmap.",
+     "see": "Feedback shows the order, reasons and a rating for goal fit."
+    }
+   ],
+   "answer": "A strong roadmap is Network+, Security+, BTL1, CySA+, with CISSP deferred until about five years of experience. Each step builds on the last and matches defensive analyst work. eJPT and CEH are offensive and optional; SSCP is operations-oriented but less targeted.",
+   "hint": "Match the goal first: defensive analyst work, then respect prerequisites and experience requirements."
+  },
+  {
+   "title": "Match skills to a role",
+   "sim": "chat-sim",
+   "scenario": "A chat-based career advisor at the fictional Example Academy asks you a series of questions about what you enjoy, your current skills, and how you like to work. You answer as yourself or as a persona, such as a person who likes scripting and structure. At the end, the advisor recommends a specialization with reasons and next steps, such as a certification, a practice platform and a portfolio project.",
+   "objective": "Answer advisor questions and obtain a specialization match with next steps.",
+   "steps": [
+    {
+     "do": "Start the chat and answer the opening question about what kind of tasks you enjoy.",
+     "see": "The advisor replies and asks about your preference between building, breaking and investigating."
+    },
+    {
+     "do": "State your preference, for example investigating patterns in logs.",
+     "see": "The advisor notes a lean toward defensive work and asks about technical background."
+    },
+    {
+     "do": "Describe your current skills: basic networking, some Python, comfortable with Linux.",
+     "see": "The advisor records the skills in a side panel."
+    },
+    {
+     "do": "Answer whether you prefer working with people and policy or deep technical tasks.",
+     "see": "A weight shifts toward technical roles."
+    },
+    {
+     "do": "Answer the question about report writing and tolerance for long documentation.",
+     "see": "The advisor adjusts the offense and GRC scores."
+    },
+    {
+     "do": "Choose how many study hours you can commit per week.",
+     "see": "The advisor tailors the timeline."
+    },
+    {
+     "do": "Request your match.",
+     "see": "A recommendation card appears with a top role, a second option and reasons."
+    },
+    {
+     "do": "Open the next-steps list.",
+     "see": "It lists a first certification, a practice platform and one portfolio project."
+    }
+   ],
+   "answer": "The result depends on your answers. For a log-and-pattern preference with Python skills, expect SOC analyst or detection engineering, with Security+ as a first certification, a defensive platform like Blue Team Labs Online or CyberDefenders, and a home-lab log project.",
+   "hint": "Answer honestly about the work you enjoy; the match follows your preferences, not what sounds impressive."
+  }
+ ],
+ "checkpoint": [
+  {
+   "q": "Which certification is typically the first broad, vendor-neutral security exam?",
+   "options": [
+    "CISSP",
+    "Security+",
+    "CEH",
+    "SSCP"
+   ],
+   "a": 1,
+   "why": "Security+ covers broad foundations with no formal prerequisite."
+  },
+  {
+   "q": "CISSP full certification generally requires about how much paid experience?",
+   "options": [
+    "None",
+    "One year",
+    "Five years",
+    "Fifteen years"
+   ],
+   "a": 2,
+   "why": "CISSP requires about five years in two or more domains, with some reductions."
+  },
+  {
+   "q": "Which exam style does eJPT use?",
+   "options": [
+    "Only multiple choice recall",
+    "A practical lab where you answer from your findings",
+    "An essay",
+    "An oral interview"
+   ],
+   "a": 1,
+   "why": "eJPT is a hands-on lab-based exam."
+  },
+  {
+   "q": "Which certification focuses on analyst skills like log analysis, vulnerability management and threat intelligence?",
+   "options": [
+    "CySA+",
+    "Network+",
+    "CISSP",
+    "eJPT"
+   ],
+   "a": 0,
+   "why": "CompTIA CySA+ targets security analysts."
+  },
+  {
+   "q": "What should a portfolio write-up always include besides the steps?",
+   "options": [
+    "The defender takeaway and reasoning",
+    "Real passwords",
+    "Employer data",
+    "Nothing else"
+   ],
+   "a": 0,
+   "why": "Reasoning and defensive lessons demonstrate understanding, and sensitive data must stay out."
+  },
+  {
+   "q": "Where should deliberately vulnerable lab machines be placed?",
+   "options": [
+    "On your home Wi-Fi",
+    "On an isolated host-only or internal network",
+    "On the public internet",
+    "On your work network"
+   ],
+   "a": 1,
+   "why": "Isolation prevents accidental exposure."
+  },
+  {
+   "q": "Which platform offers Linux command-line wargames such as Bandit?",
+   "options": [
+    "OverTheWire",
+    "SOC2",
+    "pfSense",
+    "ISO 27001"
+   ],
+   "a": 0,
+   "why": "OverTheWire hosts the Bandit wargame."
+  },
+  {
+   "q": "Which role manages risk registers, policies and audit evidence?",
+   "options": [
+    "GRC",
+    "Pentester",
+    "DFIR",
+    "SOC Tier 1"
+   ],
+   "a": 0,
+   "why": "GRC covers governance, risk and compliance."
+  },
+  {
+   "q": "Which role mostly collects disk and memory images and builds timelines after an incident?",
+   "options": [
+    "DFIR investigator",
+    "GRC analyst",
+    "AppSec engineer",
+    "Help desk technician"
+   ],
+   "a": 0,
+   "why": "DFIR investigates confirmed incidents with forensic methods."
+  },
+  {
+   "q": "What is the best way to avoid wasting money on certifications?",
+   "options": [
+    "Collect as many as possible",
+    "Match each to a role requirement and your career goal",
+    "Buy the most expensive",
+    "Take them in random order"
+   ],
+   "a": 1,
+   "why": "Each credential should answer a concrete need."
+  }
+ ]
+}
