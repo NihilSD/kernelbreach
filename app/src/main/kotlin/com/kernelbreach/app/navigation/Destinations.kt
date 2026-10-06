@@ -21,18 +21,19 @@ object Routes {
     fun module(code: String) = "module/$code"
 
     const val LESSON = "lesson/{lessonId}"
-    fun lesson(lessonId: String) = "lesson/${lessonId.encode()}"
+    fun lesson(lessonId: String) = "lesson/${encodeId(lessonId)}"
 
     const val LAB = "lab/{labId}"
-    fun lab(labId: String) = "lab/${labId.encode()}"
+    fun lab(labId: String) = "lab/${encodeId(labId)}"
 
     const val CHECKPOINT = "checkpoint/{code}"
     fun checkpoint(code: String) = "checkpoint/$code"
-
-    // Ids contain '#', which is unsafe in a route; swap for a token.
-    private fun String.encode() = replace("#", "~")
-    fun String.decodeId() = replace("~", "#")
 }
+
+// Stable content ids contain '#', which is unsafe in a route path; swap for a
+// token on the way in and back on the way out.
+internal fun encodeId(id: String): String = id.replace("#", "~")
+internal fun decodeId(id: String): String = id.replace("~", "#")
 
 /** The four bottom-bar tabs (Learn, Refresh, Library, You). */
 enum class TopTab(val route: String, val label: String, val icon: ImageVector) {

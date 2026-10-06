@@ -106,7 +106,7 @@ interface ContentDao {
     @Query(
         """
         SELECT term.* FROM term
-        JOIN term_fts ON term.id = term_fts.docid
+        JOIN term_fts ON term.id = term_fts.rowid
         WHERE term_fts MATCH :query
         ORDER BY term.term COLLATE NOCASE
         """,

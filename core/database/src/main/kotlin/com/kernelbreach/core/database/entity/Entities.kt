@@ -100,7 +100,9 @@ data class QuizQuestionEntity(
     indices = [Index(value = ["termLower"], unique = true), Index("moduleCode")],
 )
 data class TermEntity(
-    @PrimaryKey val id: String, // termLower
+    // Integer rowid so the FTS content table can link via rowid. Terms are
+    // deduped by the unique [termLower] index, not this id.
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val termLower: String,
     val term: String,
     val definition: String,

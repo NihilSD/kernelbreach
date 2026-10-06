@@ -22,7 +22,6 @@ import com.kernelbreach.app.feature.me.MeScreen
 import com.kernelbreach.app.feature.module.ModuleScreen
 import com.kernelbreach.app.feature.onboarding.OnboardingScreen
 import com.kernelbreach.app.feature.refresh.RefreshScreen
-import com.kernelbreach.app.navigation.Routes.decodeId
 
 @Composable
 fun KernelBreachApp(
@@ -94,7 +93,7 @@ fun KernelBreachApp(
                 route = Routes.LESSON,
                 arguments = listOf(navArgument("lessonId") { type = NavType.StringType }),
             ) { entry ->
-                val id = entry.arguments?.getString("lessonId").orEmpty().decodeId()
+                val id = decodeId(entry.arguments?.getString("lessonId").orEmpty())
                 LessonScreen(
                     lessonId = id,
                     onFinished = { navController.popBackStack() },
@@ -106,7 +105,7 @@ fun KernelBreachApp(
                 route = Routes.LAB,
                 arguments = listOf(navArgument("labId") { type = NavType.StringType }),
             ) { entry ->
-                val id = entry.arguments?.getString("labId").orEmpty().decodeId()
+                val id = decodeId(entry.arguments?.getString("labId").orEmpty())
                 LabScreen(
                     labId = id,
                     onFinished = { navController.popBackStack() },

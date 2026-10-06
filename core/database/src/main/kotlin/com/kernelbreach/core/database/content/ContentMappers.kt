@@ -74,7 +74,6 @@ fun Curriculum.toEntities(): ContentEntities {
                     val key = t.term.trim().lowercase()
                     if (key.isNotEmpty() && key !in terms) {
                         terms[key] = TermEntity(
-                            id = key,
                             termLower = key,
                             term = t.term.trim(),
                             definition = t.definition,

@@ -9,6 +9,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.LinkInteractionListener
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
@@ -103,7 +104,7 @@ private fun rememberGlossaryAnnotatedString(
                             textDecoration = TextDecoration.Underline,
                         ),
                     ),
-                    linkInteractionListener = { onTermClick(hit.term) },
+                    linkInteractionListener = LinkInteractionListener { onTermClick(hit.term) },
                 ),
             ) {
                 append(hit.term)
