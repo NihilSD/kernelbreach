@@ -14,6 +14,10 @@ data class SectionRecord(val h: String, val p: List<String>)
 @Serializable
 data class StepRecord(val instruction: String, val output: String, val expect: String? = null)
 
+/** A lesson's glossary term, stored as JSON inside [LessonEntity]. */
+@Serializable
+data class TermRecord(val term: String, val def: String)
+
 /** Room type converters for the small structured columns. */
 class Converters {
     private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
@@ -49,4 +53,12 @@ class Converters {
     @TypeConverter
     fun jsonToSteps(value: String): List<StepRecord> =
         json.decodeFromString(ListSerializer(StepRecord.serializer()), value)
+
+    @TypeConverter
+    fun termsToJson(value: List<TermRecord>): String =
+        json.encodeToString(ListSerializer(TermRecord.serializer()), value)
+
+    @TypeConverter
+    fun jsonToTerms(value: String): List<TermRecord> =
+        json.decodeFromString(ListSerializer(TermRecord.serializer()), value)
 }

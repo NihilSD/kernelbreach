@@ -1,0 +1,8 @@
+<resources>
+    <!-- Base theme used by the Activity window before Compose takes over. -->
+    <style name="Theme.KernelBreach" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/paper</item>
+        <item name="android:navigationBarColor">@color/paper</item>
+        <item name="android:windowBackground">@color/paper</item>
+    </style>
+</resources>

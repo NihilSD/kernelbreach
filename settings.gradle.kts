@@ -56,16 +56,9 @@ if (androidSdkAvailable) {
     include(":app")
     include(":core:design")
     include(":core:database")
-    include(":feature:onboarding")
-    include(":feature:home")
-    include(":feature:map")
-    include(":feature:module")
-    include(":feature:lesson")
-    include(":feature:lab")
-    include(":feature:checkpoint")
-    include(":feature:refresh")
-    include(":feature:library")
-    include(":feature:me")
+    // Feature UIs live as packages inside :app for v1 (com.kernelbreach.app.feature.*).
+    // The spec lists :feature:* as *suggested* modules; the packages are structured
+    // so each can be extracted into its own Gradle module later with no code change.
 } else {
     gradle.startParameter.let {
         logger.lifecycle(

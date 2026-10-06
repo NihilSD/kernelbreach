@@ -57,6 +57,7 @@ data class LessonEntity(
     val snippetLabel: String?,
     val snippetText: String?,
     val example: String?,
+    val terms: List<TermRecord>,
     val recap: List<String>,
 )
 

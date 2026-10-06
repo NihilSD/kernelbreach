@@ -8,6 +8,7 @@ import com.kernelbreach.core.database.entity.QuizQuestionEntity
 import com.kernelbreach.core.database.entity.SectionRecord
 import com.kernelbreach.core.database.entity.StepRecord
 import com.kernelbreach.core.database.entity.TermEntity
+import com.kernelbreach.core.database.entity.TermRecord
 import com.kernelbreach.core.model.Capstone
 import com.kernelbreach.core.model.Curriculum
 import com.kernelbreach.core.model.Lab
@@ -121,6 +122,7 @@ private fun Lesson.toEntity() = LessonEntity(
     snippetLabel = snippet?.label,
     snippetText = snippet?.text,
     example = example,
+    terms = terms.map { TermRecord(it.term, it.definition) },
     recap = recap,
 )
 
@@ -216,7 +218,7 @@ fun LessonEntity.toDomain(questions: List<QuizQuestionEntity>): Lesson = Lesson(
         null
     },
     example = example,
-    terms = emptyList(), // terms live in the glossary table; joined on demand
+    terms = terms.map { Term(it.term, it.def) },
     check = questions.sortedBy { it.orderIndex }.map { it.toDomain() },
     recap = recap,
 )
